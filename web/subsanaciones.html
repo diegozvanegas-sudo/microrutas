@@ -82,7 +82,10 @@
                     <button type="button" class="secundario pequeno" id="todo-si">Marcar todos SI</button>
                     <button type="button" class="pequeno no-realizado solo-ej" id="no-realizado">✗ Lote no realizado</button>
                     <button type="button" class="pequeno lote-cerrado solo-ej" id="lote-cerrado">🔒 Lote cerrado</button>
+                    <button type="button" class="secundario pequeno" id="btn-ia" title="Opcional: la IA mira las fotos y llena los ítems y las observaciones">📷 Revisar con fotos (IA)</button>
+                    <input type="file" id="fotos-ia" accept="image/*" multiple hidden>
                 </div>
+                <div class="ia" id="ia-resultado" hidden></div>
             </fieldset>
             <label class="ancho">OBSERVACIONES NOVEDADES <textarea data-campo="OBSERVACIONES NOVEDADES" placeholder="SIN NOVEDAD"></textarea></label>
             <fieldset class="ancho">

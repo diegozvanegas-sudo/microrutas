@@ -7,6 +7,7 @@ import { textoWhatsapp, textoResumen } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
+import { revisarFotos, MAX_FOTOS } from './fotos.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -378,6 +379,7 @@ export function iniciar(api, CFG) {
         r = r || {};
         $('dlg-titulo').textContent = editando ? 'Editar ' + editando.ID : 'Nueva visita';
         $('btn-eliminar').hidden = !editando;
+        limpiarIa();
         campos().forEach(function (el) {
             var v = r[el.dataset.campo] || '';
             el.value = FECHAS.indexOf(el.dataset.campo) !== -1 ? aInput(v) : v;
@@ -473,6 +475,69 @@ export function iniciar(api, CFG) {
     $('no-realizado').onclick = function () { marcarLote('no', NO_REALIZADO); };
     // No se pudo entrar al lote: todo en N/A y queda CERRADO (cuenta como revisado en la pre-ruta)
     $('lote-cerrado').onclick = function () { marcarLote('na', CERRADO); };
+    // Revisión con fotos (opcional): la IA marca SI/NO solo en los ítems que se ven en las fotos;
+    // los que no se ven quedan como estaban y lo demás que encuentre va a las observaciones
+    var revisionIa = 0;
+    function limpiarIa() {
+        revisionIa++;
+        $('ia-resultado').hidden = true;
+        $('ia-resultado').innerHTML = '';
+        $('btn-ia').disabled = false;
+        delete form.querySelector('[data-campo="OBSERVACIONES NOVEDADES"]').dataset.ia;
+    }
+    $('btn-ia').onclick = function () { $('fotos-ia').value = ''; $('fotos-ia').click(); };
+    $('fotos-ia').onchange = function () {
+        var archivos = $('fotos-ia').files, lista = itemsForm(), mia = ++revisionIa;
+        if (!archivos.length) return;
+        if (archivos.length > MAX_FOTOS) return toast('Máximo ' + MAX_FOTOS + ' fotos por revisión.');
+        var val = function (c) { return form.querySelector('[data-campo="' + c + '"]').value.trim(); };
+        var lote = [val('MICRORRUTA'), val('LOTE') && 'Lote ' + val('LOTE')].filter(Boolean).join(' · ');
+        $('btn-ia').disabled = true;
+        ocupado(true);
+        $('ia-resultado').className = 'ia';
+        $('ia-resultado').innerHTML = '⏳ Revisando ' + archivos.length + ' foto' + (archivos.length > 1 ? 's' : '') + '… puede tardar unos segundos.';
+        $('ia-resultado').hidden = false;
+        revisarFotos(archivos, lista, tipoForm, lote).then(function (res) {
+            // Se cerró el formulario o cambió el tipo mientras tanto: el resultado ya no aplica
+            if (mia !== revisionIa || lista !== itemsForm()) return;
+            aplicarIa(res, archivos.length);
+        }).catch(function (err) {
+            if (mia !== revisionIa) return;
+            $('ia-resultado').className = 'ia error';
+            $('ia-resultado').textContent = '✗ ' + err.message;
+        }).then(function () {
+            if (mia === revisionIa) $('btn-ia').disabled = false;
+            ocupado(false);
+        });
+    };
+    function aplicarIa(res, nFotos) {
+        res.items.forEach(function (r, i) {
+            var el = r.valor === 'SI' ? $('it' + i + 'si') : r.valor === 'NO' ? $('it' + i + 'no') : null;
+            if (el) el.checked = true;
+        });
+        // Observación: el detalle de cada ítem en NO + las demás novedades. Reemplaza el texto de una revisión anterior
+        var enNo = res.items.filter(function (r) { return r.valor === 'NO'; });
+        var otras = res.observaciones && norm(res.observaciones) !== 'SIN NOVEDAD' ? res.observaciones : '';
+        var texto = enNo.map(function (r) { return r.item + ': ' + r.detalle.replace(/\.$/, ''); }).concat(otras ? [otras.replace(/\.$/, '')] : []).join('. ');
+        texto = texto ? texto + '.' : 'SIN NOVEDAD';
+        var obs = form.querySelector('[data-campo="OBSERVACIONES NOVEDADES"]'), actual = obs.value.trim(), previo = obs.dataset.ia;
+        if (previo && actual.indexOf(previo) !== -1) actual = actual.replace(previo, '').replace(/^[.\s]+|[.\s]+$/g, '');
+        if (!actual || norm(actual) === 'SIN NOVEDAD') obs.value = texto;
+        else obs.value = actual + (texto === 'SIN NOVEDAD' ? '' : '. ' + texto);
+        obs.dataset.ia = texto === 'SIN NOVEDAD' ? '' : texto;
+        actualizarEstadoForm();
+
+        var sinDato = res.items.filter(function (r) { return r.valor === 'SIN_DATO'; });
+        $('ia-resultado').className = 'ia';
+        $('ia-resultado').innerHTML = '<b>📷 Revisión con ' + nFotos + ' foto' + (nFotos > 1 ? 's' : '') + '</b> — revise y corrija antes de guardar.' +
+            (res.calidad_fotos ? '<div class="ia-alerta">⚠ ' + esc(res.calidad_fotos) + '</div>' : '') +
+            '<ul>' + res.items.map(function (r) {
+                var marca = r.valor === 'SI' ? '<span class="ia-si">SI</span>' : r.valor === 'NO' ? '<span class="ia-no">NO</span>' : '<span class="ia-nd">No se ve</span>';
+                return '<li>' + marca + ' ' + esc(r.item) + (r.detalle ? '<br><span class="sub">' + esc(r.detalle) + '</span>' : '') + '</li>';
+            }).join('') + '</ul>' +
+            (sinDato.length ? '<div class="sub">Los ítems "No se ve" quedaron como estaban: márquelos a mano.</div>' : '') +
+            (otras ? '<div><b>Otras novedades:</b> ' + esc(otras) + '</div>' : '');
+    }
     $('items').addEventListener('change', actualizarEstadoForm);
     form.querySelector('[data-campo="OBSERVACIONES NOVEDADES"]').addEventListener('input', actualizarEstadoForm);
 
