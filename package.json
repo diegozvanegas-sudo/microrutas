@@ -1,0 +1,24 @@
+{
+  "name": "microrutas",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Microrrutas de zonas verdes: base de datos PostGIS (Supabase) y app de interventoría",
+  "scripts": {
+    "db:local": "docker compose up -d",
+    "db:esquema": "node scripts/aplicar_esquema.mjs",
+    "db:importar": "node scripts/importar_lotes.mjs",
+    "probar": "node scripts/probar.mjs",
+    "probar:visitas": "node scripts/probar_visitas.mjs",
+    "usuario": "node scripts/crear_usuario.mjs"
+  },
+  "dependencies": {
+    "@supabase/ssr": "^0.12.7",
+    "@supabase/supabase-js": "^2.118.0",
+    "dotenv": "^16.4.5",
+    "pg": "^8.13.1"
+  },
+  "devDependencies": {
+    "supabase": "^2.121.0"
+  }
+}

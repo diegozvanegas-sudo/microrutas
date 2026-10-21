@@ -1,0 +1,26 @@
+{
+  "name": "microrutas-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Mapa de microrrutas y subsanaciones de lotes (PWA) sobre Supabase",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint src",
+    "iconos": "node tools/generar_iconos.mjs",
+    "probar:api": "node tools/probar_api.mjs"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "exceljs": "^4.4.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^9.13.0",
+    "eslint": "^9.13.0",
+    "globals": "^15.11.0",
+    "vite": "^6.0.0",
+    "vite-plugin-pwa": "^0.21.1"
+  }
+}

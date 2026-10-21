@@ -1,0 +1,161 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Subsanaciones de lotes</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📋</span>
+        <div class="nombre"><h1>Subsanaciones</h1><div class="lema">Revisión de lotes · Zonas verdes</div></div>
+    </div>
+    <nav class="nav-mapas" aria-label="Mapas">
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span class="largo">Mapa completo</span><span class="corto">Mapa</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span class="largo">Mapa rápido</span><span class="corto">Rápido</span></a>
+    </nav>
+    <div class="acciones-top">
+        <a class="boton secundario" id="abrir-hoja" target="_blank" hidden>📄 <span class="largo">Abrir hoja en </span>Drive</a>
+        <button type="button" class="secundario" id="btn-excel">⬇ <span class="largo">Descargar </span>Excel</button>
+        <button type="button" class="secundario" id="btn-recargar">↻ Actualizar</button>
+        <button type="button" class="secundario" id="btn-salir" hidden>⎋ Salir</button>
+    </div>
+    <button type="button" class="primario" id="btn-nuevo">+ Nueva visita</button>
+</header>
+<main>
+    <section class="ruta" id="ruta" aria-label="Pre-ruta del día"></section>
+    <div class="buscador ir-mapa">
+        <input id="ir-mapa" data-buscar="mr" type="search" placeholder="Ir al mapa: lote, microrruta, dirección o coordenadas" aria-label="Buscar lote en el mapa"
+               autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="go">
+    </div>
+    <div id="aviso"></div>
+    <div class="resumen" id="resumen"></div>
+    <div class="filtros">
+        <input type="search" id="f-texto" placeholder="Buscar por microrruta, lote, interventor, observaciones…">
+        <select id="f-estado" aria-label="Estado">
+            <option value="">Estado: todos</option><option value="PENDIENTE">Pendiente</option><option value="SUBSANADO">Subsanado</option><option value="SIN NOVEDAD">Sin novedad</option><option value="CERRADO">Lote cerrado</option>
+        </select>
+        <select id="f-tipo" aria-label="Tipo de visita">
+            <option value="">Tipo: todas</option><option value="EJECUCIÓN">Lote ejecutado</option><option value="OPERACIÓN">Durante la operación</option>
+        </select>
+        <select id="f-zona" aria-label="Zona"><option value="">Zona: todas</option></select>
+        <select id="f-cuadrilla" aria-label="Cuadrilla"><option value="">Cuadrilla: todas</option></select>
+        <button type="button" class="secundario" id="btn-resumen" title="Texto con todas las novedades pendientes de lo filtrado, para pegar en WhatsApp">📋 Copiar resumen</button>
+    </div>
+    <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
+</main>
+
+<dialog id="dlg">
+    <form id="form" method="dialog" autocomplete="off">
+        <h2><span id="dlg-titulo">Nueva visita</span> <span class="estado" id="dlg-estado"></span>
+            <button type="button" class="cerrar-dlg" id="dlg-cerrar" aria-label="Cerrar sin guardar" title="Cerrar sin guardar">×</button></h2>
+        <div class="tipo-visita" id="tipo-visita" role="radiogroup" aria-label="Tipo de visita">
+            <input type="radio" name="tipo-visita" id="tipo-ej" value="EJECUCIÓN" checked><label for="tipo-ej">🌿 Lote ejecutado<small>Revisión después del corte</small></label>
+            <input type="radio" name="tipo-visita" id="tipo-op" value="OPERACIÓN"><label for="tipo-op">🦺 Durante la operación<small>PMT, valla, mallas, EPP…</small></label>
+        </div>
+        <div class="contexto" id="dlg-contexto" hidden></div>
+        <div class="recordatorios" id="dlg-recordatorios" hidden></div>
+        <div class="grid">
+            <div class="doble buscador">
+                <label>MICRORRUTA <input data-campo="MICRORRUTA" data-buscar="mr" placeholder="Microrruta, lote o dirección" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
+                <button type="button" class="limpiar" data-limpiar aria-label="Borrar microrruta y lote" hidden>×</button>
+            </div>
+            <div class="buscador">
+                <label>LOTE <input data-campo="LOTE" data-buscar="lote" inputmode="numeric" placeholder="N.º de lote" enterkeyhint="search"></label>
+            </div>
+            <label>ÁREA M2 <input data-campo="ÁREA M2"></label>
+            <div class="direccion sub" id="dlg-direccion"></div>
+            <div class="reciente" id="dlg-reciente" hidden></div>
+            <label>ZONA <input data-campo="ZONA"></label>
+            <label>CUADRILLA <input data-campo="CUADRILLA"></label>
+            <label class="doble">INTERVENTOR <input data-campo="INTERVENTOR" placeholder="Iniciales"></label>
+            <label class="doble" id="campo-ejecucion">FECHA DE EJECUCIÓN <input type="date" data-campo="FECHA DE EJECUCIÓN"></label>
+            <label class="doble" id="campo-visita">FECHA DE LA VISITA <input type="date" data-campo="FECHA DE LA VISITA"></label>
+            <fieldset class="ancho">
+                <legend id="items-titulo">Ítems revisados (SI = cumple · NO = requiere subsanación)</legend>
+                <div id="items"></div>
+                <div style="margin-top:8px; display:flex; gap:8px; flex-wrap:wrap">
+                    <button type="button" class="secundario pequeno" id="todo-si">Marcar todos SI</button>
+                    <button type="button" class="pequeno no-realizado solo-ej" id="no-realizado">✗ Lote no realizado</button>
+                    <button type="button" class="pequeno lote-cerrado solo-ej" id="lote-cerrado">🔒 Lote cerrado</button>
+                </div>
+            </fieldset>
+            <label class="ancho">OBSERVACIONES NOVEDADES <textarea data-campo="OBSERVACIONES NOVEDADES" placeholder="SIN NOVEDAD"></textarea></label>
+            <fieldset class="ancho">
+                <legend>Subsanación</legend>
+                <div class="grid">
+                    <label class="doble">FECHA SUBSANACIÓN <input type="date" data-campo="FECHA SUBSANACIÓN"></label>
+                    <label class="doble">REGISTRADO POR <input data-campo="REGISTRADO POR"></label>
+                    <label class="ancho">EVIDENCIA (link de fotos / Drive) <input type="url" data-campo="EVIDENCIA" placeholder="https://"></label>
+                    <label class="ancho">OBSERVACIÓN SUBSANACIÓN <textarea data-campo="OBSERVACIÓN SUBSANACIÓN"></textarea></label>
+                </div>
+            </fieldset>
+        </div>
+        <div class="pie">
+            <button type="button" class="peligro" id="btn-eliminar" hidden>🗑 Eliminar</button>
+            <span style="flex:1"></span>
+            <button type="button" class="secundario" id="btn-cancelar">Cancelar</button>
+            <button type="submit" class="primario" id="btn-guardar">Guardar</button>
+        </div>
+    </form>
+</dialog>
+<dialog id="dlg-wa">
+    <div class="cuerpo">
+        <h2>Resumen para WhatsApp</h2>
+        <textarea id="wa-texto" aria-label="Texto del resumen"></textarea>
+        <div class="sub" style="margin-top:6px">Puede ajustar el texto antes de copiarlo.</div>
+        <div class="pie">
+            <button type="button" class="secundario" id="wa-cerrar">Cerrar</button>
+            <a class="boton secundario" id="wa-abrir" target="_blank" rel="noopener">Abrir WhatsApp</a>
+            <button type="button" class="wa" id="wa-copiar">Copiar</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-ruta">
+    <div class="cuerpo">
+        <h2>Lotes a revisar</h2>
+        <label>MENSAJE CON LOTES
+            <textarea id="ruta-texto" placeholder="Lotes ejecutados el 14-10-2026 por la cuadrilla #2&#10;&#10;532&#10;371&#10;363"></textarea>
+        </label>
+        <button type="button" class="secundario pequeno" id="ruta-pegar" style="margin-top:6px">Pegar del portapapeles</button>
+        <div class="dos">
+            <label>FECHA DE EJECUCIÓN <input type="date" id="ruta-fecha"></label>
+            <label>CUADRILLA <input id="ruta-cuad" inputmode="numeric"></label>
+        </div>
+        <div class="tipo-ruta" role="radiogroup" aria-label="Qué dice el mensaje">
+            <input type="radio" name="ruta-tipo" id="ruta-tipo-hecho" value="hecho" checked><label for="ruta-tipo-hecho">✓ Ejecutados<small>listos para revisar</small></label>
+            <input type="radio" name="ruta-tipo" id="ruta-tipo-curso" value="curso"><label for="ruta-tipo-curso">▶ En ejecución ahora<small>la cuadrilla está ahí</small></label>
+            <input type="radio" name="ruta-tipo" id="ruta-tipo-auto" value="auto"><label for="ruta-tipo-auto" class="ancho-tipo" hidden>Según el mensaje<small>unos ejecutados y otro en ejecución</small></label>
+        </div>
+        <div id="ruta-vista" style="margin-top:10px"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="ruta-cancelar">Cancelar</button>
+            <button type="button" class="primario" id="ruta-crear">Crear pre-ruta</button>
+        </div>
+    </div>
+</dialog>
+<!-- Confirmación propia: el confirm() del navegador no aparece en algunos celulares (p. ej. al abrir desde WhatsApp) -->
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="peligro-fuerte" id="conf-si"></button>
+        </div>
+    </div>
+</dialog>
+<div class="toast" id="toast"></div>
+
+<!-- Programación y centros de lotes (scripts clásicos en public/; definen variables globales que lee la página) -->
+<script src="data/direcciones_lotes.js"></script>
+<script src="data/centros_lotes.js"></script>
+<script src="data/puntos_lotes.js"></script>
+<script src="js/coordenadas.js"></script>
+<script type="module" src="/src/subsanaciones/main.js"></script>
+</body>
+</html>

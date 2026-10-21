@@ -1,0 +1,711 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <title>Mapa rápido</title>
+    <link rel="stylesheet" href="css/leaflet.css">
+    <style>
+    :root { --brand: #167a55; --brand-dark: #0f6847; --ink: #1f2937; --muted: #64748b; --line: #dce4e8; --surface: #ffffff; --bg: #f3f6f5; }
+    * { box-sizing: border-box; }
+    [hidden] { display: none !important; }
+    html, body { height: 100%; margin: 0; }
+    body { display: flex; flex-direction: column; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--bg); font-size: 14px; }
+    #barra { flex: none; background: var(--surface); border-bottom: 1px solid var(--line); padding: 8px 12px 6px; display: grid; gap: 6px; box-shadow: 0 2px 10px rgba(15, 45, 35, .08); z-index: 1001; }
+    .fila { display: flex; gap: 6px; align-items: center; min-width: 0; }
+    .fila input { flex: 1; min-width: 0; min-height: 38px; border: 1px solid #b8c6cd; border-radius: 9px; padding: 6px 10px; font: inherit; color: var(--ink); background: #fff; }
+    button, .boton { font: inherit; border: 0; border-radius: 9px; padding: 8px 12px; cursor: pointer; font-weight: 650; text-decoration: none; white-space: nowrap; display: inline-block; }
+    .primario { color: #fff; background: var(--brand); }
+    .primario:hover { background: var(--brand-dark); }
+    .secundario { color: var(--brand); background: #edf8f3; }
+    .chips { display: flex; gap: 6px; overflow-x: auto; -webkit-overflow-scrolling: touch; scrollbar-width: none; padding-bottom: 2px; }
+    .chips::-webkit-scrollbar { display: none; }
+    .chip { flex: none; display: inline-flex; align-items: center; gap: 6px; padding: 6px 11px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-weight: 600; font-size: 13px; }
+    .chip .punto { width: 10px; height: 10px; border-radius: 50%; }
+    .chip[aria-pressed="true"] { border-color: var(--brand); background: #e3f4ec; box-shadow: inset 0 0 0 1px var(--brand); }
+    .chip.cargando { opacity: .6; }
+    .chip.capa { border-style: dashed; color: var(--muted); }
+    .chip.capa[aria-pressed="true"] { border-style: solid; color: var(--ink); }
+    .separador { flex: none; width: 1px; background: var(--line); margin: 4px 2px; }
+    #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    #map { flex: 1; min-height: 0; }
+    .leaflet-bar a { color: var(--ink); }
+    .ubicar a { font-size: 17px; line-height: 30px; text-align: center; }
+    .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.35; }
+    .leaflet-popup-content table { border-collapse: collapse; }
+    .leaflet-popup-content td { padding: 3px 0; vertical-align: top; }
+    .parada-num { background: var(--brand); color: #fff; border: 2px solid #fff; border-radius: 50%; width: 28px !important; height: 28px !important; margin: -14px 0 0 -14px !important;
+                  display: grid; place-items: center; font-weight: 700; font-size: 13px; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
+    /* Pre-ruta: revisados en verde, pendientes en rojo, cerrados en gris */
+    .parada-num.pendiente { background: #dc2626; }
+    .parada-num.hecho { background: #16a34a; }
+    .parada-num.cerrado { background: #64748b; font-size: 12px; }
+    .parada-num.subsanar { background: #ea580c; }
+    .parada-num.curso { background: #2563eb; font-size: 11px; }
+    .ruta-estado.curso { color: #1e40af; background: #dbeafe; }
+    .ruta-estado.subsanar { color: #9a3412; background: #ffedd5; }
+    .ficha-lote .acciones a.subsanar-btn { color: #fff; background: #15803d; }
+    .ficha-lote .acciones a.subsanar-btn:hover { color: #fff; background: #166534; }
+    #leyenda { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; font-weight: 600; }
+    #leyenda span { display: inline-flex; align-items: center; gap: 5px; }
+    #leyenda i { width: 12px; height: 12px; border-radius: 3px; border: 2px solid; }
+    .ficha-lote .ruta-estado { display: inline-block; margin-top: 6px; padding: 3px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+    .ruta-estado.pendiente { color: #b91c1c; background: #fee2e2; }
+    .ruta-estado.hecho { color: #15803d; background: #dcfce7; }
+    .ruta-estado.cerrado { color: #334155; background: #e2e8f0; }
+    .ficha-lote .linea-estado { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; margin-top: 6px; }
+    .ficha-lote .linea-estado .ruta-estado { margin-top: 0; }
+    /* Leaflet pinta de azul los enlaces del mapa: se fija el color del botón */
+    .ficha-lote a.ver-visita { display: inline-block; padding: 4px 11px; border-radius: 999px; font-size: 12px; font-weight: 700; text-decoration: none;
+                               color: #fff; background: var(--brand); }
+    .ficha-lote a.ver-visita:hover { color: #fff; background: var(--brand-dark); }
+    .ficha-lote .visita-det { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: #f2fbf7; border-left: 3px solid var(--brand); }
+    .ficha-lote .visita-det .datos { margin: 0 0 8px; }
+    .ficha-lote .visita-det .dato { background: #fff; }
+    .ficha-lote .chip-no { display: inline-block; margin: 3px 4px 0 0; padding: 2px 8px; border-radius: 6px; font-size: 12px; color: #b91c1c; background: #fee2e2; }
+    .ficha-lote .visita-det .copia { font-size: 11px; color: var(--muted); margin-top: 6px; }
+    .ficha-lote .visita-det a.editar-visita { display: block; text-align: center; margin-top: 8px; padding: 9px; color: var(--brand); background: #fff; border: 1px solid #9fd3bd; }
+    .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 2000; display: none; max-width: calc(100% - 32px); }
+    /* Ficha del lote: ventana en computador, panel desde abajo en el celular */
+    .ficha-lote { font-size: 14px; line-height: 1.35; color: var(--ink); }
+    .ficha-lote .cab { display: flex; align-items: center; gap: 8px; padding-right: 26px; }
+    .ficha-lote .titulo { font-size: 22px; font-weight: 800; }
+    .ficha-lote .cuad { color: #fff; font-weight: 700; font-size: 12px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
+    .ficha-lote .mr { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .ficha-lote .datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 10px 0; }
+    .ficha-lote .dato { background: var(--bg); border-radius: 8px; padding: 6px 9px; min-width: 0; }
+    .ficha-lote .et { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+    .ficha-lote .dato b { font-size: 14px; overflow-wrap: anywhere; }
+    .ficha-lote .bloque { margin: 0 0 10px; }
+    .ficha-lote .desc { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
+    .ficha-lote .desc.abierta { display: block; }
+    .ficha-lote .mas { color: var(--brand); font-size: 12px; font-weight: 700; cursor: pointer; }
+    .ficha-lote .acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 4px; }
+    .ficha-lote .acciones .boton { text-align: center; padding: 11px 12px; font-size: 15px; }
+    .ficha-lote .acciones .subs { grid-column: 1 / -1; }
+    /* Leaflet pinta de azul todos los enlaces del mapa: se fuerzan los colores de los botones */
+    .ficha-lote .acciones a.primario { color: #fff; background: var(--brand); }
+    .ficha-lote .acciones a.primario:hover { color: #fff; background: var(--brand-dark); }
+    .ficha-lote .acciones a.secundario { color: var(--brand); background: #edf8f3; }
+    .ficha-lote .acciones a.secundario:hover { color: var(--brand-dark); background: #dcf1e7; }
+    .leaflet-popup-content .ficha-lote { min-width: 250px; }
+    #ficha { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; background: var(--surface); border-radius: 16px 16px 0 0;
+             box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
+             max-height: 62vh; overflow-y: auto; transform: translateY(105%); transition: transform .22s ease; }
+    #ficha.abierta { transform: none; }
+    #ficha .asa { width: 40px; height: 5px; border-radius: 3px; background: #cbd5db; margin: 2px auto 10px; }
+    #ficha .cerrar { position: absolute; top: 12px; right: 10px; background: var(--bg); color: var(--muted); width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 32px; }
+    body.con-ficha .ir-subs { display: none; }
+    .ir-subs { position: fixed; right: 14px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 1001; padding: 13px 18px; border-radius: 999px; font-size: 15px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+    @media (max-width: 760px) {
+        #barra { padding: 8px 10px 6px; }
+        .fila input { font-size: 16px; }
+        .fila .boton, .fila button { padding: 8px 10px; }
+    }
+    </style>
+</head>
+<body>
+<div id="barra">
+    <div class="fila">
+        <input id="buscar" type="search" placeholder="Lote, microrruta o coordenadas (532 · 6.2751N 75.5737W)" aria-label="Buscar lote, microrruta o coordenadas"
+               autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search">
+        <button type="button" class="primario" id="btn-buscar">Buscar</button>
+        <button type="button" class="secundario" id="btn-foto" title="Ubicar el lote con una foto que tenga las coordenadas GPS" aria-label="Ubicar con foto">📷</button>
+        <input type="file" id="foto" accept="image/*" hidden>
+        <a class="boton secundario" id="btn-completo" href="index.html" title="Abrir el mapa completo con todas las capas">Mapa completo</a>
+    </div>
+    <div class="chips" id="chips" role="group" aria-label="Cuadrillas y capas"></div>
+    <div id="estado"></div>
+    <div id="leyenda" hidden></div>
+</div>
+<div id="map"></div>
+<div id="ficha" role="dialog" aria-label="Datos del lote"><div class="asa"></div><button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button><div id="ficha-contenido"></div></div>
+<a class="boton primario ir-subs" href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas">📋 Subsanaciones</a>
+<div class="toast" id="toast"></div>
+
+<script src="js/leaflet.js"></script>
+<script src="data/rapido/indice.js"></script>
+<script src="js/coordenadas.js"></script>
+<script>
+(function () {
+    var IDX = window.indiceRapido || { cuadrillas: {}, lotes: {}, mrs: {}, capas: {} };
+    var $ = function (id) { return document.getElementById(id); };
+    function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
+    function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, 3500); }
+    function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
+    function leer(k, def) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
+
+    // ---------- Mapa (canvas: dibuja miles de polígonos mucho más rápido en el celular) ----------
+    var map = L.map('map', { preferCanvas: true, zoomControl: false, maxZoom: 21 }).fitBounds([[6.1634, -75.6357], [6.3365, -75.5022]]);
+    L.control.zoom({ position: 'topleft' }).addTo(map);
+    var satelite = L.tileLayer('https://mt1.google.com/vt/lyrs=s&x={x}&y={y}&z={z}', { maxZoom: 21, maxNativeZoom: 20, attribution: 'Imágenes © Google' });
+    var calles = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 21, maxNativeZoom: 19, attribution: '© OpenStreetMap' });
+    (leer('rapido_base', 'satelite') === 'calles' ? calles : satelite).addTo(map);
+    L.control.layers({ 'Satélite': satelite, 'Calles': calles }, null, { position: 'topright' }).addTo(map);
+    map.on('baselayerchange', function (e) { guardar('rapido_base', e.layer === calles ? 'calles' : 'satelite'); });
+
+    // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
+    // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
+    var miPunto = null, miPos = null, centrar = false, avisoUbic = false;
+    function seguir() { map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }); }
+    var Ubicar = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+            var div = L.DomUtil.create('div', 'leaflet-bar ubicar');
+            div.innerHTML = '<a href="#" title="Mi ubicación" role="button">◎</a>';
+            L.DomEvent.disableClickPropagation(div);
+            div.firstChild.onclick = function (ev) {
+                ev.preventDefault();
+                if (miPos) return map.setView(miPos, Math.max(map.getZoom(), 17));
+                centrar = true; avisoUbic = true; seguir();
+            };
+            return div;
+        }
+    });
+    map.addControl(new Ubicar());
+    map.on('locationfound', function (e) {
+        miPos = e.latlng;
+        if (miPunto) map.removeLayer(miPunto);
+        miPunto = L.layerGroup([
+            L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }),
+            L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })
+        ]).addTo(map);
+        if (centrar) { centrar = false; map.setView(e.latlng, Math.max(map.getZoom(), 17)); }
+    });
+    map.on('locationerror', function (e) {
+        // Sin permiso no se insiste; un corte pasajero del GPS no se avisa si ya se sabía dónde estaba
+        if (avisoUbic || (!miPos && e.code === 1)) toast(e.code === 1 ? 'Active la ubicación del navegador para que "Cómo llegar" salga desde donde está.' : 'No se pudo obtener su ubicación.');
+        avisoUbic = false;
+    });
+    seguir();
+    // Vértice del lote más cercano a usted (en lotes largos el centro puede quedar lejos de la entrada)
+    function puntoCercano(capa) {
+        if (!miPos) return puntoLote(capa);
+        var mejor = null, dMin = Infinity;
+        (function recorrer(a) {
+            if (a.length && a[0] instanceof L.LatLng) a.forEach(function (p) { var d = miPos.distanceTo(p); if (d < dMin) { dMin = d; mejor = p; } });
+            else a.forEach(recorrer);
+        })(capa.getLatLngs());
+        return mejor || puntoLote(capa);
+    }
+    // Google Maps con origen en su ubicación actual (sin ubicación, Maps usa la del celular)
+    function urlComoLlegar(dest) {
+        return 'https://www.google.com/maps/dir/?api=1' + (miPos ? '&origin=' + miPos.lat.toFixed(6) + ',' + miPos.lng.toFixed(6) : '') +
+            '&destination=' + dest.lat.toFixed(6) + ',' + dest.lng.toFixed(6) + '&travelmode=driving';
+    }
+    // El enlace se arma al tocarlo: así usa la ubicación de ese momento aunque la ficha lleve rato abierta
+    var capaFicha = null;
+    document.addEventListener('click', function (ev) {
+        var a = ev.target.closest && ev.target.closest('a[data-ir]');
+        if (a && capaFicha) a.href = urlComoLlegar(puntoCercano(capaFicha));
+    }, true);
+
+    // ---------- Datos ----------
+    // Geometría compacta (ver tools/generar_mapa_rapido.js): enteros ×1e6, el primer punto absoluto y luego diferencias
+    function decodificar(plano) {
+        var out = [], x = 0, y = 0;
+        for (var i = 0; i < plano.length; i += 2) { x += plano[i]; y += plano[i + 1]; out.push([y / 1e6, x / 1e6]); }
+        return out;
+    }
+    var coloresCuadrilla = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
+    function colorCuadrilla(c) { var n = Number(c); return Number.isFinite(n) ? coloresCuadrilla[Math.abs(n) % coloresCuadrilla.length] : '#64748b'; }
+    function estiloLote(c) { var col = colorCuadrilla(c); return { color: col, weight: 1, opacity: .95, fillColor: col, fillOpacity: .55 }; }
+    var RESALTADO = { color: '#d92d20', weight: 3, fillColor: '#facc15', fillOpacity: .75 };
+    // Lotes de una pre-ruta (?lote=...&hechos=...&cerrados=...): el color dice si ya se registró la visita
+    var ESTILO_RUTA = {
+        pendiente: { color: '#991b1b', weight: 3, fillColor: '#ef4444', fillOpacity: .7 },
+        hecho: { color: '#14532d', weight: 3, fillColor: '#22c55e', fillOpacity: .7 },
+        subsanar: { color: '#9a3412', weight: 3, fillColor: '#f59e0b', fillOpacity: .75 },
+        curso: { color: '#1e3a8a', weight: 3, fillColor: '#3b82f6', fillOpacity: .75 },
+        cerrado: { color: '#334155', weight: 3, fillColor: '#94a3b8', fillOpacity: .7, dashArray: '6 4' }
+    };
+    var TEXTO_RUTA = { pendiente: 'Falta revisar', hecho: '✓ Ya revisado', subsanar: '⚠ Revisado · falta subsanar', cerrado: '🔒 Lote cerrado', curso: '▶ Cuadrilla trabajando aquí ahora' };
+    // Estado de la visita (hoja) -> color del lote en la pre-ruta
+    function estadoDeVisita(e) { return e === 'PENDIENTE' ? 'subsanar' : e === 'CERRADO' ? 'cerrado' : 'hecho'; }
+    function estiloBase(c) { return c.rutaEstado ? ESTILO_RUTA[c.rutaEstado] : estiloLote(c.lote.c); }
+
+    var grupos = {}, porLote = {}, porMr = {}, esperando = {}, resaltados = [], enRuta = [], estadoRuta = null, visitaRuta = {};
+    // Los archivos data/rapido/*.js llaman a estas funciones al cargarse
+    window.cargarLotes = function (c, datos) {
+        var g = L.featureGroup(), t = datos.t;
+        datos.lotes.forEach(function (p) {
+            ['d', 's', 'f', 'k'].forEach(function (k) { if (typeof p[k] === 'number') p[k] = t[p[k]]; });
+            // bubblingMouseEvents: el clic en el lote no llega al mapa (que borra el resaltado)
+            var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c)));
+            delete p.g;
+            capa.lote = p;
+            capa.on('click', function (e) { resaltarMr(p.m); verLote(capa, e.latlng); });
+            g.addLayer(capa);
+            if (p.l && p.l !== 'NA') (porLote[p.l] = porLote[p.l] || []).push(capa);
+            if (p.m) (porMr[p.m.toUpperCase()] = porMr[p.m.toUpperCase()] || []).push(capa);
+        });
+        grupos[c] = g;
+        terminar('lotes_' + c);
+    };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos' };
+    var ESTILOS_CAPA = {
+        comunas: { color: '#e41a1c', weight: 2, fill: false },
+        operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
+        rutas_sif: { color: '#e5f214', weight: 3 },
+        espartillos: { color: 'rgba(35,35,90,.5)', weight: 2, fillColor: 'rgb(89,191,225)', fillOpacity: .5 }
+    };
+    window.cargarCapa = function (k, datos) {
+        var g = L.featureGroup();
+        datos.items.forEach(function (p) {
+            var geo = datos.tipo === 'linea' ? p.g.map(decodificar) : p.g.map(function (pol) { return pol.map(decodificar); });
+            var capa = datos.tipo === 'linea' ? L.polyline(geo, ESTILOS_CAPA[k]) : L.polygon(geo, ESTILOS_CAPA[k]);
+            delete p.g;
+            var filas = { n: 'Nombre', o: 'Código', l: 'Lote', s: 'Descripción', d: 'Dirección', a: 'Área' };
+            var html = Object.keys(filas).filter(function (c) { return p[c]; }).map(function (c) { return '<b>' + filas[c] + '</b><br>' + esc(p[c]); }).join('<br>');
+            if (html) capa.bindPopup('<div><b>' + NOMBRES_CAPA[k] + '</b><br>' + html + '</div>', { maxHeight: 300 });
+            g.addLayer(capa);
+        });
+        capasExtra[k] = g;
+        terminar('capa_' + k);
+    };
+    function terminar(nombre) { (esperando[nombre] || []).forEach(function (fn) { fn(); }); delete esperando[nombre]; }
+    function cargarArchivo(nombre, listo) {
+        if (esperando[nombre]) { esperando[nombre].push(listo); return; }
+        esperando[nombre] = [listo];
+        var s = document.createElement('script');
+        s.src = 'data/rapido/' + nombre + '.js';
+        s.onerror = function () { delete esperando[nombre]; toast('No se pudo cargar ' + nombre + '. Revise la conexión.'); pintarChips(); };
+        document.head.appendChild(s);
+    }
+    function asegurarCuadrilla(c, listo) { if (grupos[c]) listo(); else cargarArchivo('lotes_' + c, listo); }
+
+    // ---------- Ventana del lote (mismos datos que el mapa completo) ----------
+    function puntoLote(capa) {
+        var anillos = capa.getLatLngs(), mayor = null, area = -1;
+        (function recorrer(a) {
+            if (a.length && a[0] instanceof L.LatLng) {
+                var s = 0;
+                for (var i = 0, j = a.length - 1; i < a.length; j = i++) s += (a[j].lng + a[i].lng) * (a[j].lat - a[i].lat);
+                if (Math.abs(s) > area) { area = Math.abs(s); mayor = a; }
+            } else a.forEach(recorrer);
+        })(anillos);
+        if (!mayor) return capa.getBounds().getCenter();
+        var c = L.polygon(mayor).getBounds().getCenter();
+        // si el centro cae fuera del polígono, se usa el vértice más cercano
+        var dentro = false;
+        for (var k = 0, m = mayor.length - 1; k < mayor.length; m = k++) {
+            var yi = mayor[k].lat, yj = mayor[m].lat, xi = mayor[k].lng, xj = mayor[m].lng;
+            if ((yi > c.lat) !== (yj > c.lat) && c.lng < (xj - xi) * (c.lat - yi) / (yj - yi) + xi) dentro = !dentro;
+        }
+        if (dentro) return c;
+        var mejor = mayor[0];
+        mayor.forEach(function (v) { if (v.distanceTo(c) < mejor.distanceTo(c)) mejor = v; });
+        return mejor;
+    }
+    // Área (en grados², solo para comparar) del anillo más grande de una capa
+    function areaMayor(capa) {
+        if (capa._areaMayor != null) return capa._areaMayor;
+        var area = 0;
+        (function recorrer(a) {
+            if (a.length && a[0] instanceof L.LatLng) {
+                var s = 0;
+                for (var i = 0, j = a.length - 1; i < a.length; j = i++) s += (a[j].lng + a[i].lng) * (a[j].lat - a[i].lat);
+                area = Math.max(area, Math.abs(s) / 2);
+            } else a.forEach(recorrer);
+        })(capa.getLatLngs());
+        return (capa._areaMayor = area);
+    }
+    function popupLote(capa) {
+        var p = capa.lote, zona = /^Z(\d+)/i.test(p.m || '') ? p.m.match(/^Z(\d+)/i)[1] : '';
+        var lote = p.l && p.l !== 'NA' ? p.l : '';
+        var dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
+        var area = Number(String(p.a || '').replace(',', '.'));
+        var pt = puntoLote(capa), ll = pt.lat.toFixed(6) + ',' + pt.lng.toFixed(6);
+        var u = visitaDeCapa(capa);
+        capaFicha = capa;
+        return '<div class="ficha-lote">' +
+            '<div class="cab"><span class="titulo">' + (lote ? 'Lote ' + esc(lote) : esc(p.m || 'Lote')) + '</span>' +
+                (p.c ? '<span class="cuad" style="background:' + colorCuadrilla(p.c) + '">Cuadrilla ' + esc(p.c) + '</span>' : '') + '</div>' +
+            '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
+            lineaEstado(capa) +
+            '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
+            (p.d ? '<div class="bloque"><span class="et">Dirección</span>' + esc(p.d) + '</div>' : '') +
+            (p.s ? '<div class="bloque"><span class="et">Descripción</span><div class="desc" data-desc>' + esc(p.s) + '</div>' +
+                (p.s.length > 140 ? '<span class="mas" data-desc-mas>Ver todo ▾</span>' : '') + '</div>' : '') +
+            '<div class="acciones">' +
+                (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
+                '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
+                '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
+                '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
+            '</div></div>';
+    }
+    // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa
+    var movil = window.matchMedia('(max-width: 760px)');
+    function verLote(capa, latlng) {
+        if (!movil.matches) {
+            L.popup({ maxHeight: 420, maxWidth: 330 }).setLatLng(latlng || puntoLote(capa)).setContent(popupLote(capa)).openOn(map);
+            return;
+        }
+        $('ficha-contenido').innerHTML = popupLote(capa);
+        $('ficha').scrollTop = 0;
+        $('ficha').classList.add('abierta');
+        document.body.classList.add('con-ficha');
+        // Si el lote quedó debajo del panel, se sube el mapa para verlo
+        setTimeout(function () {
+            var y = map.latLngToContainerPoint(latlng || puntoLote(capa)).y, alto = map.getSize().y - $('ficha').offsetHeight;
+            if (y > alto - 30) map.panBy([0, y - alto / 2], { animate: true });
+        }, 230);
+    }
+    function cerrarFicha() { $('ficha').classList.remove('abierta'); document.body.classList.remove('con-ficha'); }
+    $('ficha-cerrar').onclick = cerrarFicha;
+    document.addEventListener('click', function (ev) {
+        var m = ev.target.closest('[data-desc], [data-desc-mas]');
+        if (!m) return;
+        var bloque = m.parentNode, d = bloque.querySelector('[data-desc]'), mas = bloque.querySelector('[data-desc-mas]');
+        var abierta = d.classList.toggle('abierta');
+        if (mas) mas.textContent = abierta ? 'Ver menos ▴' : 'Ver todo ▾';
+    });
+    // ---------- Detalles de la visita sin salir del mapa ----------
+    // subsanaciones.html guarda en el celular la última copia de la hoja: se lee de ahí al instante.
+    // Si la visita no está en esa copia, el enlace abre subsanaciones como antes.
+    var copiaSubs = null;
+    function copia() {
+        if (copiaSubs == null) try { copiaSubs = JSON.parse(localStorage.getItem('subsanaciones_cache')) || false; } catch (e) { copiaSubs = false; }
+        return copiaSubs;
+    }
+    // Al volver con "atrás" desde subsanaciones (p. ej. tras marcar subsanado) se relee la copia y se repintan los colores
+    window.addEventListener('pageshow', function (e) { copiaSubs = null; if (e.persisted && estadoRuta) location.reload(); });
+    function visitaGuardada(id) {
+        var c = copia(), r = c && (c.registros || []).filter(function (x) { return x.ID === id; })[0];
+        return r ? { r: r, items: (/^OPE-/.test(r.ID) ? c.itemsOperacion : c.items) || [], t: c.t } : null;
+    }
+    // La de la pre-ruta si la hay; si no, la visita más reciente del lote en la copia (ya viene ordenada)
+    function visitaDeCapa(capa) {
+        if (capa.rutaVisita) { var v = visitaGuardada(capa.rutaVisita); return v ? v.r : null; }
+        var c = copia(), p = capa.lote, lote = p.l && p.l !== 'NA' ? String(p.l) : '', mr = String(p.m || '').toUpperCase();
+        if (!c) return null;
+        // Las visitas durante la operación (OPE-) no dicen cómo quedó el lote: se usa la última del lote ejecutado
+        return (c.registros || []).filter(function (r) {
+            if (/^OPE-/.test(r.ID)) return false;
+            return lote ? String(r.LOTE || '').trim() === lote : mr && String(r.MICRORRUTA || '').trim().toUpperCase() === mr;
+        })[0] || null;
+    }
+    function lineaEstado(capa) {
+        var u = visitaDeCapa(capa), id = capa.rutaVisita || (u && u.ID), html = '';
+        if (capa.rutaEstado) html += '<span class="ruta-estado ' + capa.rutaEstado + '">' + TEXTO_RUTA[capa.rutaEstado] + '</span>';
+        // Visita anterior a la pre-ruta (o búsqueda normal): se dice cuándo fue y cómo quedó
+        if (u && !capa.rutaVisita) html += '<span class="ruta-estado ' + estadoDeVisita(u.ESTADO) + '">Última visita ' + esc(String(u['FECHA DE LA VISITA'] || '').slice(0, 5)) + ' · ' + esc(u.ESTADO || '') + '</span>';
+        if (id) html += '<a class="ver-visita" data-visita="' + esc(id) + '" href="subsanaciones.html?ver=' + encodeURIComponent(id) + '">📄 Ver detalles ›</a>';
+        return html ? '<div class="linea-estado">' + html + '</div>' : '';
+    }
+    function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase(); }
+    function detalleVisita(v) {
+        var r = v.r, enNo = v.items.filter(function (i) { return normTxt(r[i]).replace(/[.\s]/g, '') === 'NO'; });
+        var dato = function (t, x) { return x ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(x) + '</b></div>' : ''; };
+        var bloque = function (t, html) { return html ? '<div class="bloque"><span class="et">' + t + '</span>' + html + '</div>' : ''; };
+        return '<div class="visita-det">' +
+            '<div class="datos">' + dato('Visita', r['FECHA DE LA VISITA']) + dato('Estado', r.ESTADO) + dato('Interventor', r.INTERVENTOR) + dato('Ejecución', r['FECHA DE EJECUCIÓN']) + '</div>' +
+            bloque('Ítems en NO', enNo.length ? enNo.map(function (i) { return '<span class="chip-no">' + esc(i) + '</span>'; }).join('') : 'Ninguno') +
+            bloque('Observaciones', esc(r['OBSERVACIONES NOVEDADES'])) +
+            bloque('Subsanación', esc([r['FECHA SUBSANACIÓN'], r['OBSERVACIÓN SUBSANACIÓN']].filter(Boolean).join(' · '))) +
+            bloque('Evidencia', /^https?:\/\//i.test(r.EVIDENCIA || '') ? '<a href="' + esc(r.EVIDENCIA) + '" target="_blank" rel="noopener">Abrir fotos</a>' : esc(r.EVIDENCIA)) +
+            '<a class="boton editar-visita" href="subsanaciones.html?ver=' + encodeURIComponent(r.ID) + '">✏️ Editar en subsanaciones</a>' +
+            (v.t ? '<div class="copia">' + esc(r.ID) + ' · datos de este celular del ' + new Date(v.t).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) + '</div>' : '') +
+            '</div>';
+    }
+    // Fase de captura: Leaflet frena los clics dentro de su ventana antes de que lleguen al documento
+    document.addEventListener('click', function (ev) {
+        var a = ev.target.closest('[data-visita]');
+        if (!a) return;
+        var v = visitaGuardada(a.dataset.visita);
+        if (!v) return; // no está en la copia: abre subsanaciones
+        ev.preventDefault();
+        var ficha = a.closest('.ficha-lote'), det = ficha.querySelector('.visita-det');
+        if (det) { det.remove(); a.textContent = '📄 Ver detalles ›'; }
+        else { a.closest('.linea-estado').insertAdjacentHTML('afterend', detalleVisita(v)); a.textContent = 'Ocultar ▴'; }
+        // La ventana del computador se reacomoda al nuevo tamaño (sin volver a pintar el contenido)
+        var p = map._popup;
+        if (p && map.hasLayer(p)) try { p._updateLayout(); p._updatePosition(); } catch (e) {}
+    }, true);
+
+    function limpiarResaltado() {
+        resaltados.forEach(function (c) { c.setStyle(estiloBase(c)); });
+        resaltados = [];
+    }
+    function resaltar(capas) {
+        limpiarResaltado();
+        capas.forEach(function (c) { c.setStyle(RESALTADO); c.bringToFront(); });
+        resaltados = capas.slice();
+    }
+    function resaltarMr(mr) { if (mr) resaltar(porMr[mr.toUpperCase()] || []); }
+
+    // ---------- Cuadrillas y capas (chips) ----------
+    var ordenCuad = Object.keys(IDX.cuadrillas).sort(function (a, b) { return (a === 'sin') - (b === 'sin') || Number(a) - Number(b); });
+    var activas = leer('rapido_cuadrillas', []).filter(function (c) { return IDX.cuadrillas[c]; });
+    var capasActivas = leer('rapido_capas', []).filter(function (k) { return IDX.capas && IDX.capas[k]; });
+
+    function pintarChips() {
+        var todas = ordenCuad.length && ordenCuad.every(function (c) { return activas.indexOf(c) !== -1; });
+        $('chips').innerHTML =
+            '<button type="button" class="chip" data-todas aria-pressed="' + todas + '" title="Cargar todas las cuadrillas">Todas</button>' +
+            ordenCuad.map(function (c) {
+                var info = IDX.cuadrillas[c], on = activas.indexOf(c) !== -1, cargando = on && !grupos[c];
+                return '<button type="button" class="chip' + (cargando ? ' cargando' : '') + '" data-cuad="' + esc(c) + '" aria-pressed="' + on + '" title="' + info.n + ' lotes · ' + info.kb + ' KB">' +
+                    '<span class="punto" style="background:' + colorCuadrilla(c) + '"></span>' + (c === 'sin' ? 'Sin cuadrilla' : 'C' + esc(c)) + '</button>';
+            }).join('') +
+            '<span class="separador"></span>' +
+            Object.keys(IDX.capas || {}).map(function (k) {
+                return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
+            }).join('');
+        var n = 0, kb = 0;
+        activas.forEach(function (c) { n += IDX.cuadrillas[c].n; kb += IDX.cuadrillas[c].kb; });
+        var faltan = activas.filter(function (c) { return !grupos[c]; }).length;
+        $('estado').textContent = !activas.length ? 'Elija una o varias cuadrillas para ver sus lotes.' :
+            (faltan ? 'Cargando… ' : '') + (activas.length === 1 ? (activas[0] === 'sin' ? 'Sin cuadrilla' : 'Cuadrilla ' + activas[0]) : activas.length + ' cuadrillas') +
+            ' · ' + n.toLocaleString('es-CO') + ' lotes · ' + (kb >= 1024 ? (kb / 1024).toFixed(1).replace('.', ',') + ' MB' : kb + ' KB');
+    }
+    function mostrarCuadrillas(encuadrar) {
+        guardar('rapido_cuadrillas', activas);
+        Object.keys(grupos).forEach(function (c) { if (activas.indexOf(c) === -1 && map.hasLayer(grupos[c])) map.removeLayer(grupos[c]); });
+        activas.forEach(function (c) {
+            asegurarCuadrilla(c, function () { if (activas.indexOf(c) !== -1 && !map.hasLayer(grupos[c])) grupos[c].addTo(map); pintarChips(); });
+        });
+        if (encuadrar && activas.length) {
+            // Los límites vienen en el índice: se encuadra de una vez, sin esperar la descarga
+            var b = L.latLngBounds([]);
+            activas.forEach(function (c) { b.extend(IDX.cuadrillas[c].b); });
+            map.fitBounds(b, { padding: [20, 20] });
+        }
+        pintarChips();
+    }
+    function mostrarCapa(k, on) {
+        if (!on) { if (capasExtra[k]) map.removeLayer(capasExtra[k]); return; }
+        if (capasExtra[k]) capasExtra[k].addTo(map);
+        else cargarArchivo('capa_' + k, function () { if (capasActivas.indexOf(k) !== -1) capasExtra[k].addTo(map); });
+    }
+    $('chips').onclick = function (ev) {
+        var b = ev.target.closest('button');
+        if (!b) return;
+        if (b.hasAttribute('data-todas')) {
+            var todas = b.getAttribute('aria-pressed') === 'true';
+            activas = todas ? [] : ordenCuad.slice();
+            return mostrarCuadrillas(!todas);
+        }
+        if (b.dataset.cuad) {
+            var c = b.dataset.cuad, i = activas.indexOf(c);
+            if (i === -1) activas.push(c); else activas.splice(i, 1);
+            return mostrarCuadrillas(i === -1);
+        }
+        if (b.dataset.capa) {
+            var k = b.dataset.capa, j = capasActivas.indexOf(k);
+            if (j === -1) capasActivas.push(k); else capasActivas.splice(j, 1);
+            guardar('rapido_capas', capasActivas);
+            mostrarCapa(k, j === -1);
+            pintarChips();
+        }
+    };
+
+    // ---------- Buscar lote(s) o microrruta ----------
+    // Varios lotes separados por coma = una ruta: se resaltan y se numeran en ese orden
+    var marcadores = L.layerGroup().addTo(map);
+    function ir(valores, abrirVentana) {
+        // n: número de parada según el orden recibido, aunque algún lote no se encuentre
+        var claves = valores.map(clave).map(function (v, i) {
+            if (!v) return null;
+            var cuad = IDX.lotes[v] || IDX.mrs[v];
+            return cuad ? { v: v, n: i + 1, cuad: cuad, esMr: !IDX.lotes[v] } : { v: v };
+        }).filter(Boolean);
+        var faltan = claves.filter(function (k) { return !k.cuad; });
+        if (faltan.length) toast('No se encontró: ' + faltan.map(function (k) { return k.v; }).join(', '));
+        claves = claves.filter(function (k) { return k.cuad; });
+        if (!claves.length) return;
+        // Activa las cuadrillas que hagan falta, sin quitar las que ya estaban
+        claves.forEach(function (k) { if (activas.indexOf(k.cuad) === -1) activas.push(k.cuad); });
+        mostrarCuadrillas(false);
+        var pendientes = claves.length;
+        claves.forEach(function (k) { asegurarCuadrilla(k.cuad, function () { if (--pendientes === 0) listo(); }); });
+        function listo() {
+            var capas = [], cuenta = { pendiente: 0, hecho: 0, subsanar: 0, cerrado: 0, curso: 0 };
+            marcadores.clearLayers();
+            limpiarResaltado();
+            enRuta.forEach(function (c) { delete c.rutaEstado; delete c.rutaVisita; c.setStyle(estiloLote(c.lote.c)); });
+            enRuta = [];
+            claves.forEach(function (k) {
+                var cs = (k.esMr ? porMr : porLote)[k.v] || [];
+                capas = capas.concat(cs);
+                var est = estadoRuta && cs.length ? estadoRuta[k.v] || 'pendiente' : '';
+                // La copia guardada manda sobre el enlace: un lote marcado subsanado después ya sale en verde
+                var rv = est && visitaRuta[k.v] && visitaGuardada(visitaRuta[k.v]);
+                if (rv) est = estadoDeVisita(rv.r.ESTADO);
+                if (est) {
+                    cuenta[est]++;
+                    cs.forEach(function (c) { c.rutaEstado = est; c.rutaVisita = visitaRuta[k.v] || ''; c.setStyle(ESTILO_RUTA[est]); enRuta.push(c); });
+                    // Los pendientes encima, para que no los tape un lote vecino ya revisado
+                    if (est === 'pendiente') cs.forEach(function (c) { c.bringToFront(); });
+                }
+                if (claves.length > 1 && cs.length) {
+                    // El número va en el pedazo más grande del lote: el mismo punto con que la pre-ruta mide distancias
+                    var mayor = cs.reduce(function (m, c) { return areaMayor(c) > areaMayor(m) ? c : m; });
+                    var html =est === 'hecho' ? '✓' : est === 'cerrado' ? '🔒' : est === 'subsanar' ? '!' : est === 'curso' ? '▶' : String(k.n);
+                    L.marker(puntoLote(mayor), { icon: L.divIcon({ className: 'parada-num' + (est ? ' ' + est : ''), html: html }),
+                        title: (k.esMr ? '' : 'Lote ') + k.v + (est ? ' · ' + TEXTO_RUTA[est] : ''), zIndexOffset: est === 'pendiente' ? 1000 : 0 })
+                        .on('click', function () { verLote(cs[0]); }).addTo(marcadores);
+                }
+            });
+            pintarLeyenda(estadoRuta ? cuenta : null);
+            if (!capas.length) return;
+            if (!estadoRuta) resaltar(capas);
+            map.fitBounds(L.featureGroup(capas).getBounds(), { padding: [30, 30], maxZoom: 18 });
+            if (abrirVentana && claves.length === 1) verLote(capas[0]);
+        }
+    }
+    // Mismo formato que IDX: mayúsculas y lotes sin ceros a la izquierda
+    function clave(v) { v = String(v || '').trim().toUpperCase(); return /^\d+$/.test(v) ? String(+v) : v; }
+    function pintarLeyenda(cuenta) {
+        $('leyenda').hidden = !cuenta;
+        if (!cuenta) return;
+        var tipos = [['pendiente', 'por revisar', 'por revisar'], ['curso', 'en ejecución', 'en ejecución'], ['hecho', 'revisado', 'revisados'],
+                     ['subsanar', 'por subsanar', 'por subsanar'], ['cerrado', 'cerrado', 'cerrados']];
+        $('leyenda').innerHTML = tipos.filter(function (t) { return cuenta[t[0]] || t[0] === 'pendiente' || t[0] === 'hecho'; }).map(function (t) {
+            var e = ESTILO_RUTA[t[0]], n = cuenta[t[0]];
+            return '<span><i style="background:' + e.fillColor + ';border-color:' + e.color + '"></i>' + n + ' ' + (n === 1 ? t[1] : t[2]) + '</span>';
+        }).join('');
+    }
+    // ---------- Ubicar el lote por coordenadas (escritas o leídas de una foto) ----------
+    var puntoCapa = L.layerGroup().addTo(map);
+    // Metros aproximados en la zona (proyección plana local: sobra para distancias de cientos de metros)
+    function plano(ll, lat0) { return { x: ll.lng * 111320 * Math.cos(lat0 * Math.PI / 180), y: ll.lat * 110540 }; }
+    function anillos(capa) {
+        var out = [];
+        (function recorrer(a) { if (a.length && a[0] instanceof L.LatLng) out.push(a); else a.forEach(recorrer); })(capa.getLatLngs());
+        return out;
+    }
+    // Par/impar sobre todos los anillos: respeta los huecos y los lotes de varias partes
+    function contiene(capa, ll) {
+        if (!capa.getBounds().contains(ll)) return false;
+        var dentro = false;
+        anillos(capa).forEach(function (a) {
+            for (var i = 0, j = a.length - 1; i < a.length; j = i++) {
+                var yi = a[i].lat, yj = a[j].lat, xi = a[i].lng, xj = a[j].lng;
+                if ((yi > ll.lat) !== (yj > ll.lat) && ll.lng < (xj - xi) * (ll.lat - yi) / (yj - yi) + xi) dentro = !dentro;
+            }
+        });
+        return dentro;
+    }
+    function distanciaBorde(capa, ll) {
+        var p = plano(ll, ll.lat), min = Infinity;
+        anillos(capa).forEach(function (a) {
+            for (var i = 0, j = a.length - 1; i < a.length; j = i++) {
+                var A = plano(a[j], ll.lat), B = plano(a[i], ll.lat), dx = B.x - A.x, dy = B.y - A.y;
+                var t = dx || dy ? Math.max(0, Math.min(1, ((p.x - A.x) * dx + (p.y - A.y) * dy) / (dx * dx + dy * dy))) : 0;
+                min = Math.min(min, Math.hypot(p.x - A.x - t * dx, p.y - A.y - t * dy));
+            }
+        });
+        return min;
+    }
+    var CERCA_M = 150;
+    function ubicarPunto(c) {
+        var ll = L.latLng(c.lat, c.lng), txt = c.lat.toFixed(5) + ', ' + c.lng.toFixed(5);
+        estadoRuta = null;
+        marcadores.clearLayers();
+        puntoCapa.clearLayers();
+        L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#7c3aed', fillOpacity: 1, bubblingMouseEvents: false })
+            .bindTooltip('📍 ' + txt, { direction: 'top', offset: [0, -8] }).addTo(puntoCapa);
+        $('buscar').value = txt;
+        // Solo se cargan las cuadrillas cuyo recuadro (con margen) incluye el punto
+        var cuads = ordenCuad.filter(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b).pad(0.05).contains(ll); });
+        if (!cuads.length) { map.setView(ll, 17); return toast('El punto ' + txt + ' queda fuera de la zona de los lotes.'); }
+        cuads.forEach(function (k) { if (activas.indexOf(k) === -1) activas.push(k); });
+        mostrarCuadrillas(false);
+        map.setView(ll, 18);
+        var faltan = cuads.length;
+        cuads.forEach(function (k) { asegurarCuadrilla(k, function () { if (--faltan === 0) elegir(); }); });
+        function elegir() {
+            var dentro = null, cerca = null, dmin = Infinity;
+            cuads.forEach(function (k) {
+                grupos[k].eachLayer(function (capa) {
+                    if (dentro) return;
+                    if (contiene(capa, ll)) { dentro = capa; return; }
+                    // Descarta rápido los lotes lejanos antes de medir el borde
+                    if (!capa.getBounds().pad(0.5).contains(ll) && capa.getBounds().getCenter().distanceTo(ll) > CERCA_M * 4) return;
+                    var d = distanciaBorde(capa, ll);
+                    if (d < dmin) { dmin = d; cerca = capa; }
+                });
+            });
+            var capa = dentro || (dmin <= CERCA_M ? cerca : null);
+            if (!capa) return toast('No hay lotes a menos de ' + CERCA_M + ' m de ' + txt + '.');
+            var p = capa.lote, nombre = p.l && p.l !== 'NA' ? 'Lote ' + p.l : p.m;
+            resaltarMr(p.m);
+            var b = capa.getBounds(); // copia: getBounds() es el recuadro interno del lote
+            map.fitBounds(L.latLngBounds(b.getSouthWest(), b.getNorthEast()).extend(ll), { padding: [40, 40], maxZoom: 18 });
+            verLote(capa, ll);
+            toast(dentro ? '📍 Está dentro del ' + nombre : '📍 Ningún lote contiene el punto; el más cercano es el ' + nombre + ' (a ' + Math.round(dmin) + ' m).');
+        }
+    }
+
+    // Foto: primero el GPS guardado en la foto (EXIF); si no lo tiene (WhatsApp lo borra), se lee el texto de la marca de agua
+    function cargarScript(src) {
+        return new Promise(function (ok, mal) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = mal; document.head.appendChild(s); });
+    }
+    function leerFoto(file) {
+        $('btn-foto').disabled = true;
+        $('estado').textContent = 'Leyendo la ubicación de la foto…';
+        var exif = window.exifr ? Promise.resolve() : cargarScript('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js');
+        exif.then(function () { return window.exifr.gps(file); }).catch(function () { return null; }).then(function (gps) {
+            if (gps && isFinite(gps.latitude) && isFinite(gps.longitude)) return { lat: gps.latitude, lng: gps.longitude };
+            $('estado').textContent = 'La foto no trae GPS; leyendo las coordenadas escritas en ella (puede tardar unos segundos)…';
+            var ocr = window.Tesseract ? Promise.resolve() : cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+            return ocr.then(function () { return window.Tesseract.recognize(file, 'eng'); }).then(function (r) {
+                var c = window.leerCoordenadas(r.data.text);
+                if (!c) throw new Error('No se encontraron coordenadas en la foto. Escríbalas en el buscador, p. ej. 6.2751N 75.5737W.');
+                return c;
+            });
+        }).then(ubicarPunto).catch(function (err) {
+            toast(err && err.message && /coordenadas/.test(err.message) ? err.message : 'No se pudo leer la foto. Revise la conexión o escriba las coordenadas.');
+        }).then(function () { $('btn-foto').disabled = false; $('foto').value = ''; pintarChips(); });
+    }
+    $('btn-foto').onclick = function () { $('foto').click(); };
+    $('foto').onchange = function () { if (this.files[0]) leerFoto(this.files[0]); };
+
+    function buscar() {
+        var v = $('buscar').value.trim();
+        if (!v) return;
+        var coord = window.leerCoordenadas(v);
+        if (coord) { ubicarPunto(coord); $('buscar').blur(); return; }
+        puntoCapa.clearLayers();
+        estadoRuta = null; // búsqueda a mano: deja de pintar la pre-ruta
+        ir(v.split(/[,\s]+/), true);
+        $('buscar').blur();
+    }
+    $('btn-buscar').onclick = buscar;
+    $('buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscar(); } });
+    map.on('click', function () { limpiarResaltado(); cerrarFicha(); });
+
+    // ---------- Inicio ----------
+    // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)
+    // Desde la pre-ruta: ?lote=532,371,363&hechos=371&cerrados=363 (los demás quedan como pendientes)
+    var q = new URLSearchParams(location.search);
+    if (q.has('hechos') || q.has('cerrados')) {
+        estadoRuta = {};
+        [['hechos', 'hecho'], ['subsanar', 'subsanar'], ['cerrados', 'cerrado'], ['curso', 'curso']].forEach(function (t) {
+            (q.get(t[0]) || '').split(',').map(clave).filter(Boolean).forEach(function (v) { estadoRuta[v] = t[1]; });
+        });
+        // &visitas=363:SUB-00042,371:SUB-00045
+        (q.get('visitas') || '').split(',').forEach(function (par) {
+            var i = par.lastIndexOf(':');
+            if (i > 0) visitaRuta[clave(par.slice(0, i))] = par.slice(i + 1).trim();
+        });
+    }
+    $('btn-completo').href = 'index.html' + location.search; // el mapa completo también entiende ?lote= y ?mr=
+    if (q.get('c')) activas = q.get('c').split(',').filter(function (c) { return IDX.cuadrillas[c]; });
+    mostrarCuadrillas(!q.get('lote') && !q.get('mr'));
+    capasActivas.forEach(function (k) { mostrarCapa(k, true); });
+    // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
+    var llUrl = q.get('ll') && window.leerCoordenadas(q.get('ll'));
+    if (llUrl) ubicarPunto(llUrl);
+    else if (q.get('lote') || q.get('mr')) {
+        var lista = (q.get('lote') || q.get('mr')).split(',');
+        $('buscar').value = lista.join(', ');
+        ir(lista, true);
+    }
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+# Netlify publica la carpeta web/ cada vez que se sube un cambio a GitHub.
+# Las variables VITE_SUPABASE_URL y VITE_SUPABASE_ANON_KEY se ponen en Netlify (no van en el repositorio).
+[build]
+  base = "web"
+  command = "npm run build"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

@@ -1,0 +1,14 @@
+# PostGIS local para probar sin tocar Supabase.  npm run db:local
+services:
+  db:
+    image: postgis/postgis:16-3.4
+    container_name: microrutas-db
+    environment:
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: microrutas
+    ports:
+      - "55432:5432"
+    volumes:
+      - microrutas-datos:/var/lib/postgresql/data
+volumes:
+  microrutas-datos:
