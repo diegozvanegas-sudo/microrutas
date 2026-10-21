@@ -58,7 +58,7 @@ npm run build              # deja todo en web/dist/ para publicar
   visitas y pre-rutas. Las capas del mapa y los fondos ya vistos también quedan guardados. Guardar una visita
   sí necesita conexión por ahora.
 - **Instalar en el celular**: abrir la página publicada en Chrome → menú ⋮ → *Agregar a la pantalla principal*.
-- **Publicar**: `web/dist/` es una carpeta estática. Sirve en Netlify, Vercel, Cloudflare Pages o GitHub Pages
+- **Publicar**: cada `git push` a `main` lo publica Netlify solo en https://microrrutas-zv.netlify.app (configuración en `netlify.toml`; las llaves `VITE_*` están en Netlify → Environment variables).
   (debe ser https para que funcione como app). En Supabase → Authentication → URL Configuration ponga la
   dirección publicada como *Site URL*.
 - **Íconos**: `npm run iconos` genera unos provisionales en `public/icons/`; reemplácelos por el logo.
