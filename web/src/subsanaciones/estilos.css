@@ -8,8 +8,7 @@ header .marca { display: flex; align-items: center; gap: 10px; flex: 1; min-widt
 header .logo { flex: none; width: 40px; height: 40px; border-radius: 11px; background: #e3f4ec; display: grid; place-items: center; font-size: 21px; }
 header .nombre { min-width: 0; }
 header h1 { margin: 0; font-size: 21px; line-height: 1.15; font-weight: 800; letter-spacing: -.01em; }
-header .lema { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-header .lema .verde { color: var(--ok); font-weight: 600; }
+header .lema { font-size: 12px; color: var(--ok); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .nav-mapas { display: flex; gap: 6px; }
 .nav-mapas a { color: var(--brand); text-decoration: none; font-weight: 650; padding: 7px 11px; border: 1px solid var(--line); border-radius: 9px; white-space: nowrap; background: #fff; }
 .nav-mapas a:hover { background: #edf8f3; }
