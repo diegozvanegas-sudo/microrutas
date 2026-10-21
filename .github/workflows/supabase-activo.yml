@@ -1,0 +1,24 @@
+# Consulta la base de Supabase cada 3 días para que el plan gratis no pause el proyecto por inactividad.
+# Usa los secretos SUPABASE_URL y SUPABASE_ANON_KEY (GitHub → Settings → Secrets and variables → Actions).
+name: Mantener Supabase activo
+
+on:
+  schedule:
+    - cron: '0 12 */3 * *' # 7:00 a. m. hora de Colombia, cada 3 días
+  workflow_dispatch: # botón "Run workflow" para probarlo a mano
+
+jobs:
+  consultar:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Consultar la tabla items
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          codigo=$(curl -s -o respuesta.json -w '%{http_code}' \
+            "$SUPABASE_URL/rest/v1/items?select=*&limit=1" \
+            -H "apikey: $SUPABASE_ANON_KEY" \
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+          echo "Respuesta de Supabase: HTTP $codigo"
+          test "$codigo" = 200
