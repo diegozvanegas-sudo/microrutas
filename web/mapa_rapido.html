@@ -105,6 +105,8 @@
         .fila .boton, .fila button { padding: 8px 10px; }
     }
     .pin-fijada { font-size: 26px; line-height: 28px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+    .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
+    .etiqueta-zona::before { display: none; }
     </style>
 </head>
 <body>
@@ -277,22 +279,30 @@
         grupos[c] = g;
         terminar('lotes_' + c);
     };
-    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos' };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos' };
     var ESTILOS_CAPA = {
         comunas: { color: '#e41a1c', weight: 2, fill: false },
         operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
         rutas_sif: { color: '#e5f214', weight: 3 },
-        espartillos: { color: 'rgba(35,35,90,.5)', weight: 2, fillColor: 'rgb(89,191,225)', fillOpacity: .5 }
+        espartillos: { color: 'rgba(35,35,90,.5)', weight: 2, fillColor: 'rgb(89,191,225)', fillOpacity: .5 },
+        // Sombreado con el color de cada zona (p.c); va en su propio panel, debajo de los lotes, y no captura clics
+        zonas: { weight: 2, opacity: .9, fillOpacity: .25, interactive: false, pane: 'zonas', renderer: L.canvas({ pane: 'zonas' }) },
+        puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false }
     };
+    map.createPane('zonas').style.zIndex = 350;
+    map.getPane('zonas').style.pointerEvents = 'none';
     window.cargarCapa = function (k, datos) {
         var g = L.featureGroup();
         datos.items.forEach(function (p) {
-            var geo = datos.tipo === 'linea' ? p.g.map(decodificar) : p.g.map(function (pol) { return pol.map(decodificar); });
-            var capa = datos.tipo === 'linea' ? L.polyline(geo, ESTILOS_CAPA[k]) : L.polygon(geo, ESTILOS_CAPA[k]);
+            var estilo = p.c ? L.extend({}, ESTILOS_CAPA[k], { color: p.c, fillColor: p.c }) : ESTILOS_CAPA[k], capa;
+            if (datos.tipo === 'punto') capa = L.circleMarker(decodificar(p.g)[0], estilo);
+            else if (datos.tipo === 'linea') capa = L.polyline(p.g.map(decodificar), estilo);
+            else capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), estilo);
             delete p.g;
-            var filas = { n: 'Nombre', o: 'Código', l: 'Lote', s: 'Descripción', d: 'Dirección', a: 'Área' };
+            if (k === 'zonas') capa.bindTooltip(esc(p.n), { permanent: true, direction: 'center', className: 'etiqueta-zona', pane: 'zonas' });
+            var filas = { n: 'Nombre', z: 'Zona', o: 'Código', l: 'Lote', s: 'Descripción', d: 'Dirección', a: 'Área' };
             var html = Object.keys(filas).filter(function (c) { return p[c]; }).map(function (c) { return '<b>' + filas[c] + '</b><br>' + esc(p[c]); }).join('<br>');
-            if (html) capa.bindPopup('<div><b>' + NOMBRES_CAPA[k] + '</b><br>' + html + '</div>', { maxHeight: 300 });
+            if (html && k !== 'zonas') capa.bindPopup('<div><b>' + NOMBRES_CAPA[k] + '</b><br>' + html + '</div>', { maxHeight: 300 });
             g.addLayer(capa);
         });
         capasExtra[k] = g;
