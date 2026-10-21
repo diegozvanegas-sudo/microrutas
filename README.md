@@ -163,3 +163,5 @@ Archivos de origen (copiados del mapa anterior):
 - 369 polígonos no tienen microrruta (zona nula); se ubican igual por punto.
 - 17 microrrutas de la programación no tienen polígono en el mapa.
 - Se quita la coordenada Z y se reparan geometrías inválidas al importar (resultado: 0 inválidas).
+
+text

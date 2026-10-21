@@ -808,6 +808,73 @@ export function iniciar(api, CFG) {
             (proximas.length > 1 ? '&waypoints=' + encodeURIComponent(proximas.slice(0, -1).map(c).join('|')) : '') + '&travelmode=driving';
     }
 
+    // Ruta completa: los lotes listos para revisar de todas las pre-rutas en un solo recorrido corto desde usted.
+    // Un lote que está en dos pre-rutas va una sola vez. Google Maps en el celular admite 3 paradas + destino,
+    // así que el recorrido se parte en tramos de TRAMO lotes; cada tramo sale del último lote del anterior.
+    var TRAMO = 4;
+    function rutaCompleta() {
+        var porId = {}, lista = [];
+        rutas.forEach(function (ruta) {
+            ruta.paradas.forEach(function (p) {
+                var x = infoLote(p.id);
+                if (!x.c || p.encurso || visitaDe(p, x)) return;
+                var cuad = ruta.cuad || 'pre-ruta';
+                if (porId[x.id]) { if (porId[x.id].cuads.indexOf(cuad) === -1) porId[x.id].cuads.push(cuad); return; }
+                x.cuads = [cuad]; x.despues = p.despues;
+                porId[x.id] = x; lista.push(x);
+            });
+        });
+        // Los dejados "para después" en su pre-ruta van al final también aquí
+        var orden = recorridoCorto(lista.filter(function (x) { return !x.despues; }), posicion)
+            .concat(recorridoCorto(lista.filter(function (x) { return x.despues; }), null));
+        return orden;
+    }
+    function tramosDe(orden) {
+        var t = [];
+        for (var i = 0; i < orden.length; i += TRAMO) t.push(orden.slice(i, i + TRAMO));
+        return t;
+    }
+    function urlTramo(tramos, k) {
+        if (!k) return urlRuta(tramos[0]);
+        var c = function (x) { var d = destinoLote(x.id); return d[0] + ',' + d[1]; }, t = tramos[k], antes = tramos[k - 1];
+        return 'https://www.google.com/maps/dir/?api=1&origin=' + c(antes[antes.length - 1]) + '&destination=' + c(t[t.length - 1]) +
+            (t.length > 1 ? '&waypoints=' + encodeURIComponent(t.slice(0, -1).map(c).join('|')) : '') + '&travelmode=driving';
+    }
+    function pintarRutaCompleta() {
+        if (rutas.length < 2) return '';
+        var orden = rutaCompleta();
+        if (orden.length < 2) return '';
+        var tramos = tramosDe(orden), total = 0, prev = posicion;
+        orden.forEach(function (x) { if (prev) total += distLotes(prev, String(x.id)); prev = String(x.id); });
+        var nombre = function (x) { return x.lote ? 'Lote ' + x.lote : x.mr || x.id; };
+        var idMapa = function (x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; };
+        var plegada = !!plegadas['*todas'];
+        return '<div class="ruta-card ruta-completa' + (plegada ? ' plegada' : '') + '">' +
+            '<div class="ruta-cab">' +
+                '<button type="button" class="ruta-plegar" data-ruta="plegar-todas" aria-expanded="' + !plegada + '" aria-label="Plegar o desplegar">▾</button>' +
+                '<div data-ruta="plegar-todas"><b>🗺 Ruta completa</b> <span class="sub">· ' + rutas.length + ' pre-rutas</span>' +
+                '<div class="sub">' + orden.length + ' lotes por revisar en un solo recorrido' + (total ? ' · ~' + textoDist(total) : '') +
+                    (tramos.length > 1 ? ' · ' + tramos.length + ' tramos en Google Maps' : '') + '</div></div></div>' +
+            '<div class="ruta-acciones">' +
+                tramos.map(function (t, k) {
+                    var desde = k * TRAMO + 1, hasta = desde + t.length - 1;
+                    return '<a class="boton ' + (k ? 'secundario' : 'primario') + ' pequeno" target="_blank" rel="noopener" data-ir-tramo="' + k + '" href="' + esc(urlTramo(tramos, k)) + '">' +
+                        (tramos.length > 1 ? 'Tramo ' + (k + 1) + ' · ' + (desde === hasta ? 'lote ' + desde : desde + '–' + hasta) : 'Ruta completa en Google Maps') + '</a>';
+                }).join('') +
+                '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + orden.map(idMapa).join(',')) + '">Ver todos en el mapa</a>' +
+            '</div>' +
+            '<ol class="paradas">' + orden.map(function (x, i) {
+                return '<li class="parada' + (i ? '' : ' siguiente') + (i && i % TRAMO === 0 ? ' corte' : '') + '">' +
+                    '<span class="n">' + (i + 1) + '</span>' +
+                    '<div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' + (x.lote && x.mr ? ' <span class="sub">' + esc(x.mr) + '</span>' : '') +
+                        ' <span class="sub">· ' + esc(x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Pre-ruta' : 'C' + c; }).join(', ')) + '</span>' +
+                        (x.despues ? ' <span class="tag-despues">Para después</span>' : '') + '</div>' +
+                        (x.d ? '<div class="sub dir">' + esc(x.d) + '</div>' : '') + '</div>' +
+                    '<div class="btns"><a class="boton secundario pequeno" target="_blank" rel="noopener" data-ir="' + esc(x.id) + '" href="' + esc(urlIr(x.id, x.d)) + '">🧭 Cómo llegar</a></div>' +
+                '</li>';
+            }).join('') + '</ol></div>';
+    }
+
     // Ubicación seguida mientras la página está abierta: así la pre-ruta siempre sabe en qué lote (o cerca de cuál) está
     // el interventor y cada parada dice a qué distancia queda de usted. Solo repinta al moverse unos metros.
     var precision = 0, estadoUbic = '', vigia = null, pintadaEn = null;
@@ -925,7 +992,7 @@ export function iniciar(api, CFG) {
         seguirUbicacion();
         pintadaEn = posicion;
         var vencidos = [];
-        cont.innerHTML = rutas.map(function (ruta, ri) {
+        cont.innerHTML = pintarRutaCompleta() + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
                 var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso;
                 x.du = posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
@@ -1036,10 +1103,17 @@ export function iniciar(api, CFG) {
             irR.href = urlRuta(prox) || irR.href;
             return;
         }
+        var irT = ev.target.closest('[data-ir-tramo]');
+        if (irT) {
+            var tr = tramosDe(rutaCompleta());
+            if (tr[+irT.dataset.irTramo]) irT.href = urlTramo(tr, +irT.dataset.irTramo);
+            return;
+        }
         var ed = ev.target.closest('[data-editar]');
         if (ed) return abrir(registros.find(function (r) { return r.ID === ed.dataset.editar; }));
         var b = ev.target.closest('[data-ruta]');
         if (!b) return;
+        if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !plegadas['*todas']); return pintarRutas(); }
         var ruta = rutas[+b.dataset.ri], accion = b.dataset.ruta;
         if (accion === 'nueva') return abrirDlgRuta();
         if (accion === 'plegar') { plegar(ruta.cuad, !plegadas[ruta.cuad || '']); return pintarRutas(); }

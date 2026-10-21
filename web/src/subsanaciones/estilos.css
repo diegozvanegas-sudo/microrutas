@@ -143,6 +143,9 @@ fieldset { min-width: 0; }
 .ruta-card.plegada .ruta-plegar { transform: rotate(-90deg); }
 .ruta-card.plegada .ruta-acciones, .ruta-card.plegada .paradas { display: none; }
 .ruta-card.plegada .progreso { margin-bottom: 12px; }
+.ruta-completa { border-left-color: #2563eb; }
+.ruta-completa .ruta-cab { padding-bottom: 0; }
+.parada.corte { border-top: 2px dashed #b8c6cd; }
 .progreso { height: 6px; background: #e8efec; margin: 0 14px; border-radius: 99px; overflow: hidden; }
 .progreso span { display: block; height: 100%; background: var(--ok); }
 .ruta-acciones { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px; }
