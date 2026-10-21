@@ -438,6 +438,7 @@ export function iniciar(api, CFG) {
             pintar();
             toast((era ? 'Actualizado ' : 'Guardado ') + nuevo.ID + ' · ' + nuevo.ESTADO);
             if (veniaDeRuta && !era) {
+                fijar(veniaDeRuta.id);
                 var sig = $('ruta').querySelectorAll('.ruta-card')[veniaDeRuta.ri];
                 sig = sig && (sig.querySelector('.parada.siguiente') || sig);
                 if (sig) setTimeout(function () { sig.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
@@ -795,7 +796,7 @@ export function iniciar(api, CFG) {
         return ps.reduce(function (a, p) { return metros(posicion, p) < metros(posicion, a) ? p : a; });
     }
     function urlIr(id, dir) {
-        var c = destinoLote(id), origen = posicion ? '&origin=' + posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '';
+        var c = destinoLote(id), origen = origenMaps() ? '&origin=' + origenMaps() : '';
         var dest = c ? c[0] + ',' + c[1] : dir ? encodeURIComponent(dir + ', Medellín, Antioquia') : '';
         return dest ? 'https://www.google.com/maps/dir/?api=1' + origen + '&destination=' + dest + '&travelmode=driving' : '';
     }
@@ -803,7 +804,7 @@ export function iniciar(api, CFG) {
     function urlRuta(proximas) {
         if (!proximas.length) return '';
         var c = function (x) { var d = destinoLote(x.id); return d[0] + ',' + d[1]; };
-        return 'https://www.google.com/maps/dir/?api=1' + (posicion ? '&origin=' + posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '') +
+        return 'https://www.google.com/maps/dir/?api=1' + (origenMaps() ? '&origin=' + origenMaps() : '') +
             '&destination=' + c(proximas[proximas.length - 1]) +
             (proximas.length > 1 ? '&waypoints=' + encodeURIComponent(proximas.slice(0, -1).map(c).join('|')) : '') + '&travelmode=driving';
     }
@@ -849,7 +850,7 @@ export function iniciar(api, CFG) {
     }
     function urlTramo(tramos, k) {
         var t = tramos[k], antes = k ? tramos[k - 1] : null;
-        var origen = antes ? puntoMaps(antes[antes.length - 1]) : posicion ? posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '';
+        var origen = antes ? puntoMaps(antes[antes.length - 1]) : origenMaps();
         return 'https://www.google.com/maps/dir/?api=1' + (origen ? '&origin=' + origen : '') + '&destination=' + puntoMaps(t[t.length - 1]) +
             (t.length > 1 ? '&waypoints=' + t.slice(0, -1).map(puntoMaps).join('%7C') : '') + '&travelmode=driving';
     }
@@ -901,14 +902,44 @@ export function iniciar(api, CFG) {
 
     // Ubicación seguida mientras la página está abierta: así la pre-ruta siempre sabe en qué lote (o cerca de cuál) está
     // el interventor y cada parada dice a qué distancia queda de usted. Solo repinta al moverse unos metros.
-    var precision = 0, estadoUbic = '', vigia = null, pintadaEn = null;
+    var precision = 0, estadoUbic = '', vigia = null, pintadaEn = null, gps = null;
     var AQUI_M = 60; // dentro de esta distancia de alguna parte del lote se considera "en el lote"
+
+    // Ubicación fijada: al registrar la visita de una parada (o con "📍 Estoy aquí") ese lote queda como su ubicación,
+    // así "Cómo llegar", las distancias y el orden salen de ahí aunque el GPS del celular esté corrido.
+    // Se suelta cuando el GPS, ya preciso, lo ubica lejos de ese lote, o a las 2 horas. El mapa rápido usa la misma.
+    var FIJADA = 'ubicacion_fijada', FIJADA_MS = 2 * 3600 * 1000, fijada = null;
+    try { fijada = JSON.parse(localStorage.getItem(FIJADA)); } catch (e) {}
+    if (!fijada || !(Date.now() - fijada.hora < FIJADA_MS)) fijada = null;
+    function fijar(id) {
+        if (!id) return;
+        var x = infoLote(String(id)), p = CENTROS[x.id] || puntosDe(String(x.id))[0] || null;
+        if (!p && !x.d) return;
+        fijada = { id: String(x.id), nombre: x.lote ? 'Lote ' + x.lote : x.mr, p: p, d: x.d, hora: Date.now() };
+        try { localStorage.setItem(FIJADA, JSON.stringify(fijada)); } catch (e) {}
+        usarFijada();
+    }
+    function soltar() {
+        fijada = null;
+        try { localStorage.removeItem(FIJADA); } catch (e) {}
+        usarFijada();
+    }
+    function usarFijada() { posicion = fijada && fijada.p ? fijada.p : gps; }
+    usarFijada();
+    // Origen para Google Maps: el lote fijado (o su dirección si no tiene coordenadas), si no el GPS
+    function origenMaps() {
+        if (fijada) return fijada.p ? fijada.p[0].toFixed(6) + ',' + fijada.p[1].toFixed(6) : encodeURIComponent(fijada.d + ', Medellín, Antioquia');
+        return posicion ? posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '';
+    }
     function seguirUbicacion() {
         if (vigia !== null || !navigator.geolocation) { if (!navigator.geolocation) estadoUbic = 'sin'; return; }
         estadoUbic = 'buscando';
         vigia = navigator.geolocation.watchPosition(function (p) {
-            posicion = [p.coords.latitude, p.coords.longitude];
+            gps = [p.coords.latitude, p.coords.longitude];
             precision = p.coords.accuracy || 0;
+            // Con el GPS preciso (≤ 30 m) a más de 150 m del lote fijado, usted ya se fue de ahí
+            if (fijada && precision <= 30 && (fijada.p ? distLotes(gps, puntosDe(fijada.id).length ? fijada.id : fijada.p) : Infinity) > 150) { soltar(); }
+            usarFijada();
             var antes = estadoUbic; estadoUbic = 'ok';
             if (antes !== 'ok' || !pintadaEn || metros(pintadaEn, posicion) > 25) pintarRutas();
         }, function (err) {
@@ -1019,7 +1050,7 @@ export function iniciar(api, CFG) {
         cont.innerHTML = pintarRutaCompleta() + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
                 var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso;
-                x.du = posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
+                x.du = fijada && fijada.id === String(x.id) ? 0 : posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
                 x.plazo = plazoDe(x);
                 return x;
             });
@@ -1029,9 +1060,11 @@ export function iniciar(api, CFG) {
                 esc(venc.map(function (x) { return x.lote ? 'Lote ' + x.lote : x.mr || x.id; }).join(', ')) + '</div>' : '';
             // Parada más cercana a usted; si está a menos de AQUI_M (o dentro del margen del GPS) usted está en ese lote
             var cerca = paradas.reduce(function (a, x) { return x.du !== null && (!a || x.du < a.du) ? x : a; }, null);
-            var aqui = cerca && cerca.du <= Math.max(AQUI_M, Math.min(precision, 150)) ? cerca : null;
+            var aqui = cerca && (cerca.du === 0 || cerca.du <= Math.max(AQUI_M, Math.min(precision, 150))) ? cerca : null;
             var nombre = function (x) { return x.lote ? 'Lote ' + x.lote : x.mr; };
-            var ubic = aqui ? '<div class="ubic">📍 Usted está en el <b>' + esc(nombre(aqui)) + '</b>' + (aqui.visita ? ' (ya revisado)' : '') + '</div>'
+            var ubic = fijada ? '<div class="ubic">📍 Su ubicación: <b>' + esc(fijada.nombre) + '</b>' + (aqui && aqui.visita ? ' (ya revisado)' : '') +
+                    ' <button type="button" class="enlace" data-ruta="soltar">Usar GPS</button></div>'
+                : aqui ? '<div class="ubic">📍 Usted está en el <b>' + esc(nombre(aqui)) + '</b>' + (aqui.visita ? ' (ya revisado)' : '') + '</div>'
                 : cerca ? '<div class="ubic lejos">📍 Lo más cercano: <b>' + esc(nombre(cerca)) + '</b> a ' + textoDist(cerca.du) + '</div>'
                 : estadoUbic === 'buscando' ? '<div class="ubic lejos">📍 Buscando su ubicación…</div>'
                 : estadoUbic === 'negada' ? '<div class="ubic lejos">📍 Active la ubicación del navegador para ver en qué lote está.</div>' : '';
@@ -1104,6 +1137,7 @@ export function iniciar(api, CFG) {
                             ((x.c || x.d) && !x.visita ? '<a class="boton ' + (x === sig ? 'primario' : 'secundario') + ' pequeno" target="_blank" rel="noopener" data-ir="' + esc(x.id) + '" href="' + esc(urlIr(x.id, x.d)) + '">🧭 Cómo llegar</a>' : '') +
                             (x.mr || x.lote ? '<a class="boton secundario pequeno" href="' + esc(urlMapa(x.mr, x.lote)) + '">Mapa</a>' : '') +
                             (x.encurso && hayOperacion ? '<button type="button" class="secundario pequeno" data-ruta="operacion" data-ri="' + ri + '" data-id="' + esc(x.id) + '">🦺 Visita operación</button>' : '') +
+                            (!x.visita && (x !== aqui || !fijada) ? '<button type="button" class="secundario pequeno" data-ruta="aqui" data-ri="' + ri + '" data-id="' + esc(x.id) + '" title="Tomar este lote como su ubicación">📍 Estoy aquí</button>' : '') +
                             (x.encurso ? '<button type="button" class="secundario pequeno" data-ruta="termino" data-ri="' + ri + '" data-id="' + esc(x.id) + '">✓ Ya terminó</button>' : '') +
                             (x.visita || x.encurso || pend.length < 2 ? '' : x.despues
                                 ? '<button type="button" class="secundario pequeno" data-ruta="ahora" data-ri="' + ri + '" data-id="' + esc(x.id) + '">Hacer ahora</button>'
@@ -1148,6 +1182,8 @@ export function iniciar(api, CFG) {
         if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !plegadas['*todas']); return pintarRutas(); }
         var ruta = rutas[+b.dataset.ri], accion = b.dataset.ruta;
         if (accion === 'nueva') return abrirDlgRuta();
+        if (accion === 'aqui') { fijar(b.dataset.id); pintarRutas(); return toast(fijada ? '📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.' : 'Ese lote no tiene ubicación ni dirección.'); }
+        if (accion === 'soltar') { soltar(); pintarRutas(); return toast('Se usa de nuevo el GPS del celular.'); }
         if (accion === 'plegar') { plegar(ruta.cuad, !plegadas[ruta.cuad || '']); return pintarRutas(); }
         if (accion === 'despues' || accion === 'ahora') {
             aplazar(ruta, b.dataset.id, accion === 'despues');
@@ -1193,10 +1229,11 @@ export function iniciar(api, CFG) {
         if (accion === 'ordenar') {
             delete modos[ruta.cuad || '']; guardarModos();
             var listo = function (desde) { ordenar(ruta, desde); guardarRutas(); subirRuta(ruta); pintarRutas(); };
+            if (fijada && fijada.p) { listo(fijada.p); return toast('Ordenada desde ' + fijada.nombre + '.'); }
             if (!navigator.geolocation) return listo(null);
             b.disabled = true; b.textContent = 'Ubicando…';
             navigator.geolocation.getCurrentPosition(function (p) {
-                posicion = [p.coords.latitude, p.coords.longitude];
+                gps = [p.coords.latitude, p.coords.longitude]; usarFijada();
                 listo(posicion);
                 toast('Ordenada desde su ubicación actual.');
             }, function () {
@@ -1212,7 +1249,7 @@ export function iniciar(api, CFG) {
         var ruta = rutas[ri], x = infoLote(id), op = tipo === OP;
         var n = ruta.paradas.findIndex(function (p) { return p.id === id; }), parada = ruta.paradas[n] || {};
         abrir({ MICRORRUTA: x.mr, LOTE: x.lote, CUADRILLA: ruta.cuad, 'FECHA DE EJECUCIÓN': aTexto(parada.fecha || '') }, {
-            ri: ri,
+            ri: ri, id: id,
             html: (op ? '🦺 Visita durante la operación' : '📍 Pre-ruta') + (ruta.cuad ? ' · cuadrilla ' + esc(ruta.cuad) : '') +
                 (op ? '' : ' · parada ' + (n + 1) + ' de ' + ruta.paradas.length) + '<br>' +
                 '<b>' + esc(x.lote ? 'Lote ' + x.lote : x.mr) + '</b>' + (x.lote && x.mr ? ' · ' + esc(x.mr) : '') +

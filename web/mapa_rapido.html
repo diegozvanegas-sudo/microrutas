@@ -104,6 +104,7 @@
         .fila input { font-size: 16px; }
         .fila .boton, .fila button { padding: 8px 10px; }
     }
+    .pin-fijada { font-size: 26px; line-height: 28px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     </style>
 </head>
 <body>
@@ -149,6 +150,17 @@
     // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
     // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
     var miPunto = null, miPos = null, miPrec = Infinity, miHora = 0, centrar = false, avisoUbic = false, avisoPrec = false;
+    // Ubicación fijada (la misma de subsanaciones): con "📍 Estoy aquí" el lote queda como su ubicación y "Cómo llegar"
+    // sale de ahí aunque el GPS esté corrido. Se suelta con "Usar GPS", con el GPS preciso lejos de ahí o a las 2 horas.
+    var FIJADA = 'ubicacion_fijada', fijada = leer(FIJADA, null), pinFijada = null;
+    if (!fijada || !(Date.now() - fijada.hora < 2 * 3600 * 1000)) fijada = null;
+    function pintarFijada() {
+        if (pinFijada) { map.removeLayer(pinFijada); pinFijada = null; }
+        if (fijada && fijada.p) pinFijada = L.marker(fijada.p, { interactive: false, icon: L.divIcon({ className: 'pin-fijada', html: '📍', iconSize: [28, 28], iconAnchor: [14, 26] }) }).addTo(map);
+    }
+    function soltar() { fijada = null; try { localStorage.removeItem(FIJADA); } catch (e) {} pintarFijada(); }
+    pintarFijada();
+    function origen() { return fijada && fijada.p ? L.latLng(fijada.p) : miPos; }
     function seguir() { map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }); }
     var Ubicar = L.Control.extend({
         options: { position: 'topleft' },
@@ -158,7 +170,7 @@
             L.DomEvent.disableClickPropagation(div);
             div.firstChild.onclick = function (ev) {
                 ev.preventDefault();
-                if (miPos) return map.setView(miPos, Math.max(map.getZoom(), 17));
+                if (origen()) return map.setView(origen(), Math.max(map.getZoom(), 17));
                 centrar = true; avisoUbic = true; seguir();
             };
             return div;
@@ -171,6 +183,7 @@
         var ahora = Date.now();
         if (miPos && e.accuracy > Math.max(2 * miPrec, 100) && ahora - miHora < 60000) return;
         miPos = e.latlng; miPrec = e.accuracy; miHora = ahora;
+        if (fijada && fijada.p && e.accuracy <= 30 && e.latlng.distanceTo(fijada.p) > 300) soltar();
         if (e.accuracy > 500 && !avisoPrec) {
             avisoPrec = true;
             toast('Ubicación aproximada (±' + (e.accuracy >= 1000 ? (e.accuracy / 1000).toFixed(1) + ' km' : Math.round(e.accuracy) + ' m') + '). Active el GPS / ubicación precisa del celular.');
@@ -190,17 +203,19 @@
     seguir();
     // Vértice del lote más cercano a usted (en lotes largos el centro puede quedar lejos de la entrada)
     function puntoCercano(capa) {
-        if (!miPos) return puntoLote(capa);
+        var o = origen();
+        if (!o) return puntoLote(capa);
         var mejor = null, dMin = Infinity;
         (function recorrer(a) {
-            if (a.length && a[0] instanceof L.LatLng) a.forEach(function (p) { var d = miPos.distanceTo(p); if (d < dMin) { dMin = d; mejor = p; } });
+            if (a.length && a[0] instanceof L.LatLng) a.forEach(function (p) { var d = o.distanceTo(p); if (d < dMin) { dMin = d; mejor = p; } });
             else a.forEach(recorrer);
         })(capa.getLatLngs());
         return mejor || puntoLote(capa);
     }
-    // Google Maps con origen en su ubicación actual (sin ubicación, Maps usa la del celular)
+    // Google Maps con origen en su ubicación (la fijada o la del GPS; sin ninguna, Maps usa la del celular)
     function urlComoLlegar(dest) {
-        return 'https://www.google.com/maps/dir/?api=1' + (miPos ? '&origin=' + miPos.lat.toFixed(6) + ',' + miPos.lng.toFixed(6) : '') +
+        var o = origen(), desde = o ? o.lat.toFixed(6) + ',' + o.lng.toFixed(6) : fijada && fijada.d ? encodeURIComponent(fijada.d + ', Medellín, Antioquia') : '';
+        return 'https://www.google.com/maps/dir/?api=1' + (desde ? '&origin=' + desde : '') +
             '&destination=' + dest.lat.toFixed(6) + ',' + dest.lng.toFixed(6) + '&travelmode=driving';
     }
     // El enlace se arma al tocarlo: así usa la ubicación de ese momento aunque la ficha lleve rato abierta
@@ -208,6 +223,16 @@
     document.addEventListener('click', function (ev) {
         var a = ev.target.closest && ev.target.closest('a[data-ir]');
         if (a && capaFicha) a.href = urlComoLlegar(puntoCercano(capaFicha));
+        var aqui = ev.target.closest && ev.target.closest('[data-aqui]');
+        if (aqui && capaFicha) {
+            ev.preventDefault();
+            if (fijada && fijada.id === idCapa(capaFicha)) { soltar(); toast('Se usa de nuevo el GPS del celular.'); aqui.textContent = '📍 Estoy aquí'; return; }
+            var pt = puntoLote(capaFicha), l = capaFicha.lote;
+            fijada = { id: idCapa(capaFicha), nombre: l.l && l.l !== 'NA' ? 'Lote ' + l.l : l.m, p: [pt.lat, pt.lng], d: l.d || '', hora: Date.now() };
+            guardar(FIJADA, fijada); pintarFijada();
+            aqui.textContent = '↺ Usar GPS';
+            toast('📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.');
+        }
     }, true);
 
     // ---------- Datos ----------
@@ -320,6 +345,8 @@
         })(capa.getLatLngs());
         return (capa._areaMayor = area);
     }
+    // Mismo identificador que la pre-ruta: número de lote o, si no tiene, la microrruta
+    function idCapa(capa) { var l = capa.lote; return l.l && l.l !== 'NA' ? String(l.l) : String(l.m || '').toUpperCase(); }
     function popupLote(capa) {
         var p = capa.lote, zona = /^Z(\d+)/i.test(p.m || '') ? p.m.match(/^Z(\d+)/i)[1] : '';
         var lote = p.l && p.l !== 'NA' ? p.l : '';
@@ -340,6 +367,7 @@
             '<div class="acciones">' +
                 (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
+                '<button type="button" class="boton secundario" data-aqui>' + (fijada && fijada.id === idCapa(capa) ? '↺ Usar GPS' : '📍 Estoy aquí') + '</button>' +
                 '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
                 '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
             '</div></div>';
