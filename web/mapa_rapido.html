@@ -148,8 +148,8 @@
 
     // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
     // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
-    var miPunto = null, miPos = null, centrar = false, avisoUbic = false;
-    function seguir() { map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 15000, timeout: 30000 }); }
+    var miPunto = null, miPos = null, miPrec = Infinity, miHora = 0, centrar = false, avisoUbic = false, avisoPrec = false;
+    function seguir() { map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }); }
     var Ubicar = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
@@ -166,7 +166,15 @@
     });
     map.addControl(new Ubicar());
     map.on('locationfound', function (e) {
-        miPos = e.latlng;
+        // El navegador a veces entrega una ubicación aproximada (por wifi o red, a cientos de metros) entre lecturas del GPS:
+        // no se cambia una lectura buena reciente por una mucho peor
+        var ahora = Date.now();
+        if (miPos && e.accuracy > Math.max(2 * miPrec, 100) && ahora - miHora < 60000) return;
+        miPos = e.latlng; miPrec = e.accuracy; miHora = ahora;
+        if (e.accuracy > 500 && !avisoPrec) {
+            avisoPrec = true;
+            toast('Ubicación aproximada (±' + (e.accuracy >= 1000 ? (e.accuracy / 1000).toFixed(1) + ' km' : Math.round(e.accuracy) + ' m') + '). Active el GPS / ubicación precisa del celular.');
+        }
         if (miPunto) map.removeLayer(miPunto);
         miPunto = L.layerGroup([
             L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }),

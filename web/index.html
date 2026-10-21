@@ -246,7 +246,7 @@
         var zoomControl = L.control.zoom({
             position: 'topleft'
         }).addTo(map);
-        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19, enableHighAccuracy: true, maximumAge: 0, timeout: 30000}}).addTo(map);
 		var panelBusqueda;
         function cerrarBuscador() {
             if(panelBusqueda) panelBusqueda.classList.remove('is-open');
