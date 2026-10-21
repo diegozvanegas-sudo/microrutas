@@ -294,3 +294,5 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 #dlg-ingreso h2 { margin: 0 0 6px; }
 #dlg-ingreso .pie { position: static; margin: 16px 0 0; padding: 0; border: 0; }
 #dlg-ingreso .pie button { flex: 1; padding: 11px 14px; }
+.tramo-sel { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); margin-left: auto; }
+.tramo-sel select { width: auto; min-height: 0; padding: 4px 8px; }

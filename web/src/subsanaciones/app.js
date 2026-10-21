@@ -811,22 +811,30 @@ export function iniciar(api, CFG) {
     // Ruta completa: los lotes listos para revisar de todas las pre-rutas en un solo recorrido corto desde usted.
     // Un lote que está en dos pre-rutas va una sola vez. Google Maps en el celular admite 3 paradas + destino,
     // así que el recorrido se parte en tramos de TRAMO lotes; cada tramo sale del último lote del anterior.
-    var TRAMO = 4;
+    // El tamaño del tramo se elige en la tarjeta y queda guardado en este dispositivo.
+    var TRAMOS = [3, 4, 6, 8, 10], TRAMO = 6;
+    try { if (TRAMOS.indexOf(+localStorage.getItem('subsanaciones_tramo')) !== -1) TRAMO = +localStorage.getItem('subsanaciones_tramo'); } catch (e) {}
+    // Todas las cuadrillas: entra cada lote pendiente; los que no tienen coordenadas van al final y Maps los busca por
+    // su dirección. Solo quedan fuera los que la cuadrilla aún ejecuta (se cuentan aparte).
     function rutaCompleta() {
-        var porId = {}, lista = [];
+        var porId = {}, lista = [], curso = 0;
         rutas.forEach(function (ruta) {
             ruta.paradas.forEach(function (p) {
-                var x = infoLote(p.id);
-                if (!x.c || p.encurso || visitaDe(p, x)) return;
-                var cuad = ruta.cuad || 'pre-ruta';
+                var x = infoLote(p.id), cuad = ruta.cuad || 'pre-ruta';
+                if (visitaDe(p, x)) return;
+                if (p.encurso) { curso++; return; }
                 if (porId[x.id]) { if (porId[x.id].cuads.indexOf(cuad) === -1) porId[x.id].cuads.push(cuad); return; }
                 x.cuads = [cuad]; x.despues = p.despues;
                 porId[x.id] = x; lista.push(x);
             });
         });
+        var conC = function (x) { return puntosDe(String(x.id)).length; };
         // Los dejados "para después" en su pre-ruta van al final también aquí
-        var orden = recorridoCorto(lista.filter(function (x) { return !x.despues; }), posicion)
-            .concat(recorridoCorto(lista.filter(function (x) { return x.despues; }), null));
+        var orden = recorridoCorto(lista.filter(function (x) { return conC(x) && !x.despues; }), posicion)
+            .concat(recorridoCorto(lista.filter(function (x) { return conC(x) && x.despues; }), null),
+                lista.filter(function (x) { return !conC(x) && x.d; }));
+        orden.sinUbic = lista.filter(function (x) { return !conC(x) && !x.d; });
+        orden.curso = curso;
         return orden;
     }
     function tramosDe(orden) {
@@ -834,18 +842,24 @@ export function iniciar(api, CFG) {
         for (var i = 0; i < orden.length; i += TRAMO) t.push(orden.slice(i, i + TRAMO));
         return t;
     }
+    // Punto del lote para Maps: coordenadas o, si no tiene, su dirección
+    function puntoMaps(x) {
+        var d = destinoLote(x.id);
+        return d ? d[0] + ',' + d[1] : encodeURIComponent(x.d + ', Medellín, Antioquia');
+    }
     function urlTramo(tramos, k) {
-        if (!k) return urlRuta(tramos[0]);
-        var c = function (x) { var d = destinoLote(x.id); return d[0] + ',' + d[1]; }, t = tramos[k], antes = tramos[k - 1];
-        return 'https://www.google.com/maps/dir/?api=1&origin=' + c(antes[antes.length - 1]) + '&destination=' + c(t[t.length - 1]) +
-            (t.length > 1 ? '&waypoints=' + encodeURIComponent(t.slice(0, -1).map(c).join('|')) : '') + '&travelmode=driving';
+        var t = tramos[k], antes = k ? tramos[k - 1] : null;
+        var origen = antes ? puntoMaps(antes[antes.length - 1]) : posicion ? posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '';
+        return 'https://www.google.com/maps/dir/?api=1' + (origen ? '&origin=' + origen : '') + '&destination=' + puntoMaps(t[t.length - 1]) +
+            (t.length > 1 ? '&waypoints=' + t.slice(0, -1).map(puntoMaps).join('%7C') : '') + '&travelmode=driving';
     }
     function pintarRutaCompleta() {
         if (rutas.length < 2) return '';
         var orden = rutaCompleta();
         if (orden.length < 2) return '';
         var tramos = tramosDe(orden), total = 0, prev = posicion;
-        orden.forEach(function (x) { if (prev) total += distLotes(prev, String(x.id)); prev = String(x.id); });
+        orden.forEach(function (x) { if (!puntosDe(String(x.id)).length) return; if (prev) total += distLotes(prev, String(x.id)); prev = String(x.id); });
+
         var nombre = function (x) { return x.lote ? 'Lote ' + x.lote : x.mr || x.id; };
         var idMapa = function (x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; };
         var plegada = !!plegadas['*todas'];
@@ -854,7 +868,9 @@ export function iniciar(api, CFG) {
                 '<button type="button" class="ruta-plegar" data-ruta="plegar-todas" aria-expanded="' + !plegada + '" aria-label="Plegar o desplegar">▾</button>' +
                 '<div data-ruta="plegar-todas"><b>🗺 Ruta completa</b> <span class="sub">· ' + rutas.length + ' pre-rutas</span>' +
                 '<div class="sub">' + orden.length + ' lotes por revisar en un solo recorrido' + (total ? ' · ~' + textoDist(total) : '') +
-                    (tramos.length > 1 ? ' · ' + tramos.length + ' tramos en Google Maps' : '') + '</div></div></div>' +
+                    (tramos.length > 1 ? ' · ' + tramos.length + ' tramos en Google Maps' : '') + '</div>' +
+                (orden.curso ? '<div class="sub">▶ ' + (orden.curso === 1 ? '1 lote sigue' : orden.curso + ' lotes siguen') + ' en ejecución (no entran hasta que la cuadrilla termine)</div>' : '') +
+                '</div></div>' +
             '<div class="ruta-acciones">' +
                 tramos.map(function (t, k) {
                     var desde = k * TRAMO + 1, hasta = desde + t.length - 1;
@@ -862,6 +878,9 @@ export function iniciar(api, CFG) {
                         (tramos.length > 1 ? 'Tramo ' + (k + 1) + ' · ' + (desde === hasta ? 'lote ' + desde : desde + '–' + hasta) : 'Ruta completa en Google Maps') + '</a>';
                 }).join('') +
                 '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + orden.map(idMapa).join(',')) + '">Ver todos en el mapa</a>' +
+                '<label class="tramo-sel">Lotes por tramo <select data-tramo>' + TRAMOS.map(function (n) {
+                    return '<option value="' + n + '"' + (n === TRAMO ? ' selected' : '') + '>' + n + '</option>';
+                }).join('') + '</select></label>' +
             '</div>' +
             '<ol class="paradas">' + orden.map(function (x, i) {
                 return '<li class="parada' + (i ? '' : ' siguiente') + (i && i % TRAMO === 0 ? ' corte' : '') + '">' +
@@ -869,9 +888,14 @@ export function iniciar(api, CFG) {
                     '<div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' + (x.lote && x.mr ? ' <span class="sub">' + esc(x.mr) + '</span>' : '') +
                         ' <span class="sub">· ' + esc(x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Pre-ruta' : 'C' + c; }).join(', ')) + '</span>' +
                         (x.despues ? ' <span class="tag-despues">Para después</span>' : '') + '</div>' +
-                        (x.d ? '<div class="sub dir">' + esc(x.d) + '</div>' : '') + '</div>' +
+                        (x.d ? '<div class="sub dir">' + esc(x.d) + '</div>' : '') +
+                        (puntosDe(String(x.id)).length ? '' : '<div class="sub alerta">Sin coordenadas: Google Maps lo busca por la dirección</div>') + '</div>' +
                     '<div class="btns"><a class="boton secundario pequeno" target="_blank" rel="noopener" data-ir="' + esc(x.id) + '" href="' + esc(urlIr(x.id, x.d)) + '">🧭 Cómo llegar</a></div>' +
                 '</li>';
+            }).join('') + orden.sinUbic.map(function (x) {
+                return '<li class="parada"><span class="n">–</span><div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' +
+                    ' <span class="sub">· ' + esc(x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Pre-ruta' : 'C' + c; }).join(', ')) + '</span></div>' +
+                    '<div class="sub alerta">Sin ubicación ni dirección: no entra en la ruta de Google Maps</div></div></li>';
             }).join('') + '</ol></div>';
     }
 
@@ -1091,6 +1115,14 @@ export function iniciar(api, CFG) {
         avisarVencidos(vencidos);
     }
 
+    // Lotes por tramo de la ruta completa
+    $('ruta').onchange = function (ev) {
+        if (!ev.target.matches('[data-tramo]')) return;
+        TRAMO = +ev.target.value;
+        try { localStorage.setItem('subsanaciones_tramo', TRAMO); } catch (e) {}
+        pintarRutas();
+        toast('Ruta completa en tramos de ' + TRAMO + ' lotes.' + (TRAMO > 4 ? ' En el celular, Google Maps puede admitir solo 4 por tramo.' : ''));
+    };
     $('ruta').onclick = function (ev) {
         // "Cómo llegar" / "Ruta en Google Maps": el enlace se arma al tocarlo, con la ubicación de ese momento
         var ir = ev.target.closest('[data-ir]');
