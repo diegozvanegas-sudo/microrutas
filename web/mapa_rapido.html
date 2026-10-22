@@ -266,7 +266,7 @@
     window.cargarLotes = function (c, datos) {
         var g = L.featureGroup(), t = datos.t;
         datos.lotes.forEach(function (p) {
-            ['d', 's', 'f', 'k'].forEach(function (k) { if (typeof p[k] === 'number') p[k] = t[p[k]]; });
+            ['d', 's', 'f', 'k', 'x'].forEach(function (k) { if (typeof p[k] === 'number') p[k] = t[p[k]]; });
             // bubblingMouseEvents: el clic en el lote no llega al mapa (que borra el resaltado)
             var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c)));
             delete p.g;
@@ -357,6 +357,10 @@
     }
     // Mismo identificador que la pre-ruta: número de lote o, si no tiene, la microrruta
     function idCapa(capa) { var l = capa.lote; return l.l && l.l !== 'NA' ? String(l.l) : String(l.m || '').toUpperCase(); }
+    function bloqueDesc(titulo, texto) {
+        return texto ? '<div class="bloque"><span class="et">' + titulo + '</span><div class="desc" data-desc>' + esc(texto) + '</div>' +
+            (texto.length > 140 ? '<span class="mas" data-desc-mas>Ver todo ▾</span>' : '') + '</div>' : '';
+    }
     function popupLote(capa) {
         var p = capa.lote, zona = /^Z(\d+)/i.test(p.m || '') ? p.m.match(/^Z(\d+)/i)[1] : '';
         var lote = p.l && p.l !== 'NA' ? p.l : '';
@@ -371,9 +375,9 @@
             '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
             lineaEstado(capa) +
             '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
-            (p.d ? '<div class="bloque"><span class="et">Dirección</span>' + esc(p.d) + '</div>' : '') +
-            (p.s ? '<div class="bloque"><span class="et">Descripción</span><div class="desc" data-desc>' + esc(p.s) + '</div>' +
-                (p.s.length > 140 ? '<span class="mas" data-desc-mas>Ver todo ▾</span>' : '') + '</div>' : '') +
+            bloqueDesc('Dirección', p.d) +
+            // s: descripción de la microrruta en la programación; x: lo propio de este polígono (anexos, sectores)
+            bloqueDesc('Descripción', p.s) + bloqueDesc('Detalle de este sector', p.x) +
             '<div class="acciones">' +
                 (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
@@ -598,8 +602,10 @@
             pintarLeyenda(estadoRuta ? cuenta : null);
             if (!capas.length) return;
             if (!estadoRuta) resaltar(capas);
-            map.fitBounds(L.featureGroup(capas).getBounds(), { padding: [30, 30], maxZoom: 18 });
-            if (abrirVentana && claves.length === 1) verLote(capas[0]);
+            // Sin animación cuando se abre la ventana: si el mapa sigue moviéndose, la ventana queda cortada arriba
+            var abrir = abrirVentana && claves.length === 1;
+            map.fitBounds(L.featureGroup(capas).getBounds(), { padding: [30, 30], maxZoom: 18, animate: !abrir });
+            if (abrir) verLote(capas[0]);
         }
     }
     // Mismo formato que IDX: mayúsculas y lotes sin ceros a la izquierda

@@ -106,8 +106,11 @@
             var extra = (window.extrasLotes && p.fid != null) ? window.extrasLotes[p.fid] : null;
             var direccion = p.DIRECCION || (prog && prog.d) || (extra && extra.d) || '';
             var dañada = /ï¿½|\uFFFD/.test(String(p.Descripcio || ''));
-            var descripcion = (dañada && prog && prog.desc) ? prog.desc :
-                arreglarTildes(p.Descripcio || (prog && prog.desc) || '').replace(/ï¿½|\uFFFD/g, '?');
+            var propia = dañada ? '' : arreglarTildes(p.Descripcio || '').replace(/\s+/g, ' ').trim();
+            // Descripción: la de la microrruta en la programación; el texto del polígono (anexos, sectores) va aparte
+            var descripcion = (prog && prog.desc) || (dañada ? arreglarTildes(p.Descripcio).replace(/ï¿½|\uFFFD/g, '?') : propia);
+            var plano = function (s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); };
+            var detalle = prog && prog.desc && plano(propia) && plano(prog.desc).indexOf(plano(propia)) === -1 ? propia : '';
             var area = p.Area_campo || (p.Area_m2 ? Math.round(p.Area_m2) : '');
             function fila(titulo, valor) {
                 if (valor === null || valor === undefined || String(valor).trim() === '') return '';
@@ -123,6 +126,7 @@
                 fila('Frecuencia', prog && prog.frec) +
                 fila('Dirección', direccion) +
                 fila('Descripción', descripcion) +
+                fila('Detalle de este sector', detalle) +
                 '</table>';
             // Los enlaces usan las coordenadas del lote: buscar el texto de la dirección lleva a sitios equivocados
             var punto = puntoLote(feature);
