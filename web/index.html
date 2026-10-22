@@ -84,6 +84,7 @@
 <script src="js/wNumb.js"></script>
         <script src="data/direcciones_lotes.js"></script>
         <script src="data/direcciones_fid.js"></script>
+        <script src="data/detalle_sector.js"></script>
         <script src="data/zonasverdes__areas_zonas_verdes_2.js"></script>
         <script src="data/Rutas_SIF_3.js"></script>
         <script src="data/Operativos_4.js"></script>
@@ -106,15 +107,26 @@
             var extra = (window.extrasLotes && p.fid != null) ? window.extrasLotes[p.fid] : null;
             var direccion = p.DIRECCION || (prog && prog.d) || (extra && extra.d) || '';
             var dañada = /ï¿½|\uFFFD/.test(String(p.Descripcio || ''));
-            var propia = dañada ? '' : arreglarTildes(p.Descripcio || '').replace(/\s+/g, ' ').trim();
-            // Descripción: la de la microrruta en la programación; el texto del polígono (anexos, sectores) va aparte
-            var descripcion = (prog && prog.desc) || (dañada ? arreglarTildes(p.Descripcio).replace(/ï¿½|\uFFFD/g, '?') : propia);
+            // Texto del polígono; los que venían con tildes dañadas llegan ya reparados en data/detalle_sector.js
+            var propia = (window.detalleSector && window.detalleSector[p.fid]) || (dañada ? '' : arreglarTildes(p.Descripcio || '').replace(/\s+/g, ' ').trim());
+            // Descripción: la de la microrruta en la programación; el texto del polígono (anexos, sectores) va arriba como "Este sector"
+            var descripcion = (prog && prog.desc) || propia || (dañada ? arreglarTildes(p.Descripcio).replace(/ï¿½|\uFFFD/g, '?') : '');
             var plano = function (s) { return String(s || '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]/g, ''); };
-            var detalle = prog && prog.desc && plano(propia) && plano(prog.desc).indexOf(plano(propia)) === -1 ? propia : '';
+            var detalle = propia && plano(propia) !== plano(descripcion) ? propia : '';
             var area = p.Area_campo || (p.Area_m2 ? Math.round(p.Area_m2) : '');
             function fila(titulo, valor) {
                 if (valor === null || valor === undefined || String(valor).trim() === '') return '';
                 return '<tr><td colspan="2"><strong>' + titulo + '</strong><br />' + String(valor).replace(/</g, '&lt;') + '</td></tr>';
+            }
+            function filaSector(valor) {
+                if (!valor) return '';
+                return '<tr><td colspan="2" style="background:#edf8f3;border-left:4px solid #167a55"><strong style="color:#167a55">Este sector</strong> ' +
+                    '<button type="button" onclick="copiarSector(this)" style="font-size:11px;padding:1px 8px;border:1px solid #167a55;border-radius:999px;background:#fff;color:#167a55;cursor:pointer">📋 Copiar</button><br />' +
+                    '<span data-sector style="font-weight:600">' + String(valor).replace(/</g, '&lt;') + '</span></td></tr>';
+            }
+            function filaPlegada(titulo, valor) {
+                if (!valor) return '';
+                return '<tr><td colspan="2"><details><summary style="cursor:pointer"><strong>' + titulo + '</strong></summary>' + String(valor).replace(/</g, '&lt;') + '</details></td></tr>';
             }
             var html = '<table>' +
                 fila('Microrruta', mr) +
@@ -124,9 +136,9 @@
                 fila('Cuadrilla', p.CUADRILLA) +
                 fila('Área (m²)', area) +
                 fila('Frecuencia', prog && prog.frec) +
+                filaSector(detalle) +
                 fila('Dirección', direccion) +
-                fila('Descripción', descripcion) +
-                fila('Detalle de este sector', detalle) +
+                (detalle ? filaPlegada('Descripción de toda la microrruta', descripcion) : fila('Descripción', descripcion)) +
                 '</table>';
             // Los enlaces usan las coordenadas del lote: buscar el texto de la dirección lleva a sitios equivocados
             var punto = puntoLote(feature);
@@ -141,6 +153,20 @@
             html += '<p style="margin:6px 0 0"><a href="subsanaciones.html?mr=' + encodeURIComponent(mr) + '&lote=' + encodeURIComponent(p.No_Lote == null ? '' : p.No_Lote) + '" target="_blank">Registrar subsanación</a></p>';
             return html;
         }
+        window.copiarSector = function (boton) {
+            var texto = boton.parentNode.querySelector('[data-sector]').textContent;
+            var listo = function () { boton.textContent = '✓ Copiado'; setTimeout(function () { boton.textContent = '📋 Copiar'; }, 2000); };
+            var viejo = function () {
+                var a = document.createElement('textarea');
+                a.value = texto; a.style.position = 'fixed'; a.style.opacity = '0';
+                document.body.appendChild(a); a.select();
+                var ok = false;
+                try { ok = document.execCommand('copy'); } catch (e) {}
+                a.remove();
+                if (ok) listo(); else boton.textContent = 'Seleccione el texto';
+            };
+            if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(listo, viejo); else viejo();
+        };
         // Punto [lat, lon] dentro del lote: el centro si cae dentro del polígono; si no, el vértice más cercano al centro.
         // Si el lote tiene varias partes (varias direcciones), se usa la parte más grande.
         function puntoLote(feature) {

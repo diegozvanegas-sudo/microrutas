@@ -82,6 +82,12 @@
     .ficha-lote .desc { display: -webkit-box; -webkit-line-clamp: 3; line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; cursor: pointer; }
     .ficha-lote .desc.abierta { display: block; }
     .ficha-lote .mas { color: var(--brand); font-size: 12px; font-weight: 700; cursor: pointer; }
+    /* "Este sector": lo que se ve en el polígono tocado, arriba y resaltado */
+    .ficha-lote .sector { background: #edf8f3; border-left: 4px solid var(--brand); border-radius: 8px; padding: 8px 10px; }
+    .ficha-lote .sector .et { color: var(--brand); display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .ficha-lote .sector .txt { font-weight: 600; overflow-wrap: anywhere; }
+    .ficha-lote .copiar { border: 1px solid var(--brand); background: #fff; color: var(--brand); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; cursor: pointer; }
+    .ficha-lote .desc.plegada { -webkit-line-clamp: 1; line-clamp: 1; color: var(--muted); }
     .ficha-lote .acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 4px; }
     .ficha-lote .acciones .boton { text-align: center; padding: 11px 12px; font-size: 15px; }
     .ficha-lote .acciones .subs { grid-column: 1 / -1; }
@@ -435,9 +441,13 @@
     }
     // Mismo identificador que la pre-ruta: número de lote o, si no tiene, la microrruta
     function idCapa(capa) { var l = capa.lote; return l.l && l.l !== 'NA' ? String(l.l) : String(l.m || '').toUpperCase(); }
-    function bloqueDesc(titulo, texto) {
-        return texto ? '<div class="bloque"><span class="et">' + titulo + '</span><div class="desc" data-desc>' + esc(texto) + '</div>' +
-            (texto.length > 140 ? '<span class="mas" data-desc-mas>Ver todo ▾</span>' : '') + '</div>' : '';
+    function bloqueDesc(titulo, texto, plegada) {
+        return texto ? '<div class="bloque"><span class="et">' + titulo + '</span><div class="desc' + (plegada ? ' plegada' : '') + '" data-desc>' + esc(texto) + '</div>' +
+            (plegada || texto.length > 140 ? '<span class="mas" data-desc-mas>Ver todo ▾</span>' : '') + '</div>' : '';
+    }
+    function bloqueSector(texto) {
+        return texto ? '<div class="bloque sector"><span class="et">Este sector<button type="button" class="copiar" data-copiar>📋 Copiar</button></span>' +
+            '<div class="txt" data-sector>' + esc(texto) + '</div></div>' : '';
     }
     function popupLote(capa) {
         var p = capa.lote, zona = /^Z(\d+)/i.test(p.m || '') ? p.m.match(/^Z(\d+)/i)[1] : '';
@@ -453,9 +463,11 @@
             '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
             lineaEstado(capa) +
             '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
+            // x: lo propio de este polígono (tools/detalle_sector.mjs); s: descripción de la microrruta en la programación.
+            // Sin x, el texto del polígono es la descripción completa y se muestra como antes.
+            bloqueSector(p.x) +
             bloqueDesc('Dirección', p.d) +
-            // s: descripción de la microrruta en la programación; x: lo propio de este polígono (anexos, sectores)
-            bloqueDesc('Descripción', p.s) + bloqueDesc('Detalle de este sector', p.x) +
+            bloqueDesc(p.x ? 'Descripción de toda la microrruta' : 'Descripción', p.s, !!p.x) +
             '<div class="acciones">' +
                 (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
@@ -486,12 +498,30 @@
     function cerrarFicha() { $('ficha').classList.remove('abierta'); document.body.classList.remove('con-ficha'); }
     $('ficha-cerrar').onclick = cerrarFicha;
     document.addEventListener('click', function (ev) {
+        var c = ev.target.closest('[data-copiar]');
+        if (c) return copiarTexto(c.closest('.sector').querySelector('[data-sector]').textContent);
         var m = ev.target.closest('[data-desc], [data-desc-mas]');
         if (!m) return;
         var bloque = m.parentNode, d = bloque.querySelector('[data-desc]'), mas = bloque.querySelector('[data-desc-mas]');
         var abierta = d.classList.toggle('abierta');
         if (mas) mas.textContent = abierta ? 'Ver menos ▴' : 'Ver todo ▾';
     });
+    function copiarTexto(texto) {
+        var listo = function () { toast('Texto del sector copiado'); };
+        if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(texto).then(listo, function () { copiarViejo(texto) && listo(); });
+        if (copiarViejo(texto)) listo();
+    }
+    // Navegadores sin portapapeles (http, celulares viejos)
+    function copiarViejo(texto) {
+        var a = document.createElement('textarea');
+        a.value = texto; a.setAttribute('readonly', ''); a.style.position = 'fixed'; a.style.opacity = '0';
+        document.body.appendChild(a); a.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        a.remove();
+        if (!ok) toast('No se pudo copiar: mantenga presionado el texto para seleccionarlo');
+        return ok;
+    }
     // ---------- Detalles de la visita sin salir del mapa ----------
     // subsanaciones.html guarda en el celular la última copia de la hoja: se lee de ahí al instante.
     // Si la visita no está en esa copia, el enlace abre subsanaciones como antes.
