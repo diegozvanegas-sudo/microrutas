@@ -7,6 +7,7 @@ import { textoWhatsapp, textoResumen, textoDia } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
+import { zipsAPdf } from './zippdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
@@ -1501,6 +1502,40 @@ export function iniciar(api, CFG) {
         var lista = filtrados();
         if (!lista.length) { toast('No hay registros para exportar.'); return; }
         exportarExcel(lista, items, itemsOp).catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); });
+    };
+
+    // ---------- ZIP a PDF (src/subsanaciones/zippdf.js) ----------
+    var zipOcupado = false;
+    function elegidosZip() { return Array.prototype.slice.call($('zip-archivos').files || []); }
+    function listarZips() {
+        var fs = elegidosZip();
+        $('zip-informe').innerHTML = fs.map(function (f) { return '<li>' + esc(f.name) + ' <span class="sub">· ' + (f.size / 1048576).toFixed(1).replace('.', ',') + ' MB</span></li>'; }).join('');
+        $('zip-convertir').disabled = !fs.length;
+    }
+    $('btn-zip').onclick = function () { if (!zipOcupado) { $('zip-archivos').value = ''; listarZips(); } $('dlg-zip').showModal(); };
+    $('zip-elegir').onclick = function () { if (!zipOcupado) $('zip-archivos').click(); };
+    $('zip-archivos').onchange = listarZips;
+    $('zip-cerrar').onclick = function () { $('dlg-zip').close(); };
+    $('zip-convertir').onclick = function () {
+        var fs = elegidosZip();
+        if (!fs.length || zipOcupado) return;
+        zipOcupado = true;
+        $('zip-convertir').disabled = $('zip-elegir').disabled = true;
+        $('zip-convertir').textContent = 'Convirtiendo…';
+        $('zip-informe').innerHTML = '';
+        var lineas = [];
+        zipsAPdf(fs, function (k, texto, clase) {
+            if (!lineas[k]) { lineas[k] = document.createElement('li'); $('zip-informe').appendChild(lineas[k]); }
+            lineas[k].textContent = texto;
+            lineas[k].className = clase ? 'zip-' + clase : '';
+        }).then(function (r) {
+            toast(!r.convertidos ? 'Ningún zip tenía fotos para convertir.' : r.convertidos === 1 ? 'Listo: se descargó el PDF.' : 'Listo: ' + r.convertidos + ' de ' + r.total + ' convertidos, en PDFs.zip.');
+        }).catch(function (err) { toast('No se pudo convertir: ' + err.message); })
+          .then(function () {
+              zipOcupado = false;
+              $('zip-convertir').textContent = 'Convertir';
+              $('zip-convertir').disabled = $('zip-elegir').disabled = false;
+          });
     };
 
     cargar();

@@ -117,3 +117,13 @@ test('WhatsApp: resumen de pendientes agrupa por tipo y cuadrilla', () => {
     const t = textoResumen([{ ID: 'SUB-1', CUADRILLA: '4', MICRORRUTA: 'Z1CC0096', LOTE: '106', CORTE: 'NO', 'OBSERVACIONES NOVEDADES': 'LOTE NO REALIZADO' }]);
     assert.equal(t, 'Novedades posoperación cuadrilla 4\n\nZ1CC0096 lote 106\n\n* No realizado');
 });
+
+test('ZIP a PDF: qué archivos son fotos y en qué orden van', async () => {
+    const { esImagen, ordenNatural } = await import('../src/subsanaciones/zippdf.js');
+    assert.ok(esImagen('fotos/foto1.JPG'));
+    assert.ok(esImagen('a.webp'));
+    assert.ok(!esImagen('__MACOSX/fotos/._foto1.jpg'));
+    assert.ok(!esImagen('fotos/.oculta.png'));
+    assert.ok(!esImagen('notas.txt'));
+    assert.deepEqual(['foto10.jpg', 'foto2.jpg', 'Foto1.jpg'].sort(ordenNatural), ['Foto1.jpg', 'foto2.jpg', 'foto10.jpg']);
+});

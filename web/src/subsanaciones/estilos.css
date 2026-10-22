@@ -115,6 +115,14 @@ fieldset { min-width: 0; }
 .acciones-top { display: contents; }
 #dlg-wa { width: min(480px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-wa .cuerpo { padding: 18px; }
+#dlg-zip { width: min(520px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
+#dlg-zip .cuerpo { padding: 18px; }
+#dlg-zip .zip-elegir { width: 100%; margin: 14px 0 6px; padding: 14px; border: 2px dashed #9fd3bd; }
+.zip-informe { margin: 8px 0 0; padding-left: 0; list-style: none; font-size: 13px; max-height: 45vh; overflow-y: auto; }
+.zip-informe li { padding: 6px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
+.zip-informe li.zip-ok { color: var(--brand); }
+.zip-informe li.zip-aviso { color: #9a3412; }
+.zip-informe li.zip-error { color: #b91c1c; font-weight: 650; }
 #wa-texto { display: block; width: 100%; min-height: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 15px; color: var(--ink); resize: vertical; }
 .wa { color: #fff; background: #1f9d55; }
 .detalle .wa-btn { width: 100%; padding: 11px; margin-top: 8px; }

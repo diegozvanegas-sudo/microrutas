@@ -21,6 +21,7 @@
     <div class="acciones-top">
         <a class="boton secundario" id="abrir-hoja" target="_blank" hidden>📄 <span class="largo">Abrir hoja en </span>Drive</a>
         <button type="button" class="secundario" id="btn-excel">⬇ <span class="largo">Descargar </span>Excel</button>
+        <button type="button" class="secundario" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">📄 ZIP a PDF</button>
         <button type="button" class="secundario" id="btn-recargar">↻ Actualizar</button>
         <button type="button" class="secundario" id="btn-salir" hidden>⎋ Salir</button>
     </div>
@@ -117,6 +118,20 @@
             <button type="button" class="secundario" id="wa-cerrar">Cerrar</button>
             <a class="boton secundario" id="wa-abrir" target="_blank" rel="noopener">Abrir WhatsApp</a>
             <button type="button" class="wa" id="wa-copiar">Copiar</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-zip">
+    <div class="cuerpo">
+        <h2>📄 ZIP a PDF</h2>
+        <div class="sub">Elija uno o varios .zip con fotos: cada uno queda en un PDF con una foto por página, en el orden de los nombres
+            (foto2 antes que foto10). Se hace en este equipo, las fotos no se suben a ningún lado.</div>
+        <input type="file" id="zip-archivos" accept=".zip,application/zip,application/x-zip-compressed" multiple hidden>
+        <button type="button" class="secundario zip-elegir" id="zip-elegir">📁 Elegir archivos .zip</button>
+        <ol class="zip-informe" id="zip-informe"></ol>
+        <div class="pie">
+            <button type="button" class="secundario" id="zip-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="zip-convertir" disabled>Convertir</button>
         </div>
     </div>
 </dialog>
