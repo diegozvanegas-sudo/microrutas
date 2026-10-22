@@ -17,6 +17,38 @@ export function textoWhatsapp(r) {
         lineas.join('\n');
 }
 
+// Resumen del día por cuadrilla: cuántos lotes se revisaron, cuáles quedaron con novedad y las visitas de operación
+// "Resumen de visitas 22/10/2026 \n\n Cuadrilla 2: 3 lotes revisados · 1 con novedad \n ✓ Z2CC0202 lote 400 \n ⚠ Z2CC0100 lote 532: 2 ítems en NO"
+export function textoDia(lista, dia) {
+    var grupos = {}, orden = [];
+    lista.forEach(function (r) {
+        var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
+        if (!grupos[cuad]) { grupos[cuad] = []; orden.push(cuad); }
+        grupos[cuad].push(r);
+    });
+    orden.sort(function (a, b) { return (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, 'es', { numeric: true }); });
+    var lote = function (r) { return [r.MICRORRUTA, r.LOTE ? 'lote ' + r.LOTE : ''].filter(Boolean).join(' '); };
+    var total = { lotes: 0, novedad: 0 };
+    var bloques = orden.map(function (cuad) {
+        var rs = grupos[cuad], ej = rs.filter(function (r) { return !esOp(r); }), op = rs.filter(esOp);
+        var conNov = ej.filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
+        total.lotes += ej.length; total.novedad += conNov.length;
+        var cab = (cuad ? 'Cuadrilla ' + cuad : 'Sin cuadrilla') + ': ' + ej.length + (ej.length === 1 ? ' lote revisado' : ' lotes revisados') +
+            (conNov.length ? ' · ' + conNov.length + ' con novedad' : '') + (op.length ? ' · ' + op.length + (op.length === 1 ? ' visita' : ' visitas') + ' en operación' : '');
+        var lineas = ej.map(function (r) {
+            var n = itemsEnNo(r).length;
+            return r.ESTADO === 'PENDIENTE' ? '⚠ ' + lote(r) + (n ? ': ' + n + (n === 1 ? ' ítem' : ' ítems') + ' en NO' : ': con novedad')
+                : r.ESTADO === 'CERRADO' ? '🔒 ' + lote(r) + ': cerrado' : '✓ ' + lote(r);
+        }).concat(op.map(function (r) {
+            var n = itemsEnNo(r).length;
+            return '🦺 ' + lote(r) + (n ? ': ' + n + (n === 1 ? ' novedad' : ' novedades') + ' en operación' : ': operación sin novedad');
+        }));
+        return cab + '\n' + lineas.join('\n');
+    });
+    return 'Resumen de visitas ' + dia + '\n' + total.lotes + (total.lotes === 1 ? ' lote revisado' : ' lotes revisados') +
+        (total.novedad ? ' · ' + total.novedad + ' con novedad' : '') + '\n\n' + bloques.join('\n\n');
+}
+
 // Resumen de todas las novedades pendientes de lo filtrado, por tipo y cuadrilla:
 // "Novedades posoperación cuadrilla 4 \n\n Z1CC0096 lote 106 \n * No realizado"
 function lineasNovedad(r) {

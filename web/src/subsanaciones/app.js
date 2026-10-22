@@ -3,7 +3,7 @@
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge } from './estado.js';
-import { textoWhatsapp, textoResumen } from './whatsapp.js';
+import { textoWhatsapp, textoResumen, textoDia } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
@@ -149,23 +149,29 @@ export function iniciar(api, CFG) {
             if (tipo && r.TIPO !== tipo) return false;
             if (zona && String(r.ZONA).trim() !== zona) return false;
             if (cuad && String(r.CUADRILLA).trim() !== cuad) return false;
-            if (est && r.ESTADO !== est) return false;
+            if (est === 'VIEJAS' ? !esVieja(r) : est && r.ESTADO !== est) return false;
             if (!texto) return true;
             return ['ID', 'MICRORRUTA', 'LOTE', 'INTERVENTOR', 'OBSERVACIONES NOVEDADES', 'OBSERVACIÓN SUBSANACIÓN']
                 .some(function (c) { return norm(r[c]).indexOf(texto) !== -1; });
         });
     }
 
+    // Pendiente de subsanar desde hace VIEJA_D días o más: la interventoría la pide al momento, no después
+    var VIEJA_D = 8;
+    function esVieja(r) { var d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null; return d != null && d >= VIEJA_D; }
     function pintar() {
         pintarRutas();
-        var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 };
+        var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, viejas = registros.filter(esVieja).length;
         registros.forEach(function (r) { if (cuenta[r.ESTADO] != null) cuenta[r.ESTADO]++; });
         var est = $('f-estado').value;
         $('resumen').innerHTML = [['', 'Visitas'], ['PENDIENTE', 'Pendientes de subsanar'], ['SUBSANADO', 'Subsanadas'], ['SIN NOVEDAD', 'Sin novedad']].map(function (t) {
-            return '<div class="tarjeta' + (est === t[0] ? ' activa' : '') + '" data-estado="' + t[0] + '"><div class="num">' + cuenta[t[0]] + '</div><div class="tit">' + t[1] + '</div></div>';
+            return '<div class="tarjeta' + (est === t[0] || (est === 'VIEJAS' && t[0] === 'PENDIENTE') ? ' activa' : '') + '" data-estado="' + t[0] + '"><div class="num">' + cuenta[t[0]] + '</div><div class="tit">' + t[1] + '</div>' +
+                (t[0] === 'PENDIENTE' && viejas ? '<div class="viejas' + (est === 'VIEJAS' ? ' activa' : '') + '" data-estado="VIEJAS" title="Ver solo las de hace ' + VIEJA_D + ' días o más">⚠ ' + viejas + ' con +' + VIEJA_D + ' d</div>' : '') + '</div>';
         }).join('');
 
         var lista = filtrados().sort(porRegistro);
+        // Las más viejas primero cuando se piden las atrasadas
+        if (est === 'VIEJAS') lista.sort(function (a, b) { return dias(b['FECHA DE LA VISITA']) - dias(a['FECHA DE LA VISITA']); });
         if (!lista.length) {
             $('tabla').innerHTML = '<div class="vacio">' + (registros.length ? 'Ningún registro coincide con los filtros.' : 'Aún no hay visitas. Use "+ Nueva visita".') + '</div>';
             return;
@@ -182,7 +188,7 @@ export function iniciar(api, CFG) {
                         (r['FECHA DE EJECUCIÓN'] ? ' · Ejecución ' + esc(r['FECHA DE EJECUCIÓN']) : '') + '</div></td>' +
                     '<td data-label="Ítems en NO">' + (enNo.length ? enNo.map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join('') : '<span class="sub">Ninguno</span>') + '</td>' +
                     '<td data-label="Estado">' + badge(r.ESTADO) +
-                        (d != null ? '<div class="sub">' + d + ' día' + (d === 1 ? '' : 's') + ' desde la visita</div>' : '') +
+                        (d != null ? '<div class="sub' + (d >= VIEJA_D ? ' vieja' : '') + '">' + (d >= VIEJA_D ? '⚠ ' : '') + d + ' día' + (d === 1 ? '' : 's') + ' desde la visita</div>' : '') +
                         (r.ESTADO === 'SUBSANADO' && r['FECHA SUBSANACIÓN'] ? '<div class="sub">' + esc(r['FECHA SUBSANACIÓN']) + '</div>' : '') + '</td>' +
                     '<td data-label="Observaciones">' + esc(r['OBSERVACIONES NOVEDADES'] || '') +
                         (r['OBSERVACIÓN SUBSANACIÓN'] ? '<div class="sub">Subsanación: ' + esc(r['OBSERVACIÓN SUBSANACIÓN']) + '</div>' : '') + '</td>' +
@@ -200,7 +206,7 @@ export function iniciar(api, CFG) {
             '<span class="mr">' + (r.LOTE ? 'Lote ' + esc(r.LOTE) + '<span class="cod">' + esc(r.MICRORRUTA || '') + '</span>' : esc(r.MICRORRUTA || '—')) + '</span>' + badge(r.ESTADO) +
             '<span class="linea">' + (esOp(r) ? '<span class="tag-op">🦺 Operación</span> ' : '') + esc(r['FECHA DE LA VISITA'] || '—') +
                 (enNo.length ? ' · <span class="alerta">' + enNo.length + ' en NO</span>' : '') +
-                (d != null ? ' · <span class="alerta">' + d + ' d</span>' : '') + '</span>' +
+                (d != null ? ' · <span class="alerta' + (d >= VIEJA_D ? ' vieja' : '') + '">' + (d >= VIEJA_D ? '⚠ ' : '') + d + ' d</span>' : '') + '</span>' +
             '<span class="ver"><span class="mas">Ver detalles</span><span class="menos">Ocultar</span></span>' +
             '</summary>' + detalle(r, true) + '</details>';
     }
@@ -276,6 +282,15 @@ export function iniciar(api, CFG) {
         actualizarEnlaceWa();
         $('dlg-wa').showModal();
         toast(lista.length + (lista.length === 1 ? ' visita pendiente' : ' visitas pendientes') + ' en el resumen.');
+    };
+    // Visitas de hoy (o del día de la visita filtrada) por cuadrilla: lo que se revisó y lo que quedó con novedad
+    $('btn-dia').onclick = function () {
+        var dia = aTexto(hoy()), lista = registros.filter(function (r) { return aTexto(aInput(r['FECHA DE LA VISITA'])) === dia; });
+        if (!lista.length) return toast('Hoy (' + dia + ') aún no hay visitas registradas.');
+        $('wa-texto').value = textoDia(lista, dia);
+        actualizarEnlaceWa();
+        $('dlg-wa').showModal();
+        toast(lista.length + (lista.length === 1 ? ' visita' : ' visitas') + ' de hoy en el resumen.');
     };
     function actualizarEnlaceWa() { $('wa-abrir').href = 'https://wa.me/?text=' + encodeURIComponent($('wa-texto').value); }
     function mostrarWhatsapp(r) {
@@ -385,6 +400,7 @@ export function iniciar(api, CFG) {
             el.value = FECHAS.indexOf(el.dataset.campo) !== -1 ? aInput(v) : v;
         });
         if (!editando) {
+            seguirUbicacion();
             if (!r['FECHA DE LA VISITA']) form.querySelector('[data-campo="FECHA DE LA VISITA"]').value = hoy();
             try {
                 form.querySelector('[data-campo="REGISTRADO POR"]').value = localStorage.getItem('subsanaciones_usuario') || ultimoValor('REGISTRADO POR');
@@ -425,6 +441,24 @@ export function iniciar(api, CFG) {
             localStorage.setItem('subsanaciones_usuario', r['REGISTRADO POR']);
             localStorage.setItem('subsanaciones_interventor', r.INTERVENTOR);
         } catch (e) {}
+        var lejos = !editando && lejosDelLote(r);
+        if (!lejos) return guardarVisita(r);
+        confirmar('¿Está en el lote?', 'Su GPS lo ubica a ' + textoDist(lejos.d) + ' del ' + lejos.nombre + ' (precisión ±' + Math.round(precision) + ' m).\n' +
+            'Si está registrando la visita desde otro sitio, puede guardarla igual.', 'Guardar igual')
+            .then(function (si) { if (si) guardarVisita(r); });
+    });
+    // Visita nueva de hoy con el GPS preciso a más de LEJOS_M del lote: { d, nombre } o null.
+    // Sin GPS, sin coordenadas del lote o con fecha de otro día no se avisa nada.
+    var LEJOS_M = 300;
+    function lejosDelLote(r) {
+        if (!gps || precision > 100 || aInput(r['FECHA DE LA VISITA']) !== hoy()) return null;
+        var lote = String(r.LOTE || '').trim(), mr = String(r.MICRORRUTA || '').trim().toUpperCase();
+        var id = lote && lote !== 'NA' && puntosDe(lote).length ? lote : mr && puntosDe(mr).length ? mr : '';
+        if (!id) return null;
+        var d = distLotes(gps, id);
+        return d > LEJOS_M ? { d: d, nombre: /^\d+$/.test(id) ? 'lote ' + id : id } : null;
+    }
+    function guardarVisita(r) {
         ocupado(true);
         var era = editando, veniaDeRuta = desdeRuta;
         var peticion = era ? enviar('actualizar', { id: era.ID, registro: r }) : enviar('crear', { registro: r, tipo: tipoForm });
@@ -448,7 +482,7 @@ export function iniciar(api, CFG) {
             if (!era && itemsEnNo(nuevo).length) mostrarWhatsapp(nuevo);
         }).catch(function (err) { toast('No se guardó: ' + err.message); })
           .then(function () { ocupado(false); });
-    });
+    }
 
     $('btn-eliminar').onclick = function () {
         if (!editando) return;
@@ -593,7 +627,8 @@ export function iniciar(api, CFG) {
         }
         caja.innerHTML = lista.length ? lista.map(function (x) {
             return '<button type="button" data-mr="' + esc(x.mr) + '" data-lote="' + esc(x.lote) + '">' +
-                (input.id === 'ir-mapa' ? '<span class="s-ir">Ver en mapa ›</span>' : '') + '<span class="s-mr">' + resaltar(x.mr, q) +
+                (input.id === 'ir-mapa' ? '<span class="s-ir">Ver en mapa ›</span><span class="s-pre" data-pre="' + esc(x.lote || x.mr) + '" data-cuad="' + esc(x.cuad) + '">➕ Pre-ruta</span>' : '') +
+                '<span class="s-mr">' + resaltar(x.mr, q) +
                 '<small>' + (x.lote ? 'Lote ' + resaltar(x.lote, q) : 'Sin lote') + (x.cuad ? ' · C' + esc(x.cuad) : '') + '</small></span>' +
                 (x.d ? '<span class="s-dir">' + resaltar(x.d, q) + '</span>' : '') + '</button>';
         }).join('') : '<div class="s-vacio">' + (input.id === 'ir-mapa' ? 'Sin coincidencias. Pulse Ir/Enter para buscarlo igual en el mapa.' : 'Sin coincidencias. Puede escribirla igual y guardar.') + '</div>';
@@ -616,6 +651,8 @@ export function iniciar(api, CFG) {
     // pointerdown + preventDefault: el toque no le quita el foco al campo antes de elegir
     caja.addEventListener('pointerdown', function (ev) { ev.preventDefault(); });
     caja.addEventListener('click', function (ev) {
+        var pre = ev.target.closest('[data-pre]');
+        if (pre) { cerrarSugerencias(); if (activo) activo.blur(); return prerutaCon([pre.dataset.pre], pre.dataset.cuad); }
         var ll = ev.target.closest('[data-ll]');
         if (ll) { location.href = 'mapa_rapido.html?ll=' + ll.dataset.ll; return; }
         var b = ev.target.closest('[data-mr]'); if (b) elegir(b.dataset.mr, b.dataset.lote);
@@ -687,15 +724,8 @@ export function iniciar(api, CFG) {
         if (!mr && !lote && !ver && !sub && !pre) return;
         // Se usa una sola vez: si el celular recarga la pestaña o vuelve a ella, muestra la lista y no el formulario
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
-        // Desde la ficha del mapa: subsanaciones.html?preruta=400&cuad=2 abre "Crear pre-ruta" con ese lote ya puesto
-        if (pre) {
-            abrirDlgRuta();
-            $('ruta-texto').value = pre;
-            $('ruta-texto').dispatchEvent(new Event('input'));
-            $('ruta-cuad').value = (q.get('cuad') || infoLote(pre).cuad || '').replace(/^C/i, '');
-            vistaRuta();
-            return;
-        }
+        // Desde el mapa: subsanaciones.html?preruta=400,532&cuad=2 abre "Crear pre-ruta" con esos lotes ya puestos
+        if (pre) return prerutaCon(pre.split(','), q.get('cuad'));
         // Desde el mapa: subsanaciones.html?subsanar=SUB-00042 abre esa visita con los ítems en NO pasados a SI
         if (sub) {
             var rs = buscada(sub);
@@ -1349,6 +1379,14 @@ export function iniciar(api, CFG) {
         return halladas.find(function (h) { return !h.hecha; }) || halladas[0] || null;
     }
 
+    // "Crear pre-ruta" con los lotes ya escritos; la cuadrilla es la dada o la del primer lote en la programación
+    function prerutaCon(ids, cuad) {
+        abrirDlgRuta();
+        $('ruta-texto').value = ids.join('\n');
+        $('ruta-texto').dispatchEvent(new Event('input'));
+        $('ruta-cuad').value = String(cuad || infoLote(String(ids[0])).cuad || '').replace(/^C/i, '');
+        vistaRuta();
+    }
     function abrirDlgRuta() {
         ['ruta-texto', 'ruta-fecha', 'ruta-cuad'].forEach(function (id) { $(id).value = ''; });
         $('ruta-tipo-hecho').checked = true;
@@ -1428,7 +1466,7 @@ export function iniciar(api, CFG) {
     $('f-tipo').onchange = pintar;
     $('f-cuadrilla').onchange = pintar;
     $('resumen').onclick = function (ev) {
-        var t = ev.target.closest('.tarjeta');
+        var t = ev.target.closest('[data-estado]');
         if (t) { $('f-estado').value = t.dataset.estado; pintar(); }
     };
     $('tabla').onclick = function (ev) {

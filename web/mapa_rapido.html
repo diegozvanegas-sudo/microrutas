@@ -107,6 +107,17 @@
     .pin-fijada { font-size: 26px; line-height: 28px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
     .etiqueta-zona::before { display: none; }
+    /* Armar pre-ruta tocando lotes: barra abajo con los elegidos */
+    #sel-barra { position: fixed; left: 10px; right: 10px; bottom: calc(14px + env(safe-area-inset-bottom)); z-index: 1001; background: var(--surface); border-radius: 14px;
+                 box-shadow: 0 4px 18px rgba(0, 0, 0, .3); padding: 10px 12px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+    #sel-barra .txt { flex: 1 1 160px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
+    #sel-barra .txt b { font-size: 15px; }
+    #sel-barra button:disabled { opacity: .5; cursor: default; }
+    body.con-sel .ir-subs { display: none; }
+    .chip.modo[aria-pressed="true"] { border-color: #7c3aed; background: #f3e8ff; box-shadow: inset 0 0 0 1px #7c3aed; }
+    .ficha-lote .ruta-estado.vencido { color: #b91c1c; background: #fee2e2; }
+    .ficha-lote .ruta-estado.pronto { color: #92400e; background: #fef3c7; }
+    .ficha-lote .ruta-estado.aldia { color: #15803d; background: #dcfce7; }
     </style>
 </head>
 <body>
@@ -126,6 +137,9 @@
 <div id="map"></div>
 <div id="ficha" role="dialog" aria-label="Datos del lote"><div class="asa"></div><button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button><div id="ficha-contenido"></div></div>
 <a class="boton primario ir-subs" href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas">📋 Subsanaciones</a>
+<div id="sel-barra" hidden><div class="txt" id="sel-txt"></div>
+    <button type="button" class="secundario" id="sel-cancelar">Cancelar</button>
+    <button type="button" class="primario" id="sel-crear">Crear pre-ruta</button></div>
 <div class="toast" id="toast"></div>
 
 <script src="js/leaflet.js"></script>
@@ -259,7 +273,67 @@
     var TEXTO_RUTA = { pendiente: 'Falta revisar', hecho: '✓ Ya revisado', subsanar: '⚠ Revisado · falta subsanar', cerrado: '🔒 Lote cerrado', curso: '▶ Cuadrilla trabajando aquí ahora' };
     // Estado de la visita (hoja) -> color del lote en la pre-ruta
     function estadoDeVisita(e) { return e === 'PENDIENTE' ? 'subsanar' : e === 'CERRADO' ? 'cerrado' : 'hecho'; }
-    function estiloBase(c) { return c.rutaEstado ? ESTILO_RUTA[c.rutaEstado] : estiloLote(c.lote.c); }
+    function estiloBase(c) {
+        if (c.rutaEstado) return ESTILO_RUTA[c.rutaEstado];
+        if (seleccion && seleccion.indexOf(idCapa(c)) !== -1) return ESTILO_SEL;
+        return vencidos ? ESTILO_VENCE[venceDe(c).estado] : L.extend({ dashArray: null }, estiloLote(c.lote.c));
+    }
+    var ESTILO_SEL = { color: '#4c1d95', weight: 3, opacity: 1, fillColor: '#8b5cf6', fillOpacity: .75, dashArray: null };
+
+    // ---------- Lotes vencidos: días desde la última visita (copia de subsanaciones) contra la frecuencia ----------
+    var PERIODO = { MENSUAL: 30, QUINCENAL: 15 };
+    var ESTILO_VENCE = {
+        vencido: { color: '#991b1b', weight: 2, opacity: 1, fillColor: '#ef4444', fillOpacity: .7, dashArray: null },
+        pronto: { color: '#92400e', weight: 2, opacity: 1, fillColor: '#f59e0b', fillOpacity: .7, dashArray: null },
+        aldia: { color: '#14532d', weight: 1, opacity: 1, fillColor: '#22c55e', fillOpacity: .6, dashArray: null },
+        sin: { color: '#475569', weight: 1, opacity: .9, fillColor: '#94a3b8', fillOpacity: .45, dashArray: '4 3' }
+    };
+    var TEXTO_VENCE = { vencido: ['vencido', 'vencidos'], pronto: ['vence esta semana', 'vencen esta semana'], aldia: ['al día', 'al día'], sin: ['sin visita en la app', 'sin visita en la app'] };
+    var vencidos = leer('rapido_vencidos', false), ultimas = null;
+    // dd/mm/aaaa (como guarda subsanaciones) o aaaa-mm-dd -> Date a medianoche
+    function fechaDe(s) {
+        var m = String(s || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})/);
+        if (m) return new Date(+m[3], m[2] - 1, +m[1]);
+        m = String(s || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return m ? new Date(+m[1], m[2] - 1, +m[3]) : null;
+    }
+    // Última visita al lote ejecutado, por lote y por microrruta (las de operación no cuentan)
+    function ultimaVisita(id) {
+        if (!ultimas) {
+            ultimas = {};
+            var c = copia();
+            (c && c.registros || []).forEach(function (r) {
+                if (/^OPE-/.test(r.ID)) return;
+                var f = fechaDe(r['FECHA DE LA VISITA']);
+                if (!f) return;
+                [String(r.LOTE || '').trim(), String(r.MICRORRUTA || '').trim().toUpperCase()].forEach(function (k) {
+                    if (k && k !== 'NA' && (!ultimas[k] || ultimas[k] < f)) ultimas[k] = f;
+                });
+            });
+        }
+        return ultimas[id] || null;
+    }
+    // { estado: vencido | pronto | aldia | sin, dias, periodo, toca (Date) }
+    function venceDe(capa) {
+        var p = capa.lote, periodo = PERIODO[normTxt(p.f)] || 30, f = ultimaVisita(idCapa(capa)) || (p.m && ultimaVisita(String(p.m).toUpperCase()));
+        if (!f) return { estado: 'sin', periodo: periodo };
+        var hoy0 = new Date(); hoy0.setHours(0, 0, 0, 0);
+        var d = Math.round((hoy0 - f) / 864e5), toca = new Date(f.getTime() + periodo * 864e5), aviso = periodo >= 30 ? 7 : 3;
+        return { estado: d >= periodo ? 'vencido' : periodo - d <= aviso ? 'pronto' : 'aldia', dias: d, periodo: periodo, toca: toca };
+    }
+    function textoVence(capa) {
+        var v = venceDe(capa), frec = capa.lote.f ? ' · ' + String(capa.lote.f).toLowerCase() : '';
+        if (v.estado === 'sin') return '';
+        var falta = v.periodo - v.dias, fecha = v.toca.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' });
+        return '<span class="ruta-estado ' + v.estado + '">' + (v.estado === 'vencido' ? '⏰ Vencido' + (falta < 0 ? ' hace ' + -falta + ' d' : ' hoy') :
+            v.estado === 'pronto' ? '⏰ Le toca ' + (falta === 1 ? 'mañana' : 'en ' + falta + ' d') : 'Al día · le toca el ' + fecha) + frec + '</span>';
+    }
+    function repintarLotes() {
+        Object.keys(grupos).forEach(function (k) {
+            grupos[k].eachLayer(function (c) { if (resaltados.indexOf(c) === -1) c.setStyle(estiloBase(c)); });
+        });
+        if (!estadoRuta) pintarLeyenda(null);
+    }
 
     var grupos = {}, porLote = {}, porMr = {}, esperando = {}, resaltados = [], enRuta = [], estadoRuta = null, visitaRuta = {};
     // Los archivos data/rapido/*.js llaman a estas funciones al cargarse
@@ -271,7 +345,11 @@
             var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c)));
             delete p.g;
             capa.lote = p;
-            capa.on('click', function (e) { resaltarMr(p.m); verLote(capa, e.latlng); });
+            if (vencidos) capa.setStyle(estiloBase(capa));
+            capa.on('click', function (e) {
+                if (seleccion) return alternarSel(capa);
+                resaltarMr(p.m); verLote(capa, e.latlng);
+            });
             g.addLayer(capa);
             if (p.l && p.l !== 'NA') (porLote[p.l] = porLote[p.l] || []).push(capa);
             if (p.m) (porMr[p.m.toUpperCase()] = porMr[p.m.toUpperCase()] || []).push(capa);
@@ -423,7 +501,7 @@
         return copiaSubs;
     }
     // Al volver con "atrás" desde subsanaciones (p. ej. tras marcar subsanado) se relee la copia y se repintan los colores
-    window.addEventListener('pageshow', function (e) { copiaSubs = null; if (e.persisted && estadoRuta) location.reload(); });
+    window.addEventListener('pageshow', function (e) { copiaSubs = null; ultimas = null; if (e.persisted && estadoRuta) location.reload(); });
     function visitaGuardada(id) {
         var c = copia(), r = c && (c.registros || []).filter(function (x) { return x.ID === id; })[0];
         return r ? { r: r, items: (/^OPE-/.test(r.ID) ? c.itemsOperacion : c.items) || [], t: c.t } : null;
@@ -443,6 +521,7 @@
         var u = visitaDeCapa(capa), id = capa.rutaVisita || (u && u.ID), html = '';
         if (capa.rutaEstado) html += '<span class="ruta-estado ' + capa.rutaEstado + '">' + TEXTO_RUTA[capa.rutaEstado] + '</span>';
         // Visita anterior a la pre-ruta (o búsqueda normal): se dice cuándo fue y cómo quedó
+        html += textoVence(capa);
         if (u && !capa.rutaVisita) html += '<span class="ruta-estado ' + estadoDeVisita(u.ESTADO) + '">Última visita ' + esc(String(u['FECHA DE LA VISITA'] || '').slice(0, 5)) + ' · ' + esc(u.ESTADO || '') + '</span>';
         if (id) html += '<a class="ver-visita" data-visita="' + esc(id) + '" href="subsanaciones.html?ver=' + encodeURIComponent(id) + '">📄 Ver detalles ›</a>';
         return html ? '<div class="linea-estado">' + html + '</div>' : '';
@@ -503,6 +582,9 @@
                     '<span class="punto" style="background:' + colorCuadrilla(c) + '"></span>' + (c === 'sin' ? 'Sin cuadrilla' : 'C' + esc(c)) + '</button>';
             }).join('') +
             '<span class="separador"></span>' +
+            '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
+            '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
+            '<span class="separador"></span>' +
             Object.keys(IDX.capas || {}).map(function (k) {
                 return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
             }).join('');
@@ -517,7 +599,11 @@
         guardar('rapido_cuadrillas', activas);
         Object.keys(grupos).forEach(function (c) { if (activas.indexOf(c) === -1 && map.hasLayer(grupos[c])) map.removeLayer(grupos[c]); });
         activas.forEach(function (c) {
-            asegurarCuadrilla(c, function () { if (activas.indexOf(c) !== -1 && !map.hasLayer(grupos[c])) grupos[c].addTo(map); pintarChips(); });
+            asegurarCuadrilla(c, function () {
+                if (activas.indexOf(c) !== -1 && !map.hasLayer(grupos[c])) grupos[c].addTo(map);
+                pintarChips();
+                if (vencidos && !estadoRuta) leyendaVence();
+            });
         });
         if (encuadrar && activas.length) {
             // Los límites vienen en el índice: se encuadra de una vez, sin esperar la descarga
@@ -545,6 +631,14 @@
             if (i === -1) activas.push(c); else activas.splice(i, 1);
             return mostrarCuadrillas(i === -1);
         }
+        if (b.hasAttribute('data-vencidos')) {
+            vencidos = !vencidos;
+            guardar('rapido_vencidos', vencidos);
+            repintarLotes();
+            if (!vencidos && !estadoRuta) $('leyenda').hidden = true;
+            return pintarChips();
+        }
+        if (b.hasAttribute('data-sel')) return modoSel(!seleccion);
         if (b.dataset.capa) {
             var k = b.dataset.capa, j = capasActivas.indexOf(k);
             if (j === -1) capasActivas.push(k); else capasActivas.splice(j, 1);
@@ -577,7 +671,7 @@
             var capas = [], cuenta = { pendiente: 0, hecho: 0, subsanar: 0, cerrado: 0, curso: 0 };
             marcadores.clearLayers();
             limpiarResaltado();
-            enRuta.forEach(function (c) { delete c.rutaEstado; delete c.rutaVisita; c.setStyle(estiloLote(c.lote.c)); });
+            enRuta.forEach(function (c) { delete c.rutaEstado; delete c.rutaVisita; c.setStyle(estiloBase(c)); });
             enRuta = [];
             claves.forEach(function (k) {
                 var cs = (k.esMr ? porMr : porLote)[k.v] || [];
@@ -598,7 +692,7 @@
                     var html =est === 'hecho' ? '✓' : est === 'cerrado' ? '🔒' : est === 'subsanar' ? '!' : est === 'curso' ? '▶' : String(k.n);
                     L.marker(puntoLote(mayor), { icon: L.divIcon({ className: 'parada-num' + (est ? ' ' + est : ''), html: html }),
                         title: (k.esMr ? '' : 'Lote ') + k.v + (est ? ' · ' + TEXTO_RUTA[est] : ''), zIndexOffset: est === 'pendiente' ? 1000 : 0 })
-                        .on('click', function () { verLote(cs[0]); }).addTo(marcadores);
+                        .on('click', function () { if (seleccion) alternarSel(cs[0]); else verLote(cs[0]); }).addTo(marcadores);
                 }
             });
             pintarLeyenda(estadoRuta ? cuenta : null);
@@ -613,6 +707,7 @@
     // Mismo formato que IDX: mayúsculas y lotes sin ceros a la izquierda
     function clave(v) { v = String(v || '').trim().toUpperCase(); return /^\d+$/.test(v) ? String(+v) : v; }
     function pintarLeyenda(cuenta) {
+        if (!cuenta && vencidos) return leyendaVence();
         $('leyenda').hidden = !cuenta;
         if (!cuenta) return;
         var tipos = [['pendiente', 'por revisar', 'por revisar'], ['curso', 'en ejecución', 'en ejecución'], ['hecho', 'revisado', 'revisados'],
@@ -622,6 +717,56 @@
             return '<span><i style="background:' + e.fillColor + ';border-color:' + e.color + '"></i>' + n + ' ' + (n === 1 ? t[1] : t[2]) + '</span>';
         }).join('');
     }
+    // Cuántos lotes de las cuadrillas visibles hay en cada estado (un lote de varias partes cuenta una vez)
+    function leyendaVence() {
+        var cuenta = { vencido: 0, pronto: 0, aldia: 0, sin: 0 }, vistos = {};
+        Object.keys(grupos).forEach(function (k) {
+            if (!map.hasLayer(grupos[k])) return;
+            grupos[k].eachLayer(function (c) { var id = idCapa(c); if (vistos[id]) return; vistos[id] = 1; cuenta[venceDe(c).estado]++; });
+        });
+        $('leyenda').hidden = false;
+        $('leyenda').innerHTML = ['vencido', 'pronto', 'aldia', 'sin'].map(function (t) {
+            var e = ESTILO_VENCE[t], n = cuenta[t];
+            return '<span><i style="background:' + e.fillColor + ';border-color:' + e.color + '"></i>' + n + ' ' + TEXTO_VENCE[t][n === 1 ? 0 : 1] + '</span>';
+        }).join('') + (copia() ? '' : '<span>· Abra subsanaciones una vez para traer las visitas</span>');
+    }
+
+    // ---------- Armar pre-ruta tocando lotes ----------
+    // seleccion: ids (lote o microrruta) en el orden en que se tocaron; null = modo apagado
+    var seleccion = null;
+    function partesDe(id) { return /^\d+$/.test(id) ? porLote[id] || [] : porMr[id] || []; }
+    function alternarSel(capa) {
+        var id = idCapa(capa), i = seleccion.indexOf(id);
+        if (i === -1) seleccion.push(id); else seleccion.splice(i, 1);
+        partesDe(id).concat([capa]).forEach(function (c) { c.setStyle(estiloBase(c)); if (i === -1) c.bringToFront(); });
+        pintarSel();
+    }
+    function pintarSel() {
+        $('sel-barra').hidden = !seleccion;
+        document.body.classList.toggle('con-sel', !!seleccion);
+        if (!seleccion) return;
+        $('sel-txt').innerHTML = seleccion.length ? '<b>' + seleccion.length + ' lote' + (seleccion.length === 1 ? '' : 's') + '</b> · ' + esc(seleccion.join(', '))
+            : '<b>Toque los lotes</b> para la pre-ruta';
+        $('sel-crear').disabled = !seleccion.length;
+    }
+    function modoSel(on) {
+        var antes = seleccion || [];
+        seleccion = on ? [] : null;
+        if (on) cerrarFicha();
+        antes.forEach(function (id) { partesDe(id).forEach(function (c) { c.setStyle(estiloBase(c)); }); });
+        pintarSel();
+        pintarChips();
+        if (on) toast(activas.length ? 'Toque los lotes que quiere en la pre-ruta.' : 'Elija una cuadrilla y toque sus lotes.');
+    }
+    $('sel-cancelar').onclick = function () { modoSel(false); };
+    $('sel-crear').onclick = function () {
+        if (!seleccion || !seleccion.length) return;
+        // Cuadrilla: la de los lotes si todos son de la misma
+        var cuads = seleccion.map(function (id) { var c = partesDe(id)[0]; return c ? String(c.lote.c || '') : ''; })
+            .filter(function (c, i, a) { return a.indexOf(c) === i; });
+        location.href = 'subsanaciones.html?preruta=' + encodeURIComponent(seleccion.join(',')) + (cuads.length === 1 && cuads[0] ? '&cuad=' + encodeURIComponent(cuads[0]) : '');
+    };
+
     // ---------- Ubicar el lote por coordenadas (escritas o leídas de una foto) ----------
     var puntoCapa = L.layerGroup().addTo(map);
     // Metros aproximados en la zona (proyección plana local: sobra para distancias de cientos de metros)

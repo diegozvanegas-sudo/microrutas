@@ -35,6 +35,7 @@ jobs:
           cache: npm
           cache-dependency-path: web/package-lock.json
       - run: npm ci
+      - run: npm test # si una prueba falla no se publica
       # Sirve como secreto o como variable, con nombre SUPABASE_... o VITE_SUPABASE_...
       - name: Construir
         env:
