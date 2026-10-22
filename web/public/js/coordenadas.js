@@ -25,6 +25,16 @@ window.leerCoordenadas = function (texto) {
     var la = (lat.neg || lat.h === 'S' ? -1 : 1) * lat.v;
     var lo = (lng.neg || lng.h === 'W' || lng.h === 'O' ? -1 : 1) * lng.v;
     if (!lng.h && !lng.neg && lo >= 60 && lo <= 85) lo = -lo;
-    if (Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
-    return { lat: la, lng: lo };
+    // Errores comunes al escribir, si la longitud es de Colombia (-66 a -82) o vienen al revés:
+    //   "76.19650, -75.58450" (sobra un dígito en la latitud) -> 6.19650 · "-75.5845, 6.1965" (invertidas)
+    var escrita = la.toFixed(5) + ', ' + lo.toFixed(5), corregida = '';
+    if (Math.abs(la) >= 60 && Math.abs(la) <= 85 && Math.abs(lo) <= 15) {
+        var tmp = la; la = lo; lo = -Math.abs(tmp); corregida = 'latitud y longitud invertidas';
+    } else if (Math.abs(la) > 15 && lo <= -60 && lo >= -85) {
+        var signo = la < 0 ? -1 : 1, s = String(Math.abs(la));
+        while (Math.abs(la) > 15 && s.length > 1) { s = s.slice(1); la = signo * parseFloat(s); }
+        corregida = 'un dígito de más en la latitud';
+    }
+    if (!isFinite(la) || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
+    return corregida ? { lat: la, lng: lo, corregida: corregida, escrita: escrita } : { lat: la, lng: lo };
 };

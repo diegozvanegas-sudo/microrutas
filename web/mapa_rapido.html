@@ -136,7 +136,7 @@
     var IDX = window.indiceRapido || { cuadrillas: {}, lotes: {}, mrs: {}, capas: {} };
     var $ = function (id) { return document.getElementById(id); };
     function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return '&#' + c.charCodeAt(0) + ';'; }); }
-    function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, 3500); }
+    function toast(msg) { var t = $('toast'); t.textContent = msg; t.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(function () { t.style.display = 'none'; }, Math.max(3500, msg.length * 60)); }
     function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) {} }
     function leer(k, def) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? def : v; } catch (e) { return def; } }
 
@@ -657,6 +657,8 @@
     var CERCA_M = 150;
     function ubicarPunto(c) {
         var ll = L.latLng(c.lat, c.lng), txt = c.lat.toFixed(5) + ', ' + c.lng.toFixed(5);
+        // Coordenadas mal escritas que coordenadas.js arregló: se dice qué se cambió
+        var aviso = c.corregida ? ' Se escribió ' + c.escrita + ' (' + c.corregida + '); se buscó ' + txt + '.' : '';
         estadoRuta = null;
         marcadores.clearLayers();
         puntoCapa.clearLayers();
@@ -665,7 +667,7 @@
         $('buscar').value = txt;
         // Solo se cargan las cuadrillas cuyo recuadro (con margen) incluye el punto
         var cuads = ordenCuad.filter(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b).pad(0.05).contains(ll); });
-        if (!cuads.length) { map.setView(ll, 17); return toast('El punto ' + txt + ' queda fuera de la zona de los lotes.'); }
+        if (!cuads.length) { map.setView(ll, 17); return toast('El punto ' + txt + ' queda fuera de la zona de los lotes.' + aviso); }
         cuads.forEach(function (k) { if (activas.indexOf(k) === -1) activas.push(k); });
         mostrarCuadrillas(false);
         map.setView(ll, 18);
@@ -684,13 +686,13 @@
                 });
             });
             var capa = dentro || (dmin <= CERCA_M ? cerca : null);
-            if (!capa) return toast('No hay lotes a menos de ' + CERCA_M + ' m de ' + txt + '.');
+            if (!capa) return toast('No hay lotes a menos de ' + CERCA_M + ' m de ' + txt + '.' + aviso);
             var p = capa.lote, nombre = p.l && p.l !== 'NA' ? 'Lote ' + p.l : p.m;
             resaltarMr(p.m);
             var b = capa.getBounds(); // copia: getBounds() es el recuadro interno del lote
             map.fitBounds(L.latLngBounds(b.getSouthWest(), b.getNorthEast()).extend(ll), { padding: [40, 40], maxZoom: 18 });
             verLote(capa, ll);
-            toast(dentro ? '📍 Está dentro del ' + nombre : '📍 Ningún lote contiene el punto; el más cercano es el ' + nombre + ' (a ' + Math.round(dmin) + ' m).');
+            toast((dentro ? '📍 Está dentro del ' + nombre : '📍 Ningún lote contiene el punto; el más cercano es el ' + nombre + ' (a ' + Math.round(dmin) + ' m).') + aviso);
         }
     }
 
