@@ -383,6 +383,8 @@
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
                 '<button type="button" class="boton secundario" data-aqui>' + (fijada && fijada.id === idCapa(capa) ? '↺ Usar GPS' : '📍 Estoy aquí') + '</button>' +
                 '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
+                // Arma la pre-ruta con solo este lote (en subsanaciones se confirma la cuadrilla y la fecha)
+                '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
                 '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
             '</div></div>';
     }

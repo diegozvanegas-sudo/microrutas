@@ -679,14 +679,23 @@ export function iniciar(api, CFG) {
     // final = datos ya leídos de la hoja (no solo los guardados en el celular)
     function abrirDesdeUrl(final) {
         if (desdeUrlHecho) return;
-        var q = new URLSearchParams(location.search), mr = q.get('mr') || '', lote = q.get('lote') || '', ver = q.get('ver') || '', sub = q.get('subsanar') || '';
+        var q = new URLSearchParams(location.search), mr = q.get('mr') || '', lote = q.get('lote') || '', ver = q.get('ver') || '', sub = q.get('subsanar') || '', pre = q.get('preruta') || '';
         var buscada = function (id) { return registros.filter(function (r) { return r.ID === id; })[0]; };
         // Visita que aún no está en lo guardado en el celular: se espera a la hoja
         if ((ver || sub) && !final && !buscada(ver || sub)) return;
         desdeUrlHecho = true;
-        if (!mr && !lote && !ver && !sub) return;
+        if (!mr && !lote && !ver && !sub && !pre) return;
         // Se usa una sola vez: si el celular recarga la pestaña o vuelve a ella, muestra la lista y no el formulario
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+        // Desde la ficha del mapa: subsanaciones.html?preruta=400&cuad=2 abre "Crear pre-ruta" con ese lote ya puesto
+        if (pre) {
+            abrirDlgRuta();
+            $('ruta-texto').value = pre;
+            $('ruta-texto').dispatchEvent(new Event('input'));
+            $('ruta-cuad').value = (q.get('cuad') || infoLote(pre).cuad || '').replace(/^C/i, '');
+            vistaRuta();
+            return;
+        }
         // Desde el mapa: subsanaciones.html?subsanar=SUB-00042 abre esa visita con los ítems en NO pasados a SI
         if (sub) {
             var rs = buscada(sub);

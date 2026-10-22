@@ -1,5 +1,6 @@
 # Consulta la base de Supabase cada 3 días para que el plan gratis no pause el proyecto por inactividad.
-# Usa los secretos SUPABASE_URL y SUPABASE_ANON_KEY (GitHub → Settings → Secrets and variables → Actions).
+# Usa SUPABASE_URL y SUPABASE_ANON_KEY (GitHub → Settings → Secrets and variables → Actions).
+# Sirve como secreto o como variable, con nombre SUPABASE_... o VITE_SUPABASE_...
 name: Mantener Supabase activo
 
 on:
@@ -13,12 +14,26 @@ jobs:
     steps:
       - name: Consultar la tabla items
         env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL || vars.SUPABASE_URL || vars.VITE_SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY || vars.SUPABASE_ANON_KEY || vars.VITE_SUPABASE_ANON_KEY }}
         run: |
+          if [ -z "$SUPABASE_URL" ] || [ -z "$SUPABASE_ANON_KEY" ]; then
+            echo "::error::Faltan SUPABASE_URL y/o SUPABASE_ANON_KEY en Settings → Secrets and variables → Actions"
+            exit 1
+          fi
+          url="${SUPABASE_URL%/}"
           codigo=$(curl -s -o respuesta.json -w '%{http_code}' \
-            "$SUPABASE_URL/rest/v1/items?select=*&limit=1" \
+            "$url/rest/v1/items?select=id&limit=1" \
             -H "apikey: $SUPABASE_ANON_KEY" \
-            -H "Authorization: Bearer $SUPABASE_ANON_KEY")
+            -H "Authorization: Bearer $SUPABASE_ANON_KEY" || true)
           echo "Respuesta de Supabase: HTTP $codigo"
-          test "$codigo" = 200
+          cat respuesta.json 2>/dev/null; echo
+          if [ "$codigo" != 200 ]; then
+            case "$codigo" in
+              000) echo "::error::No se pudo conectar. Revise que SUPABASE_URL sea https://SU_PROYECTO.supabase.co (o el proyecto está pausado: reanúdelo en el panel de Supabase)" ;;
+              401|403) echo "::error::Llave rechazada. SUPABASE_ANON_KEY debe ser la llave anon public de Project Settings → API" ;;
+              404) echo "::error::No existe la tabla items. Corra las migraciones (npm run db:esquema)" ;;
+              *) echo "::error::Supabase respondió HTTP $codigo" ;;
+            esac
+            exit 1
+          fi
