@@ -1,11 +1,13 @@
 // Entrada de subsanaciones.html: estilos, sesión y arranque de la página.
 import './estilos.css';
+import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { crearApi } from '../api.js';
 import { asegurarSesion, cerrarSesion } from '../sesion.js';
 import { iniciar } from './app.js';
 
 async function arrancar() {
+    iniciarEncabezado();
     if (!configurado) return iniciar(null, {});
     var usuario = await asegurarSesion(supabase);
     var salir = document.getElementById('btn-salir');

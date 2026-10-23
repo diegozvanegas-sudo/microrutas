@@ -10,7 +10,8 @@
     "db:importar": "node scripts/importar_lotes.mjs",
     "probar": "node scripts/probar.mjs",
     "probar:visitas": "node scripts/probar_visitas.mjs",
-    "usuario": "node scripts/crear_usuario.mjs"
+    "usuario": "node scripts/crear_usuario.mjs",
+    "contrato": "node scripts/cargar_contrato.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

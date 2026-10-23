@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Contrato · Corte de césped</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📜</span>
+        <div class="nombre"><h1>Contrato</h1><div class="lema">Especificaciones técnicas · Corte de césped</div></div>
+    </div>
+    <nav class="nav-app" aria-label="Secciones">
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <a href="contrato.html" aria-current="page">📜 <span>Contrato</span></a>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-imprimir">🖨️ Imprimir o guardar PDF</button>
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main>
+    <p class="doc" id="doc"></p>
+    <div class="buscador">
+        <input type="search" id="buscar" placeholder="Buscar en el contrato: plateo, 8 horas, fotos, caña brava, desmonte…" aria-label="Buscar en el contrato" autocomplete="off">
+    </div>
+    <nav class="indice" id="indice" aria-label="Secciones del contrato"></nav>
+    <div id="estado" class="estado-carga">Cargando…</div>
+    <div id="secciones"></div>
+    <p class="nota-privada">🔒 Este contenido solo se ve con sesión iniciada. Las páginas (pág.) son las del PDF de especificaciones técnicas.</p>
+</main>
+<script type="module" src="/src/contrato/main.js"></script>
+</body>
+</html>

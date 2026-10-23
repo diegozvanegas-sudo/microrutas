@@ -5,3 +5,6 @@ dist/
 dev-dist/
 supabase/.temp/
 supabase/.branches/
+
+# Contrato y resumen: privados (se cargan a Supabase, no al repositorio público)
+datos/contrato/
