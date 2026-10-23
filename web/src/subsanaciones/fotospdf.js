@@ -40,8 +40,23 @@ export function pieDeFoto(n, foto) {
         foto.gps ? foto.gps.lat.toFixed(6) + ', ' + foto.gps.lon.toFixed(6) : 'sin GPS'].join('  ·  ');
 }
 
+// Rótulo grande sobre la foto (p. ej. "Lote 477 · Z2CC0257"): franja oscura abajo a la izquierda con letra blanca,
+// alta como el 7 % del lado menor; si no cabe a lo ancho se achica
+function rotular(g, w, h, texto) {
+    var tam = Math.max(22, Math.round(Math.min(w, h) * 0.07)), pad = Math.round(tam * 0.4);
+    g.font = 'bold ' + tam + 'px Arial, sans-serif';
+    var ancho = g.measureText(texto).width;
+    if (ancho > w - pad * 4) { tam = Math.max(12, Math.floor(tam * (w - pad * 4) / ancho)); g.font = 'bold ' + tam + 'px Arial, sans-serif'; ancho = g.measureText(texto).width; }
+    var x = pad, y = h - pad - tam - pad * 2;
+    g.fillStyle = 'rgba(0,0,0,0.62)';
+    g.fillRect(x, y, ancho + pad * 2, tam + pad * 2);
+    g.fillStyle = '#fff';
+    g.textBaseline = 'middle';
+    g.fillText(texto, x + pad, y + pad + tam / 2 + tam * 0.04);
+}
+
 // La foto derecha (respeta la orientación) en JPG; si reducir, el lado mayor queda en máximo 1600 px
-async function prepararJpg(archivo, reducir) {
+async function prepararJpg(archivo, reducir, rotulo) {
     var bmp = await createImageBitmap(archivo);
     var escala = reducir ? Math.min(1, 1600 / Math.max(bmp.width, bmp.height)) : 1;
     var c = document.createElement('canvas');
@@ -51,6 +66,7 @@ async function prepararJpg(archivo, reducir) {
     g.fillRect(0, 0, c.width, c.height);
     g.drawImage(bmp, 0, 0, c.width, c.height);
     bmp.close();
+    if (rotulo) rotular(g, c.width, c.height, rotulo);
     var blob = await new Promise(function (listo) { c.toBlob(listo, 'image/jpeg', reducir ? 0.82 : 0.92); });
     return new Uint8Array(await blob.arrayBuffer());
 }
@@ -61,14 +77,14 @@ function encajar(img, x, y, w, h) {
     return { x: x + (w - iw) / 2, y: y + (h - ih) / 2, width: iw, height: ih };
 }
 
-// fotos: lista ya ordenada (de examinar). opciones: { diseno, reducir, nombre }. informe(hechas, total)
+// fotos: lista ya ordenada (de examinar). opciones: { diseno, reducir, nombre, rotulo }. informe(hechas, total)
 export async function fotosAPdf(fotos, opciones, informe) {
     var { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     var pdf = await PDFDocument.create(), letra = await pdf.embedFont(StandardFonts.Helvetica);
     var porHoja = opciones.diseno === 'carta4' ? 4 : 1, omitidas = [], pagina = null;
     for (var i = 0; i < fotos.length; i++) {
         try {
-            var img = await pdf.embedJpg(await prepararJpg(fotos[i].archivo, opciones.reducir));
+            var img = await pdf.embedJpg(await prepararJpg(fotos[i].archivo, opciones.reducir, opciones.rotulo));
             if (opciones.diseno === 'completa') {
                 pdf.addPage([img.width, img.height]).drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
             } else {

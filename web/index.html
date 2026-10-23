@@ -366,7 +366,15 @@ botonMapaRapido.addTo(map);
             maxNativeZoom: 20
         });
         layer_GoogleSatellite_0;
-        map.addLayer(layer_GoogleSatellite_0);
+        // Ortofoto oficial de la Alcaldía (agosto 2025): cuadra con los lotes; Google se ve corrido unos metros
+        var layer_OrtofotoMedellin = L.tileLayer('https://www.medellin.gov.co/servidormapas/rest/services/ServiciosCiudad/IMAGEN_WEBM_2024/MapServer/tile/{z}/{y}/{x}', {
+            pane: 'pane_GoogleSatellite_0',
+            attribution: 'Ortofoto © Alcaldía de Medellín',
+            minZoom: 1,
+            maxZoom: 28,
+            maxNativeZoom: 21
+        });
+        map.addLayer(layer_OrtofotoMedellin);
         function pop_Comunas_1(feature, layer) {
             var popupContent = '<table>\
                     <tr>\
@@ -683,6 +691,7 @@ botonMapaRapido.addTo(map);
             {label: '<img src="legend/Rutas_SIF_3.png" /> Rutas_SIF', layer: layer_Rutas_SIF_3},
             {label: '<img src="legend/zonasverdes__areas_zonas_verdes_2.png" /> zonasverdes__areas_zonas_verdes', layer: layer_zonasverdes__areas_zonas_verdes_2},
             {label: '<img src="legend/Comunas_1.png" /> Comunas', layer: layer_Comunas_1},
+            {label: "Ortofoto Medellín 2025", layer: layer_OrtofotoMedellin, radioGroup: 'bm' },
             {label: "Google Satellite", layer: layer_GoogleSatellite_0, radioGroup: 'bm' },]
         var lay = L.control.layers.tree(null, overlaysTree,{
             //namedToggle: true,

@@ -54,8 +54,9 @@
         </select>
         <select id="f-zona" aria-label="Zona"><option value="">Zona: todas</option></select>
         <select id="f-cuadrilla" aria-label="Cuadrilla"><option value="">Cuadrilla: todas</option></select>
+        <select id="f-dia" aria-label="Día de la visita"><option value="">Día: todos</option></select>
         <button type="button" class="secundario" id="btn-resumen" title="Texto con todas las novedades pendientes de lo filtrado, para pegar en WhatsApp">📋 Copiar resumen</button>
-        <button type="button" class="secundario" id="btn-dia" title="Visitas de hoy por cuadrilla, para pegar en WhatsApp">📊 Resumen del día</button>
+        <button type="button" class="secundario" id="btn-dia" title="Novedades de hoy (o del día filtrado) por cuadrilla, para pegar en WhatsApp">📊 Resumen del día</button>
     </div>
     <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
 </main>
@@ -164,6 +165,8 @@
                     <option value="nombre">Por nombre del archivo</option>
                 </select>
             </label>
+            <label class="fotos-ancho">LOTE O MICRORRUTA EN LAS FOTOS <input type="text" id="fotos-rotulo" autocomplete="off" placeholder="Opcional: 477 o Z2CC0257">
+                <span class="sub" id="fotos-rotulo-ver"></span></label>
             <label>NOMBRE DEL PDF <input type="text" id="fotos-nombre" autocomplete="off"></label>
             <label class="fotos-check"><input type="checkbox" id="fotos-reducir" checked> Reducir peso (para enviar por WhatsApp)</label>
         </div>

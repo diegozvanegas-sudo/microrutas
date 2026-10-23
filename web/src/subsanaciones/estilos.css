@@ -120,6 +120,8 @@ fieldset { min-width: 0; }
 #dlg-fotos .zip-elegir { width: 100%; margin: 14px 0 6px; padding: 14px; border: 2px dashed #9fd3bd; }
 .fotos-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
 .fotos-opciones label:first-child { grid-column: 1 / -1; }
+.fotos-ancho { grid-column: 1 / -1; }
+#fotos-rotulo-ver { display: block; margin-top: 4px; text-transform: none; font-weight: 600; }
 .fotos-check { grid-column: 1 / -1; display: flex !important; align-items: center; gap: 8px; text-transform: none; font-weight: 600; }
 .fotos-check input { width: 20px; height: 20px; min-height: 0 !important; }
 .fotos-resumen { margin-top: 10px; font-size: 13px; }

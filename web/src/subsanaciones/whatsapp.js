@@ -17,6 +17,50 @@ export function textoWhatsapp(r) {
         lineas.join('\n');
 }
 
+// Resumen final del día con el formato de interventoría: por cuadrilla, los lotes con novedad y sus ítems,
+// y al final los requerimientos al contratista. menciones: { '1': '@~Nombre del encargado' } (se aprenden del texto copiado)
+// "¡Buenas tardes! \n\n NOVEDADES POSOPERACION \n Fecha: 23/10/2026 \n Cuadrilla: 1 \n @~Nombre \n\n Z2CC0235 (453): \n\n * Barrido de zonas duras"
+export var REQUERIMIENTOS = 'REQUERIMIENTOS:\n\n' +
+    '1. Dar respuesta a lo solicitado de manera oportuna, citando el número de la microruta asociada al hallazgo.\n\n' +
+    '2. En el evento de que EL CONTRATISTA no presente ningún argumento dentro del término previsto, la entidad contratante tomará ese silencio ' +
+    'como incumplimiento de las obligaciones establecidas en el contrato y habilitará a la gestoría del contrato para hacer efectivos los descuentos ' +
+    'o imposición de medidas coercitivas que el contrato establece, garantizando en todo caso el debido proceso y derecho a la contradicción; ' +
+    'de acuerdo con lo establecido en las Condiciones Particulares del proceso contractual.';
+export function textoNovedadesDia(lista, dia, menciones) {
+    var h = new Date().getHours();
+    var saludo = h < 12 ? '¡Buenos días!' : h < 19 ? '¡Buenas tardes!' : '¡Buenas noches!';
+    var grupos = {}, orden = [];
+    lista.filter(function (r) { return r.ESTADO === 'PENDIENTE' || (esOp(r) && itemsEnNo(r).length); }).forEach(function (r) {
+        var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
+        var k = (esOp(r) ? '1' : '0') + '|' + cuad;
+        if (!grupos[k]) { grupos[k] = { op: esOp(r), cuad: cuad, rs: [] }; orden.push(k); }
+        grupos[k].rs.push(r);
+    });
+    if (!orden.length) return '';
+    orden.sort(function (a, b) {
+        var x = grupos[a], y = grupos[b];
+        return (x.cuad ? 0 : 1) - (y.cuad ? 0 : 1) || x.cuad.localeCompare(y.cuad, 'es', { numeric: true }) || (x.op - y.op);
+    });
+    var bloques = orden.map(function (k) {
+        var g = grupos[k], m = (menciones || {})[g.cuad];
+        var cab = ['NOVEDADES ' + (g.op ? 'EN OPERACION' : 'POSOPERACION'), 'Fecha: ' + dia]
+            .concat(g.cuad ? ['Cuadrilla: ' + g.cuad] : []).concat(m ? [m] : []).join('\n');
+        var lotes = g.rs.slice().sort(function (a, b) {
+            return String(a.MICRORRUTA || '').localeCompare(String(b.MICRORRUTA || ''), 'es', { numeric: true });
+        }).map(function (r) {
+            return (r.MICRORRUTA || '') + (r.LOTE && r.LOTE !== 'NA' ? ' (' + r.LOTE + ')' : '') + ':\n\n' + lineasNovedad(r).join('\n');
+        });
+        return cab + '\n\n' + lotes.join('\n\n');
+    });
+    return saludo + '\n\n' + bloques.join('\n\n\n') + '\n\n\n' + REQUERIMIENTOS;
+}
+// Lee las menciones escritas a mano debajo de "Cuadrilla: N" para recordarlas la próxima vez
+export function leerMenciones(texto) {
+    var res = {}, re = /^Cuadrilla:\s*(\S+)\s*\n\s*(@.+?)\s*$/gm, m;
+    while ((m = re.exec(String(texto || '')))) res[m[1]] = m[2];
+    return res;
+}
+
 // Resumen del día por cuadrilla: cuántos lotes se revisaron, cuáles quedaron con novedad y las visitas de operación
 // "Resumen de visitas 22/10/2026 \n\n Cuadrilla 2: 3 lotes revisados · 1 con novedad \n ✓ Z2CC0202 lote 400 \n ⚠ Z2CC0100 lote 532: 2 ítems en NO"
 export function textoDia(lista, dia) {

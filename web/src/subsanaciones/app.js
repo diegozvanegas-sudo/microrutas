@@ -3,7 +3,7 @@
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge } from './estado.js';
-import { textoWhatsapp, textoResumen, textoDia } from './whatsapp.js';
+import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
@@ -114,6 +114,7 @@ export function iniciar(api, CFG) {
         ordenarRegistros();
         llenarSelect('f-zona', 'ZONA', 'Zona: todas');
         llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
+        llenarDias();
         if (d.rutas) rutasDeHoja(d.rutas, desdeCache);
         // Con la copia del celular la pre-ruta puede estar vieja: no se toca la hoja hasta que llegue la de verdad
         if (!desdeCache) rutasAlDia = true;
@@ -145,12 +146,24 @@ export function iniciar(api, CFG) {
         sel.value = actual;
     }
 
+    // Días con visitas, del más reciente al más viejo: "Hoy · 23/10/2026", "Ayer · 22/10/2026", "21/10/2026"
+    function llenarDias() {
+        var sel = $('f-dia'), actual = sel.value, h = hoy(), ayer = new Date(new Date(h).getTime() - 864e5).toISOString().slice(0, 10);
+        var valores = registros.map(function (r) { return aInput(r['FECHA DE LA VISITA']); }).filter(Boolean)
+            .filter(function (d, i, a) { return a.indexOf(d) === i; }).sort().reverse();
+        sel.innerHTML = '<option value="">Día: todos</option>' + valores.map(function (d) {
+            return '<option value="' + d + '">' + (d === h ? 'Hoy · ' : d === ayer ? 'Ayer · ' : '') + aTexto(d) + '</option>';
+        }).join('');
+        sel.value = actual;
+    }
+
     function filtrados() {
-        var texto = norm($('f-texto').value), est = $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value;
+        var texto = norm($('f-texto').value), est = $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
         return registros.filter(function (r) {
             if (tipo && r.TIPO !== tipo) return false;
             if (zona && String(r.ZONA).trim() !== zona) return false;
             if (cuad && String(r.CUADRILLA).trim() !== cuad) return false;
+            if (dia && aInput(r['FECHA DE LA VISITA']) !== dia) return false;
             if (est === 'VIEJAS' ? !esVieja(r) : est && r.ESTADO !== est) return false;
             if (!texto) return true;
             return ['ID', 'MICRORRUTA', 'LOTE', 'INTERVENTOR', 'OBSERVACIONES NOVEDADES', 'OBSERVACIÓN SUBSANACIÓN']
@@ -287,13 +300,26 @@ export function iniciar(api, CFG) {
     };
     // Visitas de hoy (o del día de la visita filtrada) por cuadrilla: lo que se revisó y lo que quedó con novedad
     $('btn-dia').onclick = function () {
-        var dia = aTexto(hoy()), lista = registros.filter(function (r) { return aTexto(aInput(r['FECHA DE LA VISITA'])) === dia; });
-        if (!lista.length) return toast('Hoy (' + dia + ') aún no hay visitas registradas.');
-        $('wa-texto').value = textoDia(lista, dia);
+        var elegido = $('f-dia').value, dia = aTexto(elegido || hoy()), lista = registros.filter(function (r) { return aTexto(aInput(r['FECHA DE LA VISITA'])) === dia; });
+        // Con una cuadrilla filtrada, el resumen es solo de esa cuadrilla
+        var cuadF = $('f-cuadrilla').value;
+        if (cuadF) lista = lista.filter(function (r) { return String(r.CUADRILLA).trim() === cuadF; });
+        if (!lista.length) return toast(elegido ? 'El ' + dia + ' no hay visitas registradas.' : 'Hoy (' + dia + ') aún no hay visitas registradas.');
+        // Con novedades: el formato de interventoría (NOVEDADES POSOPERACION + requerimientos); sin novedades, el conteo del día
+        var novedades = textoNovedadesDia(lista, dia, menciones());
+        $('wa-texto').value = novedades || textoDia(lista, dia);
         actualizarEnlaceWa();
         $('dlg-wa').showModal();
-        toast(lista.length + (lista.length === 1 ? ' visita' : ' visitas') + ' de hoy en el resumen.');
+        toast(novedades ? 'Novedades del ' + dia + '. Escriba la @mención debajo de "Cuadrilla" una vez y queda recordada.' : 'El ' + dia + ' no quedaron novedades: ' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + ' en el resumen.');
     };
+    // @menciones de los encargados por cuadrilla, aprendidas del texto que se copia o se abre en WhatsApp
+    function menciones() { try { return JSON.parse(localStorage.getItem('subsanaciones_menciones')) || {}; } catch (e) { return {}; } }
+    function recordarMenciones() {
+        var nuevas = leerMenciones($('wa-texto').value);
+        if (!Object.keys(nuevas).length) return;
+        try { localStorage.setItem('subsanaciones_menciones', JSON.stringify(Object.assign(menciones(), nuevas))); } catch (e) {}
+    }
+    $('wa-abrir').addEventListener('click', recordarMenciones);
     function actualizarEnlaceWa() { $('wa-abrir').href = 'https://wa.me/?text=' + encodeURIComponent($('wa-texto').value); }
     function mostrarWhatsapp(r) {
         $('wa-texto').value = textoWhatsapp(r);
@@ -303,6 +329,7 @@ export function iniciar(api, CFG) {
     $('wa-texto').addEventListener('input', actualizarEnlaceWa);
     $('wa-cerrar').onclick = function () { $('dlg-wa').close(); };
     $('wa-copiar').onclick = function () {
+        recordarMenciones();
         var t = $('wa-texto');
         var copiado = function () { toast('Resumen copiado. Péguelo en WhatsApp.'); };
         var aMano = function () { t.select(); try { document.execCommand('copy'); copiado(); } catch (e) { toast('Seleccione el texto y cópielo manualmente.'); } };
@@ -473,6 +500,7 @@ export function iniciar(api, CFG) {
             dlg.close();
             llenarSelect('f-zona', 'ZONA', 'Zona: todas');
             llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
+            llenarDias();
             pintar();
             toast((era ? 'Actualizado ' : 'Guardado ') + nuevo.ID + ' · ' + nuevo.ESTADO);
             if (veniaDeRuta && !era) {
@@ -1467,6 +1495,7 @@ export function iniciar(api, CFG) {
     $('f-zona').onchange = pintar;
     $('f-tipo').onchange = pintar;
     $('f-cuadrilla').onchange = pintar;
+    $('f-dia').onchange = pintar;
     $('resumen').onclick = function (ev) {
         var t = ev.target.closest('[data-estado]');
         if (t) { $('f-estado').value = t.dataset.estado; pintar(); }
@@ -1520,8 +1549,24 @@ export function iniciar(api, CFG) {
         }).join('');
         $('fotos-convertir').disabled = !lista.length || fotosOcupado;
     }
+    // Lo escrito en "Lote o microrruta" se completa con la programación: 477 -> "Lote 477 · Z2CC0257"
+    function rotuloFotos() {
+        var v = $('fotos-rotulo').value.trim(), mr = v.toUpperCase().replace(/\s+/g, '');
+        if (!v) return '';
+        if (/^\d+$/.test(v)) return 'Lote ' + v + (mrPorLote[v] ? ' · ' + mrPorLote[v] : '');
+        if (LOTES[mr]) return mr + (LOTES[mr].lote && LOTES[mr].lote !== 'NA' ? ' · Lote ' + LOTES[mr].lote : '');
+        return v;
+    }
+    $('fotos-rotulo').addEventListener('input', function () {
+        var r = rotuloFotos();
+        $('fotos-rotulo-ver').textContent = r ? 'En cada foto, en grande: ' + r : '';
+        if (r) $('fotos-nombre').value = r.replace(/ · /g, ' ') + ' ' + new Date().toISOString().slice(0, 10);
+    });
     $('btn-fotos').onclick = function () {
-        if (!fotosOcupado) { fotosElegidas = []; $('fotos-archivos').value = ''; $('fotos-nombre').value = 'Fotos ' + new Date().toISOString().slice(0, 10); listarFotos(); }
+        if (!fotosOcupado) {
+            fotosElegidas = []; $('fotos-archivos').value = ''; $('fotos-rotulo').value = ''; $('fotos-rotulo-ver').textContent = '';
+            $('fotos-nombre').value = 'Fotos ' + new Date().toISOString().slice(0, 10); listarFotos();
+        }
         $('dlg-fotos').showModal();
     };
     $('fotos-elegir').onclick = function () { if (!fotosOcupado) $('fotos-archivos').click(); };
@@ -1537,7 +1582,7 @@ export function iniciar(api, CFG) {
         fotosOcupado = true;
         $('fotos-convertir').disabled = $('fotos-elegir').disabled = true;
         var lista = ordenarFotos(fotosElegidas, $('fotos-orden').value);
-        fotosAPdf(lista, { diseno: $('fotos-diseno').value, reducir: $('fotos-reducir').checked, nombre: $('fotos-nombre').value }, function (h, t) {
+        fotosAPdf(lista, { diseno: $('fotos-diseno').value, reducir: $('fotos-reducir').checked, nombre: $('fotos-nombre').value, rotulo: rotuloFotos() }, function (h, t) {
             $('fotos-convertir').textContent = 'Foto ' + h + ' de ' + t + '…';
         }).then(function (r) {
             toast(!r.paginas ? 'No se pudo leer ninguna foto.' : 'Listo: ' + r.nombre + ' (' + r.paginas + ' página' + (r.paginas === 1 ? '' : 's') + ')' +
