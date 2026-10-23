@@ -114,6 +114,20 @@ fieldset { min-width: 0; }
 .zip-informe li.zip-ok { color: var(--brand); }
 .zip-informe li.zip-aviso { color: #9a3412; }
 .zip-informe li.zip-error { color: #b91c1c; font-weight: 650; }
+/* Fotos a PDF */
+#dlg-fotos { width: min(560px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
+#dlg-fotos .cuerpo { padding: 18px; }
+#dlg-fotos .zip-elegir { width: 100%; margin: 14px 0 6px; padding: 14px; border: 2px dashed #9fd3bd; }
+.fotos-opciones { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-top: 8px; }
+.fotos-opciones label:first-child { grid-column: 1 / -1; }
+.fotos-check { grid-column: 1 / -1; display: flex !important; align-items: center; gap: 8px; text-transform: none; font-weight: 600; }
+.fotos-check input { width: 20px; height: 20px; min-height: 0 !important; }
+.fotos-resumen { margin-top: 10px; font-size: 13px; }
+.fotos-resumen .aviso-fotos { color: #9a3412; font-weight: 650; }
+#fotos-lista li { display: flex; justify-content: space-between; gap: 8px; }
+#fotos-lista li .datos { color: var(--muted); white-space: nowrap; }
+#fotos-lista li.falta .datos { color: #9a3412; font-weight: 650; }
+@media (max-width: 760px) { .fotos-opciones { grid-template-columns: 1fr; } }
 #wa-texto { display: block; width: 100%; min-height: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 15px; color: var(--ink); resize: vertical; }
 .wa { color: #fff; background: #1f9d55; }
 .detalle .wa-btn { width: 100%; padding: 11px; margin-top: 8px; }

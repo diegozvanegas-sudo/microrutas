@@ -8,6 +8,7 @@ import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
 import { zipsAPdf } from './zippdf.js';
+import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
@@ -1502,6 +1503,52 @@ export function iniciar(api, CFG) {
         var lista = filtrados();
         if (!lista.length) { toast('No hay registros para exportar.'); return; }
         exportarExcel(lista, items, itemsOp).catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); });
+    };
+
+    // ---------- Fotos a PDF (src/subsanaciones/fotospdf.js) ----------
+    var fotosOcupado = false, fotosElegidas = [];
+    function listarFotos() {
+        var lista = ordenarFotos(fotosElegidas, $('fotos-orden').value);
+        var sinDatos = lista.filter(function (f) { return !f.gps || !f.fecha; }).length;
+        var peso = lista.reduce(function (s, f) { return s + f.archivo.size; }, 0) / 1048576;
+        $('fotos-resumen').innerHTML = lista.length ? lista.length + ' foto' + (lista.length === 1 ? '' : 's') + ' · ' + peso.toFixed(1).replace('.', ',') + ' MB' +
+            (sinDatos ? ' · <span class="aviso-fotos">⚠ ' + sinDatos + ' sin GPS o sin fecha (el contrato las exige: un lote sin esos datos puede quedar en 0 m²)</span>' : ' · ✓ todas con GPS y fecha') : '';
+        $('fotos-lista').innerHTML = lista.map(function (f) {
+            var falta = !f.gps || !f.fecha;
+            return '<li class="' + (falta ? 'falta' : '') + '"><span>' + esc(f.nombre) + '</span><span class="datos">' +
+                (f.fecha ? esc(fechaCorta(f.fecha)) : '⚠ sin fecha') + ' · ' + (f.gps ? '📍' : '⚠ sin GPS') + '</span></li>';
+        }).join('');
+        $('fotos-convertir').disabled = !lista.length || fotosOcupado;
+    }
+    $('btn-fotos').onclick = function () {
+        if (!fotosOcupado) { fotosElegidas = []; $('fotos-archivos').value = ''; $('fotos-nombre').value = 'Fotos ' + new Date().toISOString().slice(0, 10); listarFotos(); }
+        $('dlg-fotos').showModal();
+    };
+    $('fotos-elegir').onclick = function () { if (!fotosOcupado) $('fotos-archivos').click(); };
+    $('fotos-archivos').onchange = async function () {
+        $('fotos-resumen').textContent = 'Leyendo fotos…';
+        fotosElegidas = await examinar(Array.prototype.slice.call($('fotos-archivos').files || []));
+        listarFotos();
+    };
+    $('fotos-orden').onchange = listarFotos;
+    $('fotos-cerrar').onclick = function () { $('dlg-fotos').close(); };
+    $('fotos-convertir').onclick = function () {
+        if (!fotosElegidas.length || fotosOcupado) return;
+        fotosOcupado = true;
+        $('fotos-convertir').disabled = $('fotos-elegir').disabled = true;
+        var lista = ordenarFotos(fotosElegidas, $('fotos-orden').value);
+        fotosAPdf(lista, { diseno: $('fotos-diseno').value, reducir: $('fotos-reducir').checked, nombre: $('fotos-nombre').value }, function (h, t) {
+            $('fotos-convertir').textContent = 'Foto ' + h + ' de ' + t + '…';
+        }).then(function (r) {
+            toast(!r.paginas ? 'No se pudo leer ninguna foto.' : 'Listo: ' + r.nombre + ' (' + r.paginas + ' página' + (r.paginas === 1 ? '' : 's') + ')' +
+                (r.omitidas.length ? ' · no se pudieron leer: ' + r.omitidas.join(', ') : ''));
+        }).catch(function (e) { toast('No se pudo crear el PDF: ' + e.message); })
+          .finally(function () {
+              fotosOcupado = false;
+              $('fotos-convertir').textContent = 'Crear PDF';
+              $('fotos-convertir').disabled = $('fotos-elegir').disabled = !fotosElegidas.length;
+              $('fotos-elegir').disabled = false;
+          });
     };
 
     // ---------- ZIP a PDF (src/subsanaciones/zippdf.js) ----------

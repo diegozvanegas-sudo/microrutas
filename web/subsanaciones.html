@@ -27,6 +27,7 @@
         <div class="menu-lista">
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <button type="button" class="item-menu" id="btn-excel">⬇ Descargar Excel</button>
+            <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <hr>
@@ -140,6 +141,37 @@
         <div class="pie">
             <button type="button" class="secundario" id="zip-cerrar">Cerrar</button>
             <button type="button" class="primario" id="zip-convertir" disabled>Convertir</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-fotos">
+    <div class="cuerpo">
+        <h2>🖼️ Fotos a PDF</h2>
+        <div class="sub">Elija una o muchas fotos (galería o computador): quedan en un solo PDF. Se hace en este equipo, las fotos no se suben a ningún lado.</div>
+        <input type="file" id="fotos-archivos" accept="image/*" multiple hidden>
+        <button type="button" class="secundario zip-elegir" id="fotos-elegir">📁 Elegir fotos</button>
+        <div class="fotos-opciones">
+            <label>DISEÑO
+                <select id="fotos-diseno">
+                    <option value="carta1">Hoja carta · 1 foto por hoja con fecha, hora y GPS</option>
+                    <option value="carta4">Hoja carta · 4 fotos por hoja con fecha, hora y GPS</option>
+                    <option value="completa">Foto completa (una por página, como ZIP a PDF)</option>
+                </select>
+            </label>
+            <label>ORDEN
+                <select id="fotos-orden">
+                    <option value="fecha">Por fecha y hora de la foto</option>
+                    <option value="nombre">Por nombre del archivo</option>
+                </select>
+            </label>
+            <label>NOMBRE DEL PDF <input type="text" id="fotos-nombre" autocomplete="off"></label>
+            <label class="fotos-check"><input type="checkbox" id="fotos-reducir" checked> Reducir peso (para enviar por WhatsApp)</label>
+        </div>
+        <div class="fotos-resumen" id="fotos-resumen"></div>
+        <ol class="zip-informe" id="fotos-lista"></ol>
+        <div class="pie">
+            <button type="button" class="secundario" id="fotos-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="fotos-convertir" disabled>Crear PDF</button>
         </div>
     </div>
 </dialog>

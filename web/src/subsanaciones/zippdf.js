@@ -67,7 +67,7 @@ async function unZip(JSZip, PDFDocument, archivo, alAvanzar) {
     return { pdf: paginas ? await pdf.save() : null, paginas: paginas, omitidas: omitidas };
 }
 
-function descargar(bytes, nombre, tipo) {
+export function descargar(bytes, nombre, tipo) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([bytes], { type: tipo }));
     a.download = nombre;
