@@ -3,7 +3,7 @@
 // guarda en este celular. Las coordenadas salen en un formato que el mapa rápido sabe leer después (📷 Ubicar con foto).
 // Solo cámara, no galería: la fecha y el GPS son los del momento de la foto, no se pueden poner a mano.
 // 📸 abre la cámara y la foto marcada queda guardada en el celular, sin más pasos. ⚙️ abre los ajustes (la primera vez
-// también se abren con 📸, una sola vez).
+// también se abren con 📸, una sola vez). Los botones los pone la página (en el mapa rápido, bajo el zoom).
 (function () {
     var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
     var dos = function (n) { return (n < 10 ? '0' : '') + n; };
@@ -64,9 +64,6 @@
         '#cam-ajustes input[type=range] { flex: 1; min-width: 120px; }' +
         '#cam-ajustes input[type=checkbox] { width: 20px; height: 20px; }' +
         '#cam-logo-vista { max-height: 48px; max-width: 160px; background: #f3f6f5; border-radius: 6px; }' +
-        '.cam-fab { position: fixed; right: 14px; bottom: calc(88px + env(safe-area-inset-bottom)); z-index: 1001; width: 56px; height: 56px; padding: 0; border-radius: 50%; font-size: 26px; box-shadow: 0 4px 14px rgba(0,0,0,.3); }' +
-        '.cam-fab.ajustes { right: 20px; bottom: calc(152px + env(safe-area-inset-bottom)); width: 44px; height: 44px; font-size: 20px; }' +
-        'body.con-ficha .cam-fab, body.con-sel .cam-fab { display: none; }' +
         '@media (max-width: 760px) { #cam-dlg { border-radius: 0; height: 100%; } }';
     var st = document.createElement('style'); st.textContent = css; document.head.appendChild(st);
 
@@ -364,19 +361,10 @@
         return ejemplo;
     }
     // ops: { posicion(): {lat,lng,prec,hora}|null, direccion(ll): Promise<texto|null>, toast(texto) }
+    // Devuelve lo que hacen los botones de la página: foto() (📸; la primera vez abre los ajustes) y ajustes() (⚙️)
     window.camaraMarca = function (o) {
         ops = o || {};
         pintarAjustes();
-        var fab = document.createElement('button');
-        fab.type = 'button'; fab.className = 'primario cam-fab'; fab.textContent = '📸';
-        fab.title = 'Tomar foto con fecha, GPS y marca de agua'; fab.setAttribute('aria-label', 'Tomar foto con marca de agua');
-        fab.onclick = function () { if (conf.listo) tomar(); else abrir(); };
-        var ajustes = document.createElement('button');
-        ajustes.type = 'button'; ajustes.className = 'secundario cam-fab ajustes'; ajustes.textContent = '⚙️';
-        ajustes.title = 'Ajustes de la marca de agua'; ajustes.setAttribute('aria-label', 'Ajustes de la marca de agua');
-        ajustes.onclick = abrir;
-        document.body.appendChild(ajustes);
-        document.body.appendChild(fab);
-        return { tomar: tomar, abrir: abrir };
+        return { foto: function () { if (conf.listo) tomar(); else abrir(); }, ajustes: abrir };
     };
 })();

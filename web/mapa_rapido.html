@@ -32,7 +32,7 @@
     #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #map { flex: 1; min-height: 0; }
     .leaflet-bar a { color: var(--ink); }
-    .ubicar a { font-size: 17px; line-height: 30px; text-align: center; }
+    .ubicar a, .herramientas a { font-size: 17px; line-height: 30px; text-align: center; }
     .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.35; }
     .leaflet-popup-content table { border-collapse: collapse; }
     .leaflet-popup-content td { padding: 3px 0; vertical-align: top; }
@@ -108,8 +108,6 @@
     #ficha.abierta { transform: none; }
     #ficha .asa { width: 40px; height: 5px; border-radius: 3px; background: #cbd5db; margin: 2px auto 10px; }
     #ficha .cerrar { position: absolute; top: 12px; right: 10px; background: var(--bg); color: var(--muted); width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 32px; }
-    body.con-ficha .ir-subs { display: none; }
-    .ir-subs { position: fixed; right: 14px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 1001; padding: 13px 18px; border-radius: 999px; font-size: 15px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
     #btn-plegar, #btn-completo .ico { display: none; }
     @media (max-width: 760px) {
         #barra { padding: 6px 8px 5px; gap: 5px; }
@@ -135,7 +133,6 @@
     #sel-barra .txt { flex: 1 1 160px; min-width: 0; font-size: 13px; overflow-wrap: anywhere; }
     #sel-barra .txt b { font-size: 15px; }
     #sel-barra button:disabled { opacity: .5; cursor: default; }
-    body.con-sel .ir-subs { display: none; }
     .chip.modo[aria-pressed="true"] { border-color: #7c3aed; background: #f3e8ff; box-shadow: inset 0 0 0 1px #7c3aed; }
     .ficha-lote .ruta-estado.vencido { color: #b91c1c; background: #fee2e2; }
     .ficha-lote .ruta-estado.pronto { color: #92400e; background: #fef3c7; }
@@ -160,7 +157,6 @@
 </div>
 <div id="map"></div>
 <div id="ficha" role="dialog" aria-label="Datos del lote"><div class="asa"></div><button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button><div id="ficha-contenido"></div></div>
-<a class="boton primario ir-subs" href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas">📋 Subsanaciones</a>
 <div id="sel-barra" hidden><div class="txt" id="sel-txt"></div>
     <button type="button" class="secundario" id="sel-cancelar">Cancelar</button>
     <button type="button" class="primario" id="sel-crear">Crear pre-ruta</button></div>
@@ -1236,11 +1232,30 @@
 
     // ---------- 📸 Foto con fecha, GPS y marca de agua (js/camara_marca.js) ----------
     // Usa el GPS real (no la ubicación fijada con "Estoy aquí"): la foto es evidencia de dónde se tomó
-    window.camaraMarca({
+    var camara = window.camaraMarca({
         posicion: function () { return miPos ? { lat: miPos.lat, lng: miPos.lng, prec: miPrec, hora: miHora } : null; },
         direccion: direccionDe,
         toast: toast
     });
+    // Bajo el zoom y ◎, con el mismo estilo: 📸 foto, ⚙️ ajustes de la marca y 📋 subsanaciones
+    var Herramientas = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+            var div = L.DomUtil.create('div', 'leaflet-bar herramientas');
+            div.innerHTML = '<a href="#" role="button" data-h="foto" title="Tomar foto con fecha, GPS y marca de agua" aria-label="Tomar foto">📸</a>' +
+                '<a href="#" role="button" data-h="ajustes" title="Ajustes de la marca de agua" aria-label="Ajustes de la marca de agua">⚙️</a>' +
+                '<a href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas" aria-label="Subsanaciones">📋</a>';
+            L.DomEvent.disableClickPropagation(div);
+            div.addEventListener('click', function (ev) {
+                var a = ev.target.closest('a[data-h]');
+                if (!a) return;
+                ev.preventDefault();
+                camara[a.dataset.h]();
+            });
+            return div;
+        }
+    });
+    map.addControl(new Herramientas());
 
     // ---------- Inicio ----------
     // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)
