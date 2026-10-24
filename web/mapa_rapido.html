@@ -108,14 +108,28 @@
     #ficha.abierta { transform: none; }
     #ficha .asa { width: 40px; height: 5px; border-radius: 3px; background: #cbd5db; margin: 2px auto 10px; }
     #ficha .cerrar { position: absolute; top: 12px; right: 10px; background: var(--bg); color: var(--muted); width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 32px; }
-    #btn-plegar, #btn-completo .ico { display: none; }
+    #btn-plegar, #btn-completo .ico, #btn-capas, #hoja-capas { display: none; }
+    .hoja-cab { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 10px; }
+    .hoja-cab b { font-size: 17px; }
+    #hoja-capas .asa { width: 40px; height: 5px; border-radius: 3px; background: #cbd5db; margin: 2px auto 10px; }
     @media (max-width: 760px) {
         #barra { padding: 6px 8px 5px; gap: 5px; }
         .fila input { font-size: 16px; min-height: 36px; }
         .fila .boton, .fila button { padding: 8px 10px; }
         /* Celular: la barra se pliega a solo el buscador para dejarle el espacio al mapa */
-        #btn-plegar { display: inline-block; }
-        body.barra-plegada #chips, body.barra-plegada #estado { display: none; }
+        /* Celular: las cuadrillas y capas van en una hoja que sube desde abajo (a mano del pulgar); arriba solo el buscador */
+        #btn-capas { display: inline-flex; align-items: center; gap: 6px; position: fixed; left: 12px; bottom: calc(18px + env(safe-area-inset-bottom)); z-index: 1001;
+                     padding: 13px 18px; border-radius: 999px; font-size: 15px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); max-width: calc(100% - 24px); }
+        body.con-ficha #btn-capas, body.con-sel #btn-capas, body:not(.barra-plegada) #btn-capas { display: none; }
+        #hoja-capas { display: block; position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; background: var(--surface); border-radius: 16px 16px 0 0;
+                      box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 14px calc(16px + env(safe-area-inset-bottom)); max-height: 72vh; overflow-y: auto;
+                      transform: translateY(105%); transition: transform .22s ease; }
+        body:not(.barra-plegada) #hoja-capas { transform: none; }
+        #hoja-capas .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; overflow: visible; padding: 0; }
+        #hoja-capas .chip { justify-content: center; padding: 13px 4px; font-size: 15px; border-radius: 12px; }
+        #hoja-capas .chip .punto { width: 12px; height: 12px; }
+        #hoja-capas .separador { grid-column: 1 / -1; width: auto; height: 1px; margin: 4px 0; }
+        #hoja-capas [data-todas], #hoja-capas [data-cuad="sin"], #hoja-capas .chip.modo, #hoja-capas .chip.capa { grid-column: span 2; }
         #btn-completo .txt { display: none; }
         #btn-completo .ico { display: inline; }
     }
@@ -160,6 +174,10 @@
 <div id="sel-barra" hidden><div class="txt" id="sel-txt"></div>
     <button type="button" class="secundario" id="sel-cancelar">Cancelar</button>
     <button type="button" class="primario" id="sel-crear">Crear pre-ruta</button></div>
+<button type="button" class="primario" id="btn-capas" aria-controls="hoja-capas">🗂 Cuadrillas</button>
+<div id="hoja-capas" role="dialog" aria-label="Cuadrillas y capas"><div class="asa"></div>
+    <div class="hoja-cab"><b>Cuadrillas y capas</b><button type="button" class="primario" id="hoja-listo">Listo</button></div>
+    <div id="hoja-cuerpo"></div></div>
 <div class="toast" id="toast"></div>
 
 <script src="js/leaflet.js"></script>
@@ -704,8 +722,15 @@
     var ordenCuad = Object.keys(IDX.cuadrillas).sort(function (a, b) { return (a === 'sin') - (b === 'sin') || Number(a) - Number(b); });
     var activas = leer('rapido_cuadrillas', []).filter(function (c) { return IDX.cuadrillas[c]; });
     var capasActivas = leer('rapido_capas', []).filter(function (k) { return IDX.capas && IDX.capas[k]; });
-    // Celular: barra plegada = solo el buscador; el botón dice qué cuadrillas están puestas
+    // Celular: barra plegada = hoja de cuadrillas cerrada (abajo queda el botón que dice cuáles están puestas).
+    // Las cuadrillas se ponen tocando varias seguidas y la hoja se cierra con Listo o tocando el mapa.
     var plegada = leer('rapido_barra_plegada', false);
+    function ubicarChips() {
+        if (movil.matches) $('hoja-cuerpo').appendChild($('chips'));
+        else $('barra').insertBefore($('chips'), $('estado'));
+    }
+    ubicarChips();
+    if (movil.addEventListener) movil.addEventListener('change', ubicarChips); else movil.addListener(ubicarChips);
     function plegarBarra(on) {
         if (on === plegada && document.body.classList.contains('barra-plegada') === on) return;
         plegada = on;
@@ -718,8 +743,12 @@
     function pintarPlegar() {
         var resumen = activas.length === 1 ? (activas[0] === 'sin' ? 'S/C' : 'C' + activas[0]) : activas.length ? activas.length + ' C' : 'Capas';
         $('btn-plegar').textContent = plegada ? resumen + ' ▾' : '▴';
+        var nombres = activas.map(function (c) { return c === 'sin' ? 'S/C' : 'C' + c; });
+        $('btn-capas').textContent = '🗂 ' + (!nombres.length ? 'Cuadrillas' : nombres.length <= 3 ? nombres.join(' · ') : nombres.length + ' cuadrillas');
     }
     $('btn-plegar').onclick = function () { plegarBarra(!plegada); };
+    $('btn-capas').onclick = function () { plegarBarra(false); };
+    $('hoja-listo').onclick = function () { plegarBarra(true); };
 
     function pintarChips() {
         var todas = ordenCuad.length && ordenCuad.every(function (c) { return activas.indexOf(c) !== -1; });
@@ -1128,6 +1157,7 @@
     map.on('click', function (e) {
         if (modoPin) return ponerPin(e.latlng);
         limpiarResaltado(); cerrarFicha(); quitarBarridoSel();
+        if (movil.matches && !plegada) plegarBarra(true);
     });
 
     // ---------- Pin libre: cualquier punto del mapa, con cómo llegar desde donde está ----------
@@ -1274,7 +1304,7 @@
     }
     $('btn-completo').href = 'index.html' + location.search; // el mapa completo también entiende ?lote= y ?mr=
     if (q.get('c')) activas = q.get('c').split(',').filter(function (c) { return IDX.cuadrillas[c]; });
-    plegarBarra(plegada);
+    plegarBarra(movil.matches || plegada); // en el celular la hoja arranca cerrada
     // Al abrir no se encuadran todas las cuadrillas guardadas (alejaba el mapa a todo el valle); solo si vienen en el enlace (?c=)
     mostrarCuadrillas(!!q.get('c') && !q.get('lote') && !q.get('mr'));
     capasActivas.forEach(function (k) { mostrarCapa(k, true); });
