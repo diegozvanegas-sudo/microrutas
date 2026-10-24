@@ -42,6 +42,37 @@ test('coordenadas: no confunde lotes, horas ni texto suelto', () => {
     assert.equal(leer(''), null);
 });
 
+test('coordenadas de foto: texto de la marca de agua leído con OCR', () => {
+    const foto = window.coordenadasDeFoto;
+    // Marca de agua del lote 287 (Timestamp Camera): fecha arriba, coordenadas abajo
+    let c = foto('24 oct 2026 9:58:51 a.m.\n6°17\'38.65722"N 75°34\'37.8"W');
+    cerca(c, 6.294071, -75.577167);
+    assert.equal(c.texto, '6°17\'38.65722"N 75°34\'37.8"W');
+    // El lector confunde ° con o, las comillas dobles con dos sencillas y el punto con coma
+    c = foto('6o17\'38,65722\'\'N 75°34\'37.8\'\'W');
+    cerca(c, 6.294071, -75.577167);
+    assert.equal(c.texto, '6°17\'38.65722"N 75°34\'37.8"W');
+    // El punto de los segundos se pierde (37.8 -> "37 8"): no se pueden perder los segundos (serían ~1 km)
+    c = foto('6°17\'38.65722"N 75°34\'37 8"W');
+    cerca(c, 6.294071, -75.577167);
+    assert.equal(c.texto, '6°17\'38.65722"N 75°34\'37.8"W');
+    // Latitud y longitud en líneas distintas
+    cerca(foto('Medellín\n6°17\'38.6"N\n75°34\'37.8"W'), 6.294056, -75.577167);
+    // Decimales (GPS Map Camera)
+    c = foto('Lat 6.275100° Long -75.573700°\n24/10/2026 10:15 AM');
+    cerca(c, 6.2751, -75.5737);
+    assert.equal(c.texto, 'Lat 6.275100° Long -75.573700°');
+    assert.equal(c.completa, true);
+    assert.equal(foto('24 oct 2026 9:58:51 a.m.'), null);
+    // Segundos con comilla sencilla: se arreglan
+    c = foto('6°17\'38.65722\'N 75°34\'37.8"W');
+    cerca(c, 6.294071, -75.577167);
+    assert.equal(c.completa, true);
+    // Se perdieron los segundos de la longitud: se lee, pero no está completa (no se debe usar sin revisar)
+    c = foto('6°17\'38.65722"N 75°34\'37 81.');
+    assert.equal(c.completa, false);
+});
+
 const LOTES = { Z2CC0339: { lote: '339', cuad: '4' }, Z2CC0500: { lote: 'NA', cuad: '4' } };
 
 test('mensaje: lotes ejecutados con fecha y cuadrilla', () => {

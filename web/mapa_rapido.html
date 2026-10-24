@@ -927,22 +927,108 @@
     function cargarScript(src) {
         return new Promise(function (ok, mal) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = mal; document.head.appendChild(s); });
     }
+    // La foto pone el 📌 en su coordenada (no elige lote: eso se hace con "Ver lote aquí") y deja en el buscador
+    // la coordenada como está escrita en la foto. Solo se aceptan puntos de Medellín y sus corregimientos.
+    var ZONA_FOTO = L.latLngBounds([5.95, -75.9], [6.55, -75.3]);
+    function gms(v, pos, neg) {
+        var a = Math.abs(v), g = Math.floor(a), m = Math.floor((a - g) * 60), s = ((a - g) * 60 - m) * 60;
+        return g + '°' + m + "'" + s.toFixed(2) + '"' + (v < 0 ? neg : pos);
+    }
     function leerFoto(file) {
         $('btn-foto').disabled = true;
         $('estado').textContent = 'Leyendo la ubicación de la foto…';
         var exif = window.exifr ? Promise.resolve() : cargarScript('https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js');
         exif.then(function () { return window.exifr.gps(file); }).catch(function () { return null; }).then(function (gps) {
-            if (gps && isFinite(gps.latitude) && isFinite(gps.longitude)) return { lat: gps.latitude, lng: gps.longitude };
+            // GPS guardado en la foto: es el exacto. En el buscador va escrito como en las marcas de agua (grados, minutos, segundos)
+            if (gps && isFinite(gps.latitude) && isFinite(gps.longitude)) {
+                return { lat: gps.latitude, lng: gps.longitude, texto: gms(gps.latitude, 'N', 'S') + ' ' + gms(gps.longitude, 'E', 'W'), fuente: 'GPS de la foto' };
+            }
             $('estado').textContent = 'La foto no trae GPS; leyendo las coordenadas escritas en ella (puede tardar unos segundos)…';
-            var ocr = window.Tesseract ? Promise.resolve() : cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
-            return ocr.then(function () { return window.Tesseract.recognize(file, 'eng'); }).then(function (r) {
-                var c = window.leerCoordenadas(r.data.text);
-                if (!c) throw new Error('No se encontraron coordenadas en la foto. Escríbalas en el buscador, p. ej. 6.2751N 75.5737W.');
-                return c;
-            });
-        }).then(ubicarPunto).catch(function (err) {
-            toast(err && err.message && /coordenadas/.test(err.message) ? err.message : 'No se pudo leer la foto. Revise la conexión o escriba las coordenadas.');
+            return leerMarcaDeAgua(file);
+        }).then(function (c) {
+            if (!c) throw new Error('No se encontraron coordenadas en la foto. Escríbalas en el buscador, p. ej. 6°17\'38.6"N 75°34\'37.8"W.');
+            $('buscar').value = c.texto;
+            var ll = L.latLng(c.lat, c.lng);
+            if (!ZONA_FOTO.contains(ll)) {
+                throw new Error('La coordenada leída (' + c.texto + ') queda fuera de Medellín. Puede que el lector se haya equivocado en un número: corríjala en el buscador y pulse Buscar.');
+            }
+            estadoRuta = null;
+            map.setView(ll, 18);
+            ponerPin(ll);
+            toast(c.dudosa ? '📌 Pin puesto, pero la lectura de la foto no es segura: compare la coordenada del buscador con la de la foto y corríjala si hace falta.'
+                : '📌 Pin en la coordenada de la foto (' + c.fuente + '). Para el lote más cercano toque "Ver lote aquí".');
+        }).catch(function (err) {
+            toast(err && err.message && /coordenada/.test(err.message) ? err.message : 'No se pudo leer la foto. Revise la conexión o escriba las coordenadas.');
         }).then(function () { $('btn-foto').disabled = false; $('foto').value = ''; pintarChips(); });
+    }
+    // Marca de agua (WhatsApp borra el GPS): el texto es pequeño y va sobre la foto, así que se lee por partes:
+    // primero la franja de abajo, ampliada y en blanco y negro (letras claras o oscuras), y al final la foto entera.
+    function leerMarcaDeAgua(file) {
+        var ocr = window.Tesseract ? Promise.resolve() : cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
+        var url = URL.createObjectURL(file), img = new Image(), worker = null;
+        var cargada = new Promise(function (ok, mal) { img.onload = ok; img.onerror = mal; img.src = url; });
+        // [desde arriba, desde la izquierda, modo]: esquina de abajo a la derecha (donde la ponen las cámaras), franja de abajo, foto entera
+        var pasadas = [[0.6, 0.35, 'claro'], [0.6, 0.35, 'gris'], [0.75, 0.45, 'claro'], [0.6, 0.35, 'tenue'], [0.75, 0.45, 'gris'],
+            [0.55, 0, 'claro'], [0.55, 0, 'oscuro'], [0.55, 0, 'gris'], [0, 0, 'claro'], [0, 0, 'gris']];
+        // Al lector se le puede cambiar o perder un número (17 -> 7, los segundos) y el punto caer igual dentro de Medellín,
+        // pero a 1 o 2 km. Se da por buena cuando la lectura está completa (grados, minutos y segundos) y otra pasada leyó lo mismo (±15 m)
+        var lecturas = [];
+        function siguiente(i) {
+            if (i >= pasadas.length) {
+                // Ninguna coincidió: una completa dentro de Medellín (dudosa) o, si no, lo mejor que se leyó para corregirlo a mano
+                var buenas = lecturas.filter(function (c) { return c.completa && ZONA_FOTO.contains([c.lat, c.lng]); });
+                if (buenas.length) { buenas[0].dudosa = true; return buenas[0]; }
+                if (lecturas.length) {
+                    $('buscar').value = lecturas[0].texto;
+                    throw new Error('No se pudo leer completa la coordenada de la foto. Quedó en el buscador lo que se alcanzó a leer: corríjala con la foto y pulse Buscar.');
+                }
+                return null;
+            }
+            $('estado').textContent = 'Leyendo las coordenadas escritas en la foto… (' + (i + 1) + ' de ' + pasadas.length + ')';
+            return worker.recognize(recorte(img, pasadas[i][0], pasadas[i][1], pasadas[i][2])).then(function (r) {
+                var c = window.coordenadasDeFoto(r.data.text);
+                if (c) {
+                    c.fuente = 'texto de la foto';
+                    var igual = c.completa && ZONA_FOTO.contains([c.lat, c.lng]) && lecturas.filter(function (o) {
+                        return o.completa && L.latLng(o.lat, o.lng).distanceTo([c.lat, c.lng]) < 15;
+                    })[0];
+                    if (igual) return igual;
+                    lecturas.push(c);
+                }
+                return siguiente(i + 1);
+            });
+        }
+        return Promise.all([ocr, cargada]).then(function () { return window.Tesseract.createWorker('eng'); }).then(function (w) {
+            worker = w;
+            // Solo números y símbolos de coordenadas; la marca de agua es un bloque de pocas líneas
+            return w.setParameters({ tessedit_char_whitelist: '0123456789.,-+°º\'"’”NSEWOo :/', tessedit_pageseg_mode: '6' });
+        }).then(function () { return siguiente(0); }).finally(function () {
+            URL.revokeObjectURL(url);
+            if (worker) worker.terminate();
+        });
+    }
+    // Parte de la foto desde "arriba" e "izq" (fracciones: 0.6 y 0.35 = esquina de abajo a la derecha), ampliada para que
+    // la letra quede de buen tamaño (la foto completa se toma como de 3.200 px de ancho) y pasada a letra negra sobre blanco
+    function recorte(img, arriba, izq, modo) {
+        var W = img.naturalWidth, H = img.naturalHeight;
+        var x0 = Math.round(W * izq), y0 = Math.round(H * arriba), w = W - x0, h = H - y0;
+        var escala = Math.max(1, Math.min(4, 3200 / W));
+        var cv = document.createElement('canvas');
+        cv.width = Math.round(w * escala); cv.height = Math.round(h * escala);
+        var ctx = cv.getContext('2d');
+        ctx.imageSmoothingQuality = 'high';
+        ctx.drawImage(img, x0, y0, w, h, 0, 0, cv.width, cv.height);
+        var d = ctx.getImageData(0, 0, cv.width, cv.height), p = d.data;
+        for (var i = 0; i < p.length; i += 4) {
+            var r = p[i], g = p[i + 1], b = p[i + 2], luz = 0.299 * r + 0.587 * g + 0.114 * b;
+            var gris = Math.max(r, g, b) - Math.min(r, g, b) < 40;   // texto blanco o negro, no color
+            // claro: letra blanca; tenue: letra blanca más gris (JPEG muy comprimido); oscuro: letra negra
+            var v = modo === 'claro' ? (luz > 190 && gris ? 0 : 255) : modo === 'tenue' ? (luz > 160 && gris ? 0 : 255) : modo === 'oscuro' ? (luz < 60 && gris ? 0 : 255)
+                : Math.max(0, Math.min(255, (luz - 128) * 1.6 + 128));
+            p[i] = p[i + 1] = p[i + 2] = v;
+        }
+        ctx.putImageData(d, 0, 0);
+        return cv;
     }
     $('btn-foto').onclick = function () { $('foto').click(); };
     $('foto').onchange = function () { if (this.files[0]) leerFoto(this.files[0]); };

@@ -38,3 +38,35 @@ window.leerCoordenadas = function (texto) {
     if (!isFinite(la) || Math.abs(la) > 90 || Math.abs(lo) > 180) return null;
     return corregida ? { lat: la, lng: lo, corregida: corregida, escrita: escrita } : { lat: la, lng: lo };
 };
+
+// Texto leído de la marca de agua de una foto (OCR): arregla las confusiones típicas del lector y devuelve
+// { lat, lng, texto } con el texto de la coordenada tal como sale en la foto, o null.
+//   "6o17'38.65722''N 75°34'37.8\"W" -> texto 6°17'38.65722"N 75°34'37.8"W
+window.coordenadasDeFoto = function (ocr) {
+    var limpio = String(ocr || '')
+        .replace(/[‘’′`´]/g, "'").replace(/[“”″]/g, '"').replace(/''/g, '"').replace(/º/g, '°')
+        // El símbolo de grados se lee como o, O o un espacio: 6o17'  6 17'  ->  6°17'
+        .replace(/(\b\d{1,2})\s*[oO°]\s*(\d{1,2}\s*')/g, '$1°$2').replace(/(\b\d{1,2})\s+(\d{1,2}')/g, '$1°$2')
+        // El punto decimal de los segundos se lee como coma o se pierde: 38,65722"  37 8"  ->  38.65722"  37.8"
+        .replace(/(\d{1,2})(?:,|\s+)(\d+\s*")/g, '$1.$2')
+        // Las comillas de los segundos se leen como una sola: 6°17'38.65722'N -> 6°17'38.65722"N
+        .replace(/(\d°\s*\d{1,2}\s*'\s*\d{1,2}(?:\.\d+)?)\s*'(\s*[NSEWO])/g, '$1"$2');
+    var lineas = limpio.split(/\r?\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    // Una línea con las dos coordenadas, o dos líneas seguidas (latitud arriba, longitud abajo)
+    var candidatas = lineas.concat(lineas.slice(1).map(function (l, i) { return lineas[i] + ' ' + l; }));
+    for (var i = 0; i < candidatas.length; i++) {
+        var c = window.leerCoordenadas(candidatas[i]);
+        if (!c) continue;
+        // Solo la parte de la coordenada (la línea puede traer la fecha, la hora o la dirección)
+        var m = candidatas[i].match(/-?\d{1,3}\s*°[^NSEWO]*[NS]\s*,?\s*-?\d{1,3}\s*°[^NSEWO]*[EWO]/i) ||
+                candidatas[i].match(/-?\d{1,3}[.,]\d{3,}\s*°?\s*[NS]?\s*,?\s*-?\d{1,3}[.,]\d{3,}\s*°?\s*[EWO]?/i);
+        c.texto = (m ? m[0] : candidatas[i]).replace(/\s+/g, ' ').trim();
+        // Completa = como la imprimen las cámaras: grados, minutos y segundos en las dos, o 4 o más decimales.
+        // Si al lector se le perdió un pedazo (los segundos), el punto queda corrido hasta 1 km aunque se lea "bien"
+        var t = c.texto.toUpperCase();
+        c.completa = /\d°\s*\d{1,2}'\s*\d{1,2}(\.\d+)?"\s*[NS][\s\S]*\d°\s*\d{1,2}'\s*\d{1,2}(\.\d+)?"\s*[EWO]/.test(t) ||
+            (t.match(/\d[.,]\d{4,}/g) || []).length >= 2;
+        return c;
+    }
+    return null;
+};
