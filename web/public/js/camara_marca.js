@@ -81,9 +81,9 @@
             '<canvas id="cam-vista" width="800" height="600"></canvas>' +
             '<div id="cam-estado"></div>' +
             '<div class="botones">' +
-                '<button type="button" class="primario" id="cam-compartir" disabled>📤 Compartir</button>' +
+                '<button type="button" class="secundario" id="cam-compartir" disabled>📤 Compartir</button>' +
                 '<button type="button" class="secundario" id="cam-guardar" disabled>💾 Guardar</button>' +
-                '<button type="button" class="secundario" id="cam-otra">📸 Tomar foto</button>' +
+                '<button type="button" class="primario" id="cam-otra">📸 Tomar foto</button>' +
                 '<button type="button" class="secundario" id="cam-ver-ajustes" aria-expanded="false">⚙️ Ajustes</button>' +
             '</div>' +
             '<div id="cam-ajustes" hidden>' +
@@ -138,16 +138,15 @@
         if (!k) return;
         conf[k] = el.type === 'checkbox' ? el.checked : el.type === 'range' ? +el.value : el.value;
         guardarConf();
-        if (k === 'direccion' && conf.direccion && datos && datos.pos && datos.dir == null) buscarDireccion(datos);
-        // Al escribir el texto se espera a que pare: redibujar una foto de 12 MP por letra se siente lento
+        if (k === 'direccion' && conf.direccion && foto && datos && datos.pos && datos.dir == null) buscarDireccion(datos);
+        // Al escribir el texto se espera a que pare para no redibujar con cada letra
         clearTimeout(dibujar.t);
         if (k === 'texto') dibujar.t = setTimeout(dibujar, 400); else dibujar();
     });
     $('cam-ver-ajustes').onclick = function () {
-        var abrir = $('cam-ajustes').hidden;
-        $('cam-ajustes').hidden = !abrir;
-        this.setAttribute('aria-expanded', abrir);
-        if (abrir) $('cam-ajustes').scrollIntoView({ behavior: 'smooth', block: 'start' });
+        var si = $('cam-ajustes').hidden;
+        mostrarAjustes(si);
+        if (si) $('cam-ajustes').scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     $('cam-logo-elegir').onclick = function () { $('cam-logo-archivo').click(); };
     $('cam-logo-quitar').onclick = function () { conf.logo = null; guardarConf(); pintarAjustes(); dibujar(); };
@@ -204,8 +203,9 @@
         // La hora de la foto: la del archivo si es de hace unos minutos (la cámara la acaba de guardar), si no la de ahora
         var hora = f.lastModified && Math.abs(Date.now() - f.lastModified) < 5 * 60000 ? new Date(f.lastModified) : new Date();
         var d = { fecha: hora, pos: null, dir: null };
-        datos = d; resultado = null; botones(false);
+        datos = d; foto = null; resultado = null; botones(false);
         if (!dlg.open) dlg.showModal();
+        dlg.scrollTop = 0;
         estado('Abriendo la foto y leyendo el GPS…');
         Promise.all([cargarImagen(URL.createObjectURL(f), true), posicion()]).then(function (r) {
             if (datos !== d) return;
@@ -215,6 +215,16 @@
         }).catch(function () { estado('No se pudo abrir la foto.'); });
     };
     function tomar() { pedirGps(); entrada.click(); }
+    // El 📸 abre la ventana con Tomar foto y los ajustes; sin foto se ve un ejemplo de cómo queda la marca
+    function abrir() {
+        pintarAjustes();
+        if (!dlg.open) dlg.showModal();
+        if (!foto) { mostrarAjustes(true); dibujar(); }
+    }
+    function mostrarAjustes(si) {
+        $('cam-ajustes').hidden = !si;
+        $('cam-ver-ajustes').setAttribute('aria-expanded', si);
+    }
     $('cam-otra').onclick = tomar;
     $('cam-cerrar').onclick = function () { dlg.close(); };
 
@@ -261,66 +271,109 @@
         c.beginPath(); c.arc(x, y - r * 2, r * 0.38, 0, 2 * Math.PI); c.fillStyle = '#7f1d1d'; c.fill();
         c.restore();
     }
-    function lineas() {
-        var d = datos, l = [];
+    function lineas(d) {
+        var l = [];
         if (conf.fecha) l.push(window.marcaFormatos.fecha(d.fecha, conf.formatoFecha));
         if (conf.coords && d.pos) l.push(window.marcaFormatos.coords(d.pos.lat, d.pos.lng, conf.formatoCoords));
         if (conf.coords && conf.direccion && d.pos && d.dir) l.push(d.dir);
         String(conf.texto || '').split('\n').forEach(function (t) { if (t.trim()) l.push(t.trim()); });
         return l;
     }
-    // Se dibuja la foto entera (sin pasar de ~16 MP, el máximo de algunos celulares) y encima la marca
+    // Pone la marca sobre la foto en un lienzo de W x H (la vista previa chica o la foto final)
+    function componer(img, d, W, H, logoI, mapaCv) {
+        var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
+        var c = cv.getContext('2d');
+        c.drawImage(img, 0, 0, W, H);
+        var corto = Math.min(W, H), m = Math.round(corto * 0.025);
+        var der = conf.esquinaTexto !== 'ab-izq';
+        // Mapa pequeño: en la esquina de abajo contraria al texto
+        if (mapaCv) {
+            var lado = Math.round(corto * 0.3), mx = der ? 0 : W - lado, my = H - lado;
+            c.drawImage(mapaCv, mx, my, lado, lado);
+            c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = Math.max(2, corto * 0.004); c.strokeRect(mx, my, lado, lado);
+            pin(c, mx + lado / 2, my + lado / 2, lado * 0.045);
+            c.font = Math.round(lado * 0.045) + 'px Arial, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'bottom';
+            c.fillStyle = 'rgba(255,255,255,.8)'; c.fillRect(mx, my + lado - lado * 0.065, c.measureText(ATRIB[conf.tipoMapa]).width + lado * 0.04, lado * 0.065);
+            c.fillStyle = '#333'; c.fillText(ATRIB[conf.tipoMapa], mx + lado * 0.02, my + lado - lado * 0.01);
+        }
+        if (logoI) {
+            var lw = Math.round(W * conf.logoTam / 100), lh = Math.round(lw * logoI.naturalHeight / logoI.naturalWidth);
+            var lx = /der/.test(conf.logoEsquina) ? W - lw - m : m, ly = /^ar/.test(conf.logoEsquina) ? m : H - lh - m;
+            c.globalAlpha = conf.logoOpac / 100; c.drawImage(logoI, lx, ly, lw, lh); c.globalAlpha = 1;
+        }
+        // Texto: abajo, alineado a su esquina, con borde oscuro para que se lea sobre cualquier fondo
+        var tam = Math.round(corto * { s: 0.03, m: 0.038, l: 0.048 }[conf.tamTexto]), ls = lineas(d);
+        c.font = '600 ' + tam + 'px Arial, Helvetica, sans-serif';
+        c.textAlign = der ? 'right' : 'left'; c.textBaseline = 'alphabetic'; c.lineJoin = 'round';
+        var oscuro = conf.color === '#000000';
+        for (var i = ls.length - 1, y = H - m; i >= 0; i--, y -= Math.round(tam * 1.22)) {
+            var x = der ? W - m : m;
+            c.lineWidth = tam * 0.16; c.strokeStyle = oscuro ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
+            c.strokeText(ls[i], x, y);
+            c.fillStyle = conf.color; c.fillText(ls[i], x, y);
+        }
+        return cv;
+    }
+    // Ancho y alto de la imagen reducida por el factor que devuelve escala(w, h) (nunca se agranda)
+    function medida(img, escala) {
+        var w = img.naturalWidth || img.width, h = img.naturalHeight || img.height, e = Math.min(1, escala(w, h));
+        return [Math.round(w * e), Math.round(h * e)];
+    }
+    // Primero una vista previa chica (rápida, se rehace con cada ajuste) y aparte la foto final de hasta ~8 MP:
+    // a 12-16 MP los celulares con poca memoria se quedaban sin terminar
     function dibujar() {
-        if (!foto || !datos) return;
-        var mio = ++turno, d = datos;
-        botones(false);
-        estado(d.pos ? 'GPS ±' + Math.round(d.pos.prec) + ' m' : '⚠️ Sin GPS: la foto sale sin coordenadas. Active la ubicación precisa.');
-        var esc = Math.min(1, Math.sqrt(16e6 / (foto.naturalWidth * foto.naturalHeight)));
-        var W = Math.round(foto.naturalWidth * esc), H = Math.round(foto.naturalHeight * esc);
+        var img = foto || muestra(), d = foto ? datos : datosMuestra();
+        if (!d) return;
+        var mio = ++turno;
+        botones(false); resultado = null;
+        if (foto) estado(d.pos ? 'GPS ±' + Math.round(d.pos.prec) + ' m · preparando la foto…' : '⚠️ Sin GPS: la foto sale sin coordenadas. Active la ubicación precisa del celular.');
+        else estado('Vista previa de ejemplo: ajuste la marca y luego toque 📸 Tomar foto.');
         var mapa = conf.mapa && d.pos ? miniMapa(d.pos, conf.tipoMapa) : Promise.resolve(null);
         Promise.all([logo(), mapa]).then(function (r) {
             if (mio !== turno) return;
-            var cv = document.createElement('canvas'); cv.width = W; cv.height = H;
-            var c = cv.getContext('2d');
-            c.drawImage(foto, 0, 0, W, H);
-            var corto = Math.min(W, H), m = Math.round(corto * 0.025);
-            var der = conf.esquinaTexto !== 'ab-izq';
-            // Mapa pequeño: en la esquina de abajo contraria al texto
-            if (r[1]) {
-                var lado = Math.round(corto * 0.3), mx = der ? 0 : W - lado, my = H - lado;
-                c.drawImage(r[1], mx, my, lado, lado);
-                c.strokeStyle = 'rgba(255,255,255,.9)'; c.lineWidth = Math.max(2, corto * 0.004); c.strokeRect(mx, my, lado, lado);
-                pin(c, mx + lado / 2, my + lado / 2, lado * 0.045);
-                c.font = Math.round(lado * 0.045) + 'px Arial, sans-serif'; c.textAlign = 'left'; c.textBaseline = 'bottom';
-                c.fillStyle = 'rgba(255,255,255,.8)'; c.fillRect(mx, my + lado - lado * 0.065, c.measureText(ATRIB[conf.tipoMapa]).width + lado * 0.04, lado * 0.065);
-                c.fillStyle = '#333'; c.fillText(ATRIB[conf.tipoMapa], mx + lado * 0.02, my + lado - lado * 0.01);
-            }
-            // Logo
-            if (r[0]) {
-                var lw = Math.round(W * conf.logoTam / 100), lh = Math.round(lw * r[0].naturalHeight / r[0].naturalWidth);
-                var lx = /der/.test(conf.logoEsquina) ? W - lw - m : m, ly = /^ar/.test(conf.logoEsquina) ? m : H - lh - m;
-                c.globalAlpha = conf.logoOpac / 100; c.drawImage(r[0], lx, ly, lw, lh); c.globalAlpha = 1;
-            }
-            // Texto: abajo, alineado a su esquina, con borde oscuro para que se lea sobre cualquier fondo
-            var tam = Math.round(corto * { s: 0.03, m: 0.038, l: 0.048 }[conf.tamTexto]), ls = lineas();
-            c.font = '600 ' + tam + 'px Arial, Helvetica, sans-serif';
-            c.textAlign = der ? 'right' : 'left'; c.textBaseline = 'alphabetic'; c.lineJoin = 'round';
-            var oscuro = conf.color === '#000000';
-            for (var i = ls.length - 1, y = H - m; i >= 0; i--, y -= Math.round(tam * 1.22)) {
-                var x = der ? W - m : m;
-                c.lineWidth = tam * 0.16; c.strokeStyle = oscuro ? 'rgba(255,255,255,.85)' : 'rgba(0,0,0,.75)';
-                c.strokeText(ls[i], x, y);
-                c.fillStyle = conf.color; c.fillText(ls[i], x, y);
-            }
-            vista.width = W; vista.height = H;
-            vista.getContext('2d').drawImage(cv, 0, 0);
-            return new Promise(function (ok) { cv.toBlob(ok, 'image/jpeg', 0.92); });
-        }).then(function (blob) {
-            if (mio !== turno || !blob) return;
-            var f = d.fecha;
-            resultado = new File([blob], 'foto_' + f.getFullYear() + '-' + dos(f.getMonth() + 1) + '-' + dos(f.getDate()) + '_' + dos(f.getHours()) + '-' + dos(f.getMinutes()) + '-' + dos(f.getSeconds()) + '.jpg', { type: 'image/jpeg' });
-            botones(true);
-        });
+            var v = medida(img, function (w, h) { return 1280 / Math.max(w, h); });
+            vista.width = v[0]; vista.height = v[1];
+            vista.getContext('2d').drawImage(componer(img, d, v[0], v[1], r[0], r[1]), 0, 0);
+            if (!foto) return;
+            // La final, un momento después: si se sigue moviendo un ajuste, se descarta
+            return new Promise(function (ok) { setTimeout(ok, 350); }).then(function () {
+                if (mio !== turno) return;
+                var f = medida(img, function (w, h) { return Math.sqrt(8e6 / (w * h)); });
+                var fin = componer(img, d, f[0], f[1], r[0], r[1]);
+                return new Promise(function (ok) { fin.toBlob(ok, 'image/jpeg', 0.9); });
+            }).then(function (blob) {
+                if (mio !== turno) return;
+                if (!blob) throw new Error('el celular no pudo armar la imagen');
+                var t = d.fecha;
+                resultado = new File([blob], 'foto_' + t.getFullYear() + '-' + dos(t.getMonth() + 1) + '-' + dos(t.getDate()) + '_' + dos(t.getHours()) + '-' + dos(t.getMinutes()) + '-' + dos(t.getSeconds()) + '.jpg', { type: 'image/jpeg' });
+                botones(true);
+                estado(d.pos ? 'GPS ±' + Math.round(d.pos.prec) + ' m · lista para compartir o guardar' : '⚠️ Sin GPS: la foto sale sin coordenadas.');
+            });
+        }).catch(function (e) { if (mio === turno) estado('⚠️ No se pudo preparar la foto: ' + (e && e.message || e)); });
+    }
+    // Sin foto todavía: un paisaje de ejemplo con el GPS del mapa (o un punto de Medellín) para ver cómo queda la marca
+    var lienzoMuestra = null, ejemplo = null;
+    function muestra() {
+        if (lienzoMuestra) return lienzoMuestra;
+        var cv = document.createElement('canvas'); cv.width = 1200; cv.height = 900;
+        var c = cv.getContext('2d'), g = c.createLinearGradient(0, 0, 0, 900);
+        g.addColorStop(0, '#9cc9ef'); g.addColorStop(.55, '#d6e8d4'); g.addColorStop(1, '#5f7a55');
+        c.fillStyle = g; c.fillRect(0, 0, 1200, 900);
+        c.fillStyle = '#7a8a6a'; c.beginPath(); c.moveTo(0, 520); c.lineTo(300, 380); c.lineTo(620, 500); c.lineTo(900, 360); c.lineTo(1200, 480); c.lineTo(1200, 900); c.lineTo(0, 900); c.fill();
+        c.fillStyle = '#6b6b6b'; c.fillRect(0, 720, 1200, 180);
+        c.fillStyle = 'rgba(255,255,255,.85)'; c.font = '600 44px Arial, sans-serif'; c.textAlign = 'center'; c.fillText('Vista previa', 600, 300);
+        return (lienzoMuestra = cv);
+    }
+    function datosMuestra() {
+        var p = ops.posicion && ops.posicion();
+        if (!ejemplo) ejemplo = { dir: '' };
+        ejemplo.fecha = new Date();
+        ejemplo.pos = p ? { lat: p.lat, lng: p.lng, prec: p.prec } : { lat: 6.271116, lng: -75.569759, prec: 0 };
+        if (conf.direccion && !ejemplo.dir && ops.direccion && !ejemplo.buscando) {
+            ejemplo.buscando = true;
+            ops.direccion(ejemplo.pos).then(function (t) { ejemplo.dir = t || ''; if (!foto) dibujar(); });
+        }
+        return ejemplo;
     }
     function botones(si) { $('cam-compartir').disabled = $('cam-guardar').disabled = !si; }
     function descargar() {
@@ -343,8 +396,8 @@
         var fab = document.createElement('button');
         fab.type = 'button'; fab.className = 'primario cam-fab'; fab.textContent = '📸';
         fab.title = 'Tomar foto con fecha, GPS y marca de agua'; fab.setAttribute('aria-label', 'Tomar foto con marca de agua');
-        fab.onclick = tomar;
+        fab.onclick = abrir;
         document.body.appendChild(fab);
-        return { tomar: tomar };
+        return { tomar: tomar, abrir: abrir };
     };
 })();
