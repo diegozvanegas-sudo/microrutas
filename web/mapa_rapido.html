@@ -122,6 +122,10 @@
         #btn-completo .ico { display: inline; }
     }
     .pin-fijada { font-size: 26px; line-height: 28px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
+    /* Pin libre (mantener presionado o 📌): se arrastra para ajustarlo */
+    .pin-libre { font-size: 30px; line-height: 32px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.55)); cursor: grab; }
+    #btn-pin.activo { color: #fff; background: #d92d20; }
+    .ficha-pin .acciones button:disabled { opacity: .6; }
     .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
     .etiqueta-zona::before { display: none; }
     /* Armar pre-ruta tocando lotes: barra abajo con los elegidos */
@@ -145,6 +149,7 @@
         <button type="button" class="primario" id="btn-buscar">Buscar</button>
         <button type="button" class="secundario" id="btn-foto" title="Ubicar el lote con una foto que tenga las coordenadas GPS" aria-label="Ubicar con foto">📷</button>
         <input type="file" id="foto" accept="image/*" hidden>
+        <button type="button" class="secundario" id="btn-pin" title="Poner un pin en cualquier punto y ver cómo llegar (también: mantener presionado el mapa)" aria-label="Poner pin">📌</button>
         <button type="button" class="secundario" id="btn-plegar" aria-controls="chips" title="Mostrar u ocultar las cuadrillas y capas">▴</button>
         <a class="boton secundario" id="btn-completo" href="index.html" title="Abrir el mapa completo con todas las capas" aria-label="Mapa completo"><span class="txt">Mapa completo</span><span class="ico" aria-hidden="true">🗺️</span></a>
     </div>
@@ -371,9 +376,12 @@
             capa.lote = p;
             if (vencidos) capa.setStyle(estiloBase(capa));
             capa.on('click', function (e) {
+                if (modoPin) return ponerPin(e.latlng);
                 if (seleccion) return alternarSel(capa);
                 resaltarMr(p.m); verLote(capa, e.latlng);
             });
+            // Mantener presionado (o clic derecho) también pone el pin sobre un lote
+            capa.on('contextmenu', function (e) { ponerPin(e.latlng); });
             g.addLayer(capa);
             if (p.l && p.l !== 'NA') (porLote[p.l] = porLote[p.l] || []).push(capa);
             if (p.m) (porMr[p.m.toUpperCase()] = porMr[p.m.toUpperCase()] || []).push(capa);
@@ -498,18 +506,19 @@
     }
     // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa
     var movil = window.matchMedia('(max-width: 760px)');
-    function verLote(capa, latlng) {
+    function verLote(capa, latlng) { abrirPanel(popupLote(capa), latlng || puntoLote(capa)); }
+    function abrirPanel(html, ll) {
         if (!movil.matches) {
-            L.popup({ maxHeight: 420, maxWidth: 330 }).setLatLng(latlng || puntoLote(capa)).setContent(popupLote(capa)).openOn(map);
+            L.popup({ maxHeight: 420, maxWidth: 330 }).setLatLng(ll).setContent(html).openOn(map);
             return;
         }
-        $('ficha-contenido').innerHTML = popupLote(capa);
+        $('ficha-contenido').innerHTML = html;
         $('ficha').scrollTop = 0;
         $('ficha').classList.add('abierta');
         document.body.classList.add('con-ficha');
-        // Si el lote quedó debajo del panel, se sube el mapa para verlo
+        // Si el punto quedó debajo del panel, se sube el mapa para verlo
         setTimeout(function () {
-            var y = map.latLngToContainerPoint(latlng || puntoLote(capa)).y, alto = map.getSize().y - $('ficha').offsetHeight;
+            var y = map.latLngToContainerPoint(ll).y, alto = map.getSize().y - $('ficha').offsetHeight;
             if (y > alto - 30) map.panBy([0, y - alto / 2], { animate: true });
         }, 230);
     }
@@ -950,7 +959,109 @@
     }
     $('btn-buscar').onclick = buscar;
     $('buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscar(); } });
-    map.on('click', function () { limpiarResaltado(); cerrarFicha(); });
+    map.on('click', function (e) {
+        if (modoPin) return ponerPin(e.latlng);
+        limpiarResaltado(); cerrarFicha();
+    });
+
+    // ---------- Pin libre: cualquier punto del mapa, con cómo llegar desde donde está ----------
+    // Se pone manteniendo presionado el mapa (clic derecho en el computador) o con 📌 y luego un toque.
+    // Se arrastra para afinarlo. La dirección sale de OpenStreetMap (Nominatim) y es aproximada: las coordenadas son las exactas.
+    var pin = null, pinDir = null, miDir = null, modoPin = false;
+    var iconoPin = L.divIcon({ className: 'pin-libre', html: '📌', iconSize: [32, 32], iconAnchor: [9, 30] });
+    function coordTxt(ll) { return ll.lat.toFixed(6) + ', ' + ll.lng.toFixed(6); }
+    function activarModoPin(si) {
+        modoPin = si;
+        $('btn-pin').classList.toggle('activo', si);
+        map.getContainer().style.cursor = si ? 'crosshair' : '';
+        if (si) toast('Toque el mapa donde quiere el pin (o mantenga presionado en cualquier momento).');
+    }
+    function ponerPin(ll) {
+        activarModoPin(false);
+        if (pin) pin.setLatLng(ll);
+        else {
+            pin = L.marker(ll, { draggable: true, icon: iconoPin, zIndexOffset: 1000 }).addTo(map);
+            pin.on('dragend', function () { ponerPin(pin.getLatLng()); });
+            pin.on('click', verPin);
+        }
+        pinDir = null;
+        verPin();
+        direccionDe(ll).then(function (d) { if (pin && pin.getLatLng().equals(ll)) { pinDir = d; if (fichaPinAbierta()) verPin(); } });
+    }
+    function quitarPin() { if (pin) map.removeLayer(pin); pin = null; pinDir = null; cerrarFicha(); map.closePopup(); }
+    function fichaPinAbierta() { return !!document.querySelector('.ficha-pin'); }
+    // Dirección aproximada de un punto: "Calle 97 #73-20, Castilla, Medellín" (sin conexión o sin dato: null)
+    var cacheDir = {};
+    function direccionDe(ll) {
+        var k = ll.lat.toFixed(5) + ',' + ll.lng.toFixed(5);
+        if (cacheDir[k]) return Promise.resolve(cacheDir[k]);
+        return fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=es&lat=' + ll.lat + '&lon=' + ll.lng)
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (j) {
+                var a = j && j.address;
+                if (!a) return null;
+                var via = a.road || a.pedestrian || a.footway || a.path || '', num = a.house_number ? ' #' + a.house_number : '';
+                var ciudad = String(a.city || a.town || a.village || '').replace(/^Per[ií]metro Urbano\s+/i, '');
+                var d = [via + num, a.neighbourhood || a.suburb || a.quarter || '', ciudad].filter(Boolean).join(', ');
+                return (cacheDir[k] = d || null);
+            })
+            .catch(function () { return null; });
+    }
+    function urlRuta(desde, hasta) {
+        return 'https://www.google.com/maps/dir/?api=1' + (desde ? '&origin=' + desde.lat.toFixed(6) + ',' + desde.lng.toFixed(6) : '') +
+            '&destination=' + hasta.lat.toFixed(6) + ',' + hasta.lng.toFixed(6) + '&travelmode=driving';
+    }
+    function fichaPin() {
+        var ll = pin.getLatLng(), o = origen(), d = o ? o.distanceTo(ll) : null;
+        var dist = d == null ? '' : d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(d) + ' m';
+        var dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
+        return '<div class="ficha-lote ficha-pin">' +
+            '<div class="cab"><span class="titulo">📌 Punto marcado</span></div>' +
+            '<div class="mr">Arrastre el pin para ajustarlo</div>' +
+            '<div class="datos">' + dato('Coordenadas', coordTxt(ll)) + dato('Desde usted', dist || (o ? '' : 'sin GPS')) + '</div>' +
+            '<div class="bloque"><span class="et">Dirección aproximada</span><div class="txt">' + esc(pinDir || 'Buscando…') + '</div></div>' +
+            '<div class="acciones">' +
+                '<a class="boton primario" data-pin-ir href="' + esc(urlRuta(o, ll)) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
+                '<button type="button" class="boton secundario" data-pin-enviar>📤 Enviar ruta</button>' +
+                '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6) + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
+                '<button type="button" class="boton secundario" data-pin-copiar>📋 Copiar</button>' +
+                '<button type="button" class="boton secundario" data-pin-lote>Ver lote aquí</button>' +
+                '<button type="button" class="boton secundario" data-pin-quitar>✕ Quitar pin</button>' +
+            '</div></div>';
+    }
+    function verPin() { if (pin) abrirPanel(fichaPin(), pin.getLatLng()); }
+    // Texto para mandar: de dónde sale (su ubicación), a dónde llega (el pin) y el enlace de la ruta
+    function textoRuta() {
+        var ll = pin.getLatLng(), o = origen();
+        return Promise.all([o ? direccionDe(o) : null, pinDir || direccionDe(ll)]).then(function (r) {
+            miDir = r[0]; pinDir = r[1] || pinDir;
+            return ['🧭 Ruta al punto marcado',
+                o ? '📍 Desde: ' + (miDir ? miDir + ' (' + coordTxt(o) + ')' : coordTxt(o)) : '📍 Desde: su ubicación actual',
+                '📌 Hasta: ' + (pinDir ? pinDir + ' (' + coordTxt(ll) + ')' : coordTxt(ll)),
+                urlRuta(o, ll)].join('\n');
+        });
+    }
+    document.addEventListener('click', function (ev) {
+        if (!pin || !ev.target.closest) return;
+        // El enlace se arma al tocarlo: así sale de la ubicación de ese momento
+        var ir = ev.target.closest('a[data-pin-ir]');
+        if (ir) ir.href = urlRuta(origen(), pin.getLatLng());
+        if (ev.target.closest('[data-pin-quitar]')) return quitarPin();
+        if (ev.target.closest('[data-pin-lote]')) { var ll = pin.getLatLng(); return ubicarPunto({ lat: ll.lat, lng: ll.lng }); }
+        var enviar = ev.target.closest('[data-pin-enviar]'), copiar = ev.target.closest('[data-pin-copiar]');
+        if (!enviar && !copiar) return;
+        var boton = enviar || copiar;
+        boton.disabled = true;
+        textoRuta().then(function (t) {
+            if (enviar && navigator.share) return navigator.share({ title: 'Ruta al punto marcado', text: t }).catch(function () {});
+            if (enviar) return window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank', 'noopener');
+            var listo = function () { toast('Ruta copiada: péguela en WhatsApp'); };
+            if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(listo, function () { copiarViejo(t) && listo(); });
+            if (copiarViejo(t)) listo();
+        }).then(function () { boton.disabled = false; if (fichaPinAbierta()) verPin(); });
+    });
+    map.on('contextmenu', function (e) { ponerPin(e.latlng); });
+    $('btn-pin').onclick = function () { activarModoPin(!modoPin); };
 
     // ---------- Inicio ----------
     // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)
