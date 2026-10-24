@@ -6,7 +6,23 @@
 var correccionesLotes = {
   "cambios": {
     // Franjas de la Cr 69 entre calles 97 y 98 (164 m²): son del lote 287 (Z2CC0090), venían como 280. Programación oct 2026.
-    "6899": { "No_Lote": "287" }
+    "6899": { "No_Lote": "287" },
+    // Z4CC0114: la programación (oct 2026) dice lote 677; sus polígonos venían como 423 (que es de Z4CC0014) o sin número.
+    "7030": { "No_Lote": "677" },
+    "7031": { "No_Lote": "677" },
+    "7032": { "No_Lote": "677" },
+    "7033": { "No_Lote": "677" },
+    "7034": { "No_Lote": "677" },
+    "7035": { "No_Lote": "677" },
+    "7036": { "No_Lote": "677" },
+    "7037": { "No_Lote": "677" },
+    "7040": { "No_Lote": "677" },
+    "7041": { "No_Lote": "677" },
+    "7042": { "No_Lote": "677" },
+    "7043": { "No_Lote": "677" },
+    "7056": { "No_Lote": "677" },
+    // Z2CC0336 (lote 1168, cuadrilla 1): estaba dibujado sin microrruta. Misma dirección: calle 62 No 85 - 327, Robledo.
+    "675": { "Microruta": "Z2CC0336", "No_Lote": "1168", "CUADRILLA": "1" }
   },
   "nuevos": [
     // Lote 287 (Z2CC0090): la zona principal no estaba dibujada. Zonas verdes trazadas sobre la ortofoto 2025 (vegetación sin edificios ni canchas de OSM), 24/10/2026.
