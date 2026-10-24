@@ -97,18 +97,29 @@
     .ficha-lote .acciones a.secundario { color: var(--brand); background: #edf8f3; }
     .ficha-lote .acciones a.secundario:hover { color: var(--brand-dark); background: #dcf1e7; }
     .leaflet-popup-content .ficha-lote { min-width: 250px; }
+    /* La X de Leaflet (24 px gris claro) casi no se ve ni se atina: círculo grande como el del panel del celular */
+    .leaflet-container a.leaflet-popup-close-button { top: 8px; right: 8px; width: 34px; height: 34px; border-radius: 50%; background: var(--bg);
+        color: var(--ink); font: 600 24px/34px system-ui, sans-serif; z-index: 2; }
+    .leaflet-container a.leaflet-popup-close-button:hover { background: #dfe6ea; color: var(--ink); }
+    .leaflet-popup-content .ficha-lote .cab { padding-right: 36px; }
     #ficha { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; background: var(--surface); border-radius: 16px 16px 0 0;
              box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
-             max-height: 62vh; overflow-y: auto; transform: translateY(105%); transition: transform .22s ease; }
+             max-height: 55vh; overflow-y: auto; transform: translateY(105%); transition: transform .22s ease; }
     #ficha.abierta { transform: none; }
     #ficha .asa { width: 40px; height: 5px; border-radius: 3px; background: #cbd5db; margin: 2px auto 10px; }
     #ficha .cerrar { position: absolute; top: 12px; right: 10px; background: var(--bg); color: var(--muted); width: 32px; height: 32px; padding: 0; border-radius: 50%; font-size: 20px; line-height: 32px; }
     body.con-ficha .ir-subs { display: none; }
     .ir-subs { position: fixed; right: 14px; bottom: calc(30px + env(safe-area-inset-bottom)); z-index: 1001; padding: 13px 18px; border-radius: 999px; font-size: 15px; box-shadow: 0 4px 14px rgba(0, 0, 0, .3); }
+    #btn-plegar, #btn-completo .ico { display: none; }
     @media (max-width: 760px) {
-        #barra { padding: 8px 10px 6px; }
-        .fila input { font-size: 16px; }
+        #barra { padding: 6px 8px 5px; gap: 5px; }
+        .fila input { font-size: 16px; min-height: 36px; }
         .fila .boton, .fila button { padding: 8px 10px; }
+        /* Celular: la barra se pliega a solo el buscador para dejarle el espacio al mapa */
+        #btn-plegar { display: inline-block; }
+        body.barra-plegada #chips, body.barra-plegada #estado { display: none; }
+        #btn-completo .txt { display: none; }
+        #btn-completo .ico { display: inline; }
     }
     .pin-fijada { font-size: 26px; line-height: 28px; text-align: center; filter: drop-shadow(0 1px 2px rgba(0,0,0,.5)); }
     .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
@@ -134,7 +145,8 @@
         <button type="button" class="primario" id="btn-buscar">Buscar</button>
         <button type="button" class="secundario" id="btn-foto" title="Ubicar el lote con una foto que tenga las coordenadas GPS" aria-label="Ubicar con foto">📷</button>
         <input type="file" id="foto" accept="image/*" hidden>
-        <a class="boton secundario" id="btn-completo" href="index.html" title="Abrir el mapa completo con todas las capas">Mapa completo</a>
+        <button type="button" class="secundario" id="btn-plegar" aria-controls="chips" title="Mostrar u ocultar las cuadrillas y capas">▴</button>
+        <a class="boton secundario" id="btn-completo" href="index.html" title="Abrir el mapa completo con todas las capas" aria-label="Mapa completo"><span class="txt">Mapa completo</span><span class="ico" aria-hidden="true">🗺️</span></a>
     </div>
     <div class="chips" id="chips" role="group" aria-label="Cuadrillas y capas"></div>
     <div id="estado"></div>
@@ -605,6 +617,22 @@
     var ordenCuad = Object.keys(IDX.cuadrillas).sort(function (a, b) { return (a === 'sin') - (b === 'sin') || Number(a) - Number(b); });
     var activas = leer('rapido_cuadrillas', []).filter(function (c) { return IDX.cuadrillas[c]; });
     var capasActivas = leer('rapido_capas', []).filter(function (k) { return IDX.capas && IDX.capas[k]; });
+    // Celular: barra plegada = solo el buscador; el botón dice qué cuadrillas están puestas
+    var plegada = leer('rapido_barra_plegada', false);
+    function plegarBarra(on) {
+        if (on === plegada && document.body.classList.contains('barra-plegada') === on) return;
+        plegada = on;
+        guardar('rapido_barra_plegada', on);
+        document.body.classList.toggle('barra-plegada', on);
+        $('btn-plegar').setAttribute('aria-expanded', String(!on));
+        pintarPlegar();
+        map.invalidateSize(); // el mapa cambió de alto
+    }
+    function pintarPlegar() {
+        var resumen = activas.length === 1 ? (activas[0] === 'sin' ? 'S/C' : 'C' + activas[0]) : activas.length ? activas.length + ' C' : 'Capas';
+        $('btn-plegar').textContent = plegada ? resumen + ' ▾' : '▴';
+    }
+    $('btn-plegar').onclick = function () { plegarBarra(!plegada); };
 
     function pintarChips() {
         var todas = ordenCuad.length && ordenCuad.every(function (c) { return activas.indexOf(c) !== -1; });
@@ -628,6 +656,7 @@
         $('estado').textContent = !activas.length ? 'Elija una o varias cuadrillas para ver sus lotes.' :
             (faltan ? 'Cargando… ' : '') + (activas.length === 1 ? (activas[0] === 'sin' ? 'Sin cuadrilla' : 'Cuadrilla ' + activas[0]) : activas.length + ' cuadrillas') +
             ' · ' + n.toLocaleString('es-CO') + ' lotes · ' + (kb >= 1024 ? (kb / 1024).toFixed(1).replace('.', ',') + ' MB' : kb + ' KB');
+        pintarPlegar();
     }
     function mostrarCuadrillas(encuadrar) {
         guardar('rapido_cuadrillas', activas);
@@ -732,11 +761,19 @@
             pintarLeyenda(estadoRuta ? cuenta : null);
             if (!capas.length) return;
             if (!estadoRuta) resaltar(capas);
-            // Sin animación cuando se abre la ventana: si el mapa sigue moviéndose, la ventana queda cortada arriba
             var abrir = abrirVentana && claves.length === 1;
-            map.fitBounds(L.featureGroup(capas).getBounds(), { padding: [30, 30], maxZoom: 18, animate: !abrir });
-            if (abrir) verLote(capas[0]);
+            if (movil.matches) plegarBarra(true);
+            // Celular: primero el panel, porque su alto dice cuánto mapa queda a la vista para el lote
+            if (abrir && movil.matches) verLote(capas[0]);
+            encuadrar(L.featureGroup(capas).getBounds(), abrir);
+            if (abrir && !movil.matches) verLote(capas[0]);
         }
+    }
+    // Acerca el mapa al lote. Con la ficha abierta: sin animación (si el mapa sigue moviéndose, la ventana del computador
+    // queda cortada arriba) y, en el celular, el lote queda en el pedazo de mapa que no tapa el panel
+    function encuadrar(bounds, conFicha) {
+        var abajo = conFicha && movil.matches ? $('ficha').offsetHeight : 0;
+        map.fitBounds(bounds, { paddingTopLeft: [30, 30], paddingBottomRight: [30, 30 + abajo], maxZoom: 19, animate: !conFicha });
     }
     // Mismo formato que IDX: mayúsculas y lotes sin ceros a la izquierda
     function clave(v) { v = String(v || '').trim().toUpperCase(); return /^\d+$/.test(v) ? String(+v) : v; }
@@ -868,9 +905,9 @@
             if (!capa) return toast('No hay lotes a menos de ' + CERCA_M + ' m de ' + txt + '.' + aviso);
             var p = capa.lote, nombre = p.l && p.l !== 'NA' ? 'Lote ' + p.l : p.m;
             resaltarMr(p.m);
-            var b = capa.getBounds(); // copia: getBounds() es el recuadro interno del lote
-            map.fitBounds(L.latLngBounds(b.getSouthWest(), b.getNorthEast()).extend(ll), { padding: [40, 40], maxZoom: 18 });
-            verLote(capa, ll);
+            var b = capa.getBounds(), caja = L.latLngBounds(b.getSouthWest(), b.getNorthEast()).extend(ll); // copia: getBounds() es el recuadro interno del lote
+            if (movil.matches) { plegarBarra(true); verLote(capa, ll); encuadrar(caja, true); }
+            else { encuadrar(caja, false); verLote(capa, ll); }
             toast((dentro ? '📍 Está dentro del ' + nombre : '📍 Ningún lote contiene el punto; el más cercano es el ' + nombre + ' (a ' + Math.round(dmin) + ' m).') + aviso);
         }
     }
@@ -930,6 +967,7 @@
     }
     $('btn-completo').href = 'index.html' + location.search; // el mapa completo también entiende ?lote= y ?mr=
     if (q.get('c')) activas = q.get('c').split(',').filter(function (c) { return IDX.cuadrillas[c]; });
+    plegarBarra(plegada);
     mostrarCuadrillas(!q.get('lote') && !q.get('mr'));
     capasActivas.forEach(function (k) { mostrarCapa(k, true); });
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
