@@ -4,7 +4,7 @@ import '../subsanaciones/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
-import { asegurarSesion, cerrarSesion, esAdmin } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, aviso, confirmar } from '../subsanaciones/ui.js';
 
 var usuarios = [], yo = null, editando = null;
@@ -47,7 +47,7 @@ function pintar() {
         return (!rol || u.rol === rol) && (!q || plano(u.nombre + ' ' + u.correo).indexOf(q) !== -1);
     });
     if (!filas.length) { $('lista').innerHTML = '<div class="vacio">' + (usuarios.length ? 'Nadie coincide con la búsqueda.' : 'No hay usuarios.') + '</div>'; return; }
-    $('lista').innerHTML = '<table class="tabla-usuarios"><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th>Visitas</th><th></th></tr></thead><tbody>' +
+    $('lista').innerHTML = '<table class="tabla-usuarios"><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th>Visitas</th><th>Contrato</th><th></th></tr></thead><tbody>' +
         filas.map(function (u) {
             var propio = u.id === yo;
             return '<tr' + (u.activo ? '' : ' class="inactivo"') + '>' +
@@ -56,6 +56,7 @@ function pintar() {
                 '<td data-label="Estado"><span class="estado ' + (u.activo ? 'e-SUBSANADO">Activo' : 'e-CERRADO">Desactivado') + '</span></td>' +
                 '<td data-label="Último ingreso">' + esc(cuando(u.ultimo_ingreso)) + '</td>' +
                 '<td data-label="Visitas">' + u.visitas + ' registradas<div class="sub">' + u.subsanadas + ' subsanadas</div></td>' +
+                '<td data-label="Contrato">' + (u.ver_contrato ? '📜 Puede verlo' : '<span class="sub">No</span>') + '</td>' +
                 '<td class="acciones">' +
                     '<button type="button" class="secundario pequeno" data-editar="' + esc(u.id) + '">Editar</button> ' +
                     (propio ? '' : '<button type="button" class="secundario pequeno" data-activar="' + esc(u.id) + '">' + (u.activo ? 'Desactivar' : 'Activar') + '</button> ' +
@@ -80,8 +81,16 @@ function abrir(u) {
     // Su propio usuario: no puede quitarse el rol de administrador ni desactivarse
     var propio = u && u.id === yo;
     form.rol.disabled = form.activo.disabled = !!propio;
+    ajustarContrato();
     dlg.showModal();
     form.nombre.focus();
+}
+// Los administradores siempre ven el contrato: la casilla solo aplica a interventores
+function ajustarContrato() {
+    var admin = form.rol.value === 'admin';
+    form.contrato.disabled = admin;
+    form.contrato.checked = admin || !!(editando && editando.rol !== 'admin' && editando.ver_contrato);
+    $('contrato-ayuda').textContent = admin ? '(los administradores siempre lo ven)' : '';
 }
 
 // Contraseña de 12 caracteres sin letras que se confunden (l, 1, O, 0)
@@ -106,11 +115,13 @@ async function guardar(ev) {
                 rol: form.rol.disabled ? null : datos.rol,
                 clave: clave || null,
                 activo: form.activo.disabled ? null : form.activo.checked,
+                ver_contrato: form.contrato.disabled ? null : form.contrato.checked,
             };
             await llamar('admin_editar_usuario', cambio);
             toast('Usuario actualizado' + (clave ? ' con la contraseña nueva' : ''));
         } else {
-            await llamar('admin_crear_usuario', { correo: datos.correo, clave: clave, nombre: datos.nombre, rol: datos.rol });
+            var nuevo = await llamar('admin_crear_usuario', { correo: datos.correo, clave: clave, nombre: datos.nombre, rol: datos.rol });
+            if (!form.contrato.disabled && form.contrato.checked) await llamar('admin_editar_usuario', { usuario: nuevo, ver_contrato: true });
             toast('Usuario creado: ' + datos.correo);
         }
         dlg.close();
@@ -156,7 +167,7 @@ async function arrancar() {
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { cerrarSesion(supabase); };
-    if (!await esAdmin(supabase)) {
+    if (!(await aplicarPermisos(supabase, usuario)).admin) {
         $('lista').innerHTML = '';
         aviso('🔒 Esta página es solo para administradores. Pídale al administrador que le cambie el rol si necesita manejar usuarios.', true);
         return;
@@ -170,6 +181,7 @@ async function arrancar() {
     $('f-texto').addEventListener('input', pintar);
     $('f-rol').addEventListener('change', pintar);
     form.addEventListener('submit', guardar);
+    form.rol.addEventListener('change', ajustarContrato);
     $('lista').addEventListener('click', function (ev) {
         var b = ev.target.closest('button');
         if (!b) return;

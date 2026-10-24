@@ -3,7 +3,7 @@
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
-import { asegurarSesion, cerrarSesion, mostrarMenuAdmin } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 
 var CACHE = 'contrato_cache';
 var $ = function (id) { return document.getElementById(id); };
@@ -86,7 +86,14 @@ async function arrancar() {
     salir.title = 'Cerrar sesión de ' + usuario.email;
     // Al salir se borra la copia del equipo: el contrato es solo para usuarios con sesión
     salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
-    mostrarMenuAdmin(supabase);
+    // Solo administradores y usuarios con el permiso (usuarios.html); la base también lo exige
+    var permisos = await aplicarPermisos(supabase, usuario);
+    if (!permisos.contrato) {
+        try { localStorage.removeItem(CACHE); } catch (e) {}
+        $('buscar').hidden = true;
+        $('estado').textContent = '🔒 Su usuario no tiene permiso para ver el contrato. Pídaselo al administrador.';
+        return;
+    }
     cargar();
 }
 

@@ -18,7 +18,7 @@
         <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
         <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
         <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
-        <a href="contrato.html" title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
+        <a href="contrato.html" id="nav-contrato" hidden title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
     </nav>
     <details class="menu-mas">
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
@@ -58,6 +58,7 @@
                 <small id="clave-ayuda">Mínimo 8 caracteres. Cópiela antes de guardar para pasársela al usuario.</small>
             </label>
             <label class="ancho activo" id="campo-activo"><input type="checkbox" name="activo"> Activo (puede ingresar)</label>
+            <label class="ancho activo" id="campo-contrato"><input type="checkbox" name="contrato"> Puede ver el contrato <small id="contrato-ayuda"></small></label>
         </div>
         <div class="aviso error" id="form-error" hidden></div>
         <div class="pie">

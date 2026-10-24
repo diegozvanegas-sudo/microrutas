@@ -121,6 +121,8 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
   en subsanaciones puede filtrar por usuario (`0005_visitas_por_usuario.sql`). Las que no tienen usuario solo las ve el admin.
 - `rutas` (pre-rutas): de cada usuario, también el administrador (`0006_rutas_por_usuario.sql`); dos personas pueden
   tener pre-ruta para la misma cuadrilla. El mapa rápido las toma de la copia del equipo, que es del usuario de la sesión.
+- `contrato_secciones`: solo administradores y usuarios con `perfiles.ver_contrato` (casilla "Puede ver el contrato" en
+  usuarios.html, `0007_contrato_permiso.sql`); a los demás no les aparece "Contrato" en el encabezado.
 - `perfiles` (nombre y rol de cada usuario): los lee quien tenga sesión; solo cambian con las funciones `admin_*`
   (`0004_usuarios.sql`), que rechazan a quien no sea admin.
 - Cada visita queda a nombre de la sesión: `registrado_por` / `creado_por` al crearla, `subsanado_por` al pasar a

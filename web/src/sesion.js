@@ -60,10 +60,21 @@ export async function esAdmin(supabase) {
     return !res.error && res.data === true;
 }
 
-// Muestra en el menú "Más" la entrada de usuarios cuando la sesión es de un administrador
-export async function mostrarMenuAdmin(supabase) {
-    var item = document.getElementById('menu-usuarios');
-    if (item && await esAdmin(supabase)) item.hidden = false;
+// Permisos de la sesión ({ admin, contrato }, 0007_contrato_permiso.sql). Muestra "Contrato" en las secciones y
+// "Usuarios" en el menú Más solo a quien puede. Sin conexión usa los últimos que recibió este usuario en el equipo.
+export async function aplicarPermisos(supabase, usuario) {
+    var clave = 'permisos_' + usuario.id, p = { admin: false, contrato: false };
+    var res = await supabase.rpc('mis_permisos');
+    if (!res.error && res.data) {
+        p = res.data;
+        try { localStorage.setItem(clave, JSON.stringify(p)); } catch (e) {}
+    } else {
+        try { p = JSON.parse(localStorage.getItem(clave)) || p; } catch (e) {}
+    }
+    var nav = document.getElementById('nav-contrato'), menu = document.getElementById('menu-usuarios');
+    if (nav) nav.hidden = !p.contrato;
+    if (menu) menu.hidden = !p.admin;
+    return p;
 }
 
 export async function cerrarSesion(supabase) {

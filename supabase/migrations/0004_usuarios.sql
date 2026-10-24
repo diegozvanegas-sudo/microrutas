@@ -14,6 +14,8 @@ create table if not exists public.perfiles (
   rol     text not null default 'interventor' check (rol in ('admin', 'interventor')),
   creado  timestamptz not null default now()
 );
+-- Permiso para ver el contrato (contrato.html, 0007): los administradores siempre lo ven
+alter table public.perfiles add column if not exists ver_contrato boolean not null default false;
 
 -- Cada usuario nuevo de Auth (desde la página, el panel o scripts/crear_usuario.mjs) queda con perfil de interventor
 create or replace function public.perfil_nuevo()
@@ -80,9 +82,10 @@ begin
 end;
 $$;
 
-create or replace function public.admin_usuarios()
+drop function if exists public.admin_usuarios();   -- cambió lo que devuelve (ver_contrato)
+create function public.admin_usuarios()
 returns table (id uuid, correo text, nombre text, rol text, activo boolean, creado timestamptz,
-               ultimo_ingreso timestamptz, visitas integer, subsanadas integer)
+               ultimo_ingreso timestamptz, visitas integer, subsanadas integer, ver_contrato boolean)
 language plpgsql stable
 security definer
 set search_path = public, extensions
@@ -93,7 +96,8 @@ begin
   select u.id, u.email::text, p.nombre, coalesce(p.rol, 'interventor'),
          u.banned_until is null or u.banned_until < now(), u.created_at, u.last_sign_in_at,
          (select count(*)::int from public.visitas v where v.creado_por = u.id),
-         (select count(*)::int from public.visitas v where v.subsanado_por_id = u.id)
+         (select count(*)::int from public.visitas v where v.subsanado_por_id = u.id),
+         p.rol = 'admin' or coalesce(p.ver_contrato, false)
   from auth.users u left join public.perfiles p on p.id = u.id
   order by p.rol, lower(coalesce(p.nombre, u.email));
 end;
@@ -157,8 +161,10 @@ end;
 $$;
 
 -- Lo que llegue en null no se cambia. activo = false bloquea el ingreso sin borrar al usuario ni sus visitas.
+drop function if exists public.admin_editar_usuario(uuid, text, text, text, text, boolean);   -- antes no tenía ver_contrato
 create or replace function public.admin_editar_usuario(usuario uuid, correo text default null, nombre text default null,
-                                                       rol text default null, clave text default null, activo boolean default null)
+                                                       rol text default null, clave text default null, activo boolean default null,
+                                                       ver_contrato boolean default null)
 returns void
 language plpgsql
 security definer
@@ -196,7 +202,8 @@ begin
 
   update public.perfiles p set
     nombre = coalesce(nullif(trim(admin_editar_usuario.nombre), ''), p.nombre),
-    rol = coalesce(admin_editar_usuario.rol, p.rol)
+    rol = coalesce(admin_editar_usuario.rol, p.rol),
+    ver_contrato = coalesce(admin_editar_usuario.ver_contrato, p.ver_contrato)
   where p.id = usuario;
 end;
 $$;
@@ -219,10 +226,10 @@ end;
 $$;
 
 revoke all on function public.admin_usuarios(), public.admin_crear_usuario(text, text, text, text),
-  public.admin_editar_usuario(uuid, text, text, text, text, boolean), public.admin_eliminar_usuario(uuid),
+  public.admin_editar_usuario(uuid, text, text, text, text, boolean, boolean), public.admin_eliminar_usuario(uuid),
   public.exigir_admin(), public.nombre_usuario(uuid), public.perfil_nuevo() from public, anon;
 grant execute on function public.admin_usuarios(), public.admin_crear_usuario(text, text, text, text),
-  public.admin_editar_usuario(uuid, text, text, text, text, boolean), public.admin_eliminar_usuario(uuid),
+  public.admin_editar_usuario(uuid, text, text, text, text, boolean, boolean), public.admin_eliminar_usuario(uuid),
   public.es_admin(), public.nombre_usuario(uuid) to authenticated;
 
 -- ---------- Visitas a nombre del usuario de la sesión ----------

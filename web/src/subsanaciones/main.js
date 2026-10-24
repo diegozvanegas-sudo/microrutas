@@ -3,7 +3,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { crearApi } from '../api.js';
-import { asegurarSesion, cerrarSesion, esAdmin } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { iniciar } from './app.js';
 
 // Copia de las visitas en el equipo (app.js y el mapa rápido): es de un usuario, cada uno ve solo las suyas
@@ -25,9 +25,8 @@ async function arrancar() {
     var cfg = { url: true, usuario: usuario.email };
     supabase.rpc('nombre_usuario').then(function (res) { if (!res.error && res.data) cfg.usuario = res.data; });
     var pagina = iniciar(crearApi(supabase), cfg);
-    // Administrador: menú de usuarios y filtro por usuario (ve las visitas de todos)
-    if (await esAdmin(supabase)) {
-        document.getElementById('menu-usuarios').hidden = false;
+    // "Contrato" y "Usuarios" según el permiso; el administrador además filtra por usuario (ve las visitas de todos)
+    if ((await aplicarPermisos(supabase, usuario)).admin) {
         var res = await supabase.from('perfiles').select('id, nombre').order('nombre');
         if (!res.error) pagina.mostrarUsuarios(res.data.map(function (p) { return { id: p.id, nombre: p.nombre || 'Sin nombre' }; }));
     }
