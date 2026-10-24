@@ -16,7 +16,7 @@ export function iniciar(api, CFG) {
     var LOTES = window.direccionesLotes || {};
     var FIJAS = ['MICRORRUTA', 'LOTE', 'ÁREA M2', 'ZONA', 'CUADRILLA', 'FECHA DE EJECUCIÓN', 'FECHA DE LA VISITA', 'INTERVENTOR',
         'OBSERVACIONES NOVEDADES', 'CANTIDAD DE NOVEDADES', 'ESTADO', 'FECHA SUBSANACIÓN', 'OBSERVACIÓN SUBSANACIÓN', 'EVIDENCIA', 'ID', 'REGISTRADO POR',
-        'ÚLTIMA MODIFICACIÓN', 'ÍTEMS SUBSANADOS', 'FECHA DE REGISTRO'];
+        'ÚLTIMA MODIFICACIÓN', 'ÍTEMS SUBSANADOS', 'FECHA DE REGISTRO', 'SUBSANADO POR', 'MODIFICADO POR'];
     var FECHAS = ['FECHA DE EJECUCIÓN', 'FECHA DE LA VISITA', 'FECHA SUBSANACIÓN'];
     var items = [], columnas = [], registros = [], editando = null, abiertos = {};
     var itemsOp = [], columnasOp = [], hayOperacion = false, tipoForm = EJ;
@@ -239,6 +239,8 @@ export function iniciar(api, CFG) {
             dato('Ítems en NO', enNo.length ? enNo.map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join('') : 'Ninguno', true) +
             dato('Observaciones', esc(r['OBSERVACIONES NOVEDADES']), true) +
             dato('Fecha subsanación', esc(r['FECHA SUBSANACIÓN'])) + dato('Registrado por', esc(r['REGISTRADO POR'])) +
+            dato('Subsanado por', esc(r['SUBSANADO POR'])) +
+            dato('Última modificación', r['MODIFICADO POR'] ? esc(r['MODIFICADO POR']) + ' · ' + esc(r['ÚLTIMA MODIFICACIÓN']) : '') +
             dato('Observación subsanación', esc(r['OBSERVACIÓN SUBSANACIÓN']), true) +
             dato('Evidencia', /^https?:\/\//i.test(r.EVIDENCIA || '') ? '<a href="' + esc(r.EVIDENCIA) + '" target="_blank" rel="noopener">Abrir fotos</a>' : esc(r.EVIDENCIA), true) +
             '</dl>' + (r.ESTADO === 'PENDIENTE' ? '<button type="button" class="subsanar' + (conEditar ? '' : ' pequeno') + '" data-subsanar="' + esc(r.ID) + '">✓ Marcar subsanado</button>' : '') +
@@ -432,7 +434,8 @@ export function iniciar(api, CFG) {
             seguirUbicacion();
             if (!r['FECHA DE LA VISITA']) form.querySelector('[data-campo="FECHA DE LA VISITA"]').value = hoy();
             try {
-                form.querySelector('[data-campo="REGISTRADO POR"]').value = localStorage.getItem('subsanaciones_usuario') || ultimoValor('REGISTRADO POR');
+                // Con sesión, la base de datos firma la visita con el usuario (CFG.usuario); aquí solo se muestra
+                form.querySelector('[data-campo="REGISTRADO POR"]').value = CFG.usuario || localStorage.getItem('subsanaciones_usuario') || ultimoValor('REGISTRADO POR');
                 form.querySelector('[data-campo="INTERVENTOR"]').value = localStorage.getItem('subsanaciones_interventor') || ultimoValor('INTERVENTOR');
             } catch (e) {}
         }

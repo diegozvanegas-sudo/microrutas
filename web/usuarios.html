@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Usuarios · Microrrutas</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">👥</span>
+        <div class="nombre"><h1>Usuarios</h1><div class="lema">Quién entra a la app · Solo administradores</div></div>
+    </div>
+    <nav class="nav-app" aria-label="Secciones">
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <a href="contrato.html" title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+    <button type="button" class="primario" id="btn-nuevo" hidden>+ Nuevo usuario</button>
+</header>
+<main>
+    <div id="aviso"></div>
+    <div class="filtros" id="filtros" hidden>
+        <input type="search" id="f-texto" placeholder="Buscar por nombre o correo" aria-label="Buscar usuario">
+        <select id="f-rol" aria-label="Rol"><option value="">Rol: todos</option><option value="admin">Administrador</option><option value="interventor">Interventor</option></select>
+    </div>
+    <div class="panel" id="lista"><div class="cargando">Cargando…</div></div>
+    <p class="nota">Las visitas quedan a nombre del usuario que inició sesión: “Registrado por” al crearla y “Subsanado por” al pasarla a subsanada.
+        Desactivar bloquea el ingreso y conserva sus visitas; eliminar borra el usuario, y sus visitas quedan con el nombre que tenían.</p>
+</main>
+
+<dialog id="dlg">
+    <form id="form" autocomplete="off">
+        <h2><span id="dlg-titulo">Nuevo usuario</span><button type="button" class="cerrar-dlg" id="btn-cerrar" aria-label="Cerrar">×</button></h2>
+        <div class="grid">
+            <label class="doble">NOMBRE <input name="nombre" placeholder="Como firma las visitas" maxlength="80"></label>
+            <label class="doble">CORREO <input name="correo" type="email" inputmode="email" required autocomplete="off"></label>
+            <label class="doble">ROL
+                <select name="rol"><option value="interventor">Interventor</option><option value="admin">Administrador (maneja usuarios)</option></select>
+            </label>
+            <label class="doble">CONTRASEÑA
+                <span class="clave">
+                    <input name="clave" type="text" minlength="8" autocomplete="new-password" spellcheck="false">
+                    <button type="button" class="secundario" id="btn-generar" title="Crear una contraseña segura">Generar</button>
+                </span>
+                <small id="clave-ayuda">Mínimo 8 caracteres. Cópiela antes de guardar para pasársela al usuario.</small>
+            </label>
+            <label class="ancho activo" id="campo-activo"><input type="checkbox" name="activo"> Activo (puede ingresar)</label>
+        </div>
+        <div class="aviso error" id="form-error" hidden></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="btn-cancelar">Cancelar</button>
+            <button type="submit" class="primario" id="btn-guardar">Guardar</button>
+        </div>
+    </form>
+</dialog>
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="peligro-fuerte" id="conf-si"></button>
+        </div>
+    </div>
+</dialog>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/usuarios/main.js"></script>
+</body>
+</html>

@@ -31,6 +31,7 @@
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <hr>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
             <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
         </div>
     </details>
@@ -105,7 +106,7 @@
                 <legend>Subsanación</legend>
                 <div class="grid">
                     <label class="doble">FECHA SUBSANACIÓN <input type="date" data-campo="FECHA SUBSANACIÓN"></label>
-                    <label class="doble">REGISTRADO POR <input data-campo="REGISTRADO POR"></label>
+                    <label class="doble">REGISTRADO POR <input data-campo="REGISTRADO POR" readonly title="Lo pone la base de datos con el usuario que inició sesión"></label>
                     <label class="ancho">EVIDENCIA (link de fotos / Drive) <input type="url" data-campo="EVIDENCIA" placeholder="https://"></label>
                     <label class="ancho">OBSERVACIÓN SUBSANACIÓN <textarea data-campo="OBSERVACIÓN SUBSANACIÓN"></textarea></label>
                 </div>

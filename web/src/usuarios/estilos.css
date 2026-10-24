@@ -1,0 +1,28 @@
+/* usuarios.html: lo propio de la página; botones, tabla, formulario y avisos vienen de subsanaciones/estilos.css */
+main { max-width: 1100px; }
+.tabla-usuarios td { vertical-align: middle; }
+.tabla-usuarios tr.inactivo td:not(.acciones) { opacity: .6; }
+.tu { font-size: 11px; font-weight: 700; color: var(--brand); background: #edf8f3; border-radius: 999px; padding: 1px 7px; }
+.rol { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.rol-admin { color: #6d28d9; background: #ede9fe; }
+.rol-interventor { color: var(--sn); background: var(--sn-bg); }
+.nota { color: var(--muted); font-size: 12px; line-height: 1.5; margin: 12px 2px 0; }
+#dlg { width: min(560px, calc(100% - 24px)); }
+#dlg h2 { position: static; margin: 0 0 14px; padding: 0; border: 0; }
+.clave { display: flex; gap: 6px; margin-top: 4px; }
+.clave input { margin-top: 0; flex: 1; font-family: Consolas, monospace; }
+label small { display: block; margin-top: 4px; font-weight: 400; color: var(--muted); }
+label.activo { display: flex; align-items: center; gap: 8px; font-size: 14px; color: var(--ink); }
+label.activo input { width: auto; min-height: 0; margin: 0; }
+#form-error { margin: 12px 0 0; }
+
+/* Celular: cada usuario como tarjeta */
+@media (max-width: 760px) {
+    .tabla-usuarios thead { display: none; }
+    .tabla-usuarios, .tabla-usuarios tbody, .tabla-usuarios tr, .tabla-usuarios td { display: block; width: 100%; }
+    .tabla-usuarios tr { padding: 10px 14px; border-bottom: 1px solid var(--line); }
+    .tabla-usuarios td { border: 0; padding: 3px 0; }
+    .tabla-usuarios td[data-label]:not([data-label="Usuario"])::before { content: attr(data-label) ': '; color: var(--muted); font-size: 12px; }
+    .tabla-usuarios td.acciones { padding-top: 8px; white-space: normal; }
+    .tabla-usuarios td.acciones button { padding: 8px 12px; }
+}

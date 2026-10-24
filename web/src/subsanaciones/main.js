@@ -3,7 +3,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { crearApi } from '../api.js';
-import { asegurarSesion, cerrarSesion } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, mostrarMenuAdmin } from '../sesion.js';
 import { iniciar } from './app.js';
 
 async function arrancar() {
@@ -14,7 +14,11 @@ async function arrancar() {
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { cerrarSesion(supabase); };
-    iniciar(crearApi(supabase), { url: true });
+    mostrarMenuAdmin(supabase);
+    // Nombre con el que la base firma las visitas; mientras llega (o sin conexión) se muestra el correo
+    var cfg = { url: true, usuario: usuario.email };
+    supabase.rpc('nombre_usuario').then(function (res) { if (!res.error && res.data) cfg.usuario = res.data; });
+    iniciar(crearApi(supabase), cfg);
 }
 
 arrancar();

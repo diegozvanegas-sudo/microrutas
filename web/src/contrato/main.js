@@ -3,7 +3,7 @@
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
-import { asegurarSesion, cerrarSesion } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, mostrarMenuAdmin } from '../sesion.js';
 
 var CACHE = 'contrato_cache';
 var $ = function (id) { return document.getElementById(id); };
@@ -86,6 +86,7 @@ async function arrancar() {
     salir.title = 'Cerrar sesión de ' + usuario.email;
     // Al salir se borra la copia del equipo: el contrato es solo para usuarios con sesión
     salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
+    mostrarMenuAdmin(supabase);
     cargar();
 }
 

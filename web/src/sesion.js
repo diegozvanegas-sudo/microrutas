@@ -54,6 +54,18 @@ export async function asegurarSesion(supabase) {
     return s ? s.user : pedirIngreso(supabase);
 }
 
+// Rol del usuario de la sesión (public.perfiles). Sin conexión o sin la tabla todavía: interventor.
+export async function esAdmin(supabase) {
+    var res = await supabase.rpc('es_admin');
+    return !res.error && res.data === true;
+}
+
+// Muestra en el menú "Más" la entrada de usuarios cuando la sesión es de un administrador
+export async function mostrarMenuAdmin(supabase) {
+    var item = document.getElementById('menu-usuarios');
+    if (item && await esAdmin(supabase)) item.hidden = false;
+}
+
 export async function cerrarSesion(supabase) {
     await supabase.auth.signOut();
     location.reload();

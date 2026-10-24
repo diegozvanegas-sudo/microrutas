@@ -93,6 +93,9 @@ function aRegistro(v) {
         'OBSERVACIÓN SUBSANACIÓN': v.observacion_subsanacion || '',
         'EVIDENCIA': (v.evidencia || []).join(' '),
         'REGISTRADO POR': v.registrado_por || '',
+        // Los pone la base de datos con el usuario de la sesión (0004_usuarios.sql); no se envían al guardar
+        'SUBSANADO POR': v.subsanado_por || '',
+        'MODIFICADO POR': v.modificado_por || '',
         'ÚLTIMA MODIFICACIÓN': momentoTexto(v.actualizado, false),
         'ÍTEMS SUBSANADOS': (v.items_subsanados || []).join(' | '),
         'FECHA DE REGISTRO': momentoTexto(v.creado, true),
