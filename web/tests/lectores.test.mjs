@@ -12,6 +12,7 @@ import { claveFecha, aInput, aTexto, metros } from '../src/subsanaciones/util.js
 // coordenadas.js es un script de la página: deja leerCoordenadas en window
 globalThis.window = globalThis;
 createRequire(import.meta.url)('../public/js/coordenadas.js');
+createRequire(import.meta.url)('../public/js/camara_marca.js');
 const leer = (t) => window.leerCoordenadas(t);
 const cerca = (c, lat, lng) => { assert.ok(c, 'no leyó coordenadas'); assert.ok(Math.abs(c.lat - lat) < 1e-4 && Math.abs(c.lng - lng) < 1e-4, JSON.stringify(c)); };
 
@@ -157,4 +158,18 @@ test('ZIP a PDF: qué archivos son fotos y en qué orden van', async () => {
     assert.ok(!esImagen('fotos/.oculta.png'));
     assert.ok(!esImagen('notas.txt'));
     assert.deepEqual(['foto10.jpg', 'foto2.jpg', 'Foto1.jpg'].sort(ordenNatural), ['Foto1.jpg', 'foto2.jpg', 'foto10.jpg']);
+});
+
+test('foto con marca de agua: fecha y coordenadas en cada formato, y el mapa las vuelve a leer', () => {
+    const f = window.marcaFormatos, d = new Date(2026, 9, 24, 14, 29, 5);
+    assert.equal(f.fecha(d, 'corta'), '24 oct 2026 14:29:05');
+    assert.equal(f.fecha(d, 'numeros'), '24/10/2026 14:29:05');
+    assert.equal(f.fecha(d, 'ampm'), '24/10/2026 2:29:05 p. m.');
+    assert.equal(f.fecha(d, 'iso'), '2026-10-24 14:29:05');
+    assert.equal(f.coords(6.280683, -75.546571, 'hemisferio'), '6.28068N 75.54657W');
+    assert.equal(f.coords(6.280683, -75.546571, 'decimal'), '6.280683, -75.546571');
+    assert.equal(f.coords(6.280683, -75.546571, 'gms'), `6°16'50.5"N 75°32'47.7"W`);
+    for (const k of ['hemisferio', 'decimal', 'gms']) cerca(leer(f.coords(6.280683, -75.546571, k)), 6.280683, -75.546571);
+    // Los segundos no se redondean a 60: 6°16'59.99" -> 6°17'0.0"
+    assert.equal(f.coords(6 + 17 / 60 - 0.00001 / 3600, -75.5, 'gms'), `6°17'0.0"N 75°30'0.0"W`);
 });

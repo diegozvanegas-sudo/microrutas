@@ -168,6 +168,7 @@
 <script src="js/leaflet.js"></script>
 <script src="data/rapido/indice.js"></script>
 <script src="js/coordenadas.js"></script>
+<script src="js/camara_marca.js"></script>
 <script>
 (function () {
     var IDX = window.indiceRapido || { cuadrillas: {}, lotes: {}, mrs: {}, capas: {} };
@@ -1156,6 +1157,14 @@
     });
     map.on('contextmenu', function (e) { ponerPin(e.latlng); });
     $('btn-pin').onclick = function () { activarModoPin(!modoPin); };
+
+    // ---------- 📸 Foto con fecha, GPS y marca de agua (js/camara_marca.js) ----------
+    // Usa el GPS real (no la ubicación fijada con "Estoy aquí"): la foto es evidencia de dónde se tomó
+    window.camaraMarca({
+        posicion: function () { return miPos ? { lat: miPos.lat, lng: miPos.lng, prec: miPrec, hora: miHora } : null; },
+        direccion: direccionDe,
+        toast: toast
+    });
 
     // ---------- Inicio ----------
     // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)
