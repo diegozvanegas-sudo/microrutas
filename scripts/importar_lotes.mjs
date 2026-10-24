@@ -25,6 +25,15 @@ const capa = cargarVariable('zonasverdes__areas_zonas_verdes_2.js', 'json_zonasv
 const direcciones = cargarVariable('direcciones_lotes.js', 'direccionesLotes');
 const extras = cargarVariable('direcciones_fid.js', 'extrasLotes');
 
+// Correcciones que no vienen de QGIS (las mismas del mapa rápido): cambios por fid y polígonos que faltan
+const correcciones = cargarVariable('lotes_correcciones.js', 'correccionesLotes');
+for (const f of capa.features) Object.assign(f.properties, correcciones.cambios[f.properties.fid]);
+capa.features.push(...correcciones.nuevos);
+
+// FIDS=6899,9001 carga solo esos polígonos (sin tocar las microrrutas ni los demás lotes)
+const soloFids = process.env.FIDS ? new Set(process.env.FIDS.split(',').map(Number)) : null;
+if (soloFids) capa.features = capa.features.filter((f) => soloFids.has(f.properties.fid));
+
 // Microrrutas: las de la programación, más las que solo aparecen en los polígonos.
 const microrrutas = new Map();
 for (const [codigo, d] of Object.entries(direcciones)) {
@@ -67,7 +76,7 @@ const db = await conectar();
 try {
   await db.query('begin');
 
-  const listaMr = [...microrrutas.values()];
+  const listaMr = soloFids ? [] : [...microrrutas.values()];
   for (let i = 0; i < listaMr.length; i += LOTE) {
     await db.query(
       `insert into microrrutas (codigo, lote, cuadrilla, area_m2, frecuencia, direccion, descripcion)

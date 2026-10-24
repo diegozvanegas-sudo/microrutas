@@ -51,9 +51,12 @@ npm run dev                # http://localhost:5173/subsanaciones.html
 npm run build              # deja todo en web/dist/ para publicar
 ```
 
-- **Usuarios**: cada interventor entra con correo y contraseña. Se crean con
-  `npm run usuario -- correo@ejemplo.com "contraseña"` (en la carpeta de arriba; necesita `SUPABASE_URL` y
-  `SUPABASE_SERVICE_ROLE_KEY` en `.env`) o en Supabase → Authentication → Add user.
+- **Usuarios**: cada interventor entra con correo y contraseña. El administrador los maneja en `usuarios.html`
+  (menú ⋯ Más → 👥 Usuarios, solo se ve con rol admin): crear, editar, cambiar contraseña, desactivar y eliminar.
+  También se pueden crear con `npm run usuario -- correo@ejemplo.com "contraseña"` (en la carpeta de arriba; necesita
+  `SUPABASE_URL` y `SUPABASE_SERVICE_ROLE_KEY` en `.env`) o en Supabase → Authentication → Add user; quedan como interventor.
+  El primer administrador se pone en Supabase → SQL Editor:
+  `update perfiles set rol = 'admin' where id = (select id from auth.users where email = 'correo@ejemplo.com');`
 - **Sin conexión**: instalada (o abierta una vez), la página abre sin señal y muestra la última copia de las
   visitas y pre-rutas. Las capas del mapa y los fondos ya vistos también quedan guardados. Guardar una visita
   sí necesita conexión por ahora.
@@ -115,6 +118,10 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
 
 - `lotes`, `microrrutas`, `items`, `recordatorios`: cualquiera puede **leer**; se cambian desde el panel o la conexión directa.
 - `visitas`, `rutas`: leer y escribir solo con sesión iniciada (el login llega en el paso 3).
+- `perfiles` (nombre y rol de cada usuario): los lee quien tenga sesión; solo cambian con las funciones `admin_*`
+  (`0004_usuarios.sql`), que rechazan a quien no sea admin.
+- Cada visita queda a nombre de la sesión: `registrado_por` / `creado_por` al crearla, `subsanado_por` al pasar a
+  SUBSANADO y `modificado_por` en cada cambio. Lo pone un trigger; lo que se escriba en el formulario no cuenta.
 
 ## Probar en el computador (Docker)
 
@@ -156,6 +163,12 @@ Archivos de origen (copiados del mapa anterior):
 - `zonasverdes__areas_zonas_verdes_2.js` — polígonos (qgis2web)
 - `direcciones_lotes.js` — programación CLUS por microrruta
 - `direcciones_fid.js` — comuna y dirección de respaldo por polígono
+- `lotes_correcciones.js` — arreglos que no vienen de QGIS: cambios por `fid` y polígonos que faltan (fid desde 9001).
+  Los usan Supabase y el mapa rápido; el mapa completo no. Para cargar solo unos polígonos:
+  `FIDS=6899,9001 npm run db:importar`
+
+Mapa rápido (`web/public/data/rapido/`), después de cambiar la capa o las correcciones, desde `web/`:
+`node tools/generar_mapa_rapido.mjs && node tools/detalle_sector.mjs`
 
 ## Notas de los datos
 

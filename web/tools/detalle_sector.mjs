@@ -5,20 +5,17 @@
 // No toca datos/origen ni Supabase: el Excel de operación sigue igual.
 import fs from 'node:fs';
 import path from 'node:path';
+import { DATA, leerData as leerVar, leerZonas } from './lotes.mjs';
 
-const DATA = path.join(import.meta.dirname, '..', 'public', 'data');
 const MAL = /ï¿½|�/;
 
-function leerVar(archivo, nombre) {
-  const ctx = {};
-  new Function('ctx', fs.readFileSync(path.join(DATA, archivo), 'utf8').replace('var ' + nombre, 'ctx.' + nombre))(ctx);
-  return ctx[nombre];
-}
 const limpio = (v) => (v == null ? '' : String(v).trim()) || undefined;
 const plano = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]/g, '');
 
 const prog = leerVar('direcciones_lotes.js', 'direccionesLotes');
-const zonas = leerVar('zonasverdes__areas_zonas_verdes_2.js', 'json_zonasverdes__areas_zonas_verdes_2').features;
+// Con datos/origen/lotes_correcciones.js, igual que generar_mapa_rapido.mjs (los polígonos nuevos no van a detalle_sector.js:
+// ahí solo entran los que traen tildes dañadas)
+const zonas = leerZonas();
 
 // Palabras con tilde o ñ que aparecen en los textos sanos, con cuántas veces salen (gana la más usada)
 const veces = {};

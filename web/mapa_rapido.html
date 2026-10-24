@@ -180,10 +180,12 @@
     // Ortofoto oficial de la Alcaldía (agosto 2025): los lotes se dibujaron sobre ella, así que cuadran con andenes y separadores.
     // Google se ve corrido unos metros en Medellín por la inclinación de sus fotos.
     var orto = L.tileLayer('https://www.medellin.gov.co/servidormapas/rest/services/ServiciosCiudad/IMAGEN_WEBM_2024/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: 21, attribution: 'Ortofoto © Alcaldía de Medellín' });
-    var bases = { orto: orto, satelite: satelite, calles: calles };
+    // Servicio sin año: la ortofoto vigente de la Alcaldía, cambia sola cuando publiquen una nueva.
+    var alcaldia = L.tileLayer('https://www.medellin.gov.co/servidormapas/rest/services/ServiciosCiudad/IMAGEN_WEBM/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: 21, attribution: 'Ortofoto © Alcaldía de Medellín' });
+    var bases = { orto: orto, alcaldia: alcaldia, satelite: satelite, calles: calles };
     (bases[leer('rapido_fondo', 'orto')] || orto).addTo(map);
-    L.control.layers({ 'Ortofoto Medellín 2025': orto, 'Satélite Google': satelite, 'Calles': calles }, null, { position: 'topright' }).addTo(map);
-    map.on('baselayerchange', function (e) { guardar('rapido_fondo', e.layer === calles ? 'calles' : e.layer === satelite ? 'satelite' : 'orto'); });
+    L.control.layers({ 'Ortofoto Medellín 2025': orto, 'Ortofoto Alcaldía (vigente)': alcaldia, 'Satélite Google': satelite, 'Calles': calles }, null, { position: 'topright' }).addTo(map);
+    map.on('baselayerchange', function (e) { guardar('rapido_fondo', Object.keys(bases).filter(function (k) { return bases[k] === e.layer; })[0] || 'orto'); });
 
     // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
     // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
