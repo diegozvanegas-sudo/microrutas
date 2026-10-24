@@ -16,7 +16,7 @@ export function iniciar(api, CFG) {
     var LOTES = window.direccionesLotes || {};
     var FIJAS = ['MICRORRUTA', 'LOTE', 'ÁREA M2', 'ZONA', 'CUADRILLA', 'FECHA DE EJECUCIÓN', 'FECHA DE LA VISITA', 'INTERVENTOR',
         'OBSERVACIONES NOVEDADES', 'CANTIDAD DE NOVEDADES', 'ESTADO', 'FECHA SUBSANACIÓN', 'OBSERVACIÓN SUBSANACIÓN', 'EVIDENCIA', 'ID', 'REGISTRADO POR',
-        'ÚLTIMA MODIFICACIÓN', 'ÍTEMS SUBSANADOS', 'FECHA DE REGISTRO', 'SUBSANADO POR', 'MODIFICADO POR'];
+        'ÚLTIMA MODIFICACIÓN', 'ÍTEMS SUBSANADOS', 'FECHA DE REGISTRO', 'SUBSANADO POR', 'MODIFICADO POR', 'USUARIO'];
     var FECHAS = ['FECHA DE EJECUCIÓN', 'FECHA DE LA VISITA', 'FECHA SUBSANACIÓN'];
     var items = [], columnas = [], registros = [], editando = null, abiertos = {};
     var itemsOp = [], columnasOp = [], hayOperacion = false, tipoForm = EJ;
@@ -115,6 +115,7 @@ export function iniciar(api, CFG) {
         llenarSelect('f-zona', 'ZONA', 'Zona: todas');
         llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
         llenarDias();
+        llenarUsuarios();
         if (d.rutas) rutasDeHoja(d.rutas, desdeCache);
         // Con la copia del celular la pre-ruta puede estar vieja: no se toca la hoja hasta que llegue la de verdad
         if (!desdeCache) rutasAlDia = true;
@@ -157,9 +158,30 @@ export function iniciar(api, CFG) {
         sel.value = actual;
     }
 
+    // Administrador: filtro por usuario dueño de la visita (los demás solo reciben las suyas de la base).
+    // usuarios = [{ id, nombre }] de public.perfiles; "-" = visitas viejas sin usuario.
+    var usuarios = null;
+    function llenarUsuarios() {
+        var sel = $('f-usuario');
+        if (!usuarios) return;
+        var actual = sel.value, cuenta = {};
+        registros.forEach(function (r) { var k = r.USUARIO || '-'; cuenta[k] = (cuenta[k] || 0) + 1; });
+        var n = function (k) { return ' (' + (cuenta[k] || 0) + ')'; };
+        sel.innerHTML = '<option value="">Usuario: todos</option>' + usuarios.map(function (u) {
+            return '<option value="' + esc(u.id) + '">' + esc(u.nombre) + n(u.id) + '</option>';
+        }).join('') + (cuenta['-'] ? '<option value="-">Sin usuario' + n('-') + '</option>' : '');
+        sel.value = actual;
+        sel.hidden = false;
+    }
+    function filtroUsuario(r) {
+        var u = $('f-usuario').value;
+        return !u || (u === '-' ? !r.USUARIO : r.USUARIO === u);
+    }
+
     function filtrados() {
         var texto = norm($('f-texto').value), est = $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
         return registros.filter(function (r) {
+            if (!filtroUsuario(r)) return false;
             if (tipo && r.TIPO !== tipo) return false;
             if (zona && String(r.ZONA).trim() !== zona) return false;
             if (cuad && String(r.CUADRILLA).trim() !== cuad) return false;
@@ -200,7 +222,9 @@ export function iniciar(api, CFG) {
                         (esOp(r) ? '<span class="tag-op">🦺 Operación</span>' : '') +
                         '<div class="sub">' + [r.LOTE ? r.MICRORRUTA : '', r.ZONA ? 'Zona ' + r.ZONA : '', r.CUADRILLA ? 'Cuadrilla ' + r.CUADRILLA : ''].filter(Boolean).map(esc).join(' · ') + '</div></td>' +
                     '<td data-label="Visita">' + esc(r['FECHA DE LA VISITA'] || '—') + '<div class="sub">' + esc(r.INTERVENTOR || '') +
-                        (r['FECHA DE EJECUCIÓN'] ? ' · Ejecución ' + esc(r['FECHA DE EJECUCIÓN']) : '') + '</div></td>' +
+                        (r['FECHA DE EJECUCIÓN'] ? ' · Ejecución ' + esc(r['FECHA DE EJECUCIÓN']) : '') +
+                        // El administrador ve las de todos: quién la registró
+                        (usuarios && r['REGISTRADO POR'] ? '<div>👤 ' + esc(r['REGISTRADO POR']) + '</div>' : '') + '</div></td>' +
                     '<td data-label="Ítems en NO">' + (enNo.length ? enNo.map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join('') : '<span class="sub">Ninguno</span>') + '</td>' +
                     '<td data-label="Estado">' + badge(r.ESTADO) +
                         (d != null ? '<div class="sub' + (d >= VIEJA_D ? ' vieja' : '') + '">' + (d >= VIEJA_D ? '⚠ ' : '') + d + ' día' + (d === 1 ? '' : 's') + ' desde la visita</div>' : '') +
@@ -306,6 +330,7 @@ export function iniciar(api, CFG) {
         // Con una cuadrilla filtrada, el resumen es solo de esa cuadrilla
         var cuadF = $('f-cuadrilla').value;
         if (cuadF) lista = lista.filter(function (r) { return String(r.CUADRILLA).trim() === cuadF; });
+        lista = lista.filter(filtroUsuario);
         if (!lista.length) return toast(elegido ? 'El ' + dia + ' no hay visitas registradas.' : 'Hoy (' + dia + ') aún no hay visitas registradas.');
         // Con novedades: el formato de interventoría (NOVEDADES POSOPERACION + requerimientos); sin novedades, el conteo del día
         var novedades = textoNovedadesDia(lista, dia, menciones());
@@ -504,6 +529,7 @@ export function iniciar(api, CFG) {
             llenarSelect('f-zona', 'ZONA', 'Zona: todas');
             llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
             llenarDias();
+            llenarUsuarios();
             pintar();
             toast((era ? 'Actualizado ' : 'Guardado ') + nuevo.ID + ' · ' + nuevo.ESTADO);
             if (veniaDeRuta && !era) {
@@ -1499,6 +1525,7 @@ export function iniciar(api, CFG) {
     $('f-tipo').onchange = pintar;
     $('f-cuadrilla').onchange = pintar;
     $('f-dia').onchange = pintar;
+    $('f-usuario').onchange = pintar;
     $('resumen').onclick = function (ev) {
         var t = ev.target.closest('[data-estado]');
         if (t) { $('f-estado').value = t.dataset.estado; pintar(); }
@@ -1634,4 +1661,8 @@ export function iniciar(api, CFG) {
     };
 
     cargar();
+    return {
+        // main.js lo llama cuando confirma que la sesión es de un administrador
+        mostrarUsuarios: function (lista) { usuarios = lista; llenarUsuarios(); if (cargado) pintar(); },
+    };
 }

@@ -243,11 +243,14 @@ declare
   uid uuid := auth.uid();
   nombre text := public.nombre_usuario(uid);
 begin
-  -- Quién registró y quién subsanó no se cambian; los id solo pueden quedar en null (al eliminar el usuario)
+  -- Quién registró y quién subsanó no se cambian; los id solo quedan en null cuando se elimina ese usuario
+  -- (on delete set null corre después de borrarlo, así que ya no está en auth.users)
   if tg_op = 'UPDATE' then
-    new.creado_por := case when new.creado_por is null then null else old.creado_por end;
+    new.creado_por := case when new.creado_por is null and not exists (select 1 from auth.users u where u.id = old.creado_por)
+                           then null else old.creado_por end;
     new.registrado_por := old.registrado_por;
-    new.subsanado_por_id := case when new.subsanado_por_id is null then null else old.subsanado_por_id end;
+    new.subsanado_por_id := case when new.subsanado_por_id is null and not exists (select 1 from auth.users u where u.id = old.subsanado_por_id)
+                                 then null else old.subsanado_por_id end;
     new.subsanado_por := old.subsanado_por;
   end if;
   if uid is null then return new; end if;
