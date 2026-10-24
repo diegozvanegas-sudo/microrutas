@@ -90,7 +90,7 @@
     .ficha-lote .desc.plegada { -webkit-line-clamp: 1; line-clamp: 1; color: var(--muted); }
     .ficha-lote .acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 4px; }
     .ficha-lote .acciones .boton { text-align: center; padding: 11px 12px; font-size: 15px; }
-    .ficha-lote .acciones .subs { grid-column: 1 / -1; }
+    .ficha-lote .acciones .subs, .ficha-lote .acciones .ancho { grid-column: 1 / -1; }
     /* Leaflet pinta de azul todos los enlaces del mapa: se fuerzan los colores de los botones */
     .ficha-lote .acciones a.primario { color: #fff; background: var(--brand); }
     .ficha-lote .acciones a.primario:hover { color: #fff; background: var(--brand-dark); }
@@ -263,11 +263,17 @@
         return 'https://www.google.com/maps/dir/?api=1' + (desde ? '&origin=' + desde : '') +
             '&destination=' + dest.lat.toFixed(6) + ',' + dest.lng.toFixed(6) + '&travelmode=driving';
     }
+    // Street View de Google en ese punto (en el celular abre la app de Maps); toma la foto de calle más cercana
+    function urlCalle(ll) {
+        return 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6);
+    }
     // El enlace se arma al tocarlo: así usa la ubicación de ese momento aunque la ficha lleve rato abierta
     var capaFicha = null;
     document.addEventListener('click', function (ev) {
         var a = ev.target.closest && ev.target.closest('a[data-ir]');
         if (a && capaFicha) a.href = urlComoLlegar(puntoCercano(capaFicha));
+        var calle = ev.target.closest && ev.target.closest('a[data-calle]');
+        if (calle && capaFicha) calle.href = urlCalle(puntoCercano(capaFicha));
         var aqui = ev.target.closest && ev.target.closest('[data-aqui]');
         if (aqui && capaFicha) {
             ev.preventDefault();
@@ -501,6 +507,7 @@
                 '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
                 // Arma la pre-ruta con solo este lote (en subsanaciones se confirma la cuadrilla y la fecha)
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
+                '<a class="boton secundario ancho" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
                 '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
             '</div></div>';
     }
@@ -1111,6 +1118,7 @@
                 '<button type="button" class="boton secundario" data-pin-enviar>📤 Enviar ruta</button>' +
                 '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6) + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
                 '<button type="button" class="boton secundario" data-pin-copiar>📋 Copiar</button>' +
+                '<a class="boton secundario ancho" href="' + esc(urlCalle(ll)) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
                 '<button type="button" class="boton secundario" data-pin-lote>Ver lote aquí</button>' +
                 '<button type="button" class="boton secundario" data-pin-quitar>✕ Quitar pin</button>' +
             '</div></div>';
