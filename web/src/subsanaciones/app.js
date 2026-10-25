@@ -1453,27 +1453,59 @@ export function iniciar(api, CFG) {
         vistaRuta();
     }
     function abrirDlgRuta() {
-        ['ruta-texto', 'ruta-fecha', 'ruta-cuad'].forEach(function (id) { $(id).value = ''; });
+        ['ruta-texto', 'ruta-fecha', 'ruta-cuad', 'ruta-agregar'].forEach(function (id) { $(id).value = ''; });
+        rutaQuitados = []; rutaAgregados = [];
         $('ruta-tipo-hecho').checked = true;
         document.querySelector('[for="ruta-tipo-auto"]').hidden = true;
         vistaRuta();
         $('dlg-ruta').showModal();
     }
-    // Lotes que quedan "en ejecución ahora" según la opción elegida en el diálogo
-    function lotesEnCurso(p) { return $('ruta-tipo-curso').checked ? p.lotes : $('ruta-tipo-auto').checked ? p.enCurso : []; }
+    // Lista final: la del mensaje, menos los que se quitaron con × y más los agregados a mano (sirve sin mensaje)
+    var rutaQuitados = [], rutaAgregados = [];
+    function lotesRuta(p) {
+        return p.lotes.concat(rutaAgregados).filter(function (v, i, a) { return a.indexOf(v) === i && rutaQuitados.indexOf(v) === -1; });
+    }
+    // Lotes que quedan "en ejecución ahora" según la opción elegida en el diálogo (los agregados a mano, como ejecutados)
+    function lotesEnCurso(p, lista) {
+        return $('ruta-tipo-curso').checked ? lista : $('ruta-tipo-auto').checked ? p.enCurso.filter(function (v) { return lista.indexOf(v) !== -1; }) : [];
+    }
     function vistaRuta() {
-        var p = parsearMensaje($('ruta-texto').value), cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), curso = lotesEnCurso(p);
-        $('ruta-vista').innerHTML = p.lotes.length ? '<div class="sub">' + p.lotes.length + ' lote' + (p.lotes.length === 1 ? '' : 's') + ' encontrado' + (p.lotes.length === 1 ? '' : 's') + ':</div>' +
-            p.lotes.map(function (id) {
+        var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p), cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), curso = lotesEnCurso(p, lista);
+        $('ruta-vista').innerHTML = lista.length ? '<div class="sub">' + lista.length + ' lote' + (lista.length === 1 ? '' : 's') + ' en la pre-ruta (toque × para quitar):</div>' +
+            lista.map(function (id) {
                 var x = infoLote(id), aviso = !x.mr ? 'no está en la programación' : cuad && x.cuad && x.cuad !== cuad ? 'es de la cuadrilla ' + x.cuad : '';
                 return '<span class="chip-ruta' + (aviso ? ' aviso' : '') + '">' + (curso.indexOf(id) !== -1 ? '<span class="curso">▶ </span>' : '') +
-                    esc(x.lote || x.mr) + (x.lote && x.mr ? ' · ' + esc(x.mr) : '') + (aviso ? ' ⚠ ' + esc(aviso) : '') + '</span>';
+                    esc(x.lote || x.mr || id) + (x.lote && x.mr ? ' · ' + esc(x.mr) : '') + (aviso ? ' ⚠ ' + esc(aviso) : '') +
+                    '<button type="button" class="quitar-lote" data-quitar-lote="' + esc(id) + '" aria-label="Quitar ' + esc(id) + '">×</button></span>';
             }).join('') + (curso.length ? '<div class="sub" style="margin-top:6px"><span class="curso" style="color:#1d4ed8">▶</span> = <b>en ejecución ahora</b>' +
                 (cuad ? ' por la cuadrilla ' + esc(cuad) : '') + '. El lote donde estaba antes esa cuadrilla queda listo para revisar.</div>' : '')
-            : '<div class="sub">Se toman del mensaje la fecha, la cuadrilla y los números de lote (o códigos de microrruta).</div>';
-        $('ruta-crear').disabled = !p.lotes.length;
-        $('ruta-crear').textContent = curso.length && curso.length === p.lotes.length ? 'Marcar en ejecución' : 'Crear pre-ruta';
+            : '<div class="sub">Se toman del mensaje la fecha, la cuadrilla y los números de lote (o códigos de microrruta), o agréguelos a mano.</div>';
+        $('ruta-crear').disabled = !lista.length;
+        $('ruta-crear').textContent = curso.length && curso.length === lista.length ? 'Marcar en ejecución' : 'Crear pre-ruta';
     }
+    // A mano: uno o varios separados por coma o espacio ("532, 371" o "Z1CC0123"); un lote quitado antes vuelve si se agrega
+    function agregarLotesRuta() {
+        var nuevos = parsearMensaje($('ruta-agregar').value).lotes;
+        if (!nuevos.length) { $('ruta-agregar').focus(); return toast('Escriba un número de lote o un código de microrruta.'); }
+        nuevos.forEach(function (v) {
+            rutaQuitados = rutaQuitados.filter(function (q) { return q !== v; });
+            if (rutaAgregados.indexOf(v) === -1) rutaAgregados.push(v);
+        });
+        $('ruta-agregar').value = '';
+        if (!$('ruta-cuad').value) $('ruta-cuad').value = String(infoLote(nuevos[0]).cuad || '').replace(/^C/i, '');
+        vistaRuta();
+        $('ruta-agregar').focus();
+    }
+    $('ruta-agregar-btn').onclick = agregarLotesRuta;
+    $('ruta-agregar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); agregarLotesRuta(); } });
+    $('ruta-vista').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-quitar-lote]');
+        if (!b) return;
+        var v = b.dataset.quitarLote;
+        rutaAgregados = rutaAgregados.filter(function (a) { return a !== v; });
+        if (rutaQuitados.indexOf(v) === -1) rutaQuitados.push(v);
+        vistaRuta();
+    });
     $('ruta-texto').addEventListener('input', function () {
         var p = parsearMensaje(this.value);
         if (p.fecha) $('ruta-fecha').value = p.fecha;
@@ -1493,11 +1525,11 @@ export function iniciar(api, CFG) {
     };
     $('ruta-cancelar').onclick = function () { $('dlg-ruta').close(); };
     $('ruta-crear').onclick = function () {
-        var p = parsearMensaje($('ruta-texto').value);
-        if (!p.lotes.length) return;
+        var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p);
+        if (!lista.length) return;
         var cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), fecha = $('ruta-fecha').value;
         var existia = rutas.some(function (r) { return r.cuad === cuad; });
-        var cursoIds = lotesEnCurso(p), curso = cursoIds.length > 0, ahora = new Date(), enCurso = marca(ahora);
+        var cursoIds = lotesEnCurso(p, lista), curso = cursoIds.length > 0, ahora = new Date(), enCurso = marca(ahora);
         // La cuadrilla pasó a otro lote: el que estaba ejecutando ya terminó y queda listo para revisar
         if (curso) rutas.forEach(function (r) {
             if (r.cuad === cuad) r.paradas.forEach(function (q) {
@@ -1505,7 +1537,7 @@ export function iniciar(api, CFG) {
             });
         });
         // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
-        var ruta = agregarParadas(cuad, p.lotes.map(function (id, i) {
+        var ruta = agregarParadas(cuad, lista.map(function (id, i) {
             return { id: id, fecha: fecha || (curso ? hoy() : ''), creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
                      encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '' };
         }));

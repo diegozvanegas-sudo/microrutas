@@ -211,6 +211,11 @@ fieldset { min-width: 0; }
 .chip-ruta .curso { color: #1d4ed8; font-weight: 700; }
 .chip-ruta { display: inline-block; margin: 6px 6px 0 0; padding: 4px 9px; border-radius: 8px; background: #edf8f3; font-size: 13px; }
 .chip-ruta.aviso { background: #fff7ed; color: #9a3412; }
+.chip-ruta .quitar-lote { margin-left: 6px; padding: 0 6px; border-radius: 6px; background: rgba(0,0,0,.08); color: inherit; font-size: 15px; line-height: 20px; font-weight: 700; }
+.chip-ruta .quitar-lote:hover { background: #fecaca; color: #b91c1c; }
+.agregar-lote { display: flex; gap: 8px; margin-top: 10px; }
+.agregar-lote input { flex: 1; min-width: 0; min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; }
+.opcional { font-weight: 400; color: var(--muted); text-transform: none; }
 #dlg-ruta { width: min(560px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-ruta .cuerpo { padding: 18px; }
 #ruta-texto { min-height: 140px; }
@@ -283,7 +288,7 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
     dialog form { padding: 16px 16px 0; }
     .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
     /* 16px evita que iOS haga zoom al tocar un campo */
-    label input, label select, label textarea, .filtros input, .filtros select, .ir-mapa input { font-size: 16px; }
+    label input, label select, label textarea, .filtros input, .filtros select, .ir-mapa input, .agregar-lote input { font-size: 16px; }
     label input, label select, label textarea { border-color: #b8c6cd; min-height: 44px; }
     .sugerencias button { padding: 12px 14px; }
     .parada { grid-template-columns: 30px minmax(0, 1fr); }

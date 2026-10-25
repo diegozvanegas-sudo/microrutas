@@ -185,7 +185,7 @@
 <dialog id="dlg-ruta">
     <div class="cuerpo">
         <h2>Lotes a revisar</h2>
-        <label>MENSAJE CON LOTES
+        <label>MENSAJE CON LOTES <span class="opcional">(o agréguelos a mano abajo)</span>
             <textarea id="ruta-texto" placeholder="Lotes ejecutados el 14-10-2026 por la cuadrilla #2&#10;&#10;532&#10;371&#10;363"></textarea>
         </label>
         <button type="button" class="secundario pequeno" id="ruta-pegar" style="margin-top:6px">Pegar del portapapeles</button>
@@ -199,6 +199,11 @@
             <input type="radio" name="ruta-tipo" id="ruta-tipo-auto" value="auto"><label for="ruta-tipo-auto" class="ancho-tipo" hidden>Según el mensaje<small>unos ejecutados y otro en ejecución</small></label>
         </div>
         <div id="ruta-vista" style="margin-top:10px"></div>
+        <div class="agregar-lote">
+            <input id="ruta-agregar" placeholder="Agregar lote o microrruta: 532 o Z1CC0123" aria-label="Agregar lote o microrruta"
+                   autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done">
+            <button type="button" class="secundario" id="ruta-agregar-btn">+ Agregar</button>
+        </div>
         <div class="pie">
             <button type="button" class="secundario" id="ruta-cancelar">Cancelar</button>
             <button type="button" class="primario" id="ruta-crear">Crear pre-ruta</button>
