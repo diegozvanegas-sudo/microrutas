@@ -211,6 +211,13 @@
     // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
     // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
     var miPunto = null, miPos = null, miPrec = Infinity, miHora = 0, centrar = false, avisoUbic = false, avisoPrec = false;
+    // Círculo de precisión: margen de error del GPS (usted está en algún punto dentro). Se puede ocultar desde 🗂 Capas
+    var miCirculo = null, verPrecision = leer('rapido_precision', true);
+    function pintarCirculo() {
+        if (!miCirculo || !miPunto) return;
+        if (verPrecision) { if (!miPunto.hasLayer(miCirculo)) { miPunto.addLayer(miCirculo); miCirculo.bringToBack(); } }
+        else miPunto.removeLayer(miCirculo);
+    }
     // Ubicación fijada (la misma de subsanaciones): con "📍 Estoy aquí" el lote queda como su ubicación y "Cómo llegar"
     // sale de ahí aunque el GPS esté corrido. Se suelta con "Usar GPS", con el GPS preciso lejos de ahí o a las 2 horas.
     var FIJADA = 'ubicacion_fijada', fijada = leer(FIJADA, null), pinFijada = null;
@@ -251,9 +258,9 @@
         }
         if (miPunto) map.removeLayer(miPunto);
         // El círculo de precisión solo si es razonable: una ubicación por red (±3 km) lo extiende por media ciudad
-        var capasPos = [L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })];
-        if (e.accuracy <= 500) capasPos.unshift(L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }));
-        miPunto = L.layerGroup(capasPos).addTo(map);
+        miCirculo = e.accuracy <= 500 ? L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }) : null;
+        miPunto = L.layerGroup([L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })]).addTo(map);
+        pintarCirculo();
         if (centrar) { centrar = false; map.setView(e.latlng, Math.max(map.getZoom(), 17)); }
     });
     map.on('locationerror', function (e) {
@@ -763,6 +770,7 @@
             '<span class="separador"></span>' +
             '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
             '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
+            '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>' +
             '<span class="separador"></span>' +
             Object.keys(IDX.capas || {}).map(function (k) {
                 return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
@@ -820,6 +828,12 @@
             return pintarChips();
         }
         if (b.hasAttribute('data-sel')) return modoSel(!seleccion);
+        if (b.hasAttribute('data-precision')) {
+            verPrecision = !verPrecision;
+            guardar('rapido_precision', verPrecision);
+            pintarCirculo();
+            return pintarChips();
+        }
         if (b.dataset.capa) {
             var k = b.dataset.capa, j = capasActivas.indexOf(k);
             if (j === -1) capasActivas.push(k); else capasActivas.splice(j, 1);
