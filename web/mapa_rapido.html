@@ -737,7 +737,7 @@
         guardar('rapido_barra_plegada', on);
         document.body.classList.toggle('barra-plegada', on);
         $('btn-plegar').setAttribute('aria-expanded', String(!on));
-        pintarPlegar();
+        pintarChips(); // también cambia el aviso de arriba (con la hoja abierta no dice "toque Capas")
         map.invalidateSize(); // el mapa cambió de alto
     }
     function pintarPlegar() {
@@ -770,7 +770,8 @@
         var n = 0, kb = 0;
         activas.forEach(function (c) { n += IDX.cuadrillas[c].n; kb += IDX.cuadrillas[c].kb; });
         var faltan = activas.filter(function (c) { return !grupos[c]; }).length;
-        $('estado').textContent = !activas.length ? 'Elija una o varias cuadrillas para ver sus lotes.' :
+        // En el celular las cuadrillas están en la hoja del botón 🗂 Capas (abajo); en el computador, en esta barra
+        $('estado').textContent = !activas.length ? (movil.matches && plegada ? 'Toque 🗂 Capas (abajo) y elija una o varias cuadrillas para ver sus lotes.' : 'Elija una o varias cuadrillas para ver sus lotes.') :
             (faltan ? 'Cargando… ' : '') + (activas.length === 1 ? (activas[0] === 'sin' ? 'Sin cuadrilla' : 'Cuadrilla ' + activas[0]) : activas.length + ' cuadrillas') +
             ' · ' + n.toLocaleString('es-CO') + ' lotes · ' + (kb >= 1024 ? (kb / 1024).toFixed(1).replace('.', ',') + ' MB' : kb + ' KB');
         pintarPlegar();
