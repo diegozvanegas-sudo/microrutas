@@ -108,6 +108,17 @@ legend { font-size: 12px; font-weight: 700; color: var(--brand); padding: 0 6px;
 fieldset { min-width: 0; }
 #dlg-wa { width: min(480px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-wa .cuerpo { padding: 18px; }
+#dlg-cumpl { width: min(760px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
+#dlg-cumpl .cuerpo { padding: 18px; }
+#dlg-cumpl label { max-width: 260px; margin: 10px 0; }
+.cumpl-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.cumpl th, .cumpl td { padding: 8px 10px; white-space: nowrap; }
+.cumpl tr.total td { font-weight: 700; background: #f8fafb; }
+.cumpl .pct { display: inline-block; padding: 2px 9px; border-radius: 999px; font-weight: 700; font-size: 13px; }
+.cumpl .pct.bien { background: #dcfce7; color: #166534; }
+.cumpl .pct.medio { background: #fef3c7; color: #92400e; }
+.cumpl .pct.mal { background: #fee2e2; color: #b91c1c; }
+#cumpl-nota { margin-top: 10px; line-height: 1.45; }
 #dlg-zip { width: min(520px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-zip .cuerpo { padding: 18px; }
 #dlg-zip .zip-elegir { width: 100%; margin: 14px 0 6px; padding: 14px; border: 2px dashed #9fd3bd; }

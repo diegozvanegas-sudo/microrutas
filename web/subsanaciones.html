@@ -61,6 +61,7 @@
         <button type="button" class="peligro-suave" id="btn-limpiar-filtros" hidden title="Volver a ver todas las visitas">✕ Quitar filtros</button>
         <button type="button" class="secundario" id="btn-resumen" title="Texto con todas las novedades pendientes de lo filtrado, para pegar en WhatsApp">📋 Copiar resumen</button>
         <button type="button" class="secundario" id="btn-dia" title="Novedades de hoy (o del día filtrado) por cuadrilla, para pegar en WhatsApp">📊 Resumen del día</button>
+        <button type="button" class="secundario" id="btn-cumpl" title="Lotes ejecutados por cuadrilla contra los que pide la frecuencia de cada lote">📈 Cumplimiento</button>
     </div>
     <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
 </main>
@@ -132,6 +133,17 @@
             <button type="button" class="secundario" id="wa-cerrar">Cerrar</button>
             <a class="boton secundario" id="wa-abrir" target="_blank" rel="noopener">Abrir WhatsApp</a>
             <button type="button" class="wa" id="wa-copiar">Copiar</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-cumpl">
+    <div class="cuerpo">
+        <h2>📈 Cumplimiento por cuadrilla</h2>
+        <label>MES <select id="cumpl-mes"></select></label>
+        <div id="cumpl-tabla"></div>
+        <div class="sub" id="cumpl-nota"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="cumpl-cerrar">Cerrar</button>
         </div>
     </div>
 </dialog>

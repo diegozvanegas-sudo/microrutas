@@ -7,6 +7,7 @@ import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel } from './excel.js';
+import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -218,15 +219,16 @@ export function iniciar(api, CFG) {
             return;
         }
         $('tabla').innerHTML = '<div class="movil">' + lista.map(tarjetaMovil).join('') + '</div>' +
-            '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
+            '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Fecha de ejecución</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             lista.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
                 return '<tr class="fila-visita">' +
                     '<td data-label="Lote / Microrruta"><span class="lote-tit">' + (r.LOTE ? 'Lote ' + esc(r.LOTE) : esc(r.MICRORRUTA || '—')) + '</span>' +
                         (esOp(r) ? '<span class="tag-op">🦺 Operación</span>' : '') +
                         '<div class="sub">' + [r.LOTE ? r.MICRORRUTA : '', r.ZONA ? 'Zona ' + r.ZONA : '', r.CUADRILLA ? 'Cuadrilla ' + r.CUADRILLA : ''].filter(Boolean).map(esc).join(' · ') + '</div></td>' +
+                    // Las visitas durante la operación no tienen fecha de ejecución
+                    '<td data-label="Fecha de ejecución">' + (r['FECHA DE EJECUCIÓN'] ? esc(r['FECHA DE EJECUCIÓN']) : '<span class="sub">—</span>') + '</td>' +
                     '<td data-label="Visita">' + esc(r['FECHA DE LA VISITA'] || '—') + '<div class="sub">' + esc(r.INTERVENTOR || '') +
-                        (r['FECHA DE EJECUCIÓN'] ? ' · Ejecución ' + esc(r['FECHA DE EJECUCIÓN']) : '') +
                         // El administrador ve las de todos: quién la registró
                         (usuarios && r['REGISTRADO POR'] ? '<div>👤 ' + esc(r['REGISTRADO POR']) + '</div>' : '') + '</div></td>' +
                     '<td data-label="Ítems en NO">' + (enNo.length ? enNo.map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join('') : '<span class="sub">Ninguno</span>') + '</td>' +
@@ -239,7 +241,7 @@ export function iniciar(api, CFG) {
                         (abiertos[r.ID] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button> ' +
                         '<button type="button" class="secundario pequeno" data-editar="' + esc(r.ID) + '">Editar</button></td>' +
                     '</tr>' +
-                    '<tr class="fila-detalle"' + (abiertos[r.ID] ? '' : ' hidden') + '><td colspan="6">' + detalle(r, false) + '</td></tr>';
+                    '<tr class="fila-detalle"' + (abiertos[r.ID] ? '' : ' hidden') + '><td colspan="7">' + detalle(r, false) + '</td></tr>';
             }).join('') + '</tbody></table>';
     }
 
@@ -343,6 +345,39 @@ export function iniciar(api, CFG) {
         $('dlg-wa').showModal();
         toast(novedades ? 'Novedades del ' + dia + '. Escriba la @mención debajo de "Cuadrilla" una vez y queda recordada.' : 'El ' + dia + ' no quedaron novedades: ' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + ' en el resumen.');
     };
+    // Cumplimiento por cuadrilla contra la frecuencia de cada lote: en el mes elegido y al día de hoy
+    var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+    function nombreMes(m) { return MESES[+m.slice(5, 7) - 1] + ' ' + m.slice(0, 4); }
+    function pintarCumpl() {
+        var mes = $('cumpl-mes').value, h = hoy(), r = cumplimiento(registros.filter(filtroUsuario), LOTES, mes, h);
+        var semaforo = function (p) { return p >= 90 ? 'bien' : p >= 70 ? 'medio' : 'mal'; };
+        var fila = function (f, total) {
+            var p = porcentaje(f.ejecutadas, f.programadas), pd = porcentaje(f.aldia, f.lotes);
+            return '<tr' + (total ? ' class="total"' : '') + '><td>' + (total ? 'Total' : f.cuad === 'sin' ? 'Sin cuadrilla' : '<span class="cuad-pill" style="--c:' + colorCuadrilla(f.cuad) + '">C' + esc(f.cuad) + '</span>') + '</td>' +
+                '<td>' + f.lotes + '</td><td>' + f.ejecutadas + ' / ' + f.programadas + '</td>' +
+                '<td><span class="pct ' + semaforo(p) + '">' + p + '%</span></td>' +
+                '<td>' + f.aldia + ' <span class="sub">(' + pd + '%)</span></td><td>' + f.vencidos + '</td><td>' + f.sin + '</td></tr>';
+        };
+        $('cumpl-tabla').innerHTML = '<div class="cumpl-scroll"><table class="cumpl"><thead><tr><th>Cuadrilla</th><th>Lotes</th><th>Ejecutadas / programadas</th><th>Cumplimiento</th>' +
+            '<th>Al día hoy</th><th>Vencidos</th><th>Sin registro</th></tr></thead><tbody>' +
+            r.filas.map(function (f) { return fila(f, false); }).join('') + fila(r.total, true) + '</tbody></table></div>';
+        $('cumpl-nota').innerHTML = 'Programadas: 1 vez al mes los lotes mensuales y 2 los quincenales. Ejecutada = visita de lote ejecutado con fecha de ejecución en el mes ' +
+            '(sin contar lotes cerrados o no realizados). <b>Al día</b>: la última ejecución está dentro de su frecuencia (15 o 30 días).' +
+            (mes === h.slice(0, 7) ? ' El mes está en curso: lo programado es el mes completo.' : '') +
+            (usuarios ? ($('f-usuario').value ? ' Solo las visitas del usuario filtrado.' : '') : ' Cuenta solo las visitas que usted registró.');
+    }
+    $('btn-cumpl').onclick = function () {
+        if (!Object.keys(LOTES).length) return toast('No se cargó la programación de lotes.');
+        var actual = hoy().slice(0, 7), meses = registros.map(function (r) { return (aInput(r['FECHA DE EJECUCIÓN']) || aInput(r['FECHA DE LA VISITA'])).slice(0, 7); })
+            .concat(actual).filter(function (m, i, a) { return m && m <= actual && a.indexOf(m) === i; }).sort().reverse();
+        var sel = $('cumpl-mes'), antes = sel.value;
+        sel.innerHTML = meses.map(function (m) { return '<option value="' + m + '">' + nombreMes(m) + (m === actual ? ' (en curso)' : '') + '</option>'; }).join('');
+        sel.value = meses.indexOf(antes) !== -1 ? antes : actual;
+        pintarCumpl();
+        $('dlg-cumpl').showModal();
+    };
+    $('cumpl-mes').onchange = pintarCumpl;
+    $('cumpl-cerrar').onclick = function () { $('dlg-cumpl').close(); };
     // @menciones de los encargados por cuadrilla, aprendidas del texto que se copia o se abre en WhatsApp
     function menciones() { try { return JSON.parse(localStorage.getItem('subsanaciones_menciones')) || {}; } catch (e) { return {}; } }
     function recordarMenciones() {
