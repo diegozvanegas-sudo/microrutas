@@ -531,6 +531,10 @@ export function iniciar(api, CFG) {
         ev.preventDefault();
         var r = datosFormulario();
         if (!r.MICRORRUTA && !r.LOTE) { toast('Indique la microrruta o el lote.'); return; }
+        // Obligatorios: interventor siempre y fecha de ejecución en la visita de lote ejecutado (la de operación no la tiene)
+        var falta = function (campo, msg) { var el = form.querySelector('[data-campo="' + campo + '"]'); el.focus(); el.scrollIntoView({ block: 'center' }); toast(msg); };
+        if (!String(r.INTERVENTOR || '').trim()) return falta('INTERVENTOR', 'Escriba el interventor (iniciales).');
+        if (tipoForm !== OP && !r['FECHA DE EJECUCIÓN']) return falta('FECHA DE EJECUCIÓN', 'Indique la fecha de ejecución del lote.');
         var sinMarcar = itemsForm().filter(function (it) { return !r[it]; });
         if (sinMarcar.length) { toast('Falta marcar: ' + sinMarcar.join(', ')); return; }
         try {

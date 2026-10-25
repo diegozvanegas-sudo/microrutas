@@ -108,6 +108,7 @@ legend { font-size: 12px; font-weight: 700; color: var(--brand); padding: 0 6px;
 fieldset { min-width: 0; }
 #dlg-wa { width: min(480px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-wa .cuerpo { padding: 18px; }
+.obligatorio { color: #b91c1c; font-weight: 700; }
 #dlg-cumpl { width: min(760px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-cumpl .cuerpo { padding: 18px; }
 #dlg-cumpl label { max-width: 260px; margin: 10px 0; }
