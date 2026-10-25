@@ -26,6 +26,8 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .filtros input, .filtros select { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; background: #fff; color: var(--ink); }
 .filtros input { flex: 1; min-width: 200px; }
 .filtros #btn-resumen { min-height: 38px; }
+.filtros .peligro-suave { min-height: 38px; color: #b91c1c; background: #fee2e2; font-weight: 700; }
+.filtros .peligro-suave:hover { background: #fecaca; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
 table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
@@ -151,7 +153,10 @@ fieldset { min-width: 0; }
 .ruta > .otra { width: auto; }
 .ruta-vacia { text-align: left; background: #fff; border: 2px dashed #9fd3bd; color: var(--ink); padding: 14px 16px; border-radius: 12px; font-weight: 400; }
 .ruta-vacia .sub { display: block; margin-top: 2px; }
-.ruta-card { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--brand); border-radius: 12px; overflow: hidden; }
+.ruta-card { background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--c, var(--brand)); border-radius: 12px; overflow: hidden; }
+/* El color de la cuadrilla (--c) en el borde, en la etiqueta C2 y un fondo suave en la cabecera */
+.ruta-card .ruta-cab { background: color-mix(in srgb, var(--c, var(--brand)) 9%, #fff); }
+.cuad-pill { display: inline-block; min-width: 30px; margin-right: 8px; padding: 2px 8px; border-radius: 999px; background: var(--c, var(--brand)); color: #fff; font-size: 12px; font-weight: 800; text-align: center; vertical-align: 2px; }
 .ruta-cab { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px 8px; }
 .ruta-cab > div { flex: 1; min-width: 0; }
 .ruta-cab b { font-size: 16px; }
@@ -161,7 +166,7 @@ fieldset { min-width: 0; }
 .ruta-card.plegada .ruta-plegar { transform: rotate(-90deg); }
 .ruta-card.plegada .ruta-acciones, .ruta-card.plegada .paradas { display: none; }
 .ruta-card.plegada .progreso { margin-bottom: 12px; }
-.ruta-completa { border-left-color: #2563eb; }
+.ruta-completa { --c: #1e3a8a; } /* azul oscuro: no se confunde con la Cuadrilla 1 */
 .ruta-completa .ruta-cab { padding-bottom: 0; }
 .parada.corte { border-top: 2px dashed #b8c6cd; }
 .progreso { height: 6px; background: #e8efec; margin: 0 14px; border-radius: 99px; overflow: hidden; }

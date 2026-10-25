@@ -196,8 +196,12 @@ export function iniciar(api, CFG) {
     // Pendiente de subsanar desde hace VIEJA_D días o más: la interventoría la pide al momento, no después
     var VIEJA_D = 8;
     function esVieja(r) { var d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null; return d != null && d >= VIEJA_D; }
+    // Mismos colores por cuadrilla que el mapa rápido; pre-ruta sin cuadrilla en gris
+    var COLORES_CUAD = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
+    function colorCuadrilla(c) { var n = Number(c); return c && Number.isFinite(n) ? COLORES_CUAD[Math.abs(n) % COLORES_CUAD.length] : '#64748b'; }
     function pintar() {
         pintarRutas();
+        pintarLimpiar();
         var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, viejas = registros.filter(esVieja).length;
         registros.forEach(function (r) { if (cuenta[r.ESTADO] != null) cuenta[r.ESTADO]++; });
         var est = $('f-estado').value;
@@ -1251,10 +1255,12 @@ export function iniciar(api, CFG) {
                 '&visitas=' + enMapa.filter(function (x) { return x.visita; }).map(function (x) { return idMapa(x) + ':' + x.visita.ID; }).join(',') : '';
             var prev = posicion, prevUsted = !!posicion;
             var plegada = !!plegadas[ruta.cuad || ''];
-            return '<div class="ruta-card' + (plegada ? ' plegada' : '') + '">' +
+            // Cada pre-ruta con el color de su cuadrilla (el mismo del mapa rápido) para distinguirlas de un vistazo
+            var col = colorCuadrilla(ruta.cuad);
+            return '<div class="ruta-card' + (plegada ? ' plegada' : '') + '" style="--c:' + col + '">' +
                 '<div class="ruta-cab">' +
                     '<button type="button" class="ruta-plegar" data-ruta="plegar" data-ri="' + ri + '" aria-expanded="' + !plegada + '" aria-label="Plegar o desplegar">▾</button>' +
-                    '<div data-ruta="plegar" data-ri="' + ri + '"><b>' + (ruta.cuad ? 'Cuadrilla ' + esc(ruta.cuad) : 'Pre-ruta') + '</b>' +
+                    '<div data-ruta="plegar" data-ri="' + ri + '"><span class="cuad-pill">' + (ruta.cuad ? 'C' + esc(ruta.cuad) : '—') + '</span><b>' + (ruta.cuad ? 'Cuadrilla ' + esc(ruta.cuad) : 'Pre-ruta') + '</b>' +
                     (fechas.length ? ' <span class="sub">· ejec. ' + esc(fechas.map(function (f) { return aTexto(f).slice(0, 5); }).join(', ')) + '</span>' : '') +
                     '<div class="sub">' + (hechas ? (hechas === paradas.length ? '✓ Ruta completa · ' : '') + hechas + ' de ' + paradas.length + ' revisados'
                                                   : paradas.length + ' por revisar') +
@@ -1517,6 +1523,14 @@ export function iniciar(api, CFG) {
     pintarRutas();
 
     // ---------- Eventos generales ----------
+    // Quitar filtros: todo vuelve a "todos" de un toque (el botón solo se ve si hay alguno puesto)
+    var FILTROS = ['f-texto', 'f-estado', 'f-tipo', 'f-zona', 'f-cuadrilla', 'f-dia', 'f-usuario'];
+    function pintarLimpiar() {
+        var n = FILTROS.filter(function (id) { return $(id).value; }).length;
+        $('btn-limpiar-filtros').hidden = !n;
+        $('btn-limpiar-filtros').textContent = '✕ Quitar filtros' + (n > 1 ? ' (' + n + ')' : '');
+    }
+    $('btn-limpiar-filtros').onclick = function () { FILTROS.forEach(function (id) { $(id).value = ''; }); pintar(); };
     $('btn-nuevo').onclick = function () { abrir(null); };
     $('btn-recargar').onclick = cargar;
     $('f-texto').oninput = pintar;
