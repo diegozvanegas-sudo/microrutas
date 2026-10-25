@@ -217,7 +217,7 @@ export function iniciar(api, CFG) {
             '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             lista.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
-                return '<tr>' +
+                return '<tr class="fila-visita">' +
                     '<td data-label="Lote / Microrruta"><span class="lote-tit">' + (r.LOTE ? 'Lote ' + esc(r.LOTE) : esc(r.MICRORRUTA || '—')) + '</span>' +
                         (esOp(r) ? '<span class="tag-op">🦺 Operación</span>' : '') +
                         '<div class="sub">' + [r.LOTE ? r.MICRORRUTA : '', r.ZONA ? 'Zona ' + r.ZONA : '', r.CUADRILLA ? 'Cuadrilla ' + r.CUADRILLA : ''].filter(Boolean).map(esc).join(' · ') + '</div></td>' +
@@ -1544,6 +1544,10 @@ export function iniciar(api, CFG) {
                 .then(function () { el.disabled = false; });
         }
         var v = ev.target.closest('[data-ver]');
+        // Tocar cualquier parte de la fila abre o cierra el detalle, igual que "Ver detalles" (salvo enlaces y botones,
+        // y si se estaba seleccionando texto para copiarlo)
+        var fila = !v && ev.target.closest('tr.fila-visita');
+        if (fila && !ev.target.closest('a, button, input, select, textarea') && !String(window.getSelection && window.getSelection()).trim()) v = fila.querySelector('[data-ver]');
         if (v) {
             var abierto = abiertos[v.dataset.ver] = !abiertos[v.dataset.ver];
             v.closest('tr').nextElementSibling.hidden = !abierto;

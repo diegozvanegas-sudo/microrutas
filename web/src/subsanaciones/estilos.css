@@ -248,6 +248,9 @@ fieldset { min-width: 0; }
 .detalle .editar { width: 100%; padding: 11px; }
 .detalle .subsanar { width: 100%; padding: 11px; margin-bottom: 8px; color: #fff; background: var(--ok); border-color: var(--ok); }
 .detalle .subsanar.pequeno { width: auto; padding: 6px 10px; margin: 8px 8px 0 0; }
+/* Toda la fila abre el detalle */
+tr.fila-visita { cursor: pointer; }
+tr.fila-visita:hover > td { background: #f2fbf7; }
 tr.fila-detalle td { padding: 0; }
 tr.fila-detalle .detalle { padding: 14px 16px; border-left: 3px solid var(--brand); }
 tr.fila-detalle .detalle dl { grid-template-columns: repeat(4, minmax(0, 1fr)); margin: 0; }
