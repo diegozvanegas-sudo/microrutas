@@ -250,10 +250,10 @@
             toast('Ubicación aproximada (±' + (e.accuracy >= 1000 ? (e.accuracy / 1000).toFixed(1) + ' km' : Math.round(e.accuracy) + ' m') + '). Active el GPS / ubicación precisa del celular.');
         }
         if (miPunto) map.removeLayer(miPunto);
-        miPunto = L.layerGroup([
-            L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }),
-            L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })
-        ]).addTo(map);
+        // El círculo de precisión solo si es razonable: una ubicación por red (±3 km) lo extiende por media ciudad
+        var capasPos = [L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })];
+        if (e.accuracy <= 500) capasPos.unshift(L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }));
+        miPunto = L.layerGroup(capasPos).addTo(map);
         if (centrar) { centrar = false; map.setView(e.latlng, Math.max(map.getZoom(), 17)); }
     });
     map.on('locationerror', function (e) {
