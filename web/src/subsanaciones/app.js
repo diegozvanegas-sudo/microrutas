@@ -862,6 +862,7 @@ export function iniciar(api, CFG) {
     var CENTROS = window.centrosLotes || {};
     // Una ruta por cuadrilla: { cuad, paradas: [{ id, fecha (ejecución), creada (día), carga (aaaa-mm-ddTHH:MM:SS), encurso }] }
     // encurso: desde cuándo la cuadrilla está trabajando en ese lote ("inicia labores en el lote ..."); aún no se revisa
+    // sinfotos: motivo por el que no se le pueden tomar fotos ("Orden público"), según el mensaje de la cuadrilla
     var rutas = [], posicion = null;
     // Orden de cada pre-ruta en este celular: 'llegada' (como llegaron los mensajes) o cercanía (por defecto)
     var modos;
@@ -879,11 +880,11 @@ export function iniciar(api, CFG) {
         if (!modoHoja) return;
         ultimoCambioRuta = Date.now();
         var paradas = ruta.paradas.map(function (p) {
-            return { lote: p.id, fecha: aTexto(p.fecha), cargada: textoCarga(p.carga) || aTexto(p.creada), encurso: textoCarga(p.encurso) };
+            return { lote: p.id, fecha: aTexto(p.fecha), cargada: textoCarga(p.carga) || aTexto(p.creada), encurso: textoCarga(p.encurso), sinfotos: p.sinfotos || '' };
         });
         // La copia del celular queda igual de una vez: al recargar no reaparecen los lotes quitados
         ultimasRutas = (ultimasRutas || []).filter(function (r) { return r.cuadrilla !== ruta.cuad; }).concat(paradas.map(function (p, n) {
-            return { cuadrilla: ruta.cuad, lote: p.lote, fecha: p.fecha, orden: String(n + 1), cargada: p.cargada, encurso: p.encurso };
+            return { cuadrilla: ruta.cuad, lote: p.lote, fecha: p.fecha, orden: String(n + 1), cargada: p.cargada, encurso: p.encurso, sinfotos: p.sinfotos };
         }));
         guardarCache();
         enviar('guardar_ruta', { cuadrilla: ruta.cuad, paradas: paradas })
@@ -903,10 +904,13 @@ export function iniciar(api, CFG) {
             var id = /^\d+$/.test(r.lote) ? String(+r.lote) : r.lote;
             var n = { id: id, fecha: aInput(r.fecha), creada: aInput(r.cargada) || hoy(), carga: cargaDeTexto(r.cargada) };
             if (r.encurso !== undefined) n.encurso = cargaDeTexto(r.encurso);
+            if (r.sinfotos !== undefined) n.sinfotos = r.sinfotos;
             agregarParadas(r.cuadrilla, [n]);
         });
         // Un Apps Script sin actualizar no trae la columna EN CURSO: se usa la de este celular
         var hojaConCurso = lista.some(function (r) { return r.encurso !== undefined; });
+        // Sin la columna SIN FOTOS en la base (migración 0008 sin correr) se conserva la marca de este celular
+        var hojaConSinFotos = lista.some(function (r) { return r.sinfotos !== undefined; });
         // La hoja guarda el orden pero no la marca "para después": se conserva la de este celular
         locales.forEach(function (l) {
             var ruta = rutas.find(function (r) { return r.cuad === l.cuad; });
@@ -915,6 +919,7 @@ export function iniciar(api, CFG) {
                 if (!q) return;
                 if (p.despues) q.despues = true;
                 if (!hojaConCurso && p.encurso) q.encurso = p.encurso;
+                if (!hojaConSinFotos && p.sinfotos) q.sinfotos = p.sinfotos;
                 // Filas viejas de la hoja solo tienen el día: se conserva la hora que sabe este celular
                 if (p.carga && p.carga.slice(0, 10) === claveCarga(q).slice(0, 10) && /T00:00:00$/.test(claveCarga(q))) q.carga = p.carga;
             });
@@ -938,6 +943,7 @@ export function iniciar(api, CFG) {
             if (ya) {
                 ya.fecha = n.fecha || ya.fecha; ya.creada = n.creada; ya.carga = n.carga || ya.carga;
                 if (n.encurso !== undefined) ya.encurso = n.encurso;
+                if (n.sinfotos !== undefined) ya.sinfotos = n.sinfotos;
             } else ruta.paradas.push(n);
         });
         // Cuadrillas en orden numérico; las sin cuadrilla al final
@@ -1255,7 +1261,7 @@ export function iniciar(api, CFG) {
         var vencidos = [];
         cont.innerHTML = pintarRutaCompleta() + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
-                var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso;
+                var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso; x.sinfotos = p.sinfotos;
                 x.du = fijada && fijada.id === String(x.id) ? 0 : posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
                 x.plazo = plazoDe(x);
                 return x;
@@ -1325,12 +1331,13 @@ export function iniciar(api, CFG) {
                     var rec = !x.visita && visitaReciente(x.mr, x.lote, null, hoy());
                     if (rec && rec.reciente) aviso = (aviso ? aviso + ' · ' : '') + 'Visitado ' + textoDias(rec.d) + (rec.frec ? ' (frecuencia ' + rec.frec.toLowerCase() + ')' : '');
                     var llego = !x.visita && horaCarga(x.carga);
-                    return '<li class="parada' + (x.visita ? ' hecha' : x.encurso ? ' encurso' : x === sig ? ' siguiente' : '') + (x === aqui ? ' aqui' : '') + '">' +
+                    return '<li class="parada' + (x.visita ? ' hecha' : x.encurso ? ' encurso' : x === sig ? ' siguiente' : '') + (x === aqui ? ' aqui' : '') + (x.sinfotos ? ' sinfotos' : '') + '">' +
                         '<span class="n">' + (x.visita ? (cerrada(x) ? '🔒' : '✓') : x.encurso ? '▶' : i + 1) + '</span>' +
                         '<div class="info"><div class="titulo"><b>' + esc(x.lote ? 'Lote ' + x.lote : x.mr) + '</b>' +
                             (x.lote && x.mr ? ' <span class="sub">' + esc(x.mr) + '</span>' : '') +
                             (fechas.length > 1 && x.fecha ? ' <span class="sub">· ejec. ' + esc(aTexto(x.fecha).slice(0, 5)) + '</span>' : '') +
                             (llego && !x.encurso ? ' <span class="sub">· 🕒 ' + esc(llego) + '</span>' : '') +
+                            (x.sinfotos ? ' <span class="tag-sinfotos" title="La cuadrilla reportó que no se pueden tomar fotos">🚫📷 Sin fotos' + (x.sinfotos !== 'Sin fotos' ? ' · ' + esc(x.sinfotos.toLowerCase()) : '') + '</span>' : '') +
                             (x.encurso ? ' <span class="tag-curso">▶ Cuadrilla trabajando aquí' + (horaCarga(x.encurso) ? ' · desde ' + esc(horaCarga(x.encurso)) : '') + '</span>' : '') +
                             (x === aqui ? ' <span class="tag-aqui">📍 Usted está aquí</span>' : '') +
                             (x === sig ? ' <span class="tag-sig">Siguiente</span>' : '') +
@@ -1513,11 +1520,13 @@ export function iniciar(api, CFG) {
         $('ruta-vista').innerHTML = lista.length ? '<div class="sub">' + lista.length + ' lote' + (lista.length === 1 ? '' : 's') + ' en la pre-ruta (toque × para quitar):</div>' +
             lista.map(function (id) {
                 var x = infoLote(id), aviso = !x.mr ? 'no está en la programación' : cuad && x.cuad && x.cuad !== cuad ? 'es de la cuadrilla ' + x.cuad : '';
-                return '<span class="chip-ruta' + (aviso ? ' aviso' : '') + '">' + (curso.indexOf(id) !== -1 ? '<span class="curso">▶ </span>' : '') +
+                return '<span class="chip-ruta' + (aviso ? ' aviso' : '') + (p.sinFotos[id] ? ' sinfotos' : '') + '"' + (p.sinFotos[id] ? ' title="' + esc(p.sinFotos[id]) + ': sin fotos"' : '') + '>' +
+                    (curso.indexOf(id) !== -1 ? '<span class="curso">▶ </span>' : '') + (p.sinFotos[id] ? '🚫📷 ' : '') +
                     esc(x.lote || x.mr || id) + (x.lote && x.mr ? ' · ' + esc(x.mr) : '') + (aviso ? ' ⚠ ' + esc(aviso) : '') +
                     '<button type="button" class="quitar-lote" data-quitar-lote="' + esc(id) + '" aria-label="Quitar ' + esc(id) + '">×</button></span>';
             }).join('') + (curso.length ? '<div class="sub" style="margin-top:6px"><span class="curso" style="color:#1d4ed8">▶</span> = <b>en ejecución ahora</b>' +
-                (cuad ? ' por la cuadrilla ' + esc(cuad) : '') + '. El lote donde estaba antes esa cuadrilla queda listo para revisar.</div>' : '')
+                (cuad ? ' por la cuadrilla ' + esc(cuad) : '') + '. El lote donde estaba antes esa cuadrilla queda listo para revisar.</div>' : '') +
+            (lista.some(function (id) { return p.sinFotos[id]; }) ? '<div class="sub" style="margin-top:6px">🚫📷 = <b>sin fotos</b>: la cuadrilla reporta que no se le pueden tomar fotos (orden público).</div>' : '')
             : '<div class="sub">Se toman del mensaje la fecha, la cuadrilla y los números de lote (o códigos de microrruta), o agréguelos a mano.</div>';
         $('ruta-crear').disabled = !lista.length;
         $('ruta-crear').textContent = curso.length && curso.length === lista.length ? 'Marcar en ejecución' : 'Crear pre-ruta';
@@ -1578,7 +1587,7 @@ export function iniciar(api, CFG) {
         // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
         var ruta = agregarParadas(cuad, lista.map(function (id, i) {
             return { id: id, fecha: fecha || (curso ? hoy() : ''), creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
-                     encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '' };
+                     encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '', sinfotos: p.sinFotos[id] || '' };
         }));
         ordenar(ruta, posicion);
         guardarRutas();

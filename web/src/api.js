@@ -110,6 +110,8 @@ function aRuta(f) {
     return {
         cuadrilla: f.cuadrilla, lote: f.lote, fecha: fechaTexto(f.fecha_ejecucion), orden: f.orden == null ? '' : String(f.orden),
         cargada: momentoTexto(f.cargada, true), encurso: momentoTexto(f.en_curso, true),
+        // Sin la migración 0008 la columna no existe: undefined, y se usa la marca guardada en el celular
+        sinfotos: f.sin_fotos === undefined ? undefined : f.sin_fotos || '',
     };
 }
 
@@ -204,7 +206,7 @@ export function crearApi(supabase) {
         revisar(await supabase.rpc('guardar_ruta', {
             cuadrilla: String(cuadrilla || ''),
             paradas: (paradas || []).map(function (p) {
-                return { lote: String(p.lote || ''), fecha: fechaIso(p.fecha) || '', cargada: momentoIso(p.cargada) || '', encurso: momentoIso(p.encurso) || '' };
+                return { lote: String(p.lote || ''), fecha: fechaIso(p.fecha) || '', cargada: momentoIso(p.cargada) || '', encurso: momentoIso(p.encurso) || '', sinfotos: String(p.sinfotos || '') };
             }),
         }));
         return {};
