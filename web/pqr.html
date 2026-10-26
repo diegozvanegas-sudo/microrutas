@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>PQR · Respuestas</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📝</span>
+        <div class="nombre"><h1>PQR</h1><div class="lema">Leer la queja, revisar en sitio y armar la respuesta</div></div>
+    </div>
+    <nav class="nav-app" aria-label="Secciones">
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <a href="pqr.html" aria-current="page">📝 <span>PQR</span></a>
+        <a href="contrato.html" id="nav-contrato" hidden>📜 <span>Contrato</span></a>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main>
+    <!-- Lista de PQR guardados -->
+    <section id="vista-lista">
+        <div class="barra-lista">
+            <input type="search" id="buscar" placeholder="Buscar por ID, dirección, barrio o nombre" aria-label="Buscar PQR" autocomplete="off">
+            <button type="button" class="primario" id="btn-nuevo">+ Nuevo PQR</button>
+        </div>
+        <div class="filtros" role="group" aria-label="Estado">
+            <button type="button" class="filtro activo" data-estado="">Todos</button>
+            <button type="button" class="filtro" data-estado="abierto">Abiertos</button>
+            <button type="button" class="filtro" data-estado="respondido">Respondidos</button>
+        </div>
+        <div id="estado" class="estado-carga">Cargando…</div>
+        <div id="lista"></div>
+    </section>
+
+    <!-- Un PQR: queja, visita y respuesta -->
+    <section id="vista-pqr" hidden>
+        <button type="button" class="volver" id="btn-volver">← PQR guardados</button>
+
+        <div class="tarjeta-pqr">
+            <h2><span class="paso">1</span> La queja</h2>
+            <p class="ayuda">Tome una foto o un pantallazo de la queja, o copie el texto y péguelo. Los datos se llenan solos; corríjalos si hace falta.</p>
+            <div class="acciones">
+                <button type="button" class="secundario" id="btn-foto">📷 Leer foto</button>
+                <button type="button" class="secundario" id="btn-pegar">📋 Pegar texto</button>
+                <input type="file" id="foto" accept="image/*" hidden>
+            </div>
+            <div id="ocr" class="aviso" hidden></div>
+            <label class="campo ancho">TEXTO DE LA QUEJA
+                <textarea id="texto" rows="5" placeholder="441181&#10;2026-10-21&#10;MARIA CANO&#10;3009970182&#10;CR 38 # 91 83 MANRIQUE CENTRAL No.2&#10;SOLICITO LA LIMPIEZA DEL FRENTE…"></textarea>
+            </label>
+            <div class="rejilla">
+                <label class="campo">ID <input id="f-id" inputmode="numeric"></label>
+                <label class="campo">FECHA DEL PQR <input id="f-fecha" type="date"></label>
+                <label class="campo">NOMBRE <input id="f-nombre"></label>
+                <label class="campo">TELÉFONO <input id="f-telefono" inputmode="tel"></label>
+                <label class="campo">DIRECCIÓN <input id="f-direccion" placeholder="CR 38 # 91 83"></label>
+                <label class="campo">BARRIO <input id="f-barrio"></label>
+            </div>
+            <div class="acciones">
+                <a class="boton secundario" id="btn-mapa" target="_blank" rel="noopener">🗺️ Ver en el mapa</a>
+                <a class="boton secundario" id="btn-llamar">📞 Llamar</a>
+            </div>
+        </div>
+
+        <div class="tarjeta-pqr">
+            <h2><span class="paso">2</span> Lo que encontró en la visita</h2>
+            <div class="resultados" role="radiogroup" aria-label="Resultado de la visita" id="resultados"></div>
+            <div class="rejilla">
+                <label class="campo" data-si="ejecutado subsanado">FECHA DEL CORTE <input id="v-corte" type="date"></label>
+                <label class="campo">FECHA DE LA VISITA <input id="v-visita" type="date"></label>
+                <label class="campo" data-si="pendiente">PRÓXIMA INTERVENCIÓN <input id="v-proxima" type="date"></label>
+                <label class="campo">CONTACTO CON EL USUARIO
+                    <select id="v-contacto">
+                        <option value="si">Sí, en el sitio</option>
+                        <option value="tel">Sí, por teléfono</option>
+                        <option value="no">No se encontró</option>
+                    </select>
+                </label>
+                <label class="campo ancho" data-si="privado">EL ÁREA ES
+                    <input id="v-area" placeholder="un antejardín o zona de propiedad privada">
+                </label>
+            </div>
+            <label class="check"><input type="checkbox" id="v-cobro"> Responder lo del cobro en la factura <span class="sub" id="cobro-auto"></span></label>
+            <label class="campo ancho">OBSERVACIÓN (se agrega a la respuesta)
+                <textarea id="v-obs" rows="2" placeholder="Ej.: Se evidencia el frente de la vivienda intervenido, con registro fotográfico."></textarea>
+            </label>
+        </div>
+
+        <div class="tarjeta-pqr">
+            <h2><span class="paso">3</span> Respuesta</h2>
+            <p class="ayuda">Elija una propuesta y ajústela abajo. Se actualizan solas con lo que marque arriba.</p>
+            <div id="propuestas" class="propuestas"></div>
+            <label class="campo ancho">RESPUESTA FINAL
+                <textarea id="respuesta" rows="9" placeholder="Toque «Usar esta» en una propuesta o escriba aquí."></textarea>
+            </label>
+            <div class="acciones fin">
+                <button type="button" class="secundario" id="btn-copiar">📋 Copiar respuesta</button>
+                <button type="button" class="peligro" id="btn-eliminar" hidden>Eliminar</button>
+                <span class="espacio"></span>
+                <button type="button" class="secundario" id="btn-guardar">Guardar</button>
+                <button type="button" class="primario" id="btn-respondido">✓ Guardar como respondido</button>
+            </div>
+        </div>
+    </section>
+    <p class="nota-privada">🔒 Los PQR traen datos personales: solo los ve quien los registró (y el administrador). La foto no se guarda, solo el texto.</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script src="js/direcciones.js"></script>
+<script type="module" src="/src/pqr/main.js"></script>
+</body>
+</html>

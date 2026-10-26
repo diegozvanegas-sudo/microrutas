@@ -151,6 +151,9 @@
     .ficha-lote .ruta-estado.vencido { color: #b91c1c; background: #fee2e2; }
     .ficha-lote .ruta-estado.pronto { color: #92400e; background: #fef3c7; }
     .ficha-lote .ruta-estado.aldia { color: #15803d; background: #dcfce7; }
+    .halo-lote { animation: halo-lote 1.4s ease-in-out infinite; }
+    @keyframes halo-lote { 50% { stroke-opacity: .25; } }
+    @media (prefers-reduced-motion: reduce) { .halo-lote { animation: none; } }
     </style>
 </head>
 <body>
@@ -320,7 +323,7 @@
     var coloresCuadrilla = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
     function colorCuadrilla(c) { var n = Number(c); return Number.isFinite(n) ? coloresCuadrilla[Math.abs(n) % coloresCuadrilla.length] : '#64748b'; }
     function estiloLote(c) { var col = colorCuadrilla(c); return { color: col, weight: 1, opacity: .95, fillColor: col, fillOpacity: .55 }; }
-    var RESALTADO = { color: '#d92d20', weight: 3, fillColor: '#facc15', fillOpacity: .75 };
+    var RESALTADO = { color: '#111827', weight: 3, fillColor: '#fde047', fillOpacity: .85 };
     // Lotes de una pre-ruta (?lote=...&hechos=...&cerrados=...): el color dice si ya se registró la visita
     var ESTILO_RUTA = {
         pendiente: { color: '#991b1b', weight: 3, fillColor: '#ef4444', fillOpacity: .7 },
@@ -715,13 +718,24 @@
         if (p && map.hasLayer(p)) try { p._updateLayout(); p._updatePosition(); } catch (e) {}
     }, true);
 
+    // Contorno del lote resaltado: borde blanco ancho que titila y uno negro encima, en una capa sobre todos los lotes,
+    // para que se distinga aunque los vecinos sean rojos o naranjas (en SVG: el lienzo de los lotes no anima)
+    map.createPane('resalte').style.zIndex = 450;
+    map.getPane('resalte').style.pointerEvents = 'none';
+    var contorno = L.layerGroup().addTo(map), rendResalte = L.svg({ pane: 'resalte' });
     function limpiarResaltado() {
         resaltados.forEach(function (c) { c.setStyle(estiloBase(c)); });
         resaltados = [];
+        contorno.clearLayers();
     }
     function resaltar(capas) {
         limpiarResaltado();
-        capas.forEach(function (c) { c.setStyle(RESALTADO); c.bringToFront(); });
+        capas.forEach(function (c) {
+            c.setStyle(RESALTADO); c.bringToFront();
+            var base = { pane: 'resalte', renderer: rendResalte, interactive: false, fill: false };
+            L.polygon(c.getLatLngs(), L.extend({ color: '#fff', weight: 9, opacity: 1, className: 'halo-lote' }, base)).addTo(contorno);
+            L.polygon(c.getLatLngs(), L.extend({ color: '#111827', weight: 3, opacity: 1 }, base)).addTo(contorno);
+        });
         resaltados = capas.slice();
     }
     function resaltarMr(mr) { if (mr) resaltar(porMr[mr.toUpperCase()] || []); }
@@ -1179,7 +1193,7 @@
         var zona = cajas.reduce(function (z, b) { return z.extend(b); }, L.latLngBounds(cajas[0].getSouthWest(), cajas[0].getNorthEast())).pad(0.1);
         var enLotes = function (ll) { return cajas.some(function (b) { return b.contains([ll.lat, ll.lng]); }); };
         $('btn-buscar').disabled = true;
-        $('estado').textContent = 'Buscando ' + d.texto + '…';
+        $('estado').textContent = 'Buscando ' + d.texto + ' en OpenStreetMap… (puede tardar hasta un minuto)';
         window.ubicarDireccion(d, [zona.getSouth(), zona.getWest(), zona.getNorth(), zona.getEast()], enLotes).then(function (c) {
             if (!c) return toast('No se encontró ' + d.texto + ' en el mapa. Revise la vía y el cruce, o ponga un 📌 a mano.');
             ubicarPunto({ lat: c.lat, lng: c.lng, buscado: d.texto, nota: ' (' + d.texto + ': ubicación ' + c.aprox + ', confírmela en el mapa)' });
@@ -1302,14 +1316,15 @@
         direccion: direccionDe,
         toast: toast
     });
-    // Bajo el zoom y ◎, con el mismo estilo: 📸 foto, ⚙️ ajustes de la marca y 📋 subsanaciones
+    // Bajo el zoom y ◎, con el mismo estilo: 📸 foto, ⚙️ ajustes de la marca, 📋 subsanaciones y 📝 PQR
     var Herramientas = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
             var div = L.DomUtil.create('div', 'leaflet-bar herramientas');
             div.innerHTML = '<a href="#" role="button" data-h="foto" title="Tomar foto con fecha, GPS y marca de agua" aria-label="Tomar foto">📸</a>' +
                 '<a href="#" role="button" data-h="ajustes" title="Ajustes de la marca de agua" aria-label="Ajustes de la marca de agua">⚙️</a>' +
-                '<a href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas" aria-label="Subsanaciones">📋</a>';
+                '<a href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas" aria-label="Subsanaciones">📋</a>' +
+                '<a href="pqr.html" title="PQR: leer la queja y armar la respuesta" aria-label="PQR">📝</a>';
             L.DomEvent.disableClickPropagation(div);
             div.addEventListener('click', function (ev) {
                 var a = ev.target.closest('a[data-h]');
@@ -1323,7 +1338,7 @@
     map.addControl(new Herramientas());
 
     // ---------- Inicio ----------
-    // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)
+    // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)  ·  ?q=dirección o lo que se escribe en el buscador
     // Desde la pre-ruta: ?lote=532,371,363&hechos=371&cerrados=363 (los demás quedan como pendientes)
     var q = new URLSearchParams(location.search);
     if (q.has('hechos') || q.has('cerrados')) {
@@ -1346,6 +1361,8 @@
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
     var llUrl = q.get('ll') && window.leerCoordenadas(q.get('ll'));
     if (llUrl) ubicarPunto(llUrl);
+    // ?q=CR 38 # 91 83 (desde pqr.html): se busca como si se hubiera escrito en el buscador
+    else if (q.get('q')) { $('buscar').value = q.get('q'); buscar(); }
     else if (q.get('lote') || q.get('mr')) {
         var lista = (q.get('lote') || q.get('mr')).split(',');
         $('buscar').value = lista.join(', ');

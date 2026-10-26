@@ -8,6 +8,7 @@ import { recorridoCorto } from '../src/subsanaciones/recorrido.js';
 import { textoDia, textoResumen } from '../src/subsanaciones/whatsapp.js';
 import { fijarItems, calcularEstado, limpiarObs } from '../src/subsanaciones/estado.js';
 import { claveFecha, aInput, aTexto, metros } from '../src/subsanaciones/util.js';
+import { leerPqr, armarRespuestas, hablaDeCobro, fechaLarga } from '../src/pqr/plantillas.js';
 
 // coordenadas.js es un script de la página: deja leerCoordenadas en window
 globalThis.window = globalThis;
@@ -190,4 +191,40 @@ test('direcciones: formatos de PQR y escritos a mano', () => {
     assert.equal(window.leerDireccion('532'), null);
     assert.equal(window.leerDireccion('Z7R191B'), null);
     assert.equal(window.leerDireccion('6.2751N 75.5737W'), null);
+});
+
+test('mensaje: lotes sin fotos por orden público', () => {
+    const p = parsearMensaje('Cuadrilla: 4\n\nMicrorrutas ejecutadas:\n\nZ1cc0072 (78)\nZ1cc0073 (79)\nZ1cc0074 (80) sin fotos por orden público\nZ1cc0084 (93) sin fotos por orden publico\nZ1cc0133 (1141)', {});
+    assert.deepEqual(p.sinFotos, { Z1CC0074: 'Orden público', '80': 'Orden público', Z1CC0084: 'Orden público', '93': 'Orden público' });
+    assert.deepEqual(parsearMensaje('532 no se pudo tomar fotos\n371', {}).sinFotos, { '532': 'Sin fotos' });
+    assert.deepEqual(parsearMensaje('532\n371', {}).sinFotos, {});
+});
+
+test('PQR: datos de la queja como vienen del sistema', () => {
+    const p = leerPqr('441181\n2026-10-21\nMARIA CANO\n3009970182\nCR 38 # 91 83 MANRIQUE CENTRAL No.2\nSOLICITO LA LIMPIEZA DEL FRENTE DE MI CASA, A MI ME COBRAN\nPOR LIMPIEZA EN LOS SERVICIOS PÚBLICOS');
+    assert.equal(p.id, '441181');
+    assert.equal(p.fecha, '2026-10-21');
+    assert.equal(p.nombre, 'MARIA CANO');
+    assert.equal(p.telefono, '3009970182');
+    assert.equal(p.direccion, 'CR 38 # 91 83');
+    assert.equal(p.barrio, 'MANRIQUE CENTRAL No.2');
+    assert.match(p.queja, /^SOLICITO LA LIMPIEZA/);
+    assert.ok(hablaDeCobro(p.queja));
+});
+
+test('PQR: respuestas de cierre según la visita', () => {
+    assert.equal(fechaLarga('2026-10-20'), '20 de octubre de 2026');
+    const base = { id: '440774', direccion: 'CR 38 # 91 83', barrio: 'Manrique Central No.2', fechaCorte: '2026-10-20', fechaVisita: '2026-10-26', contacto: 'si', hora: 15 };
+    const [completa, breve] = armarRespuestas({ ...base, resultado: 'ejecutado' });
+    assert.match(completa.texto, /^Buenas tardes, favor dar cierre al ID 440774\./);
+    assert.match(completa.texto, /corte de césped el 20 de octubre de 2026/);
+    assert.match(completa.texto, /el 26 de octubre de 2026 se realizó visita de verificación en la dirección y se estableció contacto con el usuario/);
+    assert.match(breve.texto, /ID 440774/);
+    assert.doesNotMatch(completa.texto, /cobro/);
+    assert.match(armarRespuestas({ ...base, resultado: 'ejecutado', cobro: true })[0].texto, /Respecto al cobro en la factura/);
+    assert.match(armarRespuestas({ ...base, resultado: 'privado' })[0].texto, /antejardín o zona de propiedad privada/);
+    assert.match(armarRespuestas({ ...base, resultado: 'pendiente', fechaProxima: '2026-11-05' })[0].texto, /programada para el 5 de noviembre de 2026/);
+    assert.match(armarRespuestas({ ...base, resultado: 'subsanado', contacto: 'no' })[0].texto, /No fue posible establecer contacto/);
+    // Sin fecha del corte queda marcado para llenarlo
+    assert.match(armarRespuestas({ ...base, fechaCorte: '', resultado: 'ejecutado' })[0].texto, /\[fecha del corte\]/);
 });

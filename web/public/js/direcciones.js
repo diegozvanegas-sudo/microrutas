@@ -48,9 +48,38 @@
         return d;
     };
 
-    // Expresión del nombre de la vía en OSM: "^(Calle|Diagonal) 91 ?A( Sur)?$" (sin "sur" escrito vale con o sin)
-    function patron(tipos, p) {
-        return '^(' + tipos + ') 0*' + p.n + (p.l ? ' ?' + p.l : '') + (p.sur ? ' ' + p.sur : '( Sur| Este)?') + '$';
+    // Nombres exactos de la vía en OSM ("Calle 91A", "Calle 91 A", "Calle 10 Sur"…): con nombre exacto Overpass usa su índice
+    // y responde en segundos; con expresión regular recorre todas las vías y tarda o se cae. Sin "sur" escrito, valen las dos.
+    function nombres(tipos, p) {
+        var out = [];
+        tipos.split('|').forEach(function (t) {
+            var base = t + ' ' + p.n, bases = p.l ? [base + p.l, base + ' ' + p.l] : [base];
+            bases.forEach(function (b) {
+                if (p.sur) out.push(b + ' ' + p.sur.charAt(0) + p.sur.slice(1).toLowerCase());
+                else out.push(b, b + ' Sur');
+            });
+        });
+        return out;
+    }
+    function conjunto(lista, bb, nombre) {
+        return '(' + lista.map(function (n) { return 'way["highway"]["name"="' + n + '"]' + bb + ';'; }).join('') + ')->.' + nombre + ';';
+    }
+    // Overpass se satura a ratos (502/504 o minutos en cola): se prueba un espejo y se espera máximo 25 s por servidor
+    var SERVIDORES = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
+    function consultar(q, i) {
+        i = i || 0;
+        var ctl = window.AbortController ? new AbortController() : null, reloj = ctl && setTimeout(function () { ctl.abort(); }, 25000);
+        return fetch(SERVIDORES[i], { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: ctl && ctl.signal,
+            headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+            .then(function (r) { if (!r.ok) throw new Error('overpass ' + r.status); return r.json(); })
+            .catch(function (e) { if (i + 1 < SERVIDORES.length) return consultar(q, i + 1); throw e; })
+            .finally(function () { clearTimeout(reloj); });
+    }
+    // Direcciones ya encontradas en este equipo: la segunda vez sale de una vez y sin señal
+    var CACHE = 'direcciones_cache';
+    function deCache(k) { try { return (JSON.parse(localStorage.getItem(CACHE)) || {})[k] || null; } catch (e) { return null; } }
+    function aCache(k, v) {
+        try { var c = JSON.parse(localStorage.getItem(CACHE)) || {}; c[k] = v; localStorage.setItem(CACHE, JSON.stringify(c)); } catch (e) {}
     }
     function metros(a, b) {
         var x = (b.lng - a.lng) * 111320 * Math.cos(a.lat * Math.PI / 180), y = (b.lat - a.lat) * 110540;
@@ -61,16 +90,13 @@
     // preferir(ll): true si el punto cae en la zona de los lotes (cuando el mismo cruce existe en dos municipios).
     // Devuelve { lat, lng, aprox } o null.
     window.ubicarDireccion = function (d, caja, preferir) {
+        var guardada = deCache(d.texto);
+        if (guardada) return Promise.resolve(guardada);
         var sig = { n: d.cruce.n + 1, l: '', sur: d.cruce.sur };
         var bb = '(' + caja.join(',') + ')';
-        var q = '[out:json][timeout:25];' +
-            'way["highway"]["name"~"' + patron(NOMBRES[d.tipo], d.via) + '",i]' + bb + '->.a;' +
-            'way["highway"]["name"~"' + patron(CRUZAN[d.tipo], d.cruce) + '",i]' + bb + '->.b;' +
-            'way["highway"]["name"~"' + patron(CRUZAN[d.tipo], sig) + '",i]' + bb + '->.c;' +
-            'node(w.a)(w.b);out;out count;node(w.a)(w.c);out;';
-        return fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q),
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-            .then(function (r) { if (!r.ok) throw new Error('overpass ' + r.status); return r.json(); })
+        var q = '[out:json][timeout:25];' + conjunto(nombres(NOMBRES[d.tipo], d.via), bb, 'a') + conjunto(nombres(CRUZAN[d.tipo], d.cruce), bb, 'b') +
+            conjunto(nombres(CRUZAN[d.tipo], sig), bb, 'c') + 'node(w.a)(w.b);out;out count;node(w.a)(w.c);out;';
+        return consultar(q)
             .then(function (j) {
                 var cruces = [], siguientes = [], lista = cruces;
                 (j.elements || []).forEach(function (e) {
@@ -86,6 +112,7 @@
                 if (!b) return { lat: a.lat, lng: a.lng, aprox: 'en el cruce' };
                 var f = Math.min(1, d.placa / Math.max(metros(a, b), 1));
                 return { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f, aprox: 'aproximada' };
-            });
+            })
+            .then(function (r) { if (r) aCache(d.texto, r); return r; });
     };
 })();
