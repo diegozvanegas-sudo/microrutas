@@ -13,6 +13,7 @@ import { claveFecha, aInput, aTexto, metros } from '../src/subsanaciones/util.js
 globalThis.window = globalThis;
 createRequire(import.meta.url)('../public/js/coordenadas.js');
 createRequire(import.meta.url)('../public/js/camara_marca.js');
+createRequire(import.meta.url)('../public/js/direcciones.js');
 const leer = (t) => window.leerCoordenadas(t);
 const cerca = (c, lat, lng) => { assert.ok(c, 'no leyó coordenadas'); assert.ok(Math.abs(c.lat - lat) < 1e-4 && Math.abs(c.lng - lng) < 1e-4, JSON.stringify(c)); };
 
@@ -172,4 +173,21 @@ test('foto con marca de agua: fecha y coordenadas en cada formato, y el mapa las
     for (const k of ['hemisferio', 'decimal', 'gms']) cerca(leer(f.coords(6.280683, -75.546571, k)), 6.280683, -75.546571);
     // Los segundos no se redondean a 60: 6°16'59.99" -> 6°17'0.0"
     assert.equal(f.coords(6 + 17 / 60 - 0.00001 / 3600, -75.5, 'gms'), `6°17'0.0"N 75°30'0.0"W`);
+});
+
+test('direcciones: formatos de PQR y escritos a mano', () => {
+    const d = (t) => { const r = window.leerDireccion(t); return r && (r.texto || r); };
+    assert.equal(d('CR 38 # 91 83 MANRIQUE CENTRAL No.2'), 'Carrera 38 # 91-83');
+    assert.equal(d('carrera 38  91 83'), 'Carrera 38 # 91-83');
+    assert.equal(d('Cra. 38 #91-83'), 'Carrera 38 # 91-83');
+    assert.equal(d('cl 97 73 20'), 'Calle 97 # 73-20');
+    assert.equal(d('Calle 10 sur 43A-20'), 'Calle 10 Sur # 43A-20');
+    assert.equal(d('CALLE 77 CC 65 A 30'), 'Calle 77CC # 65A-30');
+    assert.equal(d('Calle 59A con carrera 64D'), 'Calle 59A # 64D');
+    assert.equal(d('Cll 44C No. 90A - 12'), 'Calle 44C # 90A-12');
+    assert.deepEqual(window.leerDireccion('calle 10'), { incompleta: true });
+    // Lotes, microrrutas y coordenadas no son direcciones
+    assert.equal(window.leerDireccion('532'), null);
+    assert.equal(window.leerDireccion('Z7R191B'), null);
+    assert.equal(window.leerDireccion('6.2751N 75.5737W'), null);
 });

@@ -156,7 +156,7 @@
 <body>
 <div id="barra">
     <div class="fila">
-        <input id="buscar" type="search" placeholder="Lote, microrruta, barrido o coordenadas (532 · Z7R191B · 6.2751N 75.5737W)" aria-label="Buscar lote, microrruta o coordenadas"
+        <input id="buscar" type="search" placeholder="Lote, microrruta, dirección o coordenadas (532 · Z7R191B · CR 38 # 91 83 · 6.2751N 75.5737W)" aria-label="Buscar lote, microrruta, dirección o coordenadas"
                autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search">
         <button type="button" class="primario" id="btn-buscar">Buscar</button>
         <button type="button" class="secundario" id="btn-foto" title="Ubicar el lote con una foto que tenga las coordenadas GPS" aria-label="Ubicar con foto">📷</button>
@@ -183,6 +183,7 @@
 <script src="js/leaflet.js"></script>
 <script src="data/rapido/indice.js"></script>
 <script src="js/coordenadas.js"></script>
+<script src="js/direcciones.js"></script>
 <script src="js/camara_marca.js"></script>
 <script>
 (function () {
@@ -1006,13 +1007,13 @@
     function ubicarPunto(c) {
         var ll = L.latLng(c.lat, c.lng), txt = c.lat.toFixed(5) + ', ' + c.lng.toFixed(5);
         // Coordenadas mal escritas que coordenadas.js arregló: se dice qué se cambió
-        var aviso = c.corregida ? ' Se escribió ' + c.escrita + ' (' + c.corregida + '); se buscó ' + txt + '.' : '';
+        var aviso = (c.corregida ? ' Se escribió ' + c.escrita + ' (' + c.corregida + '); se buscó ' + txt + '.' : '') + (c.nota || '');
         estadoRuta = null;
         marcadores.clearLayers();
         puntoCapa.clearLayers();
         L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#7c3aed', fillOpacity: 1, bubblingMouseEvents: false })
             .bindTooltip('📍 ' + txt, { direction: 'top', offset: [0, -8] }).addTo(puntoCapa);
-        $('buscar').value = txt;
+        $('buscar').value = c.buscado || txt;
         // Solo se cargan las cuadrillas cuyo recuadro (con margen) incluye el punto
         var cuads = ordenCuad.filter(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b).pad(0.05).contains(ll); });
         if (!cuads.length) { map.setView(ll, 17); return toast('El punto ' + txt + ' queda fuera de la zona de los lotes.' + aviso); }
@@ -1159,6 +1160,9 @@
         if (!v) return;
         var coord = window.leerCoordenadas(v);
         if (coord) { ubicarPunto(coord); $('buscar').blur(); return; }
+        var dir = window.leerDireccion(v);
+        if (dir && dir.incompleta) return toast('Escriba la vía, el cruce y la placa. Ej.: CR 38 # 91 83 o Calle 10 sur 43A 20');
+        if (dir) { buscarDireccion(dir); $('buscar').blur(); return; }
         // Microrrutas de barrido (Z7R191B_DOM): todo lo escrito tiene que ser código de barrido
         var partes = v.split(/[,\s]+/).filter(Boolean), cods = partes.map(codigoBarrido);
         if (cods.every(Boolean)) { buscarBarrido(cods); $('buscar').blur(); return; }
@@ -1167,6 +1171,21 @@
         estadoRuta = null; // búsqueda a mano: deja de pintar la pre-ruta
         ir(v.split(/[,\s]+/), true);
         $('buscar').blur();
+    }
+    // Dirección (js/direcciones.js): se ubica con OpenStreetMap y se busca el lote de ese punto como con coordenadas.
+    // Es aproximada (cruce + metros de la placa); el barrio u otro texto después de la placa no se usa
+    function buscarDireccion(d) {
+        var cajas = ordenCuad.map(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b); });
+        var zona = cajas.reduce(function (z, b) { return z.extend(b); }, L.latLngBounds(cajas[0].getSouthWest(), cajas[0].getNorthEast())).pad(0.1);
+        var enLotes = function (ll) { return cajas.some(function (b) { return b.contains([ll.lat, ll.lng]); }); };
+        $('btn-buscar').disabled = true;
+        $('estado').textContent = 'Buscando ' + d.texto + '…';
+        window.ubicarDireccion(d, [zona.getSouth(), zona.getWest(), zona.getNorth(), zona.getEast()], enLotes).then(function (c) {
+            if (!c) return toast('No se encontró ' + d.texto + ' en el mapa. Revise la vía y el cruce, o ponga un 📌 a mano.');
+            ubicarPunto({ lat: c.lat, lng: c.lng, buscado: d.texto, nota: ' (' + d.texto + ': ubicación ' + c.aprox + ', confírmela en el mapa)' });
+        }).catch(function () {
+            toast('No se pudo buscar la dirección. Revise la conexión o use coordenadas.');
+        }).then(function () { $('btn-buscar').disabled = false; pintarChips(); });
     }
     $('btn-buscar').onclick = buscar;
     $('buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscar(); } });
