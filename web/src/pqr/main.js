@@ -4,11 +4,13 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerPqr, hablaDeCobro, armarRespuestas, RESULTADOS } from './plantillas.js';
+import { leerPqr, hablaDeCobro, armarRespuestas, RESULTADOS, temasDeQueja } from './plantillas.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
 var pqrs = [], actual = null, filtro = '';
+// Cláusulas del contrato (contrato_secciones, mismo permiso y copia que contrato.html) y las elegidas para citar: { k: { k, t, ref } }
+var CACHE_CONTRATO = 'contrato_cache', contrato = null, elegidas = {};
 
 function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; });
@@ -83,6 +85,10 @@ function abrir(p) {
     $('v-cobro').checked = v.cobro != null ? !!v.cobro : hablaDeCobro(p.queja);
     $('v-obs').value = v.observacion || '';
     $('respuesta').value = p.respuesta || '';
+    elegidas = {};
+    (v.clausulas || []).forEach(function (c) { if (c && c.k) elegidas[c.k] = c; });
+    $('contrato-buscar').value = '';
+    pintarBusqueda();
     $('btn-eliminar').hidden = !actual;
     $('ocr').hidden = true;
     $('vista-lista').hidden = true;
@@ -107,6 +113,7 @@ function datos() {
         id: $('f-id').value.trim(), direccion: $('f-direccion').value.trim(), barrio: $('f-barrio').value.trim(),
         resultado: resultado(), fechaCorte: $('v-corte').value, fechaVisita: $('v-visita').value, fechaProxima: $('v-proxima').value,
         contacto: $('v-contacto').value, cobro: $('v-cobro').checked, area: $('v-area').value.trim(), observacion: $('v-obs').value.trim(),
+        clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
     };
 }
 var propuestas = [];
@@ -117,6 +124,7 @@ function actualizar() {
     $('btn-llamar').hidden = !tel;
     $('btn-llamar').href = 'tel:' + tel;
     $('cobro-auto').textContent = hablaDeCobro($('texto').value) ? '(la queja habla de cobro o factura)' : '';
+    pintarTemas();
     propuestas = armarRespuestas(datos());
     $('propuestas').innerHTML = propuestas.map(function (r, i) {
         return '<div class="propuesta"><div class="cab"><b>' + esc(r.titulo) + '</b>' +
@@ -124,6 +132,66 @@ function actualizar() {
             '<button type="button" class="primario pequeno" data-usar="' + i + '">Usar esta</button></div>' +
             '<p>' + esc(r.texto).replace(/\n/g, '<br>') + '</p></div>';
     }).join('');
+}
+
+// ---------- Contrato: cláusulas según los temas de la queja ----------
+function aplanar(secciones) {
+    var out = [];
+    secciones.filter(function (s) { return s.tipo !== 'meta' && s.id !== 'app'; }).forEach(function (s) {
+        (s.items || []).forEach(function (it, i) { out.push({ k: s.id + ':' + i, sec: s.titulo, clave: it.clave || '', t: it.t || '', ref: it.ref || '' }); });
+    });
+    return out;
+}
+async function cargarContrato(permisos) {
+    if (!permisos || !permisos.contrato) { contrato = null; return pintarTemas(); }
+    var res = await supabase.from('contrato_secciones').select('id, orden, icono, titulo, tipo, items').order('orden');
+    var secciones = res.error ? null : res.data;
+    if (secciones) try { localStorage.setItem(CACHE_CONTRATO, JSON.stringify(secciones)); } catch (e) {}
+    else try { secciones = JSON.parse(localStorage.getItem(CACHE_CONTRATO)); } catch (e) {}
+    contrato = secciones && secciones.length ? aplanar(secciones) : null;
+    pintarTemas();
+}
+function clausula(c) {
+    return '<label class="clausula"><input type="checkbox" data-clausula="' + esc(c.k) + '"' + (elegidas[c.k] ? ' checked' : '') + '>' +
+        '<span>' + (c.clave ? '<b>' + esc(c.clave) + ':</b> ' : '') + esc(c.t) + '<span class="ref">' + esc(c.sec) + (c.ref ? ' · ' + esc(c.ref) : '') + '</span></span></label>';
+}
+function pintarTemas() {
+    var caja = $('contrato-temas');
+    $('contrato-buscar').hidden = !contrato;
+    if (!contrato) {
+        caja.innerHTML = '<p class="sub">🔒 Para ver las cláusulas necesita el permiso del contrato (pídaselo al administrador).</p>';
+        return;
+    }
+    var temas = temasDeQueja($('texto').value), vistas = {}, res = resultado();
+    var html = temas.map(function (t) {
+        var items = contrato.filter(function (c) { return t.clausula.test(c.clave + ' ' + c.t); });
+        if (!items.length) return '';
+        items.forEach(function (c) { vistas[c.k] = 1; });
+        return '<div class="tema"><h3>' + esc(t.titulo) +
+            (t.sugerencia && res !== t.sugerencia ? '<button type="button" class="secundario sugerir" data-sugerir="' + t.sugerencia + '">Marcar «' + esc(RESULTADOS[t.sugerencia]) + '»</button>' : '') +
+            '</h3>' + items.map(clausula).join('') + '</div>';
+    }).join('');
+    // Elegidas en la búsqueda (o en un tema que ya no aparece): siguen a la vista para poder quitarlas
+    var otras = Object.keys(elegidas).filter(function (k) { return !vistas[k]; }).map(function (k) {
+        return contrato.find(function (c) { return c.k === k; }) || { k: k, sec: 'Contrato', clave: '', t: elegidas[k].t, ref: elegidas[k].ref };
+    });
+    if (otras.length) html += '<div class="tema"><h3>Elegidas</h3>' + otras.map(clausula).join('') + '</div>';
+    caja.innerHTML = html || '<p class="sub">La queja no menciona un tema que el contrato trate de forma directa. Busque abajo la cláusula que necesite.</p>';
+}
+function pintarBusqueda() {
+    var q = plano($('contrato-buscar').value.trim());
+    if (!contrato || q.length < 3) { $('contrato-busqueda').innerHTML = ''; return; }
+    var hallados = contrato.filter(function (c) { return plano(c.sec + ' ' + c.clave + ' ' + c.t + ' ' + c.ref).indexOf(q) >= 0; });
+    $('contrato-busqueda').innerHTML = hallados.length
+        ? hallados.slice(0, 10).map(clausula).join('') + (hallados.length > 10 ? '<p class="sub">… y ' + (hallados.length - 10) + ' más: escriba algo más preciso.</p>' : '')
+        : '<p class="sub">Nada con «' + esc($('contrato-buscar').value.trim()) + '» en el contrato.</p>';
+}
+function elegirClausula(k, si) {
+    var c = contrato && contrato.find(function (x) { return x.k === k; });
+    if (si && c) elegidas[k] = { k: k, t: c.t, ref: c.ref };
+    else delete elegidas[k];
+    // La misma cláusula puede estar en un tema y en la búsqueda: las dos casillas iguales
+    document.querySelectorAll('[data-clausula="' + k + '"]').forEach(function (x) { x.checked = !!elegidas[k]; });
 }
 
 // Texto de la queja -> campos (cada vez que cambia el texto; después se pueden corregir a mano)
@@ -206,8 +274,19 @@ async function arrancar() {
         return '<button type="button" role="radio" class="resultado" data-r="' + k + '" aria-checked="false">' + esc(RESULTADOS[k]) + '</button>';
     }).join('');
     $('resultados').onclick = function (ev) { var b = ev.target.closest('[data-r]'); if (b) { marcarResultado(b.dataset.r); actualizar(); } };
-    $('vista-pqr').addEventListener('input', function (ev) { if (ev.target.id === 'texto') leerTexto(); else if (ev.target.id !== 'respuesta') actualizar(); });
-    $('vista-pqr').addEventListener('change', function (ev) { if (ev.target.id !== 'respuesta' && ev.target.id !== 'foto') actualizar(); });
+    var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1 };
+    $('vista-pqr').addEventListener('input', function (ev) { if (ev.target.id === 'texto') leerTexto(); else if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
+    $('vista-pqr').addEventListener('change', function (ev) { if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
+    // Va antes que el de vista-pqr (está más adentro): la cláusula queda elegida antes de rehacer las respuestas
+    $('tarjeta-contrato').addEventListener('change', function (ev) {
+        var c = ev.target.closest('[data-clausula]');
+        if (c) elegirClausula(c.dataset.clausula, c.checked);
+    });
+    $('tarjeta-contrato').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-sugerir]');
+        if (b) { marcarResultado(b.dataset.sugerir); actualizar(); toast('Marcado: ' + RESULTADOS[b.dataset.sugerir] + '. Revise el texto del área.'); }
+    });
+    $('contrato-buscar').addEventListener('input', pintarBusqueda);
     $('propuestas').onclick = function (ev) {
         var c = ev.target.closest('[data-copiar]'), u = ev.target.closest('[data-usar]');
         if (c) copiar(propuestas[+c.dataset.copiar].texto);
@@ -245,8 +324,8 @@ async function arrancar() {
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     // Al salir se borra la copia del equipo: trae datos personales
-    salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
-    aplicarPermisos(supabase, usuario);
+    salir.onclick = function () { try { localStorage.removeItem(CACHE); localStorage.removeItem(CACHE_CONTRATO); } catch (e) {} cerrarSesion(supabase); };
+    aplicarPermisos(supabase, usuario).then(cargarContrato);
     cargar();
 }
 

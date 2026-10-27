@@ -59,12 +59,37 @@ export var RESULTADOS = {
     privado: 'No corresponde (área privada)',
 };
 
+// Temas de la queja que el contrato responde. queja: palabras del ciudadano; clausula: cómo reconocer las cláusulas del
+// resumen del contrato (public.contrato_secciones) que hablan de eso. El texto del contrato no está aquí (el repositorio es público).
+export var TEMAS = [
+    { id: 'frente', titulo: 'Frente de la casa o antejardín', queja: /frente|antejard[ií]n|mi casa|vivienda|fachada|anden|andén/i,
+      clausula: /antejard|espacio p[uú]blico urbano/i, sugerencia: 'privado' },
+    { id: 'altura', titulo: 'Pasto o maleza alta, no cortaron', queja: /maleza|hierba|pasto|rastrojo|monte|enmonta|no (lo |la |los |las )?(cortar|cortaron|podaron)|sin cortar|alto/i,
+      clausula: /10 cm|entre 2 y 9|grama de menos/i },
+    { id: 'residuos', titulo: 'Residuos del corte', queja: /residuo|basura|dejaron|recog|ramas|pasto cortado|material|escombro|bolsa/i,
+      clausula: /residuos vegetales|presentaci[oó]n de residuos|recolecci[oó]n de todos/i },
+    { id: 'frecuencia', titulo: 'Frecuencia o abandono', queja: /frecuen|cada cu[aá]nto|hace (mucho|meses|rato)|no (han )?vuelto|no vienen|olvid|nunca|siempre/i,
+      clausula: /quincenal|programaci[oó]n es/i },
+    { id: 'arboles', titulo: 'Árboles, jardines o plantas', queja: /[aá]rbol|planta|jard[ií]n|matas|flores|ornato|sembr/i,
+      clausula: /[aá]rboles|plateo|ornato|jardiner/i },
+    { id: 'agua', titulo: 'Quebrada, río o canal', queja: /quebrada|\br[ií]o\b|caño|canal|retiro/i, clausula: /quebradas/i },
+    { id: 'talud', titulo: 'Talud o ladera', queja: /talud|ladera|deslizamiento|derrumbe|pendiente/i, clausula: /taludes/i },
+    { id: 'danos', titulo: 'Daños o seguridad al cortar', queja: /piedra|vidrio|golpe|da[ñn]o|carro|ventana|herid|peligro/i,
+      clausula: /malla|limpieza previa/i },
+    { id: 'herramientas', titulo: 'Machete, herbicida o forma de cortar', queja: /machete|peinilla|herbicida|veneno|fumig|quem|azad[oó]n/i,
+      clausula: /peinilla|herbicida|azad[oó]n/i },
+];
+// Temas que aparecen en la queja (en el orden de TEMAS)
+export function temasDeQueja(queja) {
+    return TEMAS.filter(function (t) { return t.queja.test(String(queja || '')); });
+}
+
 export function saludo(hora) {
     return hora < 12 ? 'Buenos días' : hora < 19 ? 'Buenas tardes' : 'Buenas noches';
 }
 
 // Respuestas de cierre. d: { id, direccion, barrio, resultado, fechaCorte, fechaVisita, fechaProxima, contacto ('si'|'tel'|'no'),
-// cobro, area (texto del área privada), observacion, hora }. Devuelve [{ titulo, texto }]: la completa y una breve.
+// cobro, area (texto del área privada), observacion, clausulas ([{ t, ref }] del contrato), hora }. Devuelve [{ titulo, texto }]: la completa y una breve.
 export function armarRespuestas(d) {
     var dir = [d.direccion, d.barrio].filter(Boolean).join(', ');
     var enDir = dir ? 'en la dirección de su solicitud (' + dir + ')' : 'en la dirección de su solicitud';
@@ -110,6 +135,13 @@ export function armarRespuestas(d) {
             'En visita ' + (visita ? 'del ' + visita + ' ' : '') + 'se verificó la ejecución de las labores' + (contacto ? ' y se informó al usuario.' : '.'));
     }
     if (cobro) p.push(cobro);
+    var clausulas = (d.clausulas || []).filter(function (c) { return c && c.t; });
+    if (clausulas.length) {
+        p.push('De acuerdo con las especificaciones técnicas del contrato de corte de césped:\n' + clausulas.map(function (c) {
+            return '• ' + c.t.trim() + (c.ref ? ' (' + c.ref + ')' : '');
+        }).join('\n'));
+        b.push('Lo anterior, conforme a las especificaciones técnicas del contrato de corte de césped.');
+    }
     if (d.observacion) { p.push(d.observacion.trim()); b.push(d.observacion.trim()); }
     if (d.resultado !== 'privado') { p.push(seguimiento); b.push('Se mantiene seguimiento en el sector.'); }
     return [

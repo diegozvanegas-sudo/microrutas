@@ -8,7 +8,7 @@ import { recorridoCorto } from '../src/subsanaciones/recorrido.js';
 import { textoDia, textoResumen } from '../src/subsanaciones/whatsapp.js';
 import { fijarItems, calcularEstado, limpiarObs } from '../src/subsanaciones/estado.js';
 import { claveFecha, aInput, aTexto, metros } from '../src/subsanaciones/util.js';
-import { leerPqr, armarRespuestas, hablaDeCobro, fechaLarga } from '../src/pqr/plantillas.js';
+import { leerPqr, armarRespuestas, hablaDeCobro, fechaLarga, temasDeQueja } from '../src/pqr/plantillas.js';
 
 // coordenadas.js es un script de la página: deja leerCoordenadas en window
 globalThis.window = globalThis;
@@ -227,4 +227,14 @@ test('PQR: respuestas de cierre según la visita', () => {
     assert.match(armarRespuestas({ ...base, resultado: 'subsanado', contacto: 'no' })[0].texto, /No fue posible establecer contacto/);
     // Sin fecha del corte queda marcado para llenarlo
     assert.match(armarRespuestas({ ...base, fechaCorte: '', resultado: 'ejecutado' })[0].texto, /\[fecha del corte\]/);
+});
+
+test('PQR: temas de la queja para buscar en el contrato y cláusulas citadas', () => {
+    const temas = temasDeQueja('SOLICITO LA LIMPIEZA DEL FRENTE DE MI CASA, QUITAN LA HIERBA A LOS COSTADOS Y A MI ME DEJAN LA MALEZA').map((t) => t.id);
+    assert.ok(temas.includes('frente') && temas.includes('altura'), temas.join());
+    assert.deepEqual(temasDeQueja('dejaron las ramas y la basura del corte en el andén').map((t) => t.id).includes('residuos'), true);
+    const [completa, breve] = armarRespuestas({ id: '1', resultado: 'privado', fechaVisita: '2026-10-26', contacto: 'si', hora: 9,
+        clausulas: [{ k: 'areas:1', t: 'Texto de la cláusula.', ref: 'pág. 7 · §7' }] });
+    assert.match(completa.texto, /especificaciones técnicas del contrato de corte de césped:\n• Texto de la cláusula\. \(pág\. 7 · §7\)/);
+    assert.match(breve.texto, /conforme a las especificaciones técnicas del contrato/);
 });

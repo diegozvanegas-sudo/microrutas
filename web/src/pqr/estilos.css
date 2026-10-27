@@ -74,3 +74,12 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 #dlg-ingreso .pie { margin-top: 16px; display: flex; }
 #dlg-ingreso .pie button { flex: 1; padding: 11px 14px; }
 #dlg-ingreso .error { background: var(--pend-bg); color: var(--pend); }
+/* Cláusulas del contrato que aplican a la queja */
+.tema { margin: 10px 0 0; }
+.tema h3 { margin: 0 0 6px; font-size: 14px; color: var(--brand-dark); display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.tema .sugerir { font-size: 12px; padding: 3px 9px; }
+.clausula { display: flex; gap: 10px; align-items: flex-start; padding: 8px 10px; border: 1px solid var(--line); border-radius: 10px; margin-top: 6px; font-size: 14px; cursor: pointer; background: #fff; }
+.clausula input { width: auto; margin-top: 3px; flex: none; }
+.clausula .ref { display: block; color: var(--muted); font-size: 12px; }
+.clausula:has(input:checked) { border-color: var(--brand); background: #edf8f3; }
+.buscar-contrato { margin-top: 12px; }
