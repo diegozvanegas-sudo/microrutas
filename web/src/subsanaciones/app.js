@@ -7,6 +7,7 @@ import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
+import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { zipsAPdf } from './zippdf.js';
@@ -443,6 +444,7 @@ export function iniciar(api, CFG) {
         $('dlg-estado').textContent = estado;
         var fecha = form.querySelector('[data-campo="FECHA SUBSANACIÓN"]');
         if (estado === 'SUBSANADO' && !fecha.value) fecha.value = hoy();
+        sugerirHallazgos();
     }
     function pintarItems(r, nuevo) {
         var lista = itemsForm();
@@ -1774,6 +1776,67 @@ export function iniciar(api, CFG) {
             .catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); })
             .then(function () { b.disabled = false; });
     };
+
+    // ---------- Posibles hallazgos (src/subsanaciones/hallazgos.js) ----------
+    // Mensajes de interventoría listos para el grupo: se buscan por lo que se escribe. Con el formulario abierto también
+    // se pasan a la observación, y mientras se escribe la observación aparecen debajo los que tienen que ver
+    function campoObs() { return form.querySelector('[data-campo="OBSERVACIONES NOVEDADES"]'); }
+    function copiarTexto(texto, listo) {
+        var aMano = function () {
+            var t = document.createElement('textarea');
+            t.value = texto; t.style.position = 'fixed'; t.style.opacity = '0';
+            ($('dlg-hallazgos').open ? $('dlg-hallazgos') : document.body).appendChild(t);
+            t.select();
+            try { document.execCommand('copy'); toast(listo); } catch (e) { toast('No se pudo copiar: seleccione el texto y cópielo.'); }
+            t.remove();
+        };
+        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(function () { toast(listo); }, aMano); else aMano();
+    }
+    function pintarHallazgos() {
+        var q = $('hall-buscar').value.trim(), idx = buscarHallazgos(q), conForm = dlg.open;
+        $('hall-cuenta').textContent = !q ? HALLAZGOS.length + ' mensajes. Escriba qué vio para encontrar el que sirve.'
+            : idx.length ? idx.length + (idx.length === 1 ? ' mensaje' : ' mensajes') + ' con "' + q + '"'
+            : 'Nada con "' + q + '". Pruebe con otra palabra: piedras, peatones, EPP, lluvia, combustible…';
+        $('hall-lista').innerHTML = idx.map(function (i) {
+            var h = HALLAZGOS[i];
+            return '<div class="hallazgo"><b>' + esc(h.t) + '</b><p>' + esc(h.m) + '</p><div class="botones">' +
+                '<button type="button" class="wa pequeno" data-copiar="' + i + '">Copiar</button>' +
+                '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(h.m) + '">Abrir WhatsApp</a>' +
+                (conForm ? '<button type="button" class="secundario pequeno" data-agregar="' + i + '">➕ A la observación</button>' : '') +
+                '</div></div>';
+        }).join('');
+        $('hall-lista').scrollTop = 0;
+    }
+    function abrirHallazgos(q) {
+        $('hall-buscar').value = q || '';
+        pintarHallazgos();
+        $('dlg-hallazgos').showModal();
+        if (!q) $('hall-buscar').focus();
+    }
+    $('btn-hallazgos').onclick = function () { abrirHallazgos(''); };
+    $('hall-buscar').addEventListener('input', pintarHallazgos);
+    $('hall-cerrar').onclick = function () { $('dlg-hallazgos').close(); };
+    $('hall-lista').onclick = function (ev) {
+        var c = ev.target.closest('[data-copiar]'), a = ev.target.closest('[data-agregar]');
+        if (c) copiarTexto(HALLAZGOS[c.dataset.copiar].m, 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
+        if (!a) return;
+        var obs = campoObs(), actual = obs.value.trim(), m = HALLAZGOS[a.dataset.agregar].m;
+        obs.value = !actual || norm(actual) === 'SIN NOVEDAD' ? m : actual.replace(/\.?$/, '.') + ' ' + m;
+        obs.dispatchEvent(new Event('input', { bubbles: true }));
+        $('dlg-hallazgos').close();
+        toast('Agregado a la observación. Puede ajustarlo.');
+    };
+    // Solo lo que escribió el interventor: un mensaje ya agregado no vuelve a sugerir los suyos
+    function sugerirHallazgos() {
+        var texto = campoObs().value;
+        HALLAZGOS.forEach(function (h) { texto = texto.split(h.m).join(' '); });
+        var idx = buscarHallazgos(texto, true).slice(0, 3);
+        $('obs-sug').hidden = !idx.length;
+        $('obs-sug').innerHTML = idx.length ? '💡 Posibles hallazgos: ' + idx.map(function (i) {
+            return '<button type="button" data-hall="' + i + '" title="Ver el mensaje">' + esc(HALLAZGOS[i].t) + '</button>';
+        }).join('') : '';
+    }
+    $('obs-sug').onclick = function (ev) { var b = ev.target.closest('[data-hall]'); if (b) abrirHallazgos(HALLAZGOS[b.dataset.hall].t); };
 
     // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
     // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan

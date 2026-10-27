@@ -31,6 +31,7 @@
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
+            <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
             <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <hr>
@@ -110,6 +111,7 @@
                 <div class="ia" id="ia-resultado" hidden></div>
             </fieldset>
             <label class="ancho">OBSERVACIONES NOVEDADES <textarea data-campo="OBSERVACIONES NOVEDADES" placeholder="SIN NOVEDAD"></textarea></label>
+            <div class="ancho obs-sug" id="obs-sug" hidden></div>
             <fieldset class="ancho">
                 <legend>Subsanación</legend>
                 <div class="grid">
@@ -170,6 +172,15 @@
             <span class="sub">Con los filtros de la lista. Así queda al abrirlo en Excel.</span>
             <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
         </div>
+    </div>
+</dialog>
+<dialog id="dlg-hallazgos">
+    <div class="cuerpo">
+        <h2>📋 Posibles hallazgos
+            <button type="button" class="cerrar-dlg" id="hall-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <input type="search" id="hall-buscar" aria-label="Buscar hallazgo" placeholder="Escriba qué vio: sopladora, piedras, carro parqueado, lluvia…" autocomplete="off">
+        <div class="sub" id="hall-cuenta"></div>
+        <div class="hall-lista" id="hall-lista"></div>
     </div>
 </dialog>
 <dialog id="dlg-nota">
