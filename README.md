@@ -121,6 +121,10 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
   en subsanaciones puede filtrar por usuario (`0005_visitas_por_usuario.sql`). Las que no tienen usuario solo las ve el admin.
 - `rutas` (pre-rutas): de cada usuario, también el administrador (`0006_rutas_por_usuario.sql`); dos personas pueden
   tener pre-ruta para la misma cuadrilla. El mapa rápido las toma de la copia del equipo, que es del usuario de la sesión.
+- `informes` y `pendientes` (`0010_informe_pendientes.sql`): cada usuario ve y cambia solo los suyos; el administrador los ve todos.
+  `pendientes.html` anota lo que queda por hacer (un renglón por pendiente; "en la mañana", "en la tarde", "mañana" o "el viernes"
+  se leen solos) y `informe.html` arma el *Reporte diario de actividades* para WhatsApp, con sugerencias de las visitas, los PQR
+  y los pendientes hechos ese día.
 - `contrato_secciones`: solo administradores y usuarios con `perfiles.ver_contrato` (casilla "Puede ver el contrato" en
   usuarios.html, `0007_contrato_permiso.sql`); a los demás no les aparece "Contrato" en el encabezado.
 - `perfiles` (nombre y rol de cada usuario): los lee quien tenga sesión; solo cambian con las funciones `admin_*`

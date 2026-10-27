@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Pendientes</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📌</span>
+        <div class="nombre"><h1>Pendientes</h1><div class="lema">Lo que queda por hacer, por día y momento</div></div>
+    </div>
+    <nav class="nav-app" aria-label="Secciones">
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 <span>PQR</span></a>
+        <a href="pendientes.html" aria-current="page">📌 <span>Pendientes</span></a>
+        <a href="informe.html" title="Reporte diario de actividades">🗒️ <span>Informe</span></a>
+        <a href="contrato.html" id="nav-contrato" hidden title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main>
+    <section class="tarjeta nuevo">
+        <h2>＋ Anotar</h2>
+        <textarea id="nuevo" rows="3" placeholder="Un pendiente por renglón. Ej.:&#10;revisar pqr doce de octubre - robledo en la mañana&#10;en la tarde pqr manrique"></textarea>
+        <div class="opciones">
+            <div class="grupo" id="g-dia" role="group" aria-label="Para cuándo">
+                <span>PARA</span>
+                <button type="button" class="chip" data-dia="hoy">Hoy</button>
+                <button type="button" class="chip" data-dia="manana">Mañana</button>
+                <input type="date" id="otro-dia" aria-label="Otro día">
+            </div>
+            <div class="grupo" id="g-momento" role="group" aria-label="Momento del día">
+                <span>MOMENTO</span>
+                <button type="button" class="chip" data-momento="">Cualquiera</button>
+                <button type="button" class="chip" data-momento="manana">☀️ Mañana</button>
+                <button type="button" class="chip" data-momento="tarde">🌇 Tarde</button>
+            </div>
+        </div>
+        <div class="previa" id="previa"></div>
+        <div class="acciones">
+            <span class="sub">«en la mañana», «en la tarde», «mañana» o «el viernes» en el texto se toman solos.</span>
+            <span class="espacio"></span>
+            <button type="button" class="primario" id="btn-agregar">Agregar</button>
+        </div>
+    </section>
+
+    <div id="estado" class="estado-carga">Cargando…</div>
+    <div id="lista"></div>
+    <p class="nota-privada">🔒 Sus pendientes solo los ve usted (y el administrador). Lo que marque como hecho aparece en el 🗒️ Informe de ese día.</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/diario/pendientes.js"></script>
+</body>
+</html>
