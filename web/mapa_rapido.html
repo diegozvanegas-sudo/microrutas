@@ -111,6 +111,8 @@
     .leaflet-popup-content .ficha-lote .cab { cursor: move; touch-action: none; user-select: none; }
     .leaflet-popup.movida .leaflet-popup-tip-container { display: none; }
     .leaflet-popup.movida .leaflet-popup-content-wrapper { box-shadow: 0 8px 28px rgba(0, 0, 0, .35); }
+    .leaflet-popup.arrastrando { opacity: .9; }
+    .leaflet-popup.arrastrando .leaflet-popup-content .ficha-lote .cab { cursor: grabbing; }
     #ficha .ampliar-ficha { top: 12px; right: 50px; width: 32px; height: 32px; line-height: 32px; color: var(--muted); }
     #ficha .ficha-lote .cab { padding-right: 76px; }
     #ficha.grande { max-height: calc(100dvh - 24px); }
@@ -639,18 +641,35 @@
     }
     // Arrastrar la ventana por el título: lo movido queda como desplazamiento (offset) de la ventana, así se mantiene
     // junto al lote al mover o acercar el mapa
+    // Se escucha en la ventana (no en el título): si el contenido se vuelve a dibujar, el arrastre sigue funcionando.
+    // Con captura del puntero la ventana sigue al mouse o al dedo aunque se salga de ella, y suelta siempre al levantar.
     function moverPopup(pop, el) {
         var cab = el.querySelector('.ficha-lote .cab');
-        if (!cab) return;
-        cab.title = 'Arrastre para mover la ventana';
-        var inicio, arrastre = new L.Draggable(el, cab);
-        arrastre.on('dragstart', function () { inicio = L.DomUtil.getPosition(el); });
-        arrastre.on('dragend', function () {
-            pop.options.offset = L.point(pop.options.offset || [0, 7]).add(L.DomUtil.getPosition(el).subtract(inicio));
-            el.classList.add('movida');
-            pop.update();
+        if (cab) cab.title = 'Arrastre para mover la ventana';
+        el.addEventListener('pointerdown', function (ev) {
+            if (ev.button !== 0 || !ev.target.closest('.ficha-lote .cab') || ev.target.closest('button, a')) return;
+            ev.preventDefault();
+            var x0 = ev.clientX, y0 = ev.clientY, off0 = L.point(pop.options.offset || [0, 7]), movio = false;
+            try { el.setPointerCapture(ev.pointerId); } catch (e) {}
+            function mover(e) {
+                var d = L.point(e.clientX - x0, e.clientY - y0);
+                if (!movio && Math.abs(d.x) + Math.abs(d.y) < 4) return;
+                movio = true;
+                el.classList.add('movida', 'arrastrando');
+                pop.options.offset = off0.add(d);
+                try { pop._updatePosition(); } catch (er) {}
+            }
+            function soltar(e) {
+                try { el.releasePointerCapture(e.pointerId); } catch (er) {}
+                el.classList.remove('arrastrando');
+                el.removeEventListener('pointermove', mover);
+                el.removeEventListener('pointerup', soltar);
+                el.removeEventListener('pointercancel', soltar);
+            }
+            el.addEventListener('pointermove', mover);
+            el.addEventListener('pointerup', soltar);
+            el.addEventListener('pointercancel', soltar);
         });
-        arrastre.enable();
     }
     function alternarAmpliar() {
         fichaGrande = !fichaGrande;
@@ -660,8 +679,8 @@
         if (p && map.hasLayer(p)) {
             L.extend(p.options, medidasPopup());
             p.getElement().classList.toggle('grande', fichaGrande);
-            p.update();
-            try { p._adjustPan(); } catch (e) {}
+            // Sin update(): volvería a dibujar el contenido. Solo medidas y posición
+            try { p._updateLayout(); p._updatePosition(); p._adjustPan(); } catch (e) {}
         }
     }
     map.on('popupopen', function (e) {
