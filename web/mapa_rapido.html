@@ -231,6 +231,12 @@
     var miPunto = null, miPos = null, miPrec = Infinity, miHora = 0, centrar = false, avisoUbic = false, avisoPrec = false;
     // Círculo de precisión: margen de error del GPS (usted está en algún punto dentro). Se puede ocultar desde 🗂 Capas
     var miCirculo = null, verPrecision = leer('rapido_precision', true);
+    // Paneles propios: el punto azul va encima de lotes, rutas y resaltes (antes compartía el lienzo y las líneas lo tapaban);
+    // el círculo de precisión queda debajo de los lotes para no opacarlos
+    map.createPane('miPrecision').style.zIndex = 390;
+    map.createPane('miPunto').style.zIndex = 650;
+    map.getPane('miPrecision').style.pointerEvents = map.getPane('miPunto').style.pointerEvents = 'none';
+    var rendPrecision = L.svg({ pane: 'miPrecision' }), rendPunto = L.svg({ pane: 'miPunto' });
     function pintarCirculo() {
         if (!miCirculo || !miPunto) return;
         if (verPrecision) { if (!miPunto.hasLayer(miCirculo)) { miPunto.addLayer(miCirculo); miCirculo.bringToBack(); } }
@@ -276,8 +282,13 @@
         }
         if (miPunto) map.removeLayer(miPunto);
         // El círculo de precisión solo si es razonable: una ubicación por red (±3 km) lo extiende por media ciudad
-        miCirculo = e.accuracy <= 500 ? L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false }) : null;
-        miPunto = L.layerGroup([L.circleMarker(e.latlng, { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1, interactive: false })]).addTo(map);
+        miCirculo = e.accuracy <= 500 ? L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false, pane: 'miPrecision', renderer: rendPrecision }) : null;
+        // Halo azul claro + punto con borde blanco grueso: se distingue sobre ortofoto y sobre las rutas de colores
+        var punto = { interactive: false, pane: 'miPunto', renderer: rendPunto };
+        miPunto = L.layerGroup([
+            L.circleMarker(e.latlng, L.extend({ radius: 14, stroke: false, fillColor: '#2563eb', fillOpacity: .25 }, punto)),
+            L.circleMarker(e.latlng, L.extend({ radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }, punto))
+        ]).addTo(map);
         pintarCirculo();
         if (centrar) { centrar = false; map.setView(e.latlng, Math.max(map.getZoom(), 17)); }
     });
