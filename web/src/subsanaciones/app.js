@@ -1758,6 +1758,15 @@ export function iniciar(api, CFG) {
     };
     $('excel-hojas').onclick = function (ev) { var b = ev.target.closest('[data-hoja]'); if (b) verHoja(+b.dataset.hoja); };
     $('excel-cerrar').onclick = function () { $('dlg-excel').close(); };
+    // ⤢ / ⤡: ventana a pantalla completa o normal; queda como se dejó
+    function ampliarExcel(si) {
+        $('dlg-excel').classList.toggle('completo', si);
+        $('excel-ampliar').textContent = si ? '⤡' : '⤢';
+        $('excel-ampliar').title = $('excel-ampliar').ariaLabel = si ? 'Tamaño normal' : 'Pantalla completa';
+        try { localStorage.setItem('excel_completo', si ? '1' : ''); } catch (e) {}
+    }
+    try { ampliarExcel(localStorage.getItem('excel_completo') === '1'); } catch (e) {}
+    $('excel-ampliar').onclick = function () { ampliarExcel(!$('dlg-excel').classList.contains('completo')); };
     $('excel-descargar').onclick = function () {
         var b = this;
         b.disabled = true;
