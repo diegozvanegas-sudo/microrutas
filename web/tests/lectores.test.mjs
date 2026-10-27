@@ -227,6 +227,13 @@ test('PQR: respuestas de cierre según la visita', () => {
     assert.match(armarRespuestas({ ...base, resultado: 'subsanado', contacto: 'no' })[0].texto, /No fue posible establecer contacto/);
     // Sin fecha del corte queda marcado para llenarlo
     assert.match(armarRespuestas({ ...base, fechaCorte: '', resultado: 'ejecutado' })[0].texto, /\[fecha del corte\]/);
+    // Casos que no son del servicio no prometen "siguientes rondas"; los demás sí
+    assert.match(armarRespuestas({ ...base, resultado: 'bajo', fechaProxima: '2026-11-05' })[0].texto, /inferior a 10 cm[\s\S]*intervenida el 5 de noviembre de 2026[\s\S]*monitoreo permanente/);
+    assert.match(armarRespuestas({ ...base, resultado: 'residuos' })[0].texto, /8 horas hábiles/);
+    for (const r of ['ambiental', 'jardin', 'arbol', 'catastro', 'canabrava', 'noubicada'])
+        assert.doesNotMatch(armarRespuestas({ ...base, resultado: r })[0].texto, /monitoreo permanente/, r);
+    // Un resultado desconocido responde como "ya estaba ejecutado"
+    assert.equal(armarRespuestas({ ...base, resultado: 'otro' })[0].texto, armarRespuestas({ ...base, resultado: 'ejecutado' })[0].texto);
 });
 
 test('PQR: temas de la queja para buscar en el contrato y cláusulas citadas', () => {
