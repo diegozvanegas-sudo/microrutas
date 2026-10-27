@@ -101,7 +101,15 @@
     .leaflet-container a.leaflet-popup-close-button { top: 8px; right: 8px; width: 34px; height: 34px; border-radius: 50%; background: var(--bg);
         color: var(--ink); font: 600 24px/34px system-ui, sans-serif; z-index: 2; }
     .leaflet-container a.leaflet-popup-close-button:hover { background: #dfe6ea; color: var(--ink); }
-    .leaflet-popup-content .ficha-lote .cab { padding-right: 36px; }
+    .leaflet-popup-content .ficha-lote .cab { padding-right: 76px; }
+    /* ⤢ Ampliar la ventana del lote: al lado de la X, con el mismo estilo */
+    .ampliar-ficha { position: absolute; top: 8px; right: 48px; z-index: 2; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 50%;
+        background: var(--bg); color: var(--ink); font: 600 18px/34px system-ui, sans-serif; text-align: center; cursor: pointer; }
+    .ampliar-ficha:hover { background: #dfe6ea; }
+    .leaflet-popup.grande .ficha-lote { min-width: 380px; }
+    #ficha .ampliar-ficha { top: 12px; right: 50px; width: 32px; height: 32px; line-height: 32px; color: var(--muted); }
+    #ficha .ficha-lote .cab { padding-right: 76px; }
+    #ficha.grande { max-height: calc(100dvh - 24px); }
     #ficha { position: fixed; left: 0; right: 0; bottom: 0; z-index: 1002; background: var(--surface); border-radius: 16px 16px 0 0;
              box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 16px calc(16px + env(safe-area-inset-bottom));
              max-height: 55vh; overflow-y: auto; transform: translateY(105%); transition: transform .22s ease; }
@@ -173,7 +181,7 @@
     <div id="leyenda" hidden></div>
 </div>
 <div id="map"></div>
-<div id="ficha" role="dialog" aria-label="Datos del lote"><div class="asa"></div><button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button><div id="ficha-contenido"></div></div>
+<div id="ficha" role="dialog" aria-label="Datos del lote"><div class="asa"></div><button type="button" class="ampliar-ficha" data-ampliar aria-label="Ampliar">⤢</button><button type="button" class="cerrar" id="ficha-cerrar" aria-label="Cerrar">×</button><div id="ficha-contenido"></div></div>
 <div id="sel-barra" hidden><div class="txt" id="sel-txt"></div>
     <button type="button" class="secundario" id="sel-cancelar">Cancelar</button>
     <button type="button" class="primario" id="sel-crear">Crear pre-ruta</button></div>
@@ -612,9 +620,46 @@
     // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa
     var movil = window.matchMedia('(max-width: 760px)');
     function verLote(capa, latlng) { abrirPanel(popupLote(capa), latlng || puntoLote(capa)); }
+    // ⤢ La ventana del lote se puede ampliar (más alta y ancha; en el celular, casi toda la pantalla). Se recuerda.
+    var fichaGrande = leer('rapido_ficha_grande', false);
+    function medidasPopup() {
+        return fichaGrande ? { maxHeight: Math.max(420, map.getSize().y - 110), maxWidth: Math.min(560, map.getSize().x - 60), minWidth: Math.min(380, map.getSize().x - 60) }
+                           : { maxHeight: 420, maxWidth: 330, minWidth: 50 };
+    }
+    function pintarAmpliar() {
+        document.querySelectorAll('[data-ampliar]').forEach(function (b) {
+            b.textContent = fichaGrande ? '⤡' : '⤢';
+            b.title = fichaGrande ? 'Achicar la ventana' : 'Ampliar la ventana'; b.setAttribute('aria-label', b.title);
+        });
+        $('ficha').classList.toggle('grande', fichaGrande);
+    }
+    function alternarAmpliar() {
+        fichaGrande = !fichaGrande;
+        guardar('rapido_ficha_grande', fichaGrande);
+        pintarAmpliar();
+        var p = map._popup;
+        if (p && map.hasLayer(p)) {
+            L.extend(p.options, medidasPopup());
+            p.getElement().classList.toggle('grande', fichaGrande);
+            p.update();
+            try { p._adjustPan(); } catch (e) {}
+        }
+    }
+    map.on('popupopen', function (e) {
+        var el = e.popup.getElement();
+        if (!el.querySelector('.ficha-lote') || el.querySelector('[data-ampliar]')) return;
+        el.classList.toggle('grande', fichaGrande);
+        var b = L.DomUtil.create('button', 'ampliar-ficha', el);
+        b.type = 'button'; b.setAttribute('data-ampliar', '');
+        L.DomEvent.disableClickPropagation(b);
+        b.onclick = alternarAmpliar;
+        pintarAmpliar();
+    });
+    document.querySelector('#ficha [data-ampliar]').onclick = alternarAmpliar;
+    pintarAmpliar();
     function abrirPanel(html, ll) {
         if (!movil.matches) {
-            L.popup({ maxHeight: 420, maxWidth: 330 }).setLatLng(ll).setContent(html).openOn(map);
+            L.popup(medidasPopup()).setLatLng(ll).setContent(html).openOn(map);
             return;
         }
         $('ficha-contenido').innerHTML = html;
