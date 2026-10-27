@@ -933,6 +933,7 @@ export function iniciar(api, CFG) {
         var sinOrden = {};
         lista.forEach(function (r) { if (!r.orden) sinOrden[r.cuadrilla] = true; });
         if (!desdeCache) rutas.forEach(function (ruta) { if (sinOrden[ruta.cuad]) { ordenar(ruta, posicion); subirRuta(ruta); } });
+        repartirSinCuadrilla(!desdeCache);
         guardarRutas();
     }
     function agregarParadas(cuad, nuevas) {
@@ -941,7 +942,9 @@ export function iniciar(api, CFG) {
         nuevas.forEach(function (n) {
             var ya = ruta.paradas.find(function (p) { return p.id === n.id; });
             if (ya) {
-                ya.fecha = n.fecha || ya.fecha; ya.creada = n.creada; ya.carga = n.carga || ya.carga;
+                // El mismo lote ejecutado de nuevo: se revisa la ejecución más reciente
+                if (n.fecha && (!ya.fecha || n.fecha > ya.fecha)) ya.fecha = n.fecha;
+                ya.creada = n.creada; ya.carga = n.carga || ya.carga;
                 if (n.encurso !== undefined) ya.encurso = n.encurso;
                 if (n.sinfotos !== undefined) ya.sinfotos = n.sinfotos;
             } else ruta.paradas.push(n);
@@ -949,6 +952,27 @@ export function iniciar(api, CFG) {
         // Cuadrillas en orden numérico; las sin cuadrilla al final
         rutas.sort(function (a, b) { return (a.cuad ? 0 : 1) - (b.cuad ? 0 : 1) || a.cuad.localeCompare(b.cuad, 'es', { numeric: true }); });
         return ruta;
+    }
+    // Cuadrilla del lote en la programación ('' si no está)
+    function cuadDe(id) { return String(infoLote(String(id)).cuad || '').replace(/^C\s*/i, ''); }
+    // Pre-ruta sin cuadrilla: cada lote pasa a la tarjeta de la cuadrilla que lo tiene en la programación, con su fecha
+    // de ejecución. Solo se quedan sin cuadrilla los que no están en la programación. subir: guarda el cambio en la base.
+    function repartirSinCuadrilla(subir) {
+        var sin = rutas.find(function (r) { return !r.cuad; });
+        if (!sin) return;
+        var tocadas = [];
+        sin.paradas = sin.paradas.filter(function (p) {
+            var c = cuadDe(p.id);
+            if (!c) return true;
+            var ruta = agregarParadas(c, [p]);
+            if (tocadas.indexOf(ruta) === -1) tocadas.push(ruta);
+            return false;
+        });
+        if (!tocadas.length) return;
+        if (!sin.paradas.length) rutas.splice(rutas.indexOf(sin), 1);
+        tocadas.forEach(function (r) { ordenar(r, posicion); if (subir) subirRuta(r); });
+        if (subir) subirRuta(sin);
+        guardarRutas();
     }
 
     function parsearMensaje(texto) { return leerMensaje(texto, LOTES); }
@@ -1030,15 +1054,15 @@ export function iniciar(api, CFG) {
     // Todas las cuadrillas: entra cada lote pendiente; los que no tienen coordenadas van al final y Maps los busca por
     // su dirección. Solo quedan fuera los que la cuadrilla aún ejecuta (se cuentan aparte).
     function rutaCompleta() {
-        var porId = {}, lista = [], curso = 0;
+        var porId = {}, lista = [], curso = [];
         rutas.forEach(function (ruta) {
             ruta.paradas.forEach(function (p) {
                 var x = infoLote(p.id), cuad = ruta.cuad || 'pre-ruta';
                 if (visitaDe(p, x)) return;
-                if (p.encurso) { curso++; return; }
                 if (porId[x.id]) { if (porId[x.id].cuads.indexOf(cuad) === -1) porId[x.id].cuads.push(cuad); return; }
-                x.cuads = [cuad]; x.despues = p.despues;
-                porId[x.id] = x; lista.push(x);
+                x.cuads = [cuad]; x.despues = p.despues; x.encurso = p.encurso;
+                porId[x.id] = x;
+                (p.encurso ? curso : lista).push(x);
             });
         });
         var conC = function (x) { return puntosDe(String(x.id)).length; };
@@ -1076,13 +1100,17 @@ export function iniciar(api, CFG) {
         var nombre = function (x) { return x.lote ? 'Lote ' + x.lote : x.mr || x.id; };
         var idMapa = function (x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; };
         var plegada = !!plegadas['*todas'];
+        var cuads = function (x) { return x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Sin cuadrilla' : 'C' + c; }).join(', '); };
+        var todos = orden.length + orden.sinUbic.length + orden.curso.length;
         return '<div class="ruta-card ruta-completa' + (plegada ? ' plegada' : '') + '">' +
             '<div class="ruta-cab">' +
                 '<button type="button" class="ruta-plegar" data-ruta="plegar-todas" aria-expanded="' + !plegada + '" aria-label="Plegar o desplegar">▾</button>' +
-                '<div data-ruta="plegar-todas"><b>🗺 Ruta completa</b> <span class="sub">· ' + rutas.length + ' pre-rutas</span>' +
-                '<div class="sub">' + orden.length + ' lotes por revisar en un solo recorrido' + (total ? ' · ~' + textoDist(total) : '') +
+                '<div data-ruta="plegar-todas"><b>🗺 Ruta completa</b> <span class="sub">· ' + todos + ' lotes pendientes de ' +
+                    rutas.map(function (r) { return r.cuad ? 'C' + r.cuad : 'sin cuadrilla'; }).join(', ') + '</span>' +
+                '<div class="sub">' + orden.length + ' en un solo recorrido' + (total ? ' · ~' + textoDist(total) : '') +
                     (tramos.length > 1 ? ' · ' + tramos.length + ' tramos en Google Maps' : '') + '</div>' +
-                (orden.curso ? '<div class="sub">▶ ' + (orden.curso === 1 ? '1 lote sigue' : orden.curso + ' lotes siguen') + ' en ejecución (no entran hasta que la cuadrilla termine)</div>' : '') +
+                (orden.curso.length ? '<div class="sub">▶ ' + (orden.curso.length === 1 ? '1 lote sigue' : orden.curso.length + ' lotes siguen') + ' en ejecución (entran cuando la cuadrilla termine)</div>' : '') +
+                (orden.sinUbic.length ? '<div class="sub">' + orden.sinUbic.length + ' sin ubicación ni dirección</div>' : '') +
                 '</div></div>' +
             '<div class="ruta-acciones">' +
                 tramos.map(function (t, k) {
@@ -1099,7 +1127,7 @@ export function iniciar(api, CFG) {
                 return '<li class="parada' + (i ? '' : ' siguiente') + (i && i % TRAMO === 0 ? ' corte' : '') + '">' +
                     '<span class="n">' + (i + 1) + '</span>' +
                     '<div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' + (x.lote && x.mr ? ' <span class="sub">' + esc(x.mr) + '</span>' : '') +
-                        ' <span class="sub">· ' + esc(x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Pre-ruta' : 'C' + c; }).join(', ')) + '</span>' +
+                        ' <span class="sub">· ' + esc(cuads(x)) + '</span>' +
                         (x.despues ? ' <span class="tag-despues">Para después</span>' : '') + '</div>' +
                         (x.d ? '<div class="sub dir">' + esc(x.d) + '</div>' : '') +
                         (puntosDe(String(x.id)).length ? '' : '<div class="sub alerta">Sin coordenadas: Google Maps lo busca por la dirección</div>') + '</div>' +
@@ -1107,8 +1135,13 @@ export function iniciar(api, CFG) {
                 '</li>';
             }).join('') + orden.sinUbic.map(function (x) {
                 return '<li class="parada"><span class="n">–</span><div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' +
-                    ' <span class="sub">· ' + esc(x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Pre-ruta' : 'C' + c; }).join(', ')) + '</span></div>' +
+                    ' <span class="sub">· ' + esc(cuads(x)) + '</span></div>' +
                     '<div class="sub alerta">Sin ubicación ni dirección: no entra en la ruta de Google Maps</div></div></li>';
+            }).join('') + orden.curso.map(function (x) {
+                return '<li class="parada encurso"><span class="n">▶</span><div class="info"><div class="titulo"><b>' + esc(nombre(x)) + '</b>' +
+                    (x.lote && x.mr ? ' <span class="sub">' + esc(x.mr) + '</span>' : '') + ' <span class="sub">· ' + esc(cuads(x)) + '</span>' +
+                    ' <span class="tag-curso">▶ Cuadrilla trabajando aquí</span></div>' +
+                    (x.d ? '<div class="sub dir">' + esc(x.d) + '</div>' : '') + '</div></li>';
             }).join('') + '</ol></div>';
     }
 
@@ -1193,6 +1226,7 @@ export function iniciar(api, CFG) {
             agregarParadas(r.cuad || '', r.paradas || r.lotes.map(function (id) { return { id: id, fecha: r.fecha || '', creada: r.creada }; }));
         });
         if (antiguas) { rutas.forEach(function (r) { ordenar(r, null); }); guardarRutas(); }
+        repartirSinCuadrilla(false);
     })();
 
     // Pre-rutas plegadas en este dispositivo, por cuadrilla
@@ -1499,7 +1533,9 @@ export function iniciar(api, CFG) {
         vistaRuta();
     }
     function abrirDlgRuta() {
-        ['ruta-texto', 'ruta-fecha', 'ruta-cuad', 'ruta-agregar'].forEach(function (id) { $(id).value = ''; });
+        ['ruta-texto', 'ruta-cuad', 'ruta-agregar'].forEach(function (id) { $(id).value = ''; });
+        // Siempre con fecha de ejecución: la del mensaje si la trae, si no hoy (se puede cambiar)
+        $('ruta-fecha').value = hoy();
         rutaQuitados = []; rutaAgregados = [];
         $('ruta-tipo-hecho').checked = true;
         document.querySelector('[for="ruta-tipo-auto"]').hidden = true;
@@ -1515,6 +1551,12 @@ export function iniciar(api, CFG) {
     function lotesEnCurso(p, lista) {
         return $('ruta-tipo-curso').checked ? lista : $('ruta-tipo-auto').checked ? p.enCurso.filter(function (v) { return lista.indexOf(v) !== -1; }) : [];
     }
+    function repartoTexto(lista) {
+        var n = {};
+        lista.forEach(function (id) { var c = cuadDe(id); n[c] = (n[c] || 0) + 1; });
+        return Object.keys(n).sort(function (a, b) { return (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, 'es', { numeric: true }); })
+            .map(function (c) { return (c ? 'C' + c : 'sin cuadrilla') + ': ' + n[c]; }).join(' · ');
+    }
     function vistaRuta() {
         var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p), cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), curso = lotesEnCurso(p, lista);
         $('ruta-vista').innerHTML = lista.length ? '<div class="sub">' + lista.length + ' lote' + (lista.length === 1 ? '' : 's') + ' en la pre-ruta (toque × para quitar):</div>' +
@@ -1526,7 +1568,8 @@ export function iniciar(api, CFG) {
                     '<button type="button" class="quitar-lote" data-quitar-lote="' + esc(id) + '" aria-label="Quitar ' + esc(id) + '">×</button></span>';
             }).join('') + (curso.length ? '<div class="sub" style="margin-top:6px"><span class="curso" style="color:#1d4ed8">▶</span> = <b>en ejecución ahora</b>' +
                 (cuad ? ' por la cuadrilla ' + esc(cuad) : '') + '. El lote donde estaba antes esa cuadrilla queda listo para revisar.</div>' : '') +
-            (lista.some(function (id) { return p.sinFotos[id]; }) ? '<div class="sub" style="margin-top:6px">🚫📷 = <b>sin fotos</b>: la cuadrilla reporta que no se le pueden tomar fotos (orden público).</div>' : '')
+            (lista.some(function (id) { return p.sinFotos[id]; }) ? '<div class="sub" style="margin-top:6px">🚫📷 = <b>sin fotos</b>: la cuadrilla reporta que no se le pueden tomar fotos (orden público).</div>' : '') +
+            (cuad ? '' : '<div class="sub" style="margin-top:6px">Sin cuadrilla: cada lote se suma a la de la programación → <b>' + esc(repartoTexto(lista)) + '</b></div>')
             : '<div class="sub">Se toman del mensaje la fecha, la cuadrilla y los números de lote (o códigos de microrruta), o agréguelos a mano.</div>';
         $('ruta-crear').disabled = !lista.length;
         $('ruta-crear').textContent = curso.length && curso.length === lista.length ? 'Marcar en ejecución' : 'Crear pre-ruta';
@@ -1575,29 +1618,40 @@ export function iniciar(api, CFG) {
     $('ruta-crear').onclick = function () {
         var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p);
         if (!lista.length) return;
-        var cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), fecha = $('ruta-fecha').value;
-        var existia = rutas.some(function (r) { return r.cuad === cuad; });
+        var cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), fecha = $('ruta-fecha').value || hoy();
         var cursoIds = lotesEnCurso(p, lista), curso = cursoIds.length > 0, ahora = new Date(), enCurso = marca(ahora);
-        // La cuadrilla pasó a otro lote: el que estaba ejecutando ya terminó y queda listo para revisar
-        if (curso) rutas.forEach(function (r) {
-            if (r.cuad === cuad) r.paradas.forEach(function (q) {
-                if (q.encurso && cursoIds.indexOf(q.id) === -1) { if (!q.fecha) q.fecha = q.encurso.slice(0, 10); q.encurso = ''; }
+        // Sin cuadrilla en el mensaje: cada lote va a la tarjeta de su cuadrilla en la programación (no se crea otra tarjeta)
+        var grupos = {};
+        lista.forEach(function (id) { var c = cuad || cuadDe(id); (grupos[c] = grupos[c] || []).push(id); });
+        var nuevas = [], existian = [];
+        Object.keys(grupos).forEach(function (c) {
+            if (rutas.some(function (r) { return r.cuad === c; })) existian.push(c);
+            // La cuadrilla pasó a otro lote: el que estaba ejecutando ya terminó y queda listo para revisar
+            if (curso) rutas.forEach(function (r) {
+                if (r.cuad === c) r.paradas.forEach(function (q) {
+                    if (q.encurso && cursoIds.indexOf(q.id) === -1) { if (!q.fecha) q.fecha = q.encurso.slice(0, 10); q.encurso = ''; }
+                });
             });
+            // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
+            var ruta = agregarParadas(c, grupos[c].map(function (id) {
+                var i = lista.indexOf(id);
+                return { id: id, fecha: fecha, creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
+                         encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '', sinfotos: p.sinFotos[id] || '' };
+            }));
+            ordenar(ruta, posicion);
+            subirRuta(ruta);
+            plegar(ruta.cuad, false);
+            nuevas.push(ruta);
         });
-        // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
-        var ruta = agregarParadas(cuad, lista.map(function (id, i) {
-            return { id: id, fecha: fecha || (curso ? hoy() : ''), creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
-                     encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '', sinfotos: p.sinFotos[id] || '' };
-        }));
-        ordenar(ruta, posicion);
         guardarRutas();
-        subirRuta(ruta);
         $('dlg-ruta').close();
-        plegar(ruta.cuad, false);
         pintarRutas();
-        toast(curso ? 'Cuadrilla ' + (cuad || '') + ' trabajando ahora en ' + cursoIds.join(', ') + '.'
-            : (existia ? 'Se sumaron a la cuadrilla ' + cuad + ' y se reordenó la ruta' : 'Pre-ruta creada y ordenada') + ' · ' + ruta.paradas.length + ' lotes.');
-        var tarjeta = $('ruta').querySelectorAll('.ruta-card')[rutas.indexOf(ruta)];
+        var nombres = Object.keys(grupos).map(function (c) { return (c ? 'C' + c : 'sin cuadrilla') + ' (' + grupos[c].length + ')'; }).join(', ');
+        toast(curso ? 'Trabajando ahora en ' + cursoIds.join(', ') + ' · ' + nombres + '.'
+            : (nuevas.length > 1 ? 'Lotes repartidos por cuadrilla: ' + nombres
+                : existian.length ? 'Se sumaron a la cuadrilla ' + nuevas[0].cuad + ' y se reordenó la ruta' : 'Pre-ruta creada y ordenada') +
+              ' · ejec. ' + aTexto(fecha).slice(0, 5) + '.');
+        var tarjeta = $('ruta').querySelectorAll('.ruta-card:not(.ruta-completa)')[rutas.indexOf(nuevas[0])];
         if (tarjeta) tarjeta.scrollIntoView({ behavior: 'smooth', block: 'start' });
     };
     pintarRutas();
