@@ -7,6 +7,7 @@ import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
+import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
@@ -1736,6 +1737,59 @@ export function iniciar(api, CFG) {
         exportarExcel(filtrados(), items, itemsOp)
             .catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); })
             .then(function () { b.disabled = false; });
+    };
+
+    // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
+    // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan
+    var NOTA = 'subsanaciones_nota', nota = { titulo: '', texto: '', estilo: 'blanco', grande: false, fecha: true };
+    try { nota = Object.assign(nota, JSON.parse(localStorage.getItem(NOTA)) || {}); } catch (e) {}
+    function guardarNota() { try { localStorage.setItem(NOTA, JSON.stringify(nota)); } catch (e) {} }
+    function pintarNota() {
+        $('nota-estilos').querySelectorAll('[data-estilo]').forEach(function (b) { b.setAttribute('aria-checked', b.dataset.estilo === nota.estilo); });
+        dibujarNota($('nota-canvas'), { titulo: nota.titulo, texto: nota.texto || 'Escriba arriba el texto…', estilo: nota.estilo, grande: nota.grande,
+            pie: nota.fecha ? pieFecha(new Date()) : '' });
+    }
+    $('nota-estilos').innerHTML = Object.keys(ESTILOS_NOTA).map(function (k) {
+        var e = ESTILOS_NOTA[k];
+        return '<button type="button" role="radio" data-estilo="' + k + '" title="' + e.nombre + '" aria-label="' + e.nombre + '" style="background:' + e.fondo + ';outline:4px solid ' + e.acento + ';outline-offset:-8px"></button>';
+    }).join('');
+    $('btn-nota').onclick = function () {
+        $('nota-titulo').value = nota.titulo; $('nota-texto').value = nota.texto;
+        $('nota-grande').checked = nota.grande; $('nota-fecha').checked = nota.fecha;
+        $('nota-compartir').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] }));
+        pintarNota();
+        $('dlg-nota').showModal();
+        if (!nota.texto) $('nota-texto').focus();
+    };
+    $('dlg-nota').addEventListener('input', function () {
+        nota.titulo = $('nota-titulo').value; nota.texto = $('nota-texto').value;
+        nota.grande = $('nota-grande').checked; nota.fecha = $('nota-fecha').checked;
+        guardarNota(); pintarNota();
+    });
+    $('nota-estilos').onclick = function (ev) { var b = ev.target.closest('[data-estilo]'); if (b) { nota.estilo = b.dataset.estilo; guardarNota(); pintarNota(); } };
+    $('nota-cerrar').onclick = function () { $('dlg-nota').close(); };
+    function imagenNota() {
+        if (!nota.texto.trim() && !nota.titulo.trim()) { $('nota-texto').focus(); toast('Escriba el texto de la imagen.'); return null; }
+        pintarNota();
+        return aArchivo($('nota-canvas'));
+    }
+    // Guardar: queda en Descargas (la galería del celular la muestra); el texto se borra para la próxima
+    $('nota-guardar').onclick = function () {
+        var p = imagenNota();
+        if (p) p.then(function (f) {
+            var a = document.createElement('a'), url = URL.createObjectURL(f);
+            a.href = url; a.download = f.name; document.body.appendChild(a); a.click(); a.remove();
+            setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+            nota.titulo = ''; nota.texto = ''; guardarNota();
+            $('dlg-nota').close();
+            toast('✓ Imagen guardada en el celular (Descargas): ' + f.name);
+        }).catch(function (e) { toast('No se pudo guardar la imagen: ' + e.message); });
+    };
+    // Compartir: WhatsApp, Drive o "Guardar en Fotos" según lo que ofrezca el celular
+    $('nota-compartir').onclick = function () {
+        var p = imagenNota();
+        if (p) p.then(function (f) { return navigator.share({ files: [f] }); })
+            .catch(function (e) { if (e && e.name !== 'AbortError') toast('No se pudo compartir: ' + e.message); });
     };
 
     // ---------- Fotos a PDF (src/subsanaciones/fotospdf.js) ----------

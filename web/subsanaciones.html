@@ -31,6 +31,7 @@
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
+            <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <hr>
             <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
@@ -159,6 +160,26 @@
         <div class="pie">
             <span class="sub">Con los filtros de la lista. Así queda al abrirlo en Excel.</span>
             <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-nota">
+    <div class="cuerpo">
+        <h2>🖊️ Texto a imagen
+            <button type="button" class="cerrar-dlg" id="nota-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="nota-campos">
+            <label>TÍTULO <input type="text" id="nota-titulo" autocomplete="off" placeholder="Opcional: Novedades cuadrilla 4"></label>
+            <label>TEXTO <textarea id="nota-texto" rows="5" placeholder="Escriba lo que quiere que diga la imagen"></textarea></label>
+            <div class="nota-opciones">
+                <div class="nota-estilos" id="nota-estilos" role="radiogroup" aria-label="Colores"></div>
+                <label class="nota-check"><input type="checkbox" id="nota-grande"> Letra grande</label>
+                <label class="nota-check"><input type="checkbox" id="nota-fecha" checked> Fecha y hora abajo</label>
+            </div>
+        </div>
+        <div class="nota-vista"><canvas id="nota-canvas" aria-label="Vista previa de la imagen"></canvas></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="nota-compartir" hidden>📤 Compartir</button>
+            <button type="button" class="primario" id="nota-guardar">⬇ Guardar en el celular</button>
         </div>
     </div>
 </dialog>
