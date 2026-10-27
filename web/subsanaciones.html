@@ -155,7 +155,15 @@
     <div class="cuerpo">
         <h2>📗 Vista previa del Excel <span class="sub" id="excel-info"></span>
             <button type="button" class="cerrar-dlg" id="excel-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
-        <div class="excel-hojas" id="excel-hojas" role="tablist" aria-label="Hojas del Excel"></div>
+        <div class="excel-barra">
+            <div class="excel-hojas" id="excel-hojas" role="tablist" aria-label="Hojas del Excel"></div>
+            <div class="excel-zoom" role="group" aria-label="Zoom">
+                <button type="button" id="excel-menos" aria-label="Alejar" title="Alejar">−</button>
+                <button type="button" id="excel-nivel" title="Volver a 100 %">100 %</button>
+                <button type="button" id="excel-mas" aria-label="Acercar" title="Acercar">+</button>
+                <button type="button" id="excel-ajustar" title="Que se vean todas las columnas a lo ancho">↔ Ajustar</button>
+            </div>
+        </div>
         <div class="excel-vista" id="excel-vista"></div>
         <div class="pie">
             <span class="sub">Con los filtros de la lista. Así queda al abrirlo en Excel.</span>

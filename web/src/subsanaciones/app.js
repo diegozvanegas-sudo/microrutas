@@ -1717,7 +1717,34 @@ export function iniciar(api, CFG) {
         $('excel-hojas').querySelectorAll('[data-hoja]').forEach(function (b) { b.setAttribute('aria-selected', +b.dataset.hoja === i); });
         $('excel-vista').innerHTML = htmlHoja(hojasVista[i]);
         $('excel-vista').scrollTo(0, 0);
+        aplicarZoom();
     }
+    // Zoom de la vista previa (como el de Excel): − / + de 25 % a 200 %, tocar el % vuelve a 100, "Ajustar" muestra todas
+    // las columnas a lo ancho; también Ctrl + rueda. Queda guardado en este equipo.
+    var zoomXl = 1;
+    try { zoomXl = Math.min(2, Math.max(0.25, +localStorage.getItem('excel_zoom') || 1)); } catch (e) {}
+    function aplicarZoom(z) {
+        if (z) zoomXl = Math.round(Math.min(2, Math.max(0.25, z)) * 100) / 100;
+        var t = $('excel-vista').querySelector('.xl');
+        if (t) t.style.zoom = zoomXl;
+        $('excel-nivel').textContent = Math.round(zoomXl * 100) + ' %';
+        try { localStorage.setItem('excel_zoom', zoomXl); } catch (e) {}
+    }
+    $('excel-menos').onclick = function () { aplicarZoom(zoomXl - (zoomXl > 1 ? 0.25 : 0.1)); };
+    $('excel-mas').onclick = function () { aplicarZoom(zoomXl + (zoomXl >= 1 ? 0.25 : 0.1)); };
+    $('excel-nivel').onclick = function () { aplicarZoom(1); };
+    // Ancho de la hoja al 100 %: columna de números (34 px) + cada columna (ancho × 7 + 5 px, como htmlHoja) + bordes
+    $('excel-ajustar').onclick = function () {
+        var b = $('excel-hojas').querySelector('[aria-selected="true"]'), h = hojasVista[b ? +b.dataset.hoja : 0];
+        if (!h) return;
+        var ancho = h.anchos.reduce(function (s, w) { return s + w * 7 + 6; }, 36);
+        aplicarZoom(($('excel-vista').clientWidth - 4) / ancho);
+    };
+    $('excel-vista').addEventListener('wheel', function (ev) {
+        if (!ev.ctrlKey) return;
+        ev.preventDefault();
+        aplicarZoom(zoomXl * (ev.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }, { passive: false });
     $('btn-excel').onclick = function () {
         var lista = filtrados();
         if (!lista.length) { toast('No hay registros para exportar.'); return; }

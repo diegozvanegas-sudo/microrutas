@@ -135,14 +135,19 @@ fieldset { min-width: 0; }
 #dlg-excel h2 { margin-bottom: 8px; }
 #dlg-excel .pie { align-items: center; margin-top: 12px; }
 #dlg-excel .pie .sub { margin-right: auto; }
-.excel-hojas { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.excel-barra { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+.excel-hojas { display: flex; gap: 4px; flex-wrap: wrap; }
+.excel-zoom { display: flex; gap: 2px; background: #f3f3f3; border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.excel-zoom button { background: none; border: 0; color: var(--ink); font-weight: 700; padding: 5px 11px; border-radius: 6px; min-width: 34px; }
+.excel-zoom button:hover { background: #fff; color: #217346; }
+#excel-nivel { min-width: 62px; font-variant-numeric: tabular-nums; }
 .excel-hojas button { background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 600; }
 .excel-hojas button[aria-selected="true"] { border-color: #217346; color: #217346; background: #e9f5ee; }
 .excel-vista { flex: 1; min-height: 0; overflow: auto; border: 1px solid #c6c6c6; background: #fff; }
 .xl { border-collapse: collapse; table-layout: fixed; width: max-content; font: 11pt Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000; }
 .xl td, .xl th { border: 1px solid #808080; padding: 1px 3px; text-align: center; vertical-align: middle; overflow: hidden; white-space: nowrap; }
 .xl td.ajustar { white-space: normal; }
-.xl .xl-cab th { white-space: normal; font-weight: 700; position: sticky; top: 21px; z-index: 1; }
+.xl .xl-cab th { white-space: normal; font-weight: 700; color: #000; position: sticky; top: 21px; z-index: 1; }
 .xl-letras th { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; height: 20px; position: sticky; top: 0; z-index: 2; }
 .xl th.xl-num, .xl col.xl-num { width: 34px; }
 .xl th.xl-num { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; position: sticky; left: 0; z-index: 1; }
