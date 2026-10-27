@@ -86,21 +86,26 @@
             <h2><span class="paso">2</span> Lo que encontró en la visita</h2>
             <div class="resultados" role="radiogroup" aria-label="Resultado de la visita" id="resultados"></div>
             <div class="rejilla">
-                <label class="campo" data-si="ejecutado subsanado residuos danos">FECHA DEL CORTE <input id="v-corte" type="date"></label>
+                <label class="campo" data-si="ejecutado subsanado residuos danos incompleto calidad terceros jardin">FECHA DEL CORTE <input id="v-corte" type="date"></label>
                 <label class="campo">FECHA DE LA VISITA <input id="v-visita" type="date"></label>
-                <label class="campo" data-si="pendiente bajo restriccion">PRÓXIMA INTERVENCIÓN <input id="v-proxima" type="date"></label>
+                <label class="campo" data-si="pendiente bajo restriccion incompleto ordenpublico lluvia fauna desmonte parcial">PRÓXIMA INTERVENCIÓN <input id="v-proxima" type="date"></label>
                 <label class="campo">CONTACTO CON EL USUARIO
                     <select id="v-contacto">
                         <option value="si">Sí, en el sitio</option>
                         <option value="tel">Sí, por teléfono</option>
                         <option value="no">No se encontró</option>
+                        <option value="sinvisita">No hubo visita (solo el control de ejecución)</option>
                     </select>
                 </label>
+                <label class="campo" data-si="residuos incompleto calidad subsanado parcial">CUADRILLA <input id="v-cuadrilla" inputmode="numeric" placeholder="Ej.: 11"></label>
+                <label class="campo" data-si="residuos incompleto calidad danos">SE CORRIGIÓ / SE PAGÓ EL <input id="v-corregido" type="date"></label>
                 <label class="campo ancho" data-si="privado">EL ÁREA ES
                     <input id="v-area" placeholder="un antejardín o zona de propiedad privada">
                 </label>
             </div>
             <label class="check"><input type="checkbox" id="v-cobro"> Responder lo del cobro en la factura <span class="sub" id="cobro-auto"></span></label>
+            <label class="check"><input type="checkbox" id="v-barrido"> Responder lo del barrido de calles (otro componente del aseo)</label>
+            <label class="check"><input type="checkbox" id="v-mallas"> Se pidió al supervisor retroalimentar sobre el uso de las mallas de protección</label>
             <label class="campo ancho">OBSERVACIÓN (se agrega a la respuesta)
                 <textarea id="v-obs" rows="2" placeholder="Ej.: Se evidencia el frente de la vivienda intervenido, con registro fotográfico."></textarea>
             </label>

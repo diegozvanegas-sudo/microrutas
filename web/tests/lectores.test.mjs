@@ -230,8 +230,22 @@ test('PQR: respuestas de cierre según la visita', () => {
     // Casos que no son del servicio no prometen "siguientes rondas"; los demás sí
     assert.match(armarRespuestas({ ...base, resultado: 'bajo', fechaProxima: '2026-11-05' })[0].texto, /inferior a 10 cm[\s\S]*intervenida el 5 de noviembre de 2026[\s\S]*monitoreo permanente/);
     assert.match(armarRespuestas({ ...base, resultado: 'residuos' })[0].texto, /8 horas hábiles/);
-    for (const r of ['ambiental', 'jardin', 'arbol', 'catastro', 'canabrava', 'noubicada'])
+    for (const r of ['ambiental', 'arbol', 'catastro', 'canabrava', 'noubicada', 'obraprivada', 'parcial'])
         assert.doesNotMatch(armarRespuestas({ ...base, resultado: r })[0].texto, /monitoreo permanente/, r);
+    // Jardín con fecha del corte: el corte sí se hizo, se explicó el alcance y hay seguimiento; sin fecha, no
+    assert.match(armarRespuestas({ ...base, resultado: 'jardin' })[0].texto, /no se realizan labores de ornato ni jardinería[\s\S]*monitoreo permanente/);
+    assert.doesNotMatch(armarRespuestas({ ...base, fechaCorte: '', resultado: 'jardin' })[0].texto, /monitoreo permanente/);
+    // Novedad atendida por la cuadrilla el mismo día de la visita
+    assert.match(armarRespuestas({ ...base, resultado: 'residuos', cuadrilla: '11', fechaCorregido: '2026-10-26' })[0].texto,
+        /supervisor de la cuadrilla 11 para su recolección, la cual se realizó el mismo día 26 de octubre de 2026/);
+    // Sin visita: solo el corte y el monitoreo
+    assert.doesNotMatch(armarRespuestas({ ...base, resultado: 'ejecutado', contacto: 'sinvisita' })[0].texto, /visita/);
+    // Cierre parcial, varios ID y aviso de seguimiento sin cierre
+    assert.match(armarRespuestas({ ...base, resultado: 'parcial' })[0].texto, /^Buenas tardes, favor dar cierre parcial al ID 440774\./);
+    assert.match(armarRespuestas({ ...base, id: '436569 y 436025', resultado: 'danos' })[0].texto, /cierre a los ID 436569 y 436025/);
+    assert.match(armarRespuestas({ ...base, id: '436569 y 436025', resultado: 'seguimientopqr', observacion: 'El usuario no ha enviado la documentación.' })[0].texto,
+        /^Buenas tardes\.\n\nCon el fin de dar seguimiento[^\n]*las PQRS con ID 436569 y 436025, se informa que, a la fecha, el usuario no ha enviado/);
+    assert.match(armarRespuestas({ ...base, resultado: 'ejecutado', barrido: true, mallas: true })[0].texto, /mallas de protección[\s\S]*barrido de calles/);
     // Un resultado desconocido responde como "ya estaba ejecutado"
     assert.equal(armarRespuestas({ ...base, resultado: 'otro' })[0].texto, armarRespuestas({ ...base, resultado: 'ejecutado' })[0].texto);
 });

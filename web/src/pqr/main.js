@@ -4,7 +4,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerPqr, hablaDeCobro, armarRespuestas, RESULTADOS, temasDeQueja } from './plantillas.js';
+import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja } from './plantillas.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
@@ -82,6 +82,10 @@ function abrir(p) {
     $('v-proxima').value = v.fechaProxima || '';
     $('v-contacto').value = v.contacto || 'si';
     $('v-area').value = v.area || '';
+    $('v-cuadrilla').value = v.cuadrilla || '';
+    $('v-corregido').value = v.fechaCorregido || '';
+    $('v-barrido').checked = v.barrido != null ? !!v.barrido : hablaDeBarrido(p.queja);
+    $('v-mallas').checked = !!v.mallas;
     $('v-cobro').checked = v.cobro != null ? !!v.cobro : hablaDeCobro(p.queja);
     $('v-obs').value = v.observacion || '';
     $('respuesta').value = p.respuesta || '';
@@ -112,6 +116,8 @@ function datos() {
     return {
         id: $('f-id').value.trim(), direccion: $('f-direccion').value.trim(), barrio: $('f-barrio').value.trim(),
         resultado: resultado(), fechaCorte: $('v-corte').value, fechaVisita: $('v-visita').value, fechaProxima: $('v-proxima').value,
+        cuadrilla: $('v-cuadrilla').value.trim(), fechaCorregido: $('v-corregido').value, barrido: $('v-barrido').checked, mallas: $('v-mallas').checked,
+        telefono: $('f-telefono').value.trim(),
         contacto: $('v-contacto').value, cobro: $('v-cobro').checked, area: $('v-area').value.trim(), observacion: $('v-obs').value.trim(),
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
     };
@@ -200,6 +206,7 @@ function leerTexto() {
     $('f-id').value = r.id; $('f-fecha').value = r.fecha; $('f-nombre').value = r.nombre;
     $('f-telefono').value = r.telefono; $('f-direccion').value = r.direccion; $('f-barrio').value = r.barrio;
     $('v-cobro').checked = hablaDeCobro(r.queja);
+    $('v-barrido').checked = hablaDeBarrido(r.queja);
     actualizar();
 }
 
