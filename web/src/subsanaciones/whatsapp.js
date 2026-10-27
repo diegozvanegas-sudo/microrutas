@@ -1,6 +1,9 @@
 // Textos para WhatsApp: novedad de una visita y resumen de las pendientes.
 import { norm, frase } from './util.js';
-import { esOp, itemsEnNo, NO_REALIZADO } from './estado.js';
+import { esOp, itemsEnNo, plazoNovedad, NO_REALIZADO } from './estado.js';
+
+// "Barrido del lote (Plazo: el mismo día)": el plazo de corrección queda visible en cada novedad
+function conPlazo(texto, r) { var p = plazoNovedad(texto, esOp(r)); return p ? texto + ' (' + p + ')' : texto; }
 
 export function textoWhatsapp(r) {
     var h = new Date().getHours();
@@ -9,8 +12,8 @@ export function textoWhatsapp(r) {
     if (/^\d+$/.test(cuad)) cuad = 'C' + cuad;
     var obs = String(r['OBSERVACIONES NOVEDADES'] || '').trim();
     // Lote no realizado: no se listan todos los ítems, basta con decirlo
-    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '- ' + frase(i).replace(/\.?$/, '.'); });
-    if (obs && norm(obs) !== 'SIN NOVEDAD') lineas.push('- ' + frase(obs).replace(/\.?$/, '.'));
+    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '- ' + conPlazo(frase(i).replace(/\.$/, ''), r) + '.'; });
+    if (obs && norm(obs) !== 'SIN NOVEDAD') lineas.push('- ' + conPlazo(frase(obs).replace(/\.$/, ''), r) + '.');
     return saludo + '\n\n' +
         'Novedad' + (esOp(r) ? ' en operación' : '') + (cuad ? ' ' + cuad : '') + '\n\n' +
         (r.MICRORRUTA || '') + (r.LOTE ? ' (' + r.LOTE + ')' : '') + '\n' +
@@ -97,9 +100,12 @@ export function textoDia(lista, dia) {
 // "Novedades posoperación cuadrilla 4 \n\n Z1CC0096 lote 106 \n * No realizado"
 function lineasNovedad(r) {
     var obs = String(r['OBSERVACIONES NOVEDADES'] || '').trim();
-    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '* ' + frase(i); });
-    // "LOTE NO REALIZADO" queda "* No realizado" (el lote ya va en el renglón de arriba)
-    if (obs && norm(obs) !== 'SIN NOVEDAD') lineas.push('* ' + frase(obs.replace(/^lote\s+(?=no realizado)/i, '')));
+    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '* ' + conPlazo(frase(i), r); });
+    // "LOTE NO REALIZADO" queda "* No realizado" (el lote ya va en el renglón de arriba); el plazo se mira con el texto original
+    if (obs && norm(obs) !== 'SIN NOVEDAD') {
+        var p = plazoNovedad(obs, esOp(r)), t = frase(obs.replace(/^lote\s+(?=no realizado)/i, '')).replace(/\.$/, '');
+        lineas.push('* ' + (p ? t + ' (' + p + ')' : t));
+    }
     return lineas;
 }
 export function textoResumen(lista) {

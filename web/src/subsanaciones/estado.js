@@ -21,6 +21,16 @@ export function limpiarObs(s) {
     return s;
 }
 export function loteNoRevisable(r) { var n = norm(r['OBSERVACIONES NOVEDADES']); return n.indexOf(CERRADO) !== -1 || n.indexOf(NO_REALIZADO) !== -1; }
+// Plazo de corrección que va en el mensaje de cada novedad (lo fija la interventoría):
+// posoperación: recolección y barrido el mismo día, heridas a árboles no son subsanables, lo demás 5 días;
+// operación: mallas, demarcación del área de trabajo y PMT de inmediato, lo demás 5 días
+export function plazoNovedad(texto, op) {
+    var n = norm(texto);
+    if (n.indexOf(NO_REALIZADO) !== -1 || n.indexOf(CERRADO) !== -1) return '';
+    if (op) return /PMT|MALLA|DEMARCACION/.test(n) ? 'Plazo: inmediato' : 'Plazo: 5 días';
+    if (/ARBOL/.test(n) && /AFECTACION|HERIDA/.test(n)) return 'No subsanable';
+    return /RECOLECCION|BARRIDO/.test(n) ? 'Plazo: el mismo día' : 'Plazo: 5 días';
+}
 export function itemsEnNo(r) { return itemsDe(r).filter(function (i) { return valorItem(r[i]) === 'NO'; }); }
 // Ítems que estuvieron en NO y ya se corrigieron (los anota la base al subsanar)
 export function itemsSubsanados(r) {
