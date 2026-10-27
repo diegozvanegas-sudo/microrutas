@@ -34,33 +34,42 @@ function renglones(ctx, texto, ancho) {
     return out;
 }
 
-// Dibuja en el canvas: { titulo, texto, estilo, grande, pie } (pie: texto pequeño abajo, como la fecha)
+// Letra más grande (de 240 a 48 px) con la que el texto cabe sin partir palabras y sin pasar del alto máximo:
+// "120" sale enorme y un párrafo largo baja hasta que quepa
+var MAYOR = 240, MENOR = 48, ALTO_MAX = 1200, INTERLINEA = 1.2;
+function medidaLetra(ctx, texto, util) {
+    var palabras = String(texto).split(/\s+/).filter(Boolean);
+    for (var t = MAYOR; t > MENOR; t -= 4) {
+        ctx.font = '700 ' + t + 'px ' + LETRA;
+        if (palabras.some(function (p) { return ctx.measureText(p).width > util; })) continue;
+        if (renglones(ctx, texto, util).length * t * INTERLINEA <= ALTO_MAX) return t;
+    }
+    return MENOR;
+}
+
+// Dibuja en el canvas un solo texto, centrado y grande: { texto, estilo, pie } (pie: texto pequeño abajo, como la fecha)
 export function dibujar(cv, o) {
     var e = ESTILOS[o.estilo] || ESTILOS.blanco, ctx = cv.getContext('2d');
-    var tT = o.grande ? 72 : 58, tX = o.grande ? 56 : 44, tP = 30, util = ANCHO - 2 * MARGEN;
-    ctx.font = '700 ' + tT + 'px ' + LETRA;
-    var lt = o.titulo ? renglones(ctx, o.titulo, util) : [];
-    ctx.font = '400 ' + tX + 'px ' + LETRA;
-    var lx = o.texto ? renglones(ctx, o.texto, util) : [];
-    var hT = lt.length * tT * 1.25, hX = lx.length * tX * 1.4, hP = o.pie ? tP * 2.4 : 0;
-    var alto = Math.max(Math.round(ANCHO * 0.56), Math.ceil(MARGEN + 16 + hT + (lt.length && lx.length ? tX * 0.8 : 0) + hX + hP + MARGEN));
+    var util = ANCHO - 2 * MARGEN, tP = 30, hP = o.pie ? tP * 2 : 0;
+    var t = medidaLetra(ctx, o.texto || '', util);
+    ctx.font = '700 ' + t + 'px ' + LETRA;
+    var lineas = renglones(ctx, o.texto || '', util), hX = lineas.length * t * INTERLINEA;
+    var alto = Math.max(Math.round(ANCHO * 0.56), Math.ceil(16 + MARGEN + hX + MARGEN + hP));
     cv.width = ANCHO; cv.height = alto;
 
     ctx.fillStyle = e.fondo; ctx.fillRect(0, 0, ANCHO, alto);
     ctx.fillStyle = e.acento; ctx.fillRect(0, 0, ANCHO, 16);
-    ctx.textBaseline = 'top';
-    var y = MARGEN + 16;
+    // El bloque de texto en el centro del espacio que queda entre la franja de arriba y la fecha
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
     ctx.fillStyle = o.estilo === 'blanco' || o.estilo === 'nota' ? e.acento : e.tinta;
-    ctx.font = '700 ' + tT + 'px ' + LETRA;
-    lt.forEach(function (l) { ctx.fillText(l, MARGEN, y); y += tT * 1.25; });
-    if (lt.length && lx.length) y += tX * 0.8;
-    ctx.fillStyle = e.tinta;
-    ctx.font = '400 ' + tX + 'px ' + LETRA;
-    lx.forEach(function (l) { ctx.fillText(l, MARGEN, y); y += tX * 1.4; });
+    ctx.font = '700 ' + t + 'px ' + LETRA;
+    var y = 16 + (alto - 16 - hP - hX) / 2 + t * INTERLINEA / 2;
+    lineas.forEach(function (l) { ctx.fillText(l, ANCHO / 2, y); y += t * INTERLINEA; });
     if (o.pie) {
         ctx.fillStyle = e.suave;
         ctx.font = '400 ' + tP + 'px ' + LETRA;
-        ctx.fillText(o.pie, MARGEN, alto - MARGEN + 10 - tP);
+        ctx.fillText(o.pie, ANCHO / 2, alto - MARGEN * 0.6 - tP / 2);
     }
     return cv;
 }
