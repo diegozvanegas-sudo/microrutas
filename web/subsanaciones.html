@@ -29,7 +29,6 @@
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
         <div class="menu-lista">
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
-            <button type="button" class="item-menu" id="btn-excel">⬇ Descargar Excel</button>
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
@@ -65,6 +64,7 @@
         <button type="button" class="secundario" id="btn-resumen" title="Texto con todas las novedades pendientes de lo filtrado, para pegar en WhatsApp">📋 Copiar resumen</button>
         <button type="button" class="secundario" id="btn-dia" title="Novedades de hoy (o del día filtrado) por cuadrilla, para pegar en WhatsApp">📊 Resumen del día</button>
         <button type="button" class="secundario" id="btn-cumpl" title="Lotes ejecutados por cuadrilla contra los que pide la frecuencia de cada lote">📈 Cumplimiento</button>
+        <button type="button" class="secundario" id="btn-excel" title="Ver cómo queda el Excel de interventoría con lo filtrado y descargarlo">📗 Excel</button>
     </div>
     <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
 </main>
@@ -147,6 +147,18 @@
         <div class="sub" id="cumpl-nota"></div>
         <div class="pie">
             <button type="button" class="secundario" id="cumpl-cerrar">Cerrar</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-excel">
+    <div class="cuerpo">
+        <h2>📗 Vista previa del Excel <span class="sub" id="excel-info"></span>
+            <button type="button" class="cerrar-dlg" id="excel-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="excel-hojas" id="excel-hojas" role="tablist" aria-label="Hojas del Excel"></div>
+        <div class="excel-vista" id="excel-vista"></div>
+        <div class="pie">
+            <span class="sub">Con los filtros de la lista. Así queda al abrirlo en Excel.</span>
+            <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
         </div>
     </div>
 </dialog>

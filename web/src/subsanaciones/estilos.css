@@ -112,6 +112,28 @@ fieldset { min-width: 0; }
 #dlg-cumpl { width: min(760px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-cumpl .cuerpo { padding: 18px; }
 #dlg-cumpl label { max-width: 260px; margin: 10px 0; }
+/* Vista previa del Excel: como se ve en Excel (Calibri 11, cuadrícula, letras de columna y números de fila) */
+#dlg-excel { width: min(1280px, calc(100% - 24px)); height: calc(100dvh - 24px); margin: auto; border-radius: 14px; }
+#dlg-excel .cuerpo { padding: 18px; height: 100%; display: flex; flex-direction: column; }
+#dlg-excel h2 { margin-bottom: 8px; }
+#dlg-excel .pie { align-items: center; margin-top: 12px; }
+#dlg-excel .pie .sub { margin-right: auto; }
+.excel-hojas { display: flex; gap: 4px; margin-bottom: 8px; flex-wrap: wrap; }
+.excel-hojas button { background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 600; }
+.excel-hojas button[aria-selected="true"] { border-color: #217346; color: #217346; background: #e9f5ee; }
+.excel-vista { flex: 1; min-height: 0; overflow: auto; border: 1px solid #c6c6c6; background: #fff; }
+.xl { border-collapse: collapse; table-layout: fixed; width: max-content; font: 11pt Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000; }
+.xl td, .xl th { border: 1px solid #808080; padding: 1px 3px; text-align: center; vertical-align: middle; overflow: hidden; white-space: nowrap; }
+.xl td.ajustar { white-space: normal; }
+.xl .xl-cab th { white-space: normal; font-weight: 700; position: sticky; top: 21px; z-index: 1; }
+.xl-letras th { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; height: 20px; position: sticky; top: 0; z-index: 2; }
+.xl th.xl-num, .xl col.xl-num { width: 34px; }
+.xl th.xl-num { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; position: sticky; left: 0; z-index: 1; }
+.xl-letras th:first-child { position: sticky; left: 0; z-index: 3; }
+@media (max-width: 760px) {
+    #dlg-excel { width: 100%; height: 100dvh; margin: 0; border-radius: 0; }
+    #dlg-excel .cuerpo { padding: 14px; }
+}
 .cumpl-scroll { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
 .cumpl th, .cumpl td { padding: 8px 10px; white-space: nowrap; }
 .cumpl tr.total td { font-weight: 700; background: #f8fafb; }

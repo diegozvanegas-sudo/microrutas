@@ -6,7 +6,7 @@ import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, i
 import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
-import { exportarExcel } from './excel.js';
+import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
@@ -1710,10 +1710,32 @@ export function iniciar(api, CFG) {
     if (CFG.hoja) { $('abrir-hoja').href = CFG.hoja; $('abrir-hoja').hidden = false; }
 
     // ---------- Excel con el formato de interventoría (src/subsanaciones/excel.js) ----------
+    // Primero la vista previa (mismas hojas, colores y anchos que el archivo); desde ahí se descarga
+    var hojasVista = [];
+    function verHoja(i) {
+        $('excel-hojas').querySelectorAll('[data-hoja]').forEach(function (b) { b.setAttribute('aria-selected', +b.dataset.hoja === i); });
+        $('excel-vista').innerHTML = htmlHoja(hojasVista[i]);
+        $('excel-vista').scrollTo(0, 0);
+    }
     $('btn-excel').onclick = function () {
         var lista = filtrados();
         if (!lista.length) { toast('No hay registros para exportar.'); return; }
-        exportarExcel(lista, items, itemsOp).catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); });
+        hojasVista = hojasExcel(lista, items, itemsOp);
+        $('excel-info').textContent = '· ' + lista.length + (lista.length === 1 ? ' visita' : ' visitas');
+        $('excel-hojas').innerHTML = hojasVista.map(function (h, i) {
+            return '<button type="button" role="tab" data-hoja="' + i + '">' + esc(h.nombre) + ' <small>' + h.filas.length + '</small></button>';
+        }).join('');
+        verHoja(0);
+        $('dlg-excel').showModal();
+    };
+    $('excel-hojas').onclick = function (ev) { var b = ev.target.closest('[data-hoja]'); if (b) verHoja(+b.dataset.hoja); };
+    $('excel-cerrar').onclick = function () { $('dlg-excel').close(); };
+    $('excel-descargar').onclick = function () {
+        var b = this;
+        b.disabled = true;
+        exportarExcel(filtrados(), items, itemsOp)
+            .catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); })
+            .then(function () { b.disabled = false; });
     };
 
     // ---------- Fotos a PDF (src/subsanaciones/fotospdf.js) ----------
