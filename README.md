@@ -61,7 +61,9 @@ npm run build              # deja todo en web/dist/ para publicar
   visitas y pre-rutas. Las capas del mapa y los fondos ya vistos también quedan guardados. Guardar una visita
   sí necesita conexión por ahora.
 - **Instalar en el celular**: abrir la página publicada en Chrome → menú ⋮ → *Agregar a la pantalla principal*.
-- **Publicar**: cada `git push` a `main` lo publica Netlify solo en https://microrrutas-zv.netlify.app (configuración en `netlify.toml`; las llaves `VITE_*` están en Netlify → Environment variables).
+- **Publicar**: cada `git push` a `main` lo publica GitHub Pages solo en https://diegozvanegas-sudo.github.io/microrutas/subsanaciones.html
+  (`.github/workflows`; las llaves van en GitHub → Settings → Secrets: `SUPABASE_URL` y `SUPABASE_ANON_KEY`). Netlify
+  (https://microrrutas-zv.netlify.app, `netlify.toml`) quedó sin créditos desde el 26/10/2026 y ya no se actualiza.
   (debe ser https para que funcione como app). En Supabase → Authentication → URL Configuration ponga la
   dirección publicada como *Site URL*.
 - **Íconos**: `npm run iconos` genera unos provisionales en `public/icons/`; reemplácelos por el logo.
