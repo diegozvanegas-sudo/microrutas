@@ -2,8 +2,8 @@
 // Viene del <script> de la página original; lo que no depende del estado de la página ya está en módulos aparte.
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
-import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge } from './estado.js';
-import { textoWhatsapp, textoResumen, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
+import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
+import { textoWhatsapp, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
@@ -189,33 +189,37 @@ export function iniciar(api, CFG) {
             if (zona && String(r.ZONA).trim() !== zona) return false;
             if (cuad && String(r.CUADRILLA).trim() !== cuad) return false;
             if (dia && aInput(r['FECHA DE LA VISITA']) !== dia) return false;
-            if (est === 'VIEJAS' ? !esVieja(r) : est && r.ESTADO !== est) return false;
+            if (est === 'DESCUENTO' ? !paraDescuento(r) : est && r.ESTADO !== est) return false;
             if (!texto) return true;
             return ['ID', 'MICRORRUTA', 'LOTE', 'INTERVENTOR', 'OBSERVACIONES NOVEDADES', 'OBSERVACIÓN SUBSANACIÓN']
                 .some(function (c) { return norm(r[c]).indexOf(texto) !== -1; });
         });
     }
 
-    // Pendiente de subsanar desde hace VIEJA_D días o más: la interventoría la pide al momento, no después
-    var VIEJA_D = 8;
-    function esVieja(r) { var d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null; return d != null && d >= VIEJA_D; }
+    // Plazo de corrección de la pendiente (estado.js): vencida o no subsanable = para descuento en la factura
+    function tagPlazo(r) {
+        var p = plazoVisita(r);
+        if (!p) return '';
+        return p.descuento ? '<span class="tag-descuento" title="Sin subsanar a tiempo: se descuenta en la factura">💸 Para descuento · ' + esc(p.motivo) + '</span>'
+            : '<span class="tag-a-tiempo">⏳ ' + (p.resta === 0 ? 'Vence hoy' : 'Vence en ' + p.resta + (p.resta === 1 ? ' día' : ' días')) + '</span>';
+    }
     // Mismos colores por cuadrilla que el mapa rápido; pre-ruta sin cuadrilla en gris
     var COLORES_CUAD = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
     function colorCuadrilla(c) { var n = Number(c); return c && Number.isFinite(n) ? COLORES_CUAD[Math.abs(n) % COLORES_CUAD.length] : '#64748b'; }
     function pintar() {
         pintarRutas();
         pintarLimpiar();
-        var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, viejas = registros.filter(esVieja).length;
+        var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, descuento = registros.filter(paraDescuento).length;
         registros.forEach(function (r) { if (cuenta[r.ESTADO] != null) cuenta[r.ESTADO]++; });
         var est = $('f-estado').value;
         $('resumen').innerHTML = [['', 'Visitas'], ['PENDIENTE', 'Pendientes de subsanar'], ['SUBSANADO', 'Subsanadas'], ['SIN NOVEDAD', 'Sin novedad']].map(function (t) {
-            return '<div class="tarjeta' + (est === t[0] || (est === 'VIEJAS' && t[0] === 'PENDIENTE') ? ' activa' : '') + '" data-estado="' + t[0] + '"><div class="num">' + cuenta[t[0]] + '</div><div class="tit">' + t[1] + '</div>' +
-                (t[0] === 'PENDIENTE' && viejas ? '<div class="viejas' + (est === 'VIEJAS' ? ' activa' : '') + '" data-estado="VIEJAS" title="Ver solo las de hace ' + VIEJA_D + ' días o más">⚠ ' + viejas + ' con +' + VIEJA_D + ' d</div>' : '') + '</div>';
+            return '<div class="tarjeta' + (est === t[0] || (est === 'DESCUENTO' && t[0] === 'PENDIENTE') ? ' activa' : '') + '" data-estado="' + t[0] + '"><div class="num">' + cuenta[t[0]] + '</div><div class="tit">' + t[1] + '</div>' +
+                (t[0] === 'PENDIENTE' && descuento ? '<div class="viejas' + (est === 'DESCUENTO' ? ' activa' : '') + '" data-estado="DESCUENTO" title="Ver solo las que pasaron el plazo o no son subsanables">💸 ' + descuento + ' para descuento</div>' : '') + '</div>';
         }).join('');
 
         var lista = filtrados().sort(porRegistro);
-        // Las más viejas primero cuando se piden las atrasadas
-        if (est === 'VIEJAS') lista.sort(function (a, b) { return dias(b['FECHA DE LA VISITA']) - dias(a['FECHA DE LA VISITA']); });
+        // Las más viejas primero cuando se piden las de descuento
+        if (est === 'DESCUENTO') lista.sort(function (a, b) { return dias(b['FECHA DE LA VISITA']) - dias(a['FECHA DE LA VISITA']); });
         if (!lista.length) {
             $('tabla').innerHTML = '<div class="vacio">' + (registros.length ? 'Ningún registro coincide con los filtros.' : 'Aún no hay visitas. Use "+ Nueva visita".') + '</div>';
             return;
@@ -224,7 +228,7 @@ export function iniciar(api, CFG) {
             '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Fecha de ejecución</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             lista.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
-                return '<tr class="fila-visita">' +
+                return '<tr class="fila-visita' + (paraDescuento(r) ? ' descuento' : '') + '">' +
                     '<td data-label="Lote / Microrruta"><span class="lote-tit">' + (r.LOTE ? 'Lote ' + esc(r.LOTE) : esc(r.MICRORRUTA || '—')) + '</span>' +
                         (esOp(r) ? '<span class="tag-op">🦺 Operación</span>' : '') +
                         '<div class="sub">' + [r.LOTE ? r.MICRORRUTA : '', r.ZONA ? 'Zona ' + r.ZONA : '', r.CUADRILLA ? 'Cuadrilla ' + r.CUADRILLA : ''].filter(Boolean).map(esc).join(' · ') + '</div></td>' +
@@ -235,7 +239,7 @@ export function iniciar(api, CFG) {
                         (usuarios && r['REGISTRADO POR'] ? '<div>👤 ' + esc(r['REGISTRADO POR']) + '</div>' : '') + '</div></td>' +
                     '<td data-label="Ítems en NO">' + (enNo.length ? enNo.map(function (i) { return '<span class="chip">' + esc(i) + '</span>'; }).join('') : '<span class="sub">Ninguno</span>') + '</td>' +
                     '<td data-label="Estado">' + badge(r.ESTADO) +
-                        (d != null ? '<div class="sub' + (d >= VIEJA_D ? ' vieja' : '') + '">' + (d >= VIEJA_D ? '⚠ ' : '') + d + ' día' + (d === 1 ? '' : 's') + ' desde la visita</div>' : '') +
+                        (d != null ? '<div class="sub">' + d + ' día' + (d === 1 ? '' : 's') + ' desde la visita</div>' : '') + tagPlazo(r) +
                         (r.ESTADO === 'SUBSANADO' && r['FECHA SUBSANACIÓN'] ? '<div class="sub">' + esc(r['FECHA SUBSANACIÓN']) + '</div>' : '') + '</td>' +
                     '<td data-label="Observaciones">' + esc(r['OBSERVACIONES NOVEDADES'] || '') +
                         (r['OBSERVACIÓN SUBSANACIÓN'] ? '<div class="sub">Subsanación: ' + esc(r['OBSERVACIÓN SUBSANACIÓN']) + '</div>' : '') + '</td>' +
@@ -249,11 +253,11 @@ export function iniciar(api, CFG) {
 
     function tarjetaMovil(r) {
         var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
-        return '<details class="visita"' + (abiertos[r.ID] ? ' open' : '') + ' data-id="' + esc(r.ID) + '"><summary>' +
+        return '<details class="visita' + (paraDescuento(r) ? ' descuento' : '') + '"' + (abiertos[r.ID] ? ' open' : '') + ' data-id="' + esc(r.ID) + '"><summary>' +
             '<span class="mr">' + (r.LOTE ? 'Lote ' + esc(r.LOTE) + '<span class="cod">' + esc(r.MICRORRUTA || '') + '</span>' : esc(r.MICRORRUTA || '—')) + '</span>' + badge(r.ESTADO) +
             '<span class="linea">' + (esOp(r) ? '<span class="tag-op">🦺 Operación</span> ' : '') + esc(r['FECHA DE LA VISITA'] || '—') +
                 (enNo.length ? ' · <span class="alerta">' + enNo.length + ' en NO</span>' : '') +
-                (d != null ? ' · <span class="alerta' + (d >= VIEJA_D ? ' vieja' : '') + '">' + (d >= VIEJA_D ? '⚠ ' : '') + d + ' d</span>' : '') + '</span>' +
+                (d != null ? ' · <span class="alerta">' + d + ' d</span>' : '') + ' ' + tagPlazo(r) + '</span>' +
             '<span class="ver"><span class="mas">Ver detalles</span><span class="menos">Ocultar</span></span>' +
             '</summary>' + detalle(r, true) + '</details>';
     }
@@ -327,10 +331,12 @@ export function iniciar(api, CFG) {
     $('btn-resumen').onclick = function () {
         var lista = filtrados().filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
         if (!lista.length) return toast('No hay novedades pendientes en lo filtrado.');
-        $('wa-texto').value = textoResumen(lista);
+        // Con el filtro "Para descuento": el listado de lotes a descontar en la factura, con el motivo
+        var desc = $('f-estado').value === 'DESCUENTO';
+        $('wa-texto').value = desc ? textoDescuento(lista) : textoResumen(lista);
         actualizarEnlaceWa();
         $('dlg-wa').showModal();
-        toast(lista.length + (lista.length === 1 ? ' visita pendiente' : ' visitas pendientes') + ' en el resumen.');
+        toast(lista.length + (lista.length === 1 ? ' visita' : ' visitas') + (desc ? ' para descuento' : (lista.length === 1 ? ' pendiente' : ' pendientes')) + ' en el resumen.');
     };
     // Visitas de hoy (o del día de la visita filtrada) por cuadrilla: lo que se revisó y lo que quedó con novedad
     $('btn-dia').onclick = function () {

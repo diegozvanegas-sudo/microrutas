@@ -25,6 +25,8 @@ header .lema { font-size: 12px; color: var(--ok); font-weight: 600; white-space:
 .menu-lista .item-menu:hover, .menu-lista .item-menu:focus-visible { background: #edf8f3; color: var(--brand); outline: none; }
 .menu-lista hr { border: 0; border-top: 1px solid var(--line); margin: 4px 6px; }
 .menu-lista hr:last-child, .menu-lista hr:has(+ [hidden]:last-child) { display: none; }
+/* Título de cada grupo del menú (subsanaciones.html) */
+.menu-lista .titulo-menu { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #6b7c75); padding: 8px 12px 2px; }
 
 /* Computador mediano: las pestañas sin texto largo si no caben */
 @media (max-width: 1100px) {

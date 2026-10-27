@@ -28,13 +28,17 @@
     <details class="menu-mas">
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
         <div class="menu-lista">
+            <!-- Agrupado por para qué sirve: cada grupo una sola tarea -->
+            <div class="titulo-menu">Subsanaciones</div>
+            <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
+            <hr>
+            <div class="titulo-menu">Crear archivos</div>
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
-            <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
             <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
-            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <hr>
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
             <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
         </div>
@@ -52,7 +56,7 @@
     <div class="filtros">
         <input type="search" id="f-texto" placeholder="Buscar por microrruta, lote, interventor, observaciones…">
         <select id="f-estado" aria-label="Estado">
-            <option value="">Estado: todos</option><option value="PENDIENTE">Pendiente</option><option value="VIEJAS">Pendiente hace +8 días</option><option value="SUBSANADO">Subsanado</option><option value="SIN NOVEDAD">Sin novedad</option><option value="CERRADO">Lote cerrado</option>
+            <option value="">Estado: todos</option><option value="PENDIENTE">Pendiente</option><option value="DESCUENTO">💸 Para descuento (plazo vencido)</option><option value="SUBSANADO">Subsanado</option><option value="SIN NOVEDAD">Sin novedad</option><option value="CERRADO">Lote cerrado</option>
         </select>
         <select id="f-tipo" aria-label="Tipo de visita">
             <option value="">Tipo: todas</option><option value="EJECUCIÓN">Lote ejecutado</option><option value="OPERACIÓN">Durante la operación</option>

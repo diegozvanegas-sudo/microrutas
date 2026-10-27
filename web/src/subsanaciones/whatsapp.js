@@ -1,6 +1,6 @@
 // Textos para WhatsApp: novedad de una visita y resumen de las pendientes.
 import { norm, frase } from './util.js';
-import { esOp, itemsEnNo, plazoNovedad, NO_REALIZADO } from './estado.js';
+import { esOp, itemsEnNo, plazoNovedad, plazoVisita, NO_REALIZADO } from './estado.js';
 
 // "Barrido del lote (Plazo: el mismo día)": el plazo de corrección queda visible en cada novedad
 function conPlazo(texto, r) { var p = plazoNovedad(texto, esOp(r)); return p ? texto + ' (' + p + ')' : texto; }
@@ -129,5 +129,29 @@ export function textoResumen(lista) {
             return [r.MICRORRUTA, r.LOTE ? 'lote ' + r.LOTE : ''].filter(Boolean).join(' ') + '\n\n' + lineasNovedad(r).join('\n');
         });
         return titulo + '\n\n' + lotes.join('\n\n');
+    }).join('\n\n\n');
+}
+
+// Lotes para descuento en la factura (pendientes con el plazo vencido o no subsanables), por cuadrilla y con el motivo:
+// "LOTES PARA DESCUENTO EN FACTURA \n Corte: 27/10/2026 \n\n Cuadrilla 4 \n\n Z1CC0096 lote 106 · visita 20/10/2026 · Plazo vencido hace 2 días \n * Barrido (Plazo: el mismo día)"
+export function textoDescuento(lista) {
+    var grupos = {}, orden = [], n = 0;
+    lista.forEach(function (r) {
+        var p = plazoVisita(r);
+        if (!p || !p.descuento) return;
+        var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
+        if (!grupos[cuad]) { grupos[cuad] = []; orden.push(cuad); }
+        grupos[cuad].push({ r: r, motivo: p.motivo });
+        n++;
+    });
+    if (!n) return '';
+    orden.sort(function (a, b) { return (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, 'es', { numeric: true }); });
+    var hoyTxt = new Date().toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    return 'LOTES PARA DESCUENTO EN FACTURA\nCorte: ' + hoyTxt + ' · ' + n + (n === 1 ? ' visita' : ' visitas') + '\n\n' + orden.map(function (cuad) {
+        return (cuad ? 'Cuadrilla ' + cuad : 'Sin cuadrilla') + '\n\n' + grupos[cuad].map(function (x) {
+            var r = x.r;
+            return [r.MICRORRUTA, r.LOTE ? 'lote ' + r.LOTE : ''].filter(Boolean).join(' ') + (esOp(r) ? ' (operación)' : '') +
+                ' · visita ' + (r['FECHA DE LA VISITA'] || '—') + ' · ' + x.motivo + '\n' + lineasNovedad(r).join('\n');
+        }).join('\n\n');
     }).join('\n\n\n');
 }
