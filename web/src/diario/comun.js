@@ -90,17 +90,52 @@ export function frasesVisitas(visitas) {
     });
     return ['EJECUCION', 'OPERACION'].filter(function (k) { return grupos[k]; }).map(function (k) {
         var g = grupos[k], cs = g.cuadrillas.sort(function (a, b) { return a - b; });
-        return (g.n === 1 ? 'Se realizó una visita' : 'Se realizaron ' + g.n + ' visitas') + (k === 'OPERACION' ? ' en operación' : ' de posoperación') +
-            ' a los lotes correspondientes a ' + (cs.length === 1 ? 'la cuadrilla ' : cs.length ? 'las cuadrillas ' : 'las cuadrillas') + unir(cs) +
-            ', verificando en campo las condiciones de las zonas verdes intervenidas' +
-            (g.novedades ? '; se reportaron las respectivas novedades encontradas al grupo correspondiente.' : '.');
+        var aCuadrillas = (cs.length === 1 ? 'la cuadrilla ' : cs.length ? 'las cuadrillas ' : 'las cuadrillas') + unir(cs);
+        var visitas = g.n === 1 ? 'Se realizó una visita' : 'Se realizaron ' + g.n + ' visitas';
+        var novedades = g.novedades ? '; se reportaron las respectivas novedades encontradas al grupo correspondiente.' : '.';
+        if (k === 'OPERACION') return visitas + ' durante la operación de ' + aCuadrillas +
+            ', verificando en campo la ejecución del corte de césped, el uso de mallas de protección, EPP y señalización, y la limpieza previa de las áreas' + novedades;
+        return visitas + ' de posoperación a los lotes correspondientes a ' + aCuadrillas + ', verificando en campo las condiciones de las zonas verdes intervenidas' + novedades;
     });
+}
+// Cuántas visitas de cada tipo (para el origen de cada frase sugerida), en el mismo orden que frasesVisitas
+export function cuentasVisitas(visitas) {
+    return ['EJECUCION', 'OPERACION'].map(function (k) { return visitas.filter(function (v) { return v.tipo === k; }).length; }).filter(Boolean);
+}
+
+// Novedades que se pasaron a SUBSANADO ese día -> "Se verificó la subsanación de 3 novedades de las cuadrillas 2 y 4."
+export function fraseSubsanadas(visitas) {
+    if (!visitas.length) return '';
+    var cs = [];
+    visitas.forEach(function (v) { var c = String(v.cuadrilla || '').replace(/^\D+/, '').trim(); if (c && cs.indexOf(c) < 0) cs.push(c); });
+    cs.sort(function (a, b) { return a - b; });
+    return 'Se verificó en campo la subsanación de ' + (visitas.length === 1 ? 'una novedad' : visitas.length + ' novedades') + ' reportada' + (visitas.length === 1 ? '' : 's') +
+        (cs.length ? ' a ' + (cs.length === 1 ? 'la cuadrilla ' : 'las cuadrillas ') + unir(cs) : '') + '.';
+}
+
+// PQR respondidos ese día -> "Se dio respuesta y cierre a las PQRS con ID 440515 y 440600."
+export function frasePqrRespondidas(radicados) {
+    var ids = radicados.map(function (r) { return String(r || '').trim(); }).filter(Boolean);
+    if (!radicados.length) return '';
+    if (!ids.length) return radicados.length === 1 ? 'Se dio respuesta y cierre a una PQRS.' : 'Se dio respuesta y cierre a ' + radicados.length + ' PQRS.';
+    return 'Se dio respuesta y cierre a ' + (ids.length === 1 ? 'la PQRS con ID ' : 'las PQRS con ID ') + unir(ids) + '.';
 }
 
 // Frases que se repiten casi todos los días: se tocan y quedan en el cuadro para completarlas
 export var FRASES = [
     { t: 'Posoperación', texto: 'Se realizaron visitas de posoperación a los lotes correspondientes a las cuadrillas … , verificando en campo las condiciones de las zonas verdes intervenidas; se reportaron las respectivas novedades encontradas al grupo correspondiente.' },
+    { t: 'Durante la operación', texto: 'Se realizaron visitas durante la operación de las cuadrillas … , verificando en campo la ejecución del corte de césped, el uso de mallas de protección, EPP y señalización, y la limpieza previa de las áreas.' },
+    { t: 'Acompañamiento', texto: 'Se realizó acompañamiento a la cuadrilla … en operación, verificando la ejecución de las actividades en los lotes programados.' },
+    { t: 'Subsanaciones', texto: 'Se verificó en campo la subsanación de las novedades reportadas a las cuadrillas … .' },
     { t: 'Visita PQRS', texto: 'Durante la jornada se realizó visita de inspección para verificar una PQRS en Zona … ' },
+    { t: 'Respuesta PQRS', texto: 'Se dio respuesta y cierre a las PQRS con ID … .' },
     { t: 'Residuos', texto: 'Se reportó la información correspondiente a residuos vegetales, RCD y residuos voluminosos en sus respectivos grupos.' },
-    { t: 'En operación', texto: 'Se realizó acompañamiento a la cuadrilla … en operación, verificando la ejecución de las actividades en los lotes programados.' },
+    { t: 'Recolección', texto: 'Se verificó la recolección de los residuos vegetales dentro de las 8 horas hábiles siguientes al corte en los lotes intervenidos por las cuadrillas … .' },
+    { t: 'Altura', texto: 'Se verificó la altura del césped en los lotes visitados (más de 10 cm antes del corte y entre 2 y 9 cm después).' },
+    { t: 'Externalidades', texto: 'Se reportaron las externalidades encontradas en los lotes programados (… ) para su validación.' },
+    { t: 'Programación', texto: 'Se revisó la programación de corte de césped enviada por el contratista para el día siguiente.' },
+    { t: 'Fotos', texto: 'Se revisó el registro fotográfico (antes, durante, complementarias y después) de los lotes reportados por el contratista.' },
+    { t: 'Seguimiento', texto: 'Se consolidó la información de las visitas del día y se actualizó el seguimiento de novedades y subsanaciones.' },
+    { t: 'Áreas nuevas', texto: 'Se realizó verificación de áreas verdes en … para evaluar su inclusión en la base de datos de corte de césped.' },
+    { t: 'Reunión', texto: 'Se asistió a reunión con … para tratar temas relacionados con la prestación del servicio de corte de césped.' },
 ];

@@ -1,11 +1,12 @@
 // informe.html: "Reporte diario de actividades" de cada día, listo para copiar al grupo de WhatsApp.
 // Se guarda solo al escribir en Supabase (public.informes, 0010_informe_pendientes.sql), una fila por usuario y fecha.
-// Sugiere lo que ya quedó registrado ese día: visitas de subsanaciones, PQR visitados y pendientes marcados hechos.
+// Sugiere lo que ya quedó registrado ese día: visitas de subsanaciones (posoperación y durante la operación), novedades pasadas
+// a subsanado, PQR visitados y respondidos, y pendientes marcados hechos.
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, FRASES } from './comun.js';
+import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES } from './comun.js';
 
 var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha';
 var $ = function (id) { return document.getElementById(id); };
@@ -117,14 +118,23 @@ async function abrirDia(f) {
 
 // Lo que ya está registrado ese día en la app: cada fuente por aparte, si una falla las otras igual salen
 async function cargarSugerencias(f) {
-    var [vis, pqr, pend] = await Promise.all([
+    // Los PQR respondidos se reconocen por la hora del último cambio, en la hora de Colombia
+    var [vis, sub, pqr, resp, pend] = await Promise.all([
         supabase.from('visitas').select('tipo, cuadrilla, estado').eq('creado_por', usuario.id).eq('fecha_visita', f),
+        supabase.from('visitas').select('cuadrilla').eq('subsanado_por_id', usuario.id).eq('fecha_subsanacion', f).neq('fecha_visita', f),
         supabase.from('pqrs').select('radicado, barrio, direccion').eq('usuario', usuario.id).eq('visita->>fechaVisita', f),
+        supabase.from('pqrs').select('radicado').eq('usuario', usuario.id).eq('estado', 'respondido')
+            .gte('actualizado', f + 'T00:00:00-05:00').lt('actualizado', sumarDias(f, 1) + 'T00:00:00-05:00'),
         supabase.from('pendientes').select('texto').eq('usuario', usuario.id).eq('hecho_en', f),
     ]);
     if (f !== fecha) return;
     var lista = [];
-    if (!vis.error) frasesVisitas(vis.data).forEach(function (t) { lista.push({ texto: t, origen: '📋 ' + vis.data.length + ' visita(s) en Subsanaciones' }); });
+    if (!vis.error) {
+        var cuentas = cuentasVisitas(vis.data);
+        frasesVisitas(vis.data).forEach(function (t, i) { lista.push({ texto: t, origen: '📋 ' + cuentas[i] + ' visita(s) en Subsanaciones' }); });
+    }
+    if (!sub.error && sub.data.length) lista.push({ texto: fraseSubsanadas(sub.data), origen: '✔ ' + sub.data.length + ' pasada(s) a subsanado' });
+    if (!resp.error && resp.data.length) lista.push({ texto: frasePqrRespondidas(resp.data.map(function (p) { return p.radicado; })), origen: '📝 PQR respondidos' });
     if (!pqr.error) pqr.data.forEach(function (p) {
         lista.push({ texto: 'Se realizó visita de inspección para verificar la PQRS' + (p.radicado ? ' ' + p.radicado : '') +
             (p.barrio ? ' en el barrio ' + p.barrio : p.direccion ? ' en ' + p.direccion : '') + '.', origen: '📝 PQR' });

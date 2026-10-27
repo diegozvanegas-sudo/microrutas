@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leerPendientes, textoInforme, frasesVisitas, diaPorDefecto, nombreDia } from '../src/diario/comun.js';
+import { leerPendientes, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, diaPorDefecto, nombreDia } from '../src/diario/comun.js';
 
 // Lunes 26 de octubre de 2026, 7:43 p. m.
 const AHORA = new Date(2026, 9, 26, 19, 43);
@@ -47,5 +47,15 @@ test('informe: frase de las visitas del día por cuadrilla', () => {
         { tipo: 'OPERACION', cuadrilla: '7', estado: 'SIN NOVEDAD' },
     ]);
     assert.equal(f[0], 'Se realizaron 3 visitas de posoperación a los lotes correspondientes a las cuadrillas 2 y 4, verificando en campo las condiciones de las zonas verdes intervenidas; se reportaron las respectivas novedades encontradas al grupo correspondiente.');
-    assert.equal(f[1], 'Se realizó una visita en operación a los lotes correspondientes a la cuadrilla 7, verificando en campo las condiciones de las zonas verdes intervenidas.');
+    assert.equal(f[1], 'Se realizó una visita durante la operación de la cuadrilla 7, verificando en campo la ejecución del corte de césped, el uso de mallas de protección, EPP y señalización, y la limpieza previa de las áreas.');
+});
+
+test('informe: cuántas visitas de cada tipo, subsanaciones verificadas y PQR respondidos', () => {
+    assert.deepEqual(cuentasVisitas([{ tipo: 'OPERACION' }, { tipo: 'EJECUCION' }, { tipo: 'OPERACION' }]), [1, 2]);
+    assert.deepEqual(cuentasVisitas([{ tipo: 'OPERACION' }]), [1]);
+    assert.equal(fraseSubsanadas([{ cuadrilla: '4' }, { cuadrilla: 'C2' }, { cuadrilla: '4' }]), 'Se verificó en campo la subsanación de 3 novedades reportadas a las cuadrillas 2 y 4.');
+    assert.equal(fraseSubsanadas([{ cuadrilla: '' }]), 'Se verificó en campo la subsanación de una novedad reportada.');
+    assert.equal(fraseSubsanadas([]), '');
+    assert.equal(frasePqrRespondidas(['440515', '440600', '440637']), 'Se dio respuesta y cierre a las PQRS con ID 440515, 440600 y 440637.');
+    assert.equal(frasePqrRespondidas(['']), 'Se dio respuesta y cierre a una PQRS.');
 });
