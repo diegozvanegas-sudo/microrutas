@@ -64,16 +64,84 @@
     function conjunto(lista, bb, nombre) {
         return '(' + lista.map(function (n) { return 'way["highway"]["name"="' + n + '"]' + bb + ';'; }).join('') + ')->.' + nombre + ';';
     }
-    // Overpass se satura a ratos (502/504 o minutos en cola): se prueba un espejo y se espera máximo 25 s por servidor
+    // Overpass se satura a ratos (502/504 o minutos en cola): se pregunta a los dos servidores a la vez, gana el primero
+    // que responda bien y se espera máximo 15 s
     var SERVIDORES = ['https://overpass-api.de/api/interpreter', 'https://overpass.private.coffee/api/interpreter'];
-    function consultar(q, i) {
-        i = i || 0;
-        var ctl = window.AbortController ? new AbortController() : null, reloj = ctl && setTimeout(function () { ctl.abort(); }, 25000);
-        return fetch(SERVIDORES[i], { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: ctl && ctl.signal,
-            headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
-            .then(function (r) { if (!r.ok) throw new Error('overpass ' + r.status); return r.json(); })
-            .catch(function (e) { if (i + 1 < SERVIDORES.length) return consultar(q, i + 1); throw e; })
-            .finally(function () { clearTimeout(reloj); });
+    function consultar(q) {
+        var ctls = [];
+        return new Promise(function (listo, mal) {
+            var fallas = 0;
+            SERVIDORES.forEach(function (url) {
+                var ctl = window.AbortController ? new AbortController() : null;
+                if (ctl) ctls.push(ctl);
+                fetch(url, { method: 'POST', body: 'data=' + encodeURIComponent(q), signal: ctl && ctl.signal,
+                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' } })
+                    .then(function (r) { if (!r.ok) throw new Error('overpass ' + r.status); return r.json(); })
+                    .then(listo, function (e) { if (++fallas === SERVIDORES.length) mal(e); });
+            });
+            setTimeout(function () { mal(new Error('overpass: sin respuesta')); }, 15000);
+        }).finally(function () { ctls.forEach(function (c) { c.abort(); }); });
+    }
+
+    // Cruces guardados en la app (data/rapido/cruces.js, tools/generar_cruces.mjs): la búsqueda sale de una vez y sin señal.
+    // { v: ['calle 91A', 'carrera 38', 'calle 10 SUR'…], c: { 'i,j': [[lat, lng], …] } } con i < j
+    var indice = null;
+    function cargarIndice() {
+        if (window.crucesCalles) return Promise.resolve(window.crucesCalles);
+        if (indice) return indice;
+        indice = new Promise(function (listo) {
+            var s = document.createElement('script');
+            s.src = 'data/rapido/cruces.js';
+            s.onload = function () { listo(window.crucesCalles || null); };
+            s.onerror = function () { indice = null; listo(null); };   // sin señal y sin copia: se intenta Overpass
+            document.head.appendChild(s);
+        });
+        return indice;
+    }
+    // Claves del índice para una pieza ("calle 91A", y "calle 91A SUR" si no se escribió sur)
+    function claves(tipos, p) {
+        var out = [];
+        tipos.split('|').forEach(function (t) {
+            var b = t.toLowerCase() + ' ' + p.n + p.l;
+            if (p.sur) out.push(b + ' ' + p.sur); else out.push(b, b + ' SUR');
+        });
+        return out;
+    }
+    function puntosEntre(ix, vias, otras) {
+        var pos = {}, out = [];
+        ix.v.forEach(function (k, i) { pos[k] = i; });
+        vias.forEach(function (a) {
+            otras.forEach(function (b) {
+                var i = pos[a], j = pos[b];
+                if (i === undefined || j === undefined) return;
+                (ix.c[Math.min(i, j) + ',' + Math.max(i, j)] || []).forEach(function (p) { out.push({ lat: p[0], lng: p[1] }); });
+            });
+        });
+        return out;
+    }
+    // La "siguiente" para correr la placa: la que viene después en la numeración (91A, 91B, 92… hasta dos números más),
+    // porque no siempre existe la n + 1 en el mapa
+    function siguientesLocal(ix, d) {
+        var vias = claves(NOMBRES[d.tipo], d.via), re = /^(\w+) (\d+)([A-H]{0,2})( SUR| ESTE)?$/, c = d.cruce;
+        var tipos = CRUZAN[d.tipo].toLowerCase().split('|'), sur = c.sur ? ' ' + c.sur : '';
+        var despues = ix.v.filter(function (k) {
+            var m = re.exec(k);
+            if (!m || tipos.indexOf(m[1]) === -1 || (c.sur && (m[4] || '') !== sur)) return false;
+            var n = +m[2];
+            return (n === c.n && m[3] > c.l) || (n > c.n && n <= c.n + 2);
+        });
+        return puntosEntre(ix, vias, despues);
+    }
+    // Cruce + metros de la placa hacia la siguiente más cercana (a menos de 400 m)
+    function resolver(d, cruces, siguientes, preferir) {
+        if (!cruces.length) return null;
+        var a = cruces.filter(preferir || function () { return true; })[0] || cruces[0];
+        if (!d.placa) return { lat: a.lat, lng: a.lng, aprox: 'en el cruce' };
+        var b = siguientes.filter(function (s) { return metros(a, s) < 400 && metros(a, s) > 5; })
+            .sort(function (x, y) { return metros(a, x) - metros(a, y); })[0];
+        if (!b) return { lat: a.lat, lng: a.lng, aprox: 'en el cruce' };
+        var f = Math.min(1, d.placa / Math.max(metros(a, b), 1));
+        return { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f, aprox: 'aproximada' };
     }
     // Direcciones ya encontradas en este equipo: la segunda vez sale de una vez y sin señal
     var CACHE = 'direcciones_cache';
@@ -85,34 +153,33 @@
         var x = (b.lng - a.lng) * 111320 * Math.cos(a.lat * Math.PI / 180), y = (b.lat - a.lat) * 110540;
         return Math.hypot(x, y);
     }
-    // Ubica la dirección en el cruce de la vía con la calle/carrera de la placa (OpenStreetMap, Overpass) y se corre
-    // "placa" metros hacia la siguiente, como se numeran en Medellín. caja: [sur, oeste, norte, este] donde buscar;
+    // Ubica la dirección en el cruce de la vía con la calle/carrera de la placa y se corre "placa" metros hacia la
+    // siguiente, como se numeran en Medellín. Primero con los cruces guardados en la app; si ahí no está el cruce
+    // (o no cargaron), con OpenStreetMap en línea (Overpass). caja: [sur, oeste, norte, este] donde buscar;
     // preferir(ll): true si el punto cae en la zona de los lotes (cuando el mismo cruce existe en dos municipios).
-    // Devuelve { lat, lng, aprox } o null.
-    window.ubicarDireccion = function (d, caja, preferir) {
+    // aviso(texto): opcional, para decir que se pasó a buscar en línea. Devuelve { lat, lng, aprox } o null.
+    window.ubicarDireccion = function (d, caja, preferir, aviso) {
         var guardada = deCache(d.texto);
         if (guardada) return Promise.resolve(guardada);
-        var sig = { n: d.cruce.n + 1, l: '', sur: d.cruce.sur };
-        var bb = '(' + caja.join(',') + ')';
-        var q = '[out:json][timeout:25];' + conjunto(nombres(NOMBRES[d.tipo], d.via), bb, 'a') + conjunto(nombres(CRUZAN[d.tipo], d.cruce), bb, 'b') +
-            conjunto(nombres(CRUZAN[d.tipo], sig), bb, 'c') + 'node(w.a)(w.b);out;out count;node(w.a)(w.c);out;';
-        return consultar(q)
-            .then(function (j) {
+        var enCaja = function (p) { return p.lat >= caja[0] && p.lat <= caja[2] && p.lng >= caja[1] && p.lng <= caja[3]; };
+        return cargarIndice().then(function (ix) {
+            if (ix) {
+                var cruces = puntosEntre(ix, claves(NOMBRES[d.tipo], d.via), claves(CRUZAN[d.tipo], d.cruce)).filter(enCaja);
+                if (cruces.length) return resolver(d, cruces, siguientesLocal(ix, d), preferir);
+            }
+            if (aviso) aviso('No está en los cruces guardados: buscando ' + d.texto + ' en OpenStreetMap en línea…');
+            var sig = { n: d.cruce.n + 1, l: '', sur: d.cruce.sur };
+            var bb = '(' + caja.join(',') + ')';
+            var q = '[out:json][timeout:15];' + conjunto(nombres(NOMBRES[d.tipo], d.via), bb, 'a') + conjunto(nombres(CRUZAN[d.tipo], d.cruce), bb, 'b') +
+                conjunto(nombres(CRUZAN[d.tipo], sig), bb, 'c') + 'node(w.a)(w.b);out;out count;node(w.a)(w.c);out;';
+            return consultar(q).then(function (j) {
                 var cruces = [], siguientes = [], lista = cruces;
                 (j.elements || []).forEach(function (e) {
                     if (e.type === 'count') lista = siguientes;
                     else if (e.type === 'node') lista.push({ lat: e.lat, lng: e.lon });
                 });
-                if (!cruces.length) return null;
-                var a = cruces.filter(preferir || function () { return true; })[0] || cruces[0];
-                if (!d.placa) return { lat: a.lat, lng: a.lng, aprox: 'en el cruce' };
-                // La siguiente calle/carrera más cercana al cruce (a menos de 400 m): la placa son metros hacia ella
-                var b = siguientes.filter(function (s) { return metros(a, s) < 400; })
-                    .sort(function (x, y) { return metros(a, x) - metros(a, y); })[0];
-                if (!b) return { lat: a.lat, lng: a.lng, aprox: 'en el cruce' };
-                var f = Math.min(1, d.placa / Math.max(metros(a, b), 1));
-                return { lat: a.lat + (b.lat - a.lat) * f, lng: a.lng + (b.lng - a.lng) * f, aprox: 'aproximada' };
-            })
-            .then(function (r) { if (r) aCache(d.texto, r); return r; });
+                return resolver(d, cruces, siguientes, preferir);
+            });
+        }).then(function (r) { if (r) aCache(d.texto, r); return r; });
     };
 })();

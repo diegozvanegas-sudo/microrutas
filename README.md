@@ -179,6 +179,11 @@ Archivos de origen (copiados del mapa anterior):
 Mapa rápido (`web/public/data/rapido/`), después de cambiar la capa o las correcciones, desde `web/`:
 `node tools/generar_mapa_rapido.mjs && node tools/detalle_sector.mjs`
 
+Búsqueda de direcciones del mapa rápido (`public/data/rapido/cruces.js`, cruces de calles y carreras de la zona de los lotes):
+se busca ahí primero, sin señal y al instante; Overpass en línea queda de respaldo. Para actualizarlo, baje
+<https://download.geofabrik.de/south-america/colombia-latest.osm.pbf> (~330 MB, no se guarda en el repositorio) y desde `web/`:
+`node tools/generar_cruces.mjs ruta/colombia-latest.osm.pbf`
+
 ## Notas de los datos
 
 - 4 polígonos vienen sin geometría en el origen; quedan con `geom` nulo.

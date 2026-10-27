@@ -238,3 +238,21 @@ test('PQR: temas de la queja para buscar en el contrato y cláusulas citadas', (
     assert.match(completa.texto, /especificaciones técnicas del contrato de corte de césped:\n• Texto de la cláusula\. \(pág\. 7 · §7\)/);
     assert.match(breve.texto, /conforme a las especificaciones técnicas del contrato/);
 });
+
+test('direcciones: se ubican con los cruces guardados en la app, sin Overpass', async () => {
+    // data/rapido/cruces.js es un script de la página: deja crucesCalles en window
+    const fs = await import('node:fs');
+    new Function(fs.readFileSync(new URL('../public/data/rapido/cruces.js', import.meta.url), 'utf8').replace('var crucesCalles', 'window.crucesCalles'))();
+    const fetchAntes = globalThis.fetch;
+    globalThis.fetch = () => { throw new Error('no debe ir a Overpass'); };
+    try {
+        const caja = [6.1, -75.8, 6.5, -75.4];
+        const r = await window.ubicarDireccion(window.leerDireccion('CR 38 # 91 38 MANRIQUE'), caja);
+        assert.equal(r.aprox, 'aproximada');
+        assert.ok(Math.abs(r.lat - 6.282) < 0.003 && Math.abs(r.lng + 75.548) < 0.003, JSON.stringify(r));
+        const cruce = await window.ubicarDireccion(window.leerDireccion('Calle 91 con carrera 38'), caja);
+        assert.equal(cruce && cruce.aprox, 'en el cruce');
+    } finally {
+        globalThis.fetch = fetchAntes;
+    }
+});

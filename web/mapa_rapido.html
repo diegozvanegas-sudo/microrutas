@@ -1270,15 +1270,16 @@
         ir(v.split(/[,\s]+/), true);
         $('buscar').blur();
     }
-    // Dirección (js/direcciones.js): se ubica con OpenStreetMap y se busca el lote de ese punto como con coordenadas.
+    // Dirección (js/direcciones.js): se ubica con los cruces guardados (o OpenStreetMap en línea) y se busca el lote de ese punto como con coordenadas.
     // Es aproximada (cruce + metros de la placa); el barrio u otro texto después de la placa no se usa
     function buscarDireccion(d) {
         var cajas = ordenCuad.map(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b); });
         var zona = cajas.reduce(function (z, b) { return z.extend(b); }, L.latLngBounds(cajas[0].getSouthWest(), cajas[0].getNorthEast())).pad(0.1);
         var enLotes = function (ll) { return cajas.some(function (b) { return b.contains([ll.lat, ll.lng]); }); };
         $('btn-buscar').disabled = true;
-        $('estado').textContent = 'Buscando ' + d.texto + ' en OpenStreetMap… (puede tardar hasta un minuto)';
-        window.ubicarDireccion(d, [zona.getSouth(), zona.getWest(), zona.getNorth(), zona.getEast()], enLotes).then(function (c) {
+        $('estado').textContent = 'Buscando ' + d.texto + '…';
+        var aviso = function (t) { $('estado').textContent = t; };
+        window.ubicarDireccion(d, [zona.getSouth(), zona.getWest(), zona.getNorth(), zona.getEast()], enLotes, aviso).then(function (c) {
             if (!c) return toast('No se encontró ' + d.texto + ' en el mapa. Revise la vía y el cruce, o ponga un 📌 a mano.');
             ubicarPunto({ lat: c.lat, lng: c.lng, buscado: d.texto, nota: ' (' + d.texto + ': ubicación ' + c.aprox + ', confírmela en el mapa)' });
         }).catch(function () {
