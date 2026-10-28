@@ -1,11 +1,11 @@
 // horarios.html: muestra los horarios de rutas de recolección (tabla horarios_rutas) con buscador. El administrador los
-// carga desde el Excel: se lee en el navegador y solo se envían las filas. Horas extras (horas.html) revisa con ellos la H.I y la H.F.
+// carga desde el Excel (o quien tenga el permiso): se lee en el navegador y solo se envían las filas. Horas extras (horas.html) revisa con ellos la H.I y la H.F.
 import '../diario/estilos.css';
 import '../horas/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
-import { asegurarSesion, cerrarSesion, aplicarPermisos, esAdmin } from '../sesion.js';
+import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { hhmm, plano } from '../horas/cruce.js';
 import { textoDias, NOMBRES_DIAS } from './horarios.js';
 import { leerArchivoHorarios, horariosGuardados, guardarHorarios, textoGuardados } from './guardado.js';
@@ -78,18 +78,17 @@ function arrancar() {
     $('zonas').onclick = function (ev) { var b = ev.target.closest('[data-zona]'); if (b) { zona = b.dataset.zona; mostrar(); } };
     if (!configurado) { $('cargados').textContent = 'Sin conexión con la base de datos.'; return; }
     asegurarSesion(supabase).then(async function (usuario) {
-        // Solo el administrador carga el Excel; los demás consultan
-        esAdmin(supabase).then(function (si) { $('caja-horarios').hidden = !si; });
         try {
             datos = await horariosGuardados(supabase);
             if (datos) mostrar();
-            else $('cargados').textContent = 'Todavía no hay horarios cargados. Un administrador los carga desde el Excel.';
+            else $('cargados').textContent = 'Todavía no hay horarios cargados: se cargan desde el Excel.';
         } catch (e) { $('cargados').textContent = '⚠ No se pudieron leer los horarios: ' + e.message; }
         var salir = $('btn-salir');
         salir.hidden = false;
         salir.title = 'Cerrar sesión de ' + usuario.email;
         salir.onclick = function () { cerrarSesion(supabase); };
-        aplicarPermisos(supabase, usuario);
+        // Cargan el Excel los administradores y quien tenga el permiso (perfiles.cargar_horarios); los demás consultan
+        aplicarPermisos(supabase, usuario).then(function (p) { $('caja-horarios').hidden = !(p.admin || p.horarios); });
     });
 }
 
