@@ -36,7 +36,7 @@ test('horas: cruce por cédula en la dotación, por ruta si no está, y sin hora
     const hojaCumplimiento = [[], [null, 'Fecha', 'HORA REAL', 'Código', 'Camión', 'Dotación'],
         [null, '26/10/2026 11:00', hora(11, 31), '0415507', '635 - ABC123', '11111111 PEREZ, ANA - 55555555 OTRO, PEPE'],
         [null, '27/10/2026 11:00', hora(13, 15), '0415507', '635 - ABC123', '11111111 PEREZ, ANA'],
-        [null, '26/10/2026 11:00', hora(23, 39), '0418419', '562 - DEF456', '99999999 SALDARRIAGA, W - PEREZ PEREZ, JUAN'],
+        [null, '26/10/2026 11:00', hora(23, 39), '0418419', '562 - DEF456', '99999999 LOPEZ, ANDRES - SIN CEDULA, PEDRO'],
         [null, '26/10/2026 11:00', null, '0710407', '640 - GHI789', '33333333 RUIZ, EVA'],
         [null, '26/10/2026 11:00', '18:47', '0710207', '561 - JKL012', '444444440 NO ES, ESTA - 44444444 DIAZ, JUAN']];
     const ex = leerExtras(hojaExtras), cu = leerCumplimiento(hojaCumplimiento);
