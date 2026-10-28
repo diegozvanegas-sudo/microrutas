@@ -32,6 +32,9 @@ body > main { max-width: 1500px; }
 .tabla-horas tr.mas .dif { color: var(--pend); font-weight: 700; }
 .tabla-horas tr.menos .dif, .tabla-horas tr.sinhora .dif { color: var(--aviso); }
 .tabla-horas tr.nada { color: var(--muted); }
+/* Ruta o control que no coinciden con el reporte de cumplimiento */
+.tabla-horas td.distinto { background: var(--pend-bg); color: var(--pend); font-weight: 700; }
+.tabla-horas td.distinto .sub { font-weight: 400; }
 
 /* Vista previa del Excel consolidado: mismas reglas que la de Subsanaciones (src/subsanaciones/estilos.css) */
 dialog { border: 0; border-radius: 14px; padding: 0; width: min(820px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }

@@ -4,6 +4,8 @@ import { minutos, hhmm } from './cruce.js';
 
 // Sombreado de la H. REAL escrita (en el archivo y en la vista): amarillo, como el de Subsanaciones
 export var COLOR_REAL = 'FFFFFF00';
+// RUTA o CONTROL que no coinciden con el reporte de cumplimiento: rojo claro
+export var COLOR_DISTINTO = 'FFFFC7CE';
 
 var GRIS = 'FFD9D9D9';
 function argb(celda) {

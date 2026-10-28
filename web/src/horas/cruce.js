@@ -52,6 +52,8 @@ export function texto(v) {
 // Ruta o código: "0418419", " 0418419 " y 418419 son la misma
 export function ruta(v) { return texto(v).replace(/\s+/g, '').replace(/^0+(?=\d)/, '').toUpperCase(); }
 export function cedula(v) { return texto(v).replace(/\D/g, ''); }
+// Control del vehículo: el número de la columna Camión del cumplimiento ("635 - ABC123" -> "635")
+export function control(v) { return ruta(texto(v).split('-')[0]); }
 
 // Fila de encabezados -> { clave: número de columna }. claves: { fecha: ['fecha'], ... } con los nombres planos aceptados
 export function columnas(encabezados, claves) {
@@ -92,13 +94,13 @@ export function leerExtras(hoja) {
             cedula: cedula(val(f, 'cedula')), nombre: texto(val(f, 'nombre')).trim(), hi: minutos(val(f, 'hi')), hf: minutos(val(f, 'hf')), extra: minutos(val(f, 'extra')) };
     }).filter(function (e) { return e.cedula || e.nombre; }) };
 }
-// Hoja del reporte de cumplimiento -> [{ fecha, real, codigo, camion, dotacion }]
+// Hoja del reporte de cumplimiento -> [{ fecha, real, codigo, camion, control, dotacion }]
 export function leerCumplimiento(hoja) {
     var t = tabla(hoja, COLUMNAS_CUMPLIMIENTO, ['fecha', 'real', 'dotacion']);
     if (!t) return null;
     var c = t.cols, val = function (f, k) { return c[k] == null ? null : f.v[c[k]]; };
     return t.filas.map(function (f) {
-        return { fecha: fechaIso(val(f, 'fecha')), real: minutos(val(f, 'real')), codigo: ruta(val(f, 'codigo')), codigoVer: texto(val(f, 'codigo')).trim(), camion: texto(val(f, 'camion')).trim(), dotacion: texto(val(f, 'dotacion')) };
+        return { fecha: fechaIso(val(f, 'fecha')), real: minutos(val(f, 'real')), codigo: ruta(val(f, 'codigo')), codigoVer: texto(val(f, 'codigo')).trim(), camion: texto(val(f, 'camion')).trim(), control: control(val(f, 'camion')), dotacion: texto(val(f, 'dotacion')) };
     });
 }
 
@@ -117,8 +119,9 @@ export function diferencia(hi, reportada, real) {
 }
 
 // Cruce. extras: [{ fila, fecha, ruta, control, cedula, nombre, cargo, hi, hf, extra }] (horas en minutos);
-// cumplimiento: [{ fecha, real, codigo, camion, dotacion }]. tolerancia: minutos de diferencia que se dan por buenos.
-// Devuelve una fila por persona con { real, como: 'cedula'|'ruta'|'', estado, candidatos, diferencia, extraReportada, extraReal }.
+// cumplimiento: [{ fecha, real, codigo, camion, control, dotacion }]. tolerancia: minutos de diferencia que se dan por buenos.
+// Devuelve una fila por persona con { real, como: 'cedula'|'ruta'|'', estado, candidatos, diferencia, extraReportada, extraReal,
+// difRuta, difControl (no coinciden con el cumplimiento), rutaReal, controlReal }.
 // estado: ok · mas (reportaron más tarde de lo real) · menos (reportaron más temprano) · sinhora (está, pero sin HORA REAL) · nada
 export function cruzar(extras, cumplimiento, tolerancia) {
     tolerancia = tolerancia == null ? 5 : tolerancia;
@@ -142,12 +145,16 @@ export function cruzar(extras, cumplimiento, tolerancia) {
             return (b.codigo === e.ruta) - (a.codigo === e.ruta) || desde(e.hi, b.real) - desde(e.hi, a.real);
         });
         var elegida = conHora[0] || null, real = elegida ? elegida.real : null;
+        // Con qué se comparan la ruta y el control: la elegida o, sin hora real, la primera encontrada
+        var ref = elegida || candidatos[0] || null;
         var dif = diferencia(e.hi, e.extra, real);
         var estado = !candidatos.length ? 'nada' : real == null ? 'sinhora' : Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos';
         return Object.assign({}, e, {
             real: real, como: como, estado: estado, candidatos: candidatos, varias: conHora.length > 1,
-            otraRuta: !!elegida && !!e.ruta && elegida.codigo !== e.ruta,
-            rutaReal: elegida ? elegida.codigoVer || elegida.codigo : '',
+            rutaReal: ref ? ref.codigoVer || ref.codigo : '', controlReal: ref ? ref.camion : '',
+            // Ruta o control distintos a los del cumplimiento (si alguno de los dos no lo trae, no se marca)
+            difRuta: !!ref && !!e.ruta && !!ref.codigo && ref.codigo !== e.ruta,
+            difControl: !!ref && !!e.control && !!ref.control && ref.control !== ruta(e.control),
             diferencia: dif, extraReportada: extra(e.hi, e.hf, e.extra), extraReal: extra(e.hi, e.hf, real),
         });
     });

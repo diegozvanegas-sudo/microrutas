@@ -6,7 +6,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
-import { hojaVista, COLOR_REAL } from './vista.js';
+import { hojaVista, COLOR_REAL, COLOR_DISTINTO } from './vista.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
@@ -80,16 +80,17 @@ function pintar() {
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
 
     var vis = filas.filter(function (f) { return !filtro || f.estado === filtro; });
-    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>Escribir</th></tr></thead><tbody>' +
+    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>Escribir</th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
-            var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.otraRuta ? 'en otra ruta (' + f.rutaReal + ')' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '']
+            var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '']
                 .filter(Boolean);
             return '<tr class="' + est[1] + '" data-i="' + i + '">' +
                 '<td class="num">' + f.fila + '</td>' +
                 '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
-                '<td>' + esc(f.rutaVer || f.ruta) + '</td><td class="num">' + hhmm(f.hf) + '</td><td class="num">' + hhmm(f.extra) + '</td>' +
+                comparada(f.rutaVer || f.ruta, f.difRuta, f.rutaReal) + comparada(f.control, f.difControl, f.controlReal) +
+                '<td class="num">' + hhmm(f.hf) + '</td><td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +
                 '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
                 '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' +
@@ -98,6 +99,12 @@ function pintar() {
     var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
     $('btn-descargar').textContent = '⬇ Descargar Excel con H. REAL (' + n + ')';
     $('btn-descargar').disabled = !n;
+}
+
+// Celda de ruta o control: en rojo si no coincide con el cumplimiento, con lo que dice el cumplimiento debajo
+function comparada(valor, distinto, real) {
+    if (!distinto) return '<td>' + esc(valor) + '</td>';
+    return '<td class="distinto" title="No coincide con el reporte de cumplimiento">' + esc(valor) + '<span class="sub">cumpl.: ' + esc(real) + '</span></td>';
 }
 
 // Corregir a mano la hora real de una fila: se recalcula su diferencia y estado
@@ -118,18 +125,24 @@ async function armarLibro() {
         col = b.ws.columnCount + 1;
         b.ws.getRow(extras.encabezado).getCell(col).value = 'H. REAL';
     }
+    // Formato propio de la celda: las celdas del archivo comparten el objeto de estilo y cambiarlo en una
+    // sombreaba toda la columna. Copia del estilo, con el sombreado (y lo demás que se pida)
+    function sombrear(celda, color, mas) {
+        celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), mas, {
+            fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: color } },
+        });
+    }
     var formato = null;
     filas.forEach(function (f) {
+        // RUTA y CONTROL que no coinciden con el cumplimiento, en rojo claro
+        if (f.difRuta) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.ruta), COLOR_DISTINTO);
+        if (f.difControl) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.control), COLOR_DISTINTO);
         if (!f.usar || f.real == null) return;
         var celda = b.ws.getRow(f.fila).getCell(col);
         formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
         // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
         celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
-        // Formato propio de la celda: las celdas del archivo comparten el objeto de estilo y cambiarlo en una
-        // sombreaba toda la columna. Copia del estilo, con la hora y el sombreado amarillo
-        celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), {
-            numFmt: formato, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_REAL } },
-        });
+        sombrear(celda, COLOR_REAL, { numFmt: formato });
     });
     // Que Excel recalcule el TOTAL (H. REAL − H.F) al abrir
     b.wb.calcProperties = Object.assign({}, b.wb.calcProperties, { fullCalcOnLoad: true });
