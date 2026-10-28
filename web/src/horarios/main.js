@@ -13,8 +13,8 @@ import { textoDias, NOMBRES_DIAS, filaHorario, problemasHorario, compararHorario
 import { leerArchivoHorarios, horariosGuardados, guardarHorarios, guardarHorario, borrarHorario, textoGuardados } from './guardado.js';
 
 var $ = function (id) { return document.getElementById(id); };
-var datos = null, zona = '', estado = '', puede = false;
-// Revisión del cargue: { leidos, nombre, cambios, filtro }
+var datos = null, zona = '', estado = '', puede = false, pagina = 0;
+// Revisión del cargue: { leidos, nombre, cambios, filtro, pagina }
 var revision = null;
 // Ruta abierta en la ventana (null: nueva)
 var editando = null;
@@ -32,6 +32,23 @@ function celdaHorario(h) {
     var otros = Object.keys(h.porDia).map(function (d) { return NOMBRES_DIAS[d] + ' ' + hhmm(h.porDia[d]); });
     return esc(h.horas.map(hhmm).join(' o ')) + (otros.length ? '<span class="sub">' + esc(otros.join(' · ')) + '</span>' : '');
 }
+// Paginación de las tablas: POR_PAGINA filas por página -> { filas de la página, pagina (corregida), paginas }
+var POR_PAGINA = 100;
+function paginar(filas, pagina) {
+    var paginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA)), p = Math.min(Math.max(0, pagina), paginas - 1);
+    return { filas: filas.slice(p * POR_PAGINA, (p + 1) * POR_PAGINA), pagina: p, paginas: paginas, total: filas.length };
+}
+// "‹ Anterior · 101–200 de 599 · página 2 de 6 · Siguiente ›"; los botones llevan data-pagina
+function controlesPagina(pg) {
+    if (pg.paginas < 2) return pg.total ? '<span class="sub">' + pg.total + (pg.total === 1 ? ' ruta' : ' rutas') + '</span>' : '';
+    var desde = pg.pagina * POR_PAGINA + 1, hasta = Math.min(pg.total, desde + POR_PAGINA - 1), nums = [];
+    for (var i = 0; i < pg.paginas; i++) nums.push('<button type="button" class="chip" data-pagina="' + i + '" aria-pressed="' + (i === pg.pagina) + '">' + (i + 1) + '</button>');
+    return '<button type="button" class="secundario pequeno" data-pagina="' + (pg.pagina - 1) + '"' + (pg.pagina ? '' : ' disabled') + '>‹ Anterior</button>' +
+        '<span class="numeros">' + nums.join('') + '</span>' +
+        '<button type="button" class="secundario pequeno" data-pagina="' + (pg.pagina + 1) + '"' + (pg.pagina < pg.paginas - 1 ? '' : ' disabled') + '>Siguiente ›</button>' +
+        '<span class="sub">' + desde + '–' + hasta + ' de ' + pg.total + '</span>';
+}
+
 function notaProblemas(h) {
     var p = problemasHorario(h);
     return p.length ? '<span class="nota">⚠ ' + esc(p.join(' · ')) + '</span>' : '';
@@ -47,7 +64,7 @@ async function elegir(archivo) {
         var leidos = await leerArchivoHorarios(await archivo.arrayBuffer());
         if (!leidos) throw new Error('No encontré las columnas "Nombre de la Microrruta" y "HORARIO" en ninguna hoja.');
         $('estado').hidden = true;
-        revision = { leidos: leidos, nombre: archivo.name, cambios: compararHorarios(datos, leidos), filtro: '' };
+        revision = { leidos: leidos, nombre: archivo.name, cambios: compararHorarios(datos, leidos), filtro: '', pagina: 0 };
         var c = revision.cambios;
         // Sin nada cargado o con cambios: lo primero que se ve es lo que cambia
         revision.filtro = !datos ? 'todas' : c.cambian.length ? 'cambian' : c.nuevas.length ? 'nuevas' : c.quitadas.length ? 'quitadas' : 'todas';
@@ -103,8 +120,10 @@ function pintarRevision() {
             return fila(h, nuevas[h.ruta] && datos ? '<b>Nueva</b>' : cambian[h.ruta] ? esc(cambian[h.ruta].join(', ')) : '', nuevas[h.ruta] && datos ? 'rev-nueva' : '');
         });
     }
-    $('rev-tabla').innerHTML = cab + '<tbody>' + (filas.length ? filas.slice(0, 300).join('') : '<tr><td colspan="8" class="vacio">Nada en este grupo.</td></tr>') + '</tbody>' +
-        (filas.length > 300 ? '<tfoot><tr><td colspan="8" class="sub">Se muestran 300 de ' + filas.length + '.</td></tr></tfoot>' : '');
+    var pg = paginar(filas, r.pagina);
+    r.pagina = pg.pagina;
+    $('rev-tabla').innerHTML = cab + '<tbody>' + (filas.length ? pg.filas.join('') : '<tr><td colspan="8" class="vacio">Nada en este grupo.</td></tr>') + '</tbody>';
+    $('rev-paginas').innerHTML = controlesPagina(pg);
 }
 
 // Valor de un campo comparado, para "Antes: …"
@@ -159,16 +178,17 @@ function pintar() {
         return (!zona || h.zona === zona) && (!q || plano(h.ruta + ' ' + h.macro + ' ' + h.obs + ' ' + h.zona).indexOf(q) >= 0) &&
             (estado !== 'problemas' || problemasHorario(h).length) && (estado !== 'editadas' || h.editado);
     }).sort(function (a, b) { return a.zona.localeCompare(b.zona) || a.ruta.localeCompare(b.ruta); });
-    var cols = puede ? 8 : 7;
+    var cols = puede ? 8 : 7, pg = paginar(filas, pagina);
+    pagina = pg.pagina;
     $('tabla').innerHTML = '<thead><tr><th>Ruta</th><th>Zona</th><th>Macrorruta</th><th>Días</th><th>Horario</th><th>Turno</th><th>Observación</th>' + (puede ? '<th></th>' : '') + '</tr></thead><tbody>' +
-        (filas.length ? filas.slice(0, 300).map(function (h) {
+        (filas.length ? pg.filas.map(function (h) {
             return '<tr><td class="num"><b>' + esc(h.ruta) + '</b>' + (h.editado ? '<span class="sub" title="Editada a mano">✏️ editada</span>' : '') + '</td>' +
                 '<td>' + esc(h.zona) + '</td><td>' + esc(h.macro) + '</td><td>' + esc(textoDias(h.dias)) + '</td>' +
                 '<td class="num">' + celdaHorario(h) + '</td><td class="centro">' + esc(h.turno) + '</td><td class="obs">' + esc(h.obs) + notaProblemas(h) + '</td>' +
                 (puede ? '<td class="acciones-fila"><button type="button" class="icono" data-editar="' + esc(h.ruta) + '" title="Corregir la ruta ' + esc(h.ruta) + '">✏️</button>' +
                     '<button type="button" class="icono quitar" data-borrar="' + esc(h.ruta) + '" title="Quitar la ruta ' + esc(h.ruta) + '">🗑</button></td>' : '') + '</tr>';
         }).join('') : '<tr><td colspan="' + cols + '" class="vacio">Ninguna ruta coincide con la búsqueda.</td></tr>') + '</tbody>';
-    if (filas.length > 300) $('tabla').insertAdjacentHTML('beforeend', '<tfoot><tr><td colspan="' + cols + '" class="sub">Se muestran 300 de ' + filas.length + ': busque la ruta o elija una zona.</td></tr></tfoot>');
+    $('paginas').innerHTML = controlesPagina(pg);
 }
 
 // Ventana de la ruta: nueva (h = null) o para corregir una guardada
@@ -244,15 +264,17 @@ function arrancar() {
     caja.addEventListener('dragover', function (ev) { ev.preventDefault(); caja.classList.add('encima'); });
     caja.addEventListener('dragleave', function () { caja.classList.remove('encima'); });
     caja.addEventListener('drop', function (ev) { ev.preventDefault(); caja.classList.remove('encima'); elegir(ev.dataTransfer.files[0]); });
-    $('buscar').oninput = pintar;
-    $('zonas').onclick = function (ev) { var b = ev.target.closest('[data-zona]'); if (b) { zona = b.dataset.zona; mostrar(); } };
-    $('estados').onclick = function (ev) { var b = ev.target.closest('[data-estado]'); if (b) { estado = estado === b.dataset.estado ? '' : b.dataset.estado; mostrar(); } };
+    $('buscar').oninput = function () { pagina = 0; pintar(); };
+    $('zonas').onclick = function (ev) { var b = ev.target.closest('[data-zona]'); if (b) { zona = b.dataset.zona; pagina = 0; mostrar(); } };
+    $('estados').onclick = function (ev) { var b = ev.target.closest('[data-estado]'); if (b) { estado = estado === b.dataset.estado ? '' : b.dataset.estado; pagina = 0; mostrar(); } };
     $('tabla').onclick = function (ev) {
         var e = ev.target.closest('[data-editar]'), b = ev.target.closest('[data-borrar]');
         if (e) abrirRuta(datos.rutas[e.dataset.editar]);
         if (b) quitarRuta(b.dataset.borrar);
     };
-    $('rev-filtros').onclick = function (ev) { var b = ev.target.closest('[data-filtro]'); if (b) { revision.filtro = b.dataset.filtro; pintarRevision(); } };
+    $('rev-filtros').onclick = function (ev) { var b = ev.target.closest('[data-filtro]'); if (b) { revision.filtro = b.dataset.filtro; revision.pagina = 0; pintarRevision(); } };
+    $('paginas').onclick = function (ev) { var b = ev.target.closest('[data-pagina]'); if (b) { pagina = +b.dataset.pagina; pintar(); $('buscar').scrollIntoView({ block: 'start' }); } };
+    $('rev-paginas').onclick = function (ev) { var b = ev.target.closest('[data-pagina]'); if (b) { revision.pagina = +b.dataset.pagina; pintarRevision(); $('rev-filtros').scrollIntoView({ block: 'start' }); } };
     $('rev-cancelar').onclick = function () { revision = null; $('revision').hidden = true; };
     $('rev-guardar').onclick = guardarRevision;
     $('btn-agregar').onclick = function () { abrirRuta(null); };
