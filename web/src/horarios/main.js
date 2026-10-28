@@ -32,21 +32,42 @@ function celdaHorario(h) {
     var otros = Object.keys(h.porDia).map(function (d) { return NOMBRES_DIAS[d] + ' ' + hhmm(h.porDia[d]); });
     return esc(h.horas.map(hhmm).join(' o ')) + (otros.length ? '<span class="sub">' + esc(otros.join(' · ')) + '</span>' : '');
 }
-// Paginación de las tablas: POR_PAGINA filas por página -> { filas de la página, pagina (corregida), paginas }
-var POR_PAGINA = 100;
+// Paginación de las tablas: porPagina filas por página (máximo 30), 30 si no se ha elegido otra; se recuerda en el equipo
+var OPCIONES_PAGINA = [5, 10, 15, 25, 30];
+var porPagina = 30;
+try { var guardada = +localStorage.getItem('horarios_por_pagina'); if (OPCIONES_PAGINA.indexOf(guardada) >= 0) porPagina = guardada; } catch (e) {}
+// -> { filas de la página, pagina (corregida), paginas, total }
 function paginar(filas, pagina) {
-    var paginas = Math.max(1, Math.ceil(filas.length / POR_PAGINA)), p = Math.min(Math.max(0, pagina), paginas - 1);
-    return { filas: filas.slice(p * POR_PAGINA, (p + 1) * POR_PAGINA), pagina: p, paginas: paginas, total: filas.length };
+    var tam = porPagina, paginas = Math.max(1, Math.ceil(filas.length / tam)), p = Math.min(Math.max(0, pagina), paginas - 1);
+    return { filas: filas.slice(p * tam, (p + 1) * tam), pagina: p, paginas: paginas, total: filas.length, tam: tam };
 }
-// "‹ Anterior · 101–200 de 599 · página 2 de 6 · Siguiente ›"; los botones llevan data-pagina
+// "‹ Anterior · 1 … 4 5 6 … 20 · Siguiente › · 91–120 de 599 · [30 por página]"; los botones llevan data-pagina
 function controlesPagina(pg) {
-    if (pg.paginas < 2) return pg.total ? '<span class="sub">' + pg.total + (pg.total === 1 ? ' ruta' : ' rutas') + '</span>' : '';
-    var desde = pg.pagina * POR_PAGINA + 1, hasta = Math.min(pg.total, desde + POR_PAGINA - 1), nums = [];
-    for (var i = 0; i < pg.paginas; i++) nums.push('<button type="button" class="chip" data-pagina="' + i + '" aria-pressed="' + (i === pg.pagina) + '">' + (i + 1) + '</button>');
+    if (!pg.total) return '';
+    var elegir = '<label class="por-pagina">Ver <select data-por-pagina aria-label="Rutas por página">' + OPCIONES_PAGINA.map(function (n) {
+        return '<option value="' + n + '"' + (n === porPagina ? ' selected' : '') + '>' + n + ' por página' + '</option>';
+    }).join('') + '</select></label>';
+    if (pg.paginas < 2) return '<span class="sub">' + pg.total + (pg.total === 1 ? ' ruta' : ' rutas') + '</span>' + elegir;
+    var desde = pg.pagina * pg.tam + 1, hasta = Math.min(pg.total, desde + pg.tam - 1), nums = [], antes = -1;
+    // Primera, última y las dos de cada lado de la actual; los saltos con "…"
+    for (var i = 0; i < pg.paginas; i++) {
+        if (i !== 0 && i !== pg.paginas - 1 && Math.abs(i - pg.pagina) > 2) continue;
+        if (antes >= 0 && i - antes > 1) nums.push('<span class="salto">…</span>');
+        nums.push('<button type="button" class="chip" data-pagina="' + i + '" aria-pressed="' + (i === pg.pagina) + '">' + (i + 1) + '</button>');
+        antes = i;
+    }
     return '<button type="button" class="secundario pequeno" data-pagina="' + (pg.pagina - 1) + '"' + (pg.pagina ? '' : ' disabled') + '>‹ Anterior</button>' +
         '<span class="numeros">' + nums.join('') + '</span>' +
         '<button type="button" class="secundario pequeno" data-pagina="' + (pg.pagina + 1) + '"' + (pg.pagina < pg.paginas - 1 ? '' : ' disabled') + '>Siguiente ›</button>' +
-        '<span class="sub">' + desde + '–' + hasta + ' de ' + pg.total + '</span>';
+        '<span class="sub">' + desde + '–' + hasta + ' de ' + pg.total + '</span>' + elegir;
+}
+// Cambia cuántas rutas por página en las dos tablas y vuelve a la primera
+function cambiarPorPagina(n) {
+    porPagina = n;
+    try { localStorage.setItem('horarios_por_pagina', String(n)); } catch (e) {}
+    pagina = 0;
+    pintar();
+    if (revision) { revision.pagina = 0; pintarRevision(); }
 }
 
 function notaProblemas(h) {
@@ -275,6 +296,7 @@ function arrancar() {
     $('rev-filtros').onclick = function (ev) { var b = ev.target.closest('[data-filtro]'); if (b) { revision.filtro = b.dataset.filtro; revision.pagina = 0; pintarRevision(); } };
     $('paginas').onclick = function (ev) { var b = ev.target.closest('[data-pagina]'); if (b) { pagina = +b.dataset.pagina; pintar(); $('buscar').scrollIntoView({ block: 'start' }); } };
     $('rev-paginas').onclick = function (ev) { var b = ev.target.closest('[data-pagina]'); if (b) { revision.pagina = +b.dataset.pagina; pintarRevision(); $('rev-filtros').scrollIntoView({ block: 'start' }); } };
+    $('paginas').onchange = $('rev-paginas').onchange = function (ev) { if (ev.target.matches('[data-por-pagina]')) cambiarPorPagina(+ev.target.value); };
     $('rev-cancelar').onclick = function () { revision = null; $('revision').hidden = true; };
     $('rev-guardar').onclick = guardarRevision;
     $('btn-agregar').onclick = function () { abrirRuta(null); };

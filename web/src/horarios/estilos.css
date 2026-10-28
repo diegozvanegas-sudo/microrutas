@@ -35,8 +35,11 @@
 #dlg-confirmar .pie button { flex: 1; padding: 11px 14px; }
 @media (max-width: 560px) { #dlg-ruta .campos { grid-template-columns: 1fr; } }
 
-/* Paginación de las tablas (100 rutas por página) */
+/* Paginación de las tablas (30 rutas por página o lo que se elija) */
 .paginas { display: flex; gap: 6px; align-items: center; flex-wrap: wrap; justify-content: center; margin-top: 10px; }
 .paginas .numeros { display: flex; gap: 4px; flex-wrap: wrap; }
 .paginas .chip { min-width: 34px; padding: 4px 8px; }
-.paginas .sub { width: 100%; text-align: center; }
+.paginas .salto { color: var(--muted); padding: 0 2px; align-self: center; }
+.paginas .sub { text-align: center; }
+.paginas .por-pagina { display: flex; align-items: center; gap: 6px; font-size: 13px; color: var(--muted); }
+.paginas .por-pagina select { width: auto; padding: 3px 8px; font-size: 14px; }
