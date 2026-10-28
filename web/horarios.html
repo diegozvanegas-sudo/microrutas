@@ -46,25 +46,73 @@
 <main>
     <section class="tarjeta">
         <h2>📂 Archivo de horarios</h2>
-        <p class="ayuda">El Excel de horarios de rutas de recolección (una hoja por zona). Se guarda en la base de datos y <b>Horas extras</b> lo usa para marcar las H.I y H.F que no son las del horario.</p>
+        <p class="ayuda">El Excel de horarios de rutas de recolección (una hoja por zona). Se guarda en la base de datos y <b>Horas extras</b> lo usa para marcar las H.I y H.F que no son las del horario. Antes de guardarlo se revisa qué cambia.</p>
         <p class="sub" id="cargados">Cargando…</p>
         <label class="carga" id="caja-horarios" hidden>
             <input type="file" id="archivo-horarios" accept=".xlsx">
             <b>Horarios de rutas</b>
-            <span class="sub" id="nombre-horarios">Toque para elegir o arrastre el .xlsx aquí (reemplaza los horarios cargados)</span>
+            <span class="sub" id="nombre-horarios">Toque para elegir o arrastre el .xlsx aquí (antes de reemplazar los horarios cargados se revisa)</span>
         </label>
         <div id="estado" class="estado-carga" hidden></div>
     </section>
 
+    <!-- Revisión del cargue: lo leído del Excel frente a lo guardado, antes de reemplazarlo -->
+    <section class="tarjeta" id="revision" hidden>
+        <h2>🧐 Revisión del cargue <span class="sub" id="rev-archivo"></span></h2>
+        <p class="ayuda">Así quedarían los horarios con este archivo. Revise lo que cambia y guarde; hasta entonces Horas extras sigue con los que están cargados.</p>
+        <div class="chips" id="rev-filtros"></div>
+        <div id="rev-aviso" class="aviso-rev" hidden></div>
+        <div class="tabla-caja"><table class="tabla-horas" id="rev-tabla"></table></div>
+        <div class="acciones fin">
+            <button type="button" class="secundario" id="rev-cancelar">Cancelar</button>
+            <span class="espacio"></span>
+            <button type="button" class="primario" id="rev-guardar">Guardar</button>
+        </div>
+    </section>
+
     <section class="tarjeta" id="resultado" hidden>
-        <h2>🔎 Rutas</h2>
+        <h2>🔎 Rutas <button type="button" class="secundario pequeno" id="btn-agregar" hidden>➕ Agregar ruta</button></h2>
         <input type="search" id="buscar" placeholder="Buscar ruta, macrorruta u observación…" aria-label="Buscar ruta">
         <div class="chips" id="zonas"></div>
+        <div class="chips" id="estados"></div>
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
         <p class="ayuda">Si la observación dice que un día sale a otra hora (por ejemplo "LOS DIAS JUEVES SALE LA RUTA A LAS 8:00"), ese día se revisa con esa hora. Con varias horas en el HORARIO se acepta cualquiera. El turno es de 8 horas: H.F = H.I + 8.</p>
     </section>
-    <p class="nota-privada">🔒 Solo los usuarios con sesión ven los horarios y solo los administradores y quien tenga el permiso los cargan. El Excel se lee en este equipo: a la base de datos van solo las filas.</p>
+    <p class="nota-privada">🔒 Solo los usuarios con sesión ven los horarios y solo los administradores y quien tenga el permiso los cargan o los corrigen. El Excel se lee en este equipo: a la base de datos van solo las filas.</p>
 </main>
+
+<!-- Crear o corregir una ruta: se lee igual que una fila del Excel -->
+<dialog id="dlg-ruta">
+    <form class="cuerpo" id="form-ruta" method="dialog">
+        <h2><span id="ruta-titulo">Ruta</span> <button type="button" class="cerrar-dlg" id="ruta-cerrar" aria-label="Cerrar">×</button></h2>
+        <div class="campos">
+            <label>RUTA (MICRORRUTA) <input name="ruta" required inputmode="numeric" autocomplete="off"></label>
+            <label>ZONA <input name="zona" list="lista-zonas" autocomplete="off"></label>
+            <label class="ancho">MACRORRUTA <input name="macro" autocomplete="off"></label>
+            <fieldset class="ancho dias-sel"><legend>DÍAS DE LA FRECUENCIA</legend><div id="ruta-dias"></div></fieldset>
+            <label>HORARIO <input name="horario" placeholder="6:00 o 6:00 y 8:00" autocomplete="off"></label>
+            <label>TURNO <input name="turno" autocomplete="off"></label>
+            <label class="ancho">OBSERVACIÓN <textarea name="obs" rows="2" placeholder="LOS DIAS JUEVES SALE LA RUTA A LAS 8:00"></textarea></label>
+        </div>
+        <p class="vista-ruta" id="ruta-lectura"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="ruta-cancelar">Cancelar</button>
+            <button type="submit" class="primario" id="ruta-guardar">Guardar</button>
+        </div>
+    </form>
+</dialog>
+<datalist id="lista-zonas"></datalist>
+<!-- Confirmación propia: el confirm() del navegador no aparece en algunos celulares (p. ej. al abrir desde WhatsApp) -->
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="peligro" id="conf-si"></button>
+        </div>
+    </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/horarios/main.js"></script>
 </body>

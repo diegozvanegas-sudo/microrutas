@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { hhmm } from '../src/horas/cruce.js';
-import { leerHorarios, leerObservacion, horasDe, diasFrecuencia, diaSemana, revisarHorario, textoDias } from '../src/horarios/horarios.js';
+import { leerHorarios, leerObservacion, horasDe, diasFrecuencia, diaSemana, revisarHorario, textoDias, filaHorario, problemasHorario, compararHorarios } from '../src/horarios/horarios.js';
 
 const hora = (h, m) => new Date(Date.UTC(1899, 11, 30, h, m || 0));
 const CAB = [null, 'ITEM', 'Nombre de la Microrruta', 'Macrorruta (nombre o tipo servicio)', 'Frecuencia (veces/semana)', 'Días de la frecuencia', 'HORARIO', 'Turno ', 'OBSERVACIÓN'];
@@ -49,4 +49,29 @@ test('horarios: leer las hojas y revisar la H.I y H.F de cada fila', () => {
     // Ruta que no está en los horarios: no se marca
     assert.deepEqual(revisarHorario({ fecha: '2026-10-26', ruta: '999999', hi: 300, hf: 780 }, h), { horario: null, difHi: false, difHf: false, fueraDeDia: false });
     assert.equal(leerHorarios([{ nombre: 'x', valores: [[], [null, 'otra cosa']] }]), null);
+});
+
+test('horarios: una ruta del formulario, sus problemas y la revisión del cargue', () => {
+    const f = filaHorario({ ruta: ' 0100101 ', zona: 'ZONA 1', macro: 'Z1LJ', dias: [4, 1, 4], horario: '6:00', turno: '1', obs: 'LOS DIAS JUEVES SALE LA RUTA A LAS 8:00' });
+    assert.deepEqual([f.ruta, f.dias, f.horas, f.porDia, f.horarioVer], ['100101', [1, 4], [360], { 4: 480 }, '6:00']);
+    assert.equal(filaHorario({ ruta: '' }), null);
+    assert.deepEqual(problemasHorario(f), []);
+    assert.deepEqual(problemasHorario(filaHorario({ ruta: 1, dias: [1], horario: '', obs: 'el sabado a las 8' })),
+        ['sin hora de salida', 'la observación cambia la hora del sábado, que no le toca']);
+
+    // Lo guardado viene de la base: por_dia con claves de texto, sin diferencias por eso
+    const antes = { rutas: {
+        100101: { ...f, porDia: { '4': 480 } },
+        100201: filaHorario({ ruta: 100201, zona: 'ZONA 1', dias: '1-6', horario: '21:00' }),
+        100301: filaHorario({ ruta: 100301, zona: 'ZONA 1', dias: '2-5', horario: '6:00' }) } };
+    const nuevos = { rutas: {
+        100101: f,
+        100201: filaHorario({ ruta: 100201, zona: 'ZONA 1', dias: '1-6', horario: '22:00', turno: '3' }),
+        200101: filaHorario({ ruta: 200101, zona: 'ZONA 2', dias: '3-6', horario: '6:00' }) } };
+    const c = compararHorarios(antes, nuevos);
+    assert.equal(c.iguales, 1);
+    assert.deepEqual(c.nuevas.map((h) => h.ruta), ['200101']);
+    assert.deepEqual(c.quitadas.map((h) => h.ruta), ['100301']);
+    assert.deepEqual(c.cambian.map((x) => [x.despues.ruta, x.campos]), [['100201', ['horario', 'turno']]]);
+    assert.equal(compararHorarios(null, nuevos).nuevas.length, 3);
 });

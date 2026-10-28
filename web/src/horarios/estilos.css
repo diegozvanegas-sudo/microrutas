@@ -3,5 +3,35 @@
 .tabla-horas td.obs { min-width: 220px; font-size: 12px; color: var(--muted); }
 .tabla-horas td.vacio { text-align: center; color: var(--muted); padding: 18px; }
 .tabla-horas tfoot td { text-align: center; padding: 8px; }
-/* La casilla de carga solo la ve el administrador (display: grid de .carga taparía el hidden) */
+/* La casilla de carga solo la ve quien tiene el permiso (display: grid de .carga taparía el hidden) */
 .carga[hidden] { display: none; }
+
+/* Revisión del cargue: lo que cambia con el Excel antes de guardarlo */
+.aviso-rev { background: var(--aviso-bg); color: var(--aviso); border-radius: 10px; padding: 8px 12px; margin: 0 0 10px; font-size: 14px; }
+.tabla-horas td.cambio { min-width: 160px; font-size: 12px; }
+.tabla-horas tr.rev-nueva { background: #f2fbf6; }
+.tabla-horas tr.rev-cambia td.cambio b { color: #c2410c; }
+.tabla-horas tr.rev-quita { background: #fff7f7; color: var(--muted); }
+.tabla-horas tr.rev-quita td.cambio b { color: var(--pend); }
+#revision .acciones { margin-top: 12px; }
+
+/* Corregir, agregar y quitar rutas */
+.tarjeta h2 #btn-agregar { margin-left: auto; }
+.tabla-horas td.acciones-fila { white-space: nowrap; text-align: right; }
+#dlg-ruta .cuerpo { padding: 18px; }
+#dlg-ruta .campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+#dlg-ruta .ancho { grid-column: 1 / -1; }
+#dlg-ruta label { display: block; font-size: 12px; font-weight: 700; color: var(--muted); }
+#dlg-ruta .dias-sel { border: 1px solid var(--line); border-radius: 9px; padding: 6px 10px 8px; margin: 0; }
+#dlg-ruta .dias-sel legend { font-size: 12px; font-weight: 700; color: var(--muted); padding: 0 4px; }
+#dlg-ruta #ruta-dias { display: flex; flex-wrap: wrap; gap: 4px 14px; }
+#dlg-ruta #ruta-dias label { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: 400; color: var(--ink); text-transform: capitalize; }
+#dlg-ruta #ruta-dias input { width: 18px; height: 18px; accent-color: var(--brand); }
+.vista-ruta { background: #e7f6ee; border-radius: 10px; padding: 8px 12px; font-size: 14px; margin: 12px 0 0; }
+.vista-ruta.con-problema { background: var(--aviso-bg); color: var(--aviso); }
+#dlg-ruta .pie, #dlg-confirmar .pie { display: flex; justify-content: flex-end; gap: 8px; margin-top: 14px; }
+#dlg-confirmar { width: min(420px, calc(100% - 32px)); }
+#dlg-confirmar .cuerpo { padding: 18px; }
+#dlg-confirmar p { margin: 0; color: #475569; white-space: pre-line; }
+#dlg-confirmar .pie button { flex: 1; padding: 11px 14px; }
+@media (max-width: 560px) { #dlg-ruta .campos { grid-template-columns: 1fr; } }

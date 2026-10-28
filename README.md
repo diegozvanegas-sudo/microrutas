@@ -132,7 +132,10 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
 - `horarios_rutas` (`0011_horarios_rutas.sql`): horarios de rutas de recolección (LV y RyT). Los lee quien tenga sesión
   (`horarios.html` y Horas extras, que marca en naranja la H.I y la H.F que no son las del horario); solo los administradores
   y los usuarios con `perfiles.cargar_horarios` (`0012_horarios_permiso.sql`; se marca en la base, no en el repositorio)
-  los cargan desde el Excel con `cargar_horarios()`, que reemplaza todos. El Excel no va al repositorio.
+  los cargan desde el Excel con `cargar_horarios()`, que reemplaza todos. Antes de guardar, la página muestra la revisión del
+  cargue (rutas nuevas, las que cambian y en qué, las que se quitan y las que tienen algo que revisar). Después se pueden
+  corregir, agregar o quitar rutas una a una con `guardar_horario()` y `borrar_horario()` (`0013_horarios_editar.sql`;
+  quedan marcadas como editadas a mano hasta el próximo Excel). El Excel no va al repositorio.
 - `perfiles` (nombre y rol de cada usuario): los lee quien tenga sesión; solo cambian con las funciones `admin_*`
   (`0004_usuarios.sql`), que rechazan a quien no sea admin.
 - Cada visita queda a nombre de la sesión: `registrado_por` / `creado_por` al crearla, `subsanado_por` al pasar a
