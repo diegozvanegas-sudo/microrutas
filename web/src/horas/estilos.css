@@ -37,6 +37,11 @@ body > main { max-width: 1500px; }
 .tabla-horas td.coincide, .tabla-horas tr td.dif.coincide { background: #fff176; color: var(--ink); }
 .tabla-horas td.inconsistente, .tabla-horas tr td.dif.inconsistente { background: #ff7c80; color: #5f0b0b; font-weight: 700; }
 .tabla-horas td.inconsistente .sub { font-weight: 400; color: #5f0b0b; }
+/* Toda la fila: amarilla si está bien y roja si tiene alguna inconsistencia (las celdas que fallan, en negrilla) */
+.tabla-horas tr.fila-bien td { background: #fff176; }
+.tabla-horas tr.fila-mal td { background: #ff7c80; color: #3b0606; }
+.tabla-horas tr.fila-mal td .sub, .tabla-horas tr.fila-mal td .nota { color: #3b0606; }
+.tabla-horas tr.fila-mal td.inconsistente, .tabla-horas tr.fila-mal td.dif.inconsistente { background: #ff5a5f; color: #3b0606; }
 .chip.horario[aria-pressed="true"] { border-color: #c2410c; color: #c2410c; background: #fbe0cf; }
 .chip.distinto[aria-pressed="true"] { border-color: var(--pend); color: var(--pend); background: var(--pend-bg); }
 

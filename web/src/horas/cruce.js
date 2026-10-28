@@ -70,6 +70,8 @@ export var COLUMNAS_EXTRAS = {
     hi: ['hi', 'horainicio'], hf: ['hf', 'horafin'], extra: ['hextra', 'horaextra', 'hext'], real: ['hreal', 'horareal'],
     // Distribución de las horas extras (distribucion.js): ordinaria y festiva, diurna y nocturna
     od: ['od'], on: ['on'], fd: ['fd'], fn: ['fn'],
+    // TOTAL = H. REAL − H.F (el primero; el de la distribución va después de FN)
+    total: ['total'],
 };
 export var COLUMNAS_CUMPLIMIENTO = { fecha: ['fecha'], real: ['horareal'], codigo: ['codigo', 'ruta'], camion: ['camion', 'vehiculo'], dotacion: ['dotacion'] };
 

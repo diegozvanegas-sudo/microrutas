@@ -121,7 +121,8 @@ function pintar() {
                 f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
                 horarios && !f.horario && /^\d+$/.test(f.ruta) ? 'la ruta no está en los horarios' : '']
                 .filter(Boolean);
-            return '<tr class="' + est[1] + '" data-i="' + i + '">' +
+            var e = estadoFila(f);
+            return '<tr class="' + est[1] + (e ? ' fila-' + e : '') + '" data-i="' + i + '">' +
                 '<td class="num">' + f.fila + '</td>' +
                 '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
@@ -136,6 +137,13 @@ function pintar() {
     var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
     $('btn-descargar').textContent = '⬇ Descargar Excel con H. REAL (' + n + ')';
     $('btn-descargar').disabled = !n;
+}
+
+// La fila completa: 'mal' si algo no coincide (ruta, control, H.I, H.F o la hora extra frente a la real), 'bien' si la hora
+// extra coincide con la real y lo demás también; '' sin hora real para comparar (sin color)
+function estadoFila(f) {
+    if (f.difRuta || f.difControl || f.difHi || f.difHf || f.estado === 'mas' || f.estado === 'menos') return 'mal';
+    return f.estado === 'ok' ? 'bien' : '';
 }
 
 // Qué celdas de la fila se pudieron revisar: la ruta y el control si el cumplimiento los trae, y la H.I y la H.F
@@ -182,14 +190,12 @@ async function armarLibro() {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: color } },
         });
     }
+    // Hasta qué columna va la fila: la última con título
+    var ultima = col;
+    b.ws.getRow(extras.encabezado).eachCell(function (c, i) { if (String(c.value == null ? '' : c.value).trim()) ultima = Math.max(ultima, i); });
     var formato = null;
     filas.forEach(function (f) {
-        // RUTA y CONTROL frente al cumplimiento y H.I y H.F frente al horario: amarillo si coinciden, rojo si no
-        var rev = revisada(f), fila = b.ws.getRow(f.fila);
-        if (f.difRuta || rev.ruta) sombrear(fila.getCell(extras.cols.ruta), f.difRuta ? COLOR_DISTINTO : COLOR_COINCIDE);
-        if (f.difControl || rev.control) sombrear(fila.getCell(extras.cols.control), f.difControl ? COLOR_DISTINTO : COLOR_COINCIDE);
-        if (extras.cols.hi != null && (f.difHi || rev.hi)) sombrear(fila.getCell(extras.cols.hi), f.difHi ? COLOR_DISTINTO : COLOR_COINCIDE);
-        if (extras.cols.hf != null && (f.difHf || rev.hf)) sombrear(fila.getCell(extras.cols.hf), f.difHf ? COLOR_DISTINTO : COLOR_COINCIDE);
+        var fila = b.ws.getRow(f.fila);
         formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
         // OD, ON, FD, FN y su TOTAL, en h:mm (si el archivo trae esas columnas)
         var d = reparto(f);
@@ -200,11 +206,26 @@ async function armarLibro() {
             celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(d[c[0]] / 60), d[c[0]] % 60));
             celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), { numFmt: 'h:mm' });
         });
-        if (!f.usar || f.real == null) return;
-        var celda = b.ws.getRow(f.fila).getCell(col);
-        // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
-        celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
-        sombrear(celda, COLOR_REAL, { numFmt: formato });
+        // TOTAL (H. REAL − H.F): si la llegada pasa la medianoche la resta da negativa y Excel muestra ######.
+        // Con MOD(…;1) da la hora de más (23:00 → 0:01 = 1:01) y sin H. REAL queda vacío
+        var tot = extras.cols.total != null && fila.getCell(extras.cols.total), fm = tot && tot.value && tot.value.formula;
+        var resta = fm && /^\s*([A-Z]+\d+)\s*-\s*([A-Z]+\d+)\s*$/.exec(fm);
+        if (resta) tot.value = { formula: 'IF(' + resta[1] + '="","",MOD(' + resta[1] + '-' + resta[2] + ',1))' };
+        if (f.usar && f.real != null) {
+            var celda = fila.getCell(col);
+            // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
+            celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
+            sombrear(celda, COLOR_REAL, { numFmt: formato });
+        }
+        // Toda la fila: amarilla si está bien y roja si tiene alguna inconsistencia (las celdas que fallan, además, en negrilla)
+        var e = estadoFila(f);
+        if (!e) return;
+        var malas = [f.difRuta && extras.cols.ruta, f.difControl && extras.cols.control, f.difHi && extras.cols.hi, f.difHf && extras.cols.hf,
+            (f.estado === 'mas' || f.estado === 'menos') && extras.cols.extra];
+        for (var i = 1; i <= ultima; i++) {
+            var c = fila.getCell(i);
+            sombrear(c, e === 'mal' ? COLOR_DISTINTO : COLOR_COINCIDE, malas.indexOf(i) >= 0 ? { font: Object.assign({}, c.font, { bold: true, color: { argb: 'FF7F0000' } }) } : null);
+        }
     });
     // Que Excel recalcule el TOTAL (H. REAL − H.F) al abrir
     b.wb.calcProperties = Object.assign({}, b.wb.calcProperties, { fullCalcOnLoad: true });
