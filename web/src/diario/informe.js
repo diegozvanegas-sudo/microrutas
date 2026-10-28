@@ -6,7 +6,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES } from './comun.js';
+import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_RECORRIDO } from './comun.js';
 
 var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha';
 var $ = function (id) { return document.getElementById(id); };
@@ -168,11 +168,17 @@ async function arrancar() {
     try { copia = JSON.parse(localStorage.getItem(CACHE)) || {}; } catch (e) { copia = {}; }
     try { $('con-fecha').checked = localStorage.getItem(PREF_FECHA) === '1'; } catch (e) {}
 
-    $('frases').innerHTML = FRASES.map(function (f, i) { return '<button type="button" class="chip" data-frase="' + i + '">' + esc(f.t) + '</button>'; }).join('');
+    // Un renglón de frases por servicio
+    var grupos = [['Corte de césped', FRASES], ['Recorridos (otro servicio)', FRASES_RECORRIDO]];
+    $('frases').innerHTML = grupos.map(function (g, j) {
+        return '<div class="chips"><span class="sub grupo-frases">' + esc(g[0]) + '</span>' + g[1].map(function (f, i) {
+            return '<button type="button" class="chip" data-grupo="' + j + '" data-frase="' + i + '">' + esc(f.t) + '</button>';
+        }).join('') + '</div>';
+    }).join('');
     $('frases').onclick = function (ev) {
         var b = ev.target.closest('[data-frase]');
         if (!b) return;
-        var t = FRASES[+b.dataset.frase].texto, k = t.indexOf('…'), caja = $('nueva');
+        var t = grupos[+b.dataset.grupo][1][+b.dataset.frase].texto, k = t.indexOf('…'), caja = $('nueva');
         caja.value = t;
         caja.focus();
         // Queda seleccionado el "…" para escribir encima lo que falta (cuadrillas, zona)

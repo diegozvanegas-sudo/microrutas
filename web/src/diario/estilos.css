@@ -54,6 +54,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .sugerencia span { flex: 1; }
 .sugerencia .origen { display: block; color: var(--muted); font-size: 12px; }
 .titulo-sugeridas { margin: 12px 0 0; }
+.grupo-frases { align-self: center; font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; width: 100%; }
 .opcion { display: flex; gap: 6px; align-items: center; margin-top: 8px; color: var(--muted); font-size: 13px; }
 .opcion input { width: auto; }
 .vista-previa { white-space: pre-wrap; background: #e7f6ee; border-radius: 10px; padding: 12px 14px; font-size: 14px; margin: 0; max-height: 320px; overflow: auto; }

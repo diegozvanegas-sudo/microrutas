@@ -139,3 +139,12 @@ export var FRASES = [
     { t: 'Áreas nuevas', texto: 'Se realizó verificación de áreas verdes en … para evaluar su inclusión en la base de datos de corte de césped.' },
     { t: 'Reunión', texto: 'Se asistió a reunión con … para tratar temas relacionados con la prestación del servicio de corte de césped.' },
 ];
+
+// Otro servicio: recorridos de verificación de sectores (RCD, aliados de recolección), en el mismo tono
+export var FRASES_RECORRIDO = [
+    { t: 'Recorrido', texto: 'Se realizó recorrido de verificación por los sectores de … .' },
+    { t: 'Novedades RCD', texto: 'Durante el recorrido se identificaron novedades relacionadas con residuos de construcción y demolición (RCD), principalmente sobre … ; estas situaciones fueron referenciadas y reportadas en los grupos correspondientes para su respectiva gestión.' },
+    { t: 'Aliado recolectando', texto: 'Se evidenció la presencia del aliado … realizando actividades de recolección en … .' },
+    { t: 'Sector controlado', texto: 'El sector se encuentra controlado; sin embargo, las novedades identificadas fueron reportadas durante el recorrido para su gestión.' },
+    { t: 'Sin novedades', texto: 'El sector se encuentra controlado y no se identificaron novedades durante el recorrido.' },
+];
