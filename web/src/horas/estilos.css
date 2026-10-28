@@ -30,3 +30,44 @@ main { max-width: 1100px; }
 .tabla-horas tr.mas .dif { color: var(--pend); font-weight: 700; }
 .tabla-horas tr.menos .dif, .tabla-horas tr.sinhora .dif { color: var(--aviso); }
 .tabla-horas tr.nada { color: var(--muted); }
+
+/* Vista previa del Excel consolidado: mismas reglas que la de Subsanaciones (src/subsanaciones/estilos.css) */
+dialog { border: 0; border-radius: 14px; padding: 0; width: min(820px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }
+dialog::backdrop { background: rgba(15, 30, 25, .45); }
+html:has(dialog[open]) { overflow: hidden; }
+dialog { overscroll-behavior: contain; }
+.cerrar-dlg { margin-left: auto; width: 40px; height: 40px; flex-shrink: 0; border: 0; border-radius: 50%; background: #eef2f1; color: var(--ink); font-size: 22px; line-height: 1; cursor: pointer; }
+.cerrar-dlg:hover { background: #dfe7e4; }
+dialog h2 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+#dlg-excel .pie { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+#dlg-excel { width: min(1280px, calc(100% - 24px)); height: calc(100dvh - 24px); margin: auto; border-radius: 14px; }
+#dlg-excel .cuerpo { padding: 18px; height: 100%; display: flex; flex-direction: column; }
+#dlg-excel h2 { margin-bottom: 8px; }
+/* ⤢ Pantalla completa: la ventana ocupa todo; la ✕ queda pegada a ella */
+#dlg-excel .ampliar-dlg { font-size: 19px; }
+#dlg-excel .ampliar-dlg + .cerrar-dlg { margin-left: 0; }
+#dlg-excel.completo { width: 100vw; max-width: 100vw; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
+#dlg-excel.completo .cuerpo { padding: 10px 14px; }
+#dlg-excel .pie { align-items: center; margin-top: 12px; }
+#dlg-excel .pie .sub { margin-right: auto; }
+.excel-barra { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; margin-bottom: 8px; }
+.excel-hojas { display: flex; gap: 4px; flex-wrap: wrap; }
+.excel-zoom { display: flex; gap: 2px; background: #f3f3f3; border: 1px solid var(--line); border-radius: 8px; padding: 2px; }
+.excel-zoom button { background: none; border: 0; color: var(--ink); font-weight: 700; padding: 5px 11px; border-radius: 6px; min-width: 34px; }
+.excel-zoom button:hover { background: #fff; color: #217346; }
+#excel-nivel { min-width: 62px; font-variant-numeric: tabular-nums; }
+.excel-hojas button { background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 6px 12px; border-radius: 8px; font-weight: 600; }
+.excel-hojas button[aria-selected="true"] { border-color: #217346; color: #217346; background: #e9f5ee; }
+.excel-vista { flex: 1; min-height: 0; overflow: auto; border: 1px solid #c6c6c6; background: #fff; }
+.xl { border-collapse: collapse; table-layout: fixed; width: max-content; font: 11pt Calibri, Carlito, "Segoe UI", Arial, sans-serif; color: #000; }
+.xl td, .xl th { border: 1px solid #808080; padding: 1px 3px; text-align: center; vertical-align: middle; overflow: hidden; white-space: nowrap; }
+.xl td.ajustar { white-space: normal; }
+.xl .xl-cab th { white-space: normal; font-weight: 700; color: #000; position: sticky; top: 21px; z-index: 1; }
+.xl-letras th { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; height: 20px; position: sticky; top: 0; z-index: 2; }
+.xl th.xl-num, .xl col.xl-num { width: 34px; }
+.xl th.xl-num { background: #f3f3f3; color: #444; font-weight: 400; font-size: 9pt; border-color: #d4d4d4; position: sticky; left: 0; z-index: 1; }
+.xl-letras th:first-child { position: sticky; left: 0; z-index: 3; }
+@media (max-width: 760px) {
+    #dlg-excel { width: 100%; height: 100dvh; margin: 0; border-radius: 0; }
+    #dlg-excel .cuerpo { padding: 14px; }
+}

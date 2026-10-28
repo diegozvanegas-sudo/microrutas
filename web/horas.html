@@ -63,12 +63,35 @@
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
         <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
         <div class="acciones fin">
+            <span class="sub">En el Excel la H. REAL queda en verde si coincide, rojo si reportaron más tarde y amarillo el resto.</span>
             <span class="espacio"></span>
-            <button type="button" class="primario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
+            <button type="button" class="secundario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
+            <button type="button" class="primario" id="btn-ver-excel">📗 Ver Excel consolidado</button>
         </div>
     </section>
     <p class="nota-privada">🔒 Los archivos se leen solo en este equipo: no se suben a ningún servidor.</p>
 </main>
+<dialog id="dlg-excel">
+    <div class="cuerpo">
+        <h2>📗 Vista previa del Excel <span class="sub" id="excel-info"></span>
+            <button type="button" class="cerrar-dlg ampliar-dlg" id="excel-ampliar" aria-label="Pantalla completa" title="Pantalla completa">⤢</button>
+            <button type="button" class="cerrar-dlg" id="excel-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="excel-barra">
+            <div class="excel-hojas" id="excel-hojas" role="tablist" aria-label="Hojas del Excel"></div>
+            <div class="excel-zoom" role="group" aria-label="Zoom">
+                <button type="button" id="excel-menos" aria-label="Alejar" title="Alejar">−</button>
+                <button type="button" id="excel-nivel" title="Volver a 100 %">100 %</button>
+                <button type="button" id="excel-mas" aria-label="Acercar" title="Acercar">+</button>
+                <button type="button" id="excel-ajustar" title="Que se vean todas las columnas a lo ancho">↔ Ajustar</button>
+            </div>
+        </div>
+        <div class="excel-vista" id="excel-vista"></div>
+        <div class="pie">
+            <span class="sub">El reporte de horas extras con la H. REAL. Así queda al abrirlo en Excel.</span>
+            <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
+        </div>
+    </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/horas/main.js"></script>
 </body>

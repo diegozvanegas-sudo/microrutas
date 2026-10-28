@@ -6,6 +6,8 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
+import { hojaVista, COLOR_REAL } from './vista.js';
+import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var archivos = { extras: null, cumplimiento: null };   // { nombre, buffer }
@@ -108,7 +110,8 @@ function cambiarHora(f, valor) {
     f.usar = f.real != null;
 }
 
-async function descargar() {
+// El consolidado: el mismo libro de horas extras con la H. REAL escrita y coloreada (lo usan la vista previa y la descarga)
+async function armarLibro() {
     var b = await hoja(archivos.extras.buffer), col = extras.cols.real;
     if (col == null) {
         // Sin columna H. REAL: se agrega al final
@@ -123,9 +126,44 @@ async function descargar() {
         // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
         celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
         celda.numFmt = formato;
+        // Verde si coincide, rojo si reportaron más tarde de lo real, amarillo el resto
+        celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: f.estado === 'ok' ? COLOR_REAL.ok : f.estado === 'mas' ? COLOR_REAL.mas : COLOR_REAL.otro } };
     });
     // Que Excel recalcule el TOTAL (H. REAL − H.F) al abrir
     b.wb.calcProperties = Object.assign({}, b.wb.calcProperties, { fullCalcOnLoad: true });
+    return b;
+}
+
+// ---------- Vista previa del Excel consolidado (como la de Subsanaciones) ----------
+var hojaActual = null, zoomXl = 1;
+try { zoomXl = Math.min(2, Math.max(0.25, +localStorage.getItem('excel_zoom') || 1)); } catch (e) {}
+function aplicarZoom(z) {
+    if (z) zoomXl = Math.round(Math.min(2, Math.max(0.25, z)) * 100) / 100;
+    var t = $('excel-vista').querySelector('.xl');
+    if (t) t.style.zoom = zoomXl;
+    $('excel-nivel').textContent = Math.round(zoomXl * 100) + ' %';
+    try { localStorage.setItem('excel_zoom', zoomXl); } catch (e) {}
+}
+function ampliarExcel(si) {
+    $('dlg-excel').classList.toggle('completo', si);
+    $('excel-ampliar').textContent = si ? '⤡' : '⤢';
+    $('excel-ampliar').title = $('excel-ampliar').ariaLabel = si ? 'Tamaño normal' : 'Pantalla completa';
+    try { localStorage.setItem('excel_completo', si ? '1' : ''); } catch (e) {}
+}
+async function verExcel() {
+    var b = await armarLibro();
+    hojaActual = hojaVista(b.ws, extras.encabezado, b.ws.name);
+    var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
+    $('excel-info').textContent = '· ' + hojaActual.filas.length + ' personas · ' + n + ' con H. REAL';
+    $('excel-hojas').innerHTML = '<button type="button" role="tab" aria-selected="true">' + esc(hojaActual.nombre) + ' <small>' + hojaActual.filas.length + '</small></button>';
+    $('excel-vista').innerHTML = htmlHoja(hojaActual);
+    $('excel-vista').scrollTo(0, 0);
+    aplicarZoom();
+    if (!$('dlg-excel').open) $('dlg-excel').showModal();
+}
+
+async function descargar() {
+    var b = await armarLibro();
     var datos = await b.wb.xlsx.writeBuffer();
     var url = URL.createObjectURL(new Blob([datos], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
     var a = document.createElement('a');
@@ -156,6 +194,25 @@ function arrancar() {
         pintar();
     });
     $('btn-descargar').onclick = function () { descargar().catch(function (e) { toast('No se pudo armar el Excel: ' + e.message); }); };
+    $('btn-ver-excel').onclick = function () { verExcel().catch(function (e) { toast('No se pudo armar la vista previa: ' + e.message); }); };
+    $('excel-descargar').onclick = $('btn-descargar').onclick;
+    $('excel-cerrar').onclick = function () { $('dlg-excel').close(); };
+    $('excel-menos').onclick = function () { aplicarZoom(zoomXl - (zoomXl > 1 ? 0.25 : 0.1)); };
+    $('excel-mas').onclick = function () { aplicarZoom(zoomXl + (zoomXl >= 1 ? 0.25 : 0.1)); };
+    $('excel-nivel').onclick = function () { aplicarZoom(1); };
+    // Ancho de la hoja al 100 %: columna de números (34 px) + cada columna (ancho × 7 + 5 px, como htmlHoja) + bordes
+    $('excel-ajustar').onclick = function () {
+        if (!hojaActual) return;
+        var ancho = hojaActual.anchos.reduce(function (s, w) { return s + w * 7 + 6; }, 36);
+        aplicarZoom(($('excel-vista').clientWidth - 4) / ancho);
+    };
+    $('excel-vista').addEventListener('wheel', function (ev) {
+        if (!ev.ctrlKey) return;
+        ev.preventDefault();
+        aplicarZoom(zoomXl * (ev.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }, { passive: false });
+    try { ampliarExcel(localStorage.getItem('excel_completo') === '1'); } catch (e) {}
+    $('excel-ampliar').onclick = function () { ampliarExcel(!$('dlg-excel').classList.contains('completo')); };
 
     // La sesión es la de siempre (para el menú); los archivos nunca se envían a Supabase
     if (!configurado) return;
