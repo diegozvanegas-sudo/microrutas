@@ -8,7 +8,7 @@ export default defineConfig({
     // ExcelJS (~940 kB) solo se descarga al pulsar "Descargar Excel"
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      input: { index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html' },
+      input: { index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html', horas: 'horas.html' },
     },
   },
   plugins: [

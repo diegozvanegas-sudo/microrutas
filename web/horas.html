@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Horas extras</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">⏱️</span>
+        <div class="nombre"><h1>Horas extras</h1><div class="lema">Validar la hora real con el reporte de cumplimiento</div></div>
+    </div>
+    <!-- Secciones agrupadas por tarea: campo (visitas y mapas) · seguimiento (PQR, pendientes) · documentos (informe, horas extras, contrato) -->
+    <nav class="nav-app" aria-label="Secciones">
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <span class="sep-nav" aria-hidden="true"></span>
+        <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 <span>PQR</span></a>
+        <a href="pendientes.html" title="Lo que queda por hacer">📌 <span>Pendientes</span></a>
+        <span class="sep-nav" aria-hidden="true"></span>
+        <a href="informe.html" title="Reporte diario de actividades">🗒️ <span>Informe</span></a>
+        <a href="horas.html" aria-current="page">⏱️ <span>Horas extras</span></a>
+        <a href="contrato.html" id="nav-contrato" hidden title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main>
+    <section class="tarjeta">
+        <h2>📂 Los dos archivos</h2>
+        <p class="ayuda">Se cruzan por <b>cédula</b> y <b>fecha</b>: la HORA REAL del reporte de cumplimiento pasa a la columna H. REAL del reporte de horas extras.</p>
+        <div class="cargas">
+            <label class="carga" id="caja-extras">
+                <input type="file" id="archivo-extras" accept=".xlsx">
+                <b>1. Reporte de horas extras</b>
+                <span class="sub" id="nombre-extras">Toque para elegir o arrastre el .xlsx aquí</span>
+            </label>
+            <label class="carga" id="caja-cumplimiento">
+                <input type="file" id="archivo-cumplimiento" accept=".xlsx">
+                <b>2. Reporte de cumplimiento por turno</b>
+                <span class="sub" id="nombre-cumplimiento">Toque para elegir o arrastre el .xlsx aquí</span>
+            </label>
+        </div>
+        <label class="opcion">Dar por buena una diferencia de hasta
+            <select id="tolerancia"><option value="0">0</option><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option></select> minutos</label>
+        <div id="estado" class="estado-carga" hidden></div>
+    </section>
+
+    <section class="tarjeta" id="resultado" hidden>
+        <h2>🔎 Resultado</h2>
+        <div class="chips" id="resumen"></div>
+        <p class="totales" id="totales"></p>
+        <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
+        <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
+        <div class="acciones fin">
+            <span class="espacio"></span>
+            <button type="button" class="primario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
+        </div>
+    </section>
+    <p class="nota-privada">🔒 Los archivos se leen solo en este equipo: no se suben a ningún servidor.</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/horas/main.js"></script>
+</body>
+</html>

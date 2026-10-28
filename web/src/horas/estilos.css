@@ -1,0 +1,32 @@
+/* Horas extras (horas.html): sobre la base del informe diario (../diario/estilos.css) */
+main { max-width: 1100px; }
+.cargas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
+.carga { display: grid; gap: 2px; border: 2px dashed var(--line); border-radius: 12px; padding: 14px; cursor: pointer; background: #fbfdfc; overflow-wrap: anywhere; }
+.carga:hover, .carga.encima { border-color: var(--brand); background: #edf8f3; }
+.carga.listo { border-style: solid; border-color: var(--brand); }
+.carga.listo b::before { content: '✓ '; color: var(--brand); }
+.carga input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+.opcion select { width: auto; padding: 2px 6px; font-size: 14px; }
+
+.chip b { color: var(--ink); }
+.chip.ok[aria-pressed="true"] { border-color: var(--ok); color: var(--ok); background: var(--ok-bg); }
+.chip.mas[aria-pressed="true"] { border-color: var(--pend); color: var(--pend); background: var(--pend-bg); }
+.chip.menos[aria-pressed="true"], .chip.sinhora[aria-pressed="true"] { border-color: var(--aviso); color: var(--aviso); background: var(--aviso-bg); }
+.totales { margin: 4px 0 10px; font-size: 14px; }
+.totales .rojo { color: var(--pend); }
+
+.tabla-caja { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.tabla-horas { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 780px; }
+.tabla-horas th { position: sticky; top: 0; background: #eef4f1; text-align: left; font-size: 12px; color: var(--muted); padding: 7px 8px; white-space: nowrap; }
+.tabla-horas td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.tabla-horas td .sub, .tabla-horas td .nota { display: block; }
+.tabla-horas .nota { color: var(--aviso); font-size: 12px; }
+.tabla-horas .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.tabla-horas .centro { text-align: center; }
+.tabla-horas input[type="time"] { width: 110px; padding: 3px 6px; font-size: 14px; }
+.tabla-horas input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--brand); }
+.tabla-horas tr.ok .dif { color: var(--ok); }
+.tabla-horas tr.mas { background: #fff7f7; }
+.tabla-horas tr.mas .dif { color: var(--pend); font-weight: 700; }
+.tabla-horas tr.menos .dif, .tabla-horas tr.sinhora .dif { color: var(--aviso); }
+.tabla-horas tr.nada { color: var(--muted); }
