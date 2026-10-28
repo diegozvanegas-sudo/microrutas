@@ -19,18 +19,18 @@ function numCol(letras) { var n = 0; for (var i = 0; i < letras.length; i++) n =
 
 // Texto de una celda como lo muestra Excel: fechas dd/mm/aaaa, horas h:mm, y fórmulas de resta entre dos celdas
 // (el TOTAL = H. REAL − H.F) calculadas; una hora negativa Excel la muestra como ####. La del consolidado,
-// IF(K2="","",MOD(K2-I2,1)), queda vacía sin H. REAL y da la vuelta a la medianoche
+// IF(K2="","",MAX(0,MOD(K2-I2+0.5,1)-0.5)), queda vacía sin H. REAL, da la vuelta a la medianoche y no baja de 0:00
 function mostrar(ws, celda) {
     var v = celda.value, fmt = String(celda.numFmt || '');
     if (v && typeof v === 'object' && v.formula) {
         var m = /^\s*([A-Z]+)(\d+)\s*-\s*([A-Z]+)(\d+)\s*$/.exec(v.formula) ||
-            /^IF\(([A-Z]+)(\d+)="","",MOD\(\1\2-([A-Z]+)(\d+),1\)\)$/.exec(v.formula), vuelta = /MOD\(/.test(v.formula);
+            /^IF\(([A-Z]+)(\d+)="","",MAX\(0,MOD\(\1\2-([A-Z]+)(\d+)\+0\.5,1\)-0\.5\)\)$/.exec(v.formula), vuelta = /MOD\(/.test(v.formula);
         if (m) {
             var a = ws.getRow(+m[2]).getCell(numCol(m[1])).value, b = ws.getRow(+m[4]).getCell(numCol(m[3])).value;
             if (vuelta && (a == null || a === '')) return '';
             var ma = a == null || a === '' ? 0 : minutos(a), mb = b == null || b === '' ? 0 : minutos(b);
             if (ma == null || mb == null) return '';
-            var d = vuelta ? (ma - mb + 1440) % 1440 : ma - mb;
+            var d = vuelta ? Math.max(0, (ma - mb + 720 + 1440) % 1440 - 720) : ma - mb;
             return d < 0 ? '########' : Math.floor(d / 60) + ':' + ('0' + d % 60).slice(-2);
         }
         v = v.result;

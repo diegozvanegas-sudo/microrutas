@@ -207,10 +207,11 @@ async function armarLibro() {
             celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), { numFmt: '0' });
         });
         // TOTAL (H. REAL − H.F): si la llegada pasa la medianoche la resta da negativa y Excel muestra ######.
-        // Con MOD(…;1) da la hora de más (23:00 → 0:01 = 1:01) y sin H. REAL queda vacío
+        // MOD(K-I+0,5;1)-0,5 da la diferencia más cercana (±12 h): 23:00 → 0:01 = 1:01; si llegó antes de la H.F
+        // (13:00 → 11:31) da negativa y MAX la deja en 0:00. Sin H. REAL queda vacío
         var tot = extras.cols.total != null && fila.getCell(extras.cols.total), fm = tot && tot.value && tot.value.formula;
         var resta = fm && /^\s*([A-Z]+\d+)\s*-\s*([A-Z]+\d+)\s*$/.exec(fm);
-        if (resta) tot.value = { formula: 'IF(' + resta[1] + '="","",MOD(' + resta[1] + '-' + resta[2] + ',1))' };
+        if (resta) tot.value = { formula: 'IF(' + resta[1] + '="","",MAX(0,MOD(' + resta[1] + '-' + resta[2] + '+0.5,1)-0.5))' };
         if (f.usar && f.real != null) {
             var celda = fila.getCell(col);
             // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
