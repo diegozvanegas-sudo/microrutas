@@ -138,6 +138,14 @@ export var FRASES = [
     { t: 'Seguimiento', texto: 'Se consolidó la información de las visitas del día y se actualizó el seguimiento de novedades y subsanaciones.' },
     { t: 'Áreas nuevas', texto: 'Se realizó verificación de áreas verdes en … para evaluar su inclusión en la base de datos de corte de césped.' },
     { t: 'Reunión', texto: 'Se asistió a reunión con … para tratar temas relacionados con la prestación del servicio de corte de césped.' },
+    { t: 'Bordeo y plateo', texto: 'Se verificó el bordeo, el plateo de árboles y la perfilación de bordes en los lotes intervenidos por las cuadrillas … .' },
+    { t: 'Residuos sin recoger', texto: 'Se evidenciaron residuos vegetales sin recoger en el lote … ; se envió la novedad al supervisor de la cuadrilla para su recolección.' },
+    { t: 'Lote no intervenido', texto: 'Se evidenció que el lote … , programado para el día, no fue intervenido; se reportó al contratista para su reprogramación.' },
+    { t: 'Mallas y señalización', texto: 'Se realizó retroalimentación al supervisor de la cuadrilla … sobre el uso de mallas de protección y la señalización del área de trabajo.' },
+    { t: 'Daños', texto: 'Se verificó en campo el daño reportado en … , ocasionado durante la actividad de corte de césped; se informó al contratista para su reparación.' },
+    { t: 'Equipos', texto: 'Se verificó el estado de los equipos (guadañadoras, sopladoras) y el abastecimiento de combustible de la cuadrilla … , sin afectar las zonas verdes.' },
+    { t: 'Lluvia', texto: 'Debido a las condiciones climáticas (lluvia), se suspendió la actividad de corte de césped en los lotes programados para las cuadrillas … .' },
+    { t: 'Descuentos', texto: 'Se consolidaron las novedades no subsanadas dentro del plazo para aplicar el descuento correspondiente en la factura.' },
 ];
 
 // Otro servicio: recorridos de verificación de sectores (RCD, aliados de recolección), en el mismo tono
@@ -156,4 +164,12 @@ export var FRASES_RECORRIDO = [
     { t: 'Recolección verificada', texto: 'Se verificó la recolección de las novedades reportadas en … ; el sector se encuentra limpio.' },
     { t: 'Barrido', texto: 'Se verificó la actividad de barrido y limpieza de vías y áreas públicas en … .' },
     { t: 'Cestas', texto: 'Se verificó el estado de las cestas públicas en … ; se reportaron las que se encontraron llenas o en mal estado.' },
+    { t: 'Contenedores', texto: 'Se verificó el estado y la limpieza de los contenedores ubicados en … ; se reportaron las novedades encontradas para su gestión.' },
+    { t: 'Microrruta', texto: 'Se verificó el cumplimiento de la microrruta de recolección de residuos ordinarios en … .' },
+    { t: 'Fuera de horario', texto: 'Se evidenció presentación de residuos fuera del horario de recolección en … ; se reportó para su gestión y sensibilización a la comunidad.' },
+    { t: 'Sensibilización', texto: 'Se realizó sensibilización a la comunidad de … sobre la adecuada presentación de los residuos y los horarios de recolección.' },
+    { t: 'Punto persiste', texto: 'El punto crítico de … persiste pese a la intervención; se reportó nuevamente a los grupos correspondientes para su gestión y seguimiento.' },
+    { t: 'Animal muerto', texto: 'Se reportó animal muerto en vía pública en … para su recolección.' },
+    { t: 'Lavado', texto: 'Se verificó la actividad de lavado de áreas públicas (puentes peatonales, plazoletas) en … .' },
+    { t: 'Georreferenciadas', texto: 'Las novedades identificadas fueron georreferenciadas y registradas fotográficamente para su seguimiento.' },
 ];
