@@ -32,16 +32,11 @@ body > main { max-width: 1500px; }
 .tabla-horas tr.mas .dif { color: var(--pend); font-weight: 700; }
 .tabla-horas tr.menos .dif, .tabla-horas tr.sinhora .dif { color: var(--aviso); }
 .tabla-horas tr.nada { color: var(--muted); }
-/* Celdas revisadas (ruta y control con el cumplimiento, H.I y H.F con el horario, Dif. con la hora real):
-   toda la celda amarilla si coinciden y roja si hay una inconsistencia, como en el Excel */
-.tabla-horas td.coincide, .tabla-horas tr td.dif.coincide { background: #fff176; color: var(--ink); }
-.tabla-horas td.inconsistente, .tabla-horas tr td.dif.inconsistente { background: #ff7c80; color: #5f0b0b; font-weight: 700; }
+/* Casillas revisadas (ruta y control con el cumplimiento, H.I y H.F con el horario): amarilla si coincide y
+   roja solo la que tiene el error, como en el Excel */
+.tabla-horas td.coincide { background: #fff176; color: var(--ink); }
+.tabla-horas td.inconsistente { background: #ff7c80; color: #5f0b0b; font-weight: 700; }
 .tabla-horas td.inconsistente .sub { font-weight: 400; color: #5f0b0b; }
-/* Toda la fila: amarilla si está bien y roja si tiene alguna inconsistencia (las celdas que fallan, en negrilla) */
-.tabla-horas tr.fila-bien td { background: #fff176; }
-.tabla-horas tr.fila-mal td { background: #ff7c80; color: #3b0606; }
-.tabla-horas tr.fila-mal td .sub, .tabla-horas tr.fila-mal td .nota { color: #3b0606; }
-.tabla-horas tr.fila-mal td.inconsistente, .tabla-horas tr.fila-mal td.dif.inconsistente { background: #ff5a5f; color: #3b0606; }
 .chip.horario[aria-pressed="true"] { border-color: #c2410c; color: #c2410c; background: #fbe0cf; }
 .chip.distinto[aria-pressed="true"] { border-color: var(--pend); color: var(--pend); background: var(--pend-bg); }
 

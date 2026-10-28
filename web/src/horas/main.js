@@ -132,8 +132,7 @@ function pintar() {
                 f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
                 horarios && !f.horario && /^\d+$/.test(f.ruta) ? 'la ruta no está en los horarios' : '']
                 .filter(Boolean);
-            var e = estadoFila(f);
-            return '<tr class="' + est[1] + (e ? ' fila-' + e : '') + '" data-i="' + i + '">' +
+            return '<tr class="' + est[1] + '" data-i="' + i + '">' +
                 '<td class="num">' + f.fila + '</td>' +
                 '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
@@ -141,20 +140,13 @@ function pintar() {
                 horaRevisada(f.hi, f.difHi, f.esperadas, revisada(f).hi) +
                 horaRevisada(f.hf, f.difHf, (f.esperadas || []).map(function (x) { return (x + TURNO) % 1440; }), revisada(f).hf) + '<td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +
-                '<td class="num dif' + (f.estado === 'ok' ? ' coincide' : f.estado === 'mas' || f.estado === 'menos' ? ' inconsistente' : '') + '">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
+                '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
                 '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' + celdaReparto(f) +
                 '<td class="centro"><input type="checkbox"' + (f.usar ? ' checked' : '') + (f.real == null ? ' disabled' : '') + ' aria-label="Escribir en H. REAL"></td></tr>';
         }).join('') + '</tbody>';
     var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
     $('btn-descargar').textContent = '⬇ Descargar Excel con H. REAL (' + n + ')';
     $('btn-descargar').disabled = !n;
-}
-
-// La fila completa: 'mal' si algo no coincide (ruta, control, H.I, H.F o la hora extra frente a la real), 'bien' si la hora
-// extra coincide con la real y lo demás también; '' sin hora real para comparar (sin color)
-function estadoFila(f) {
-    if (f.difRuta || f.difControl || f.difHi || f.difHf || f.estado === 'mas' || f.estado === 'menos') return 'mal';
-    return f.estado === 'ok' ? 'bien' : '';
 }
 
 // Qué celdas de la fila se pudieron revisar: la ruta y el control si el cumplimiento los trae, y la H.I y la H.F
@@ -201,9 +193,6 @@ async function armarLibro() {
             fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: color } },
         });
     }
-    // Hasta qué columna va la fila: la última con título
-    var ultima = col;
-    b.ws.getRow(extras.encabezado).eachCell(function (c, i) { if (String(c.value == null ? '' : c.value).trim()) ultima = Math.max(ultima, i); });
     var formato = null;
     filas.forEach(function (f) {
         var fila = b.ws.getRow(f.fila);
@@ -228,15 +217,12 @@ async function armarLibro() {
             celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
             sombrear(celda, COLOR_REAL, { numFmt: formato });
         }
-        // Toda la fila: amarilla si está bien y roja si tiene alguna inconsistencia (las celdas que fallan, además, en negrilla)
-        var e = estadoFila(f);
-        if (!e) return;
-        var malas = [f.difRuta && extras.cols.ruta, f.difControl && extras.cols.control, f.difHi && extras.cols.hi, f.difHf && extras.cols.hf,
-            (f.estado === 'mas' || f.estado === 'menos') && extras.cols.extra];
-        for (var i = 1; i <= ultima; i++) {
-            var c = fila.getCell(i);
-            sombrear(c, e === 'mal' ? COLOR_DISTINTO : COLOR_COINCIDE, malas.indexOf(i) >= 0 ? { font: Object.assign({}, c.font, { bold: true, color: { argb: 'FF7F0000' } }) } : null);
-        }
+        // Solo las casillas revisadas: RUTA y CONTROL frente al cumplimiento, H.I y H.F frente al horario de la ruta.
+        // Amarilla si coincide; roja solo la que tiene el error
+        var rev = revisada(f);
+        [['ruta', f.difRuta], ['control', f.difControl], ['hi', f.difHi], ['hf', f.difHf]].forEach(function (x) {
+            if (extras.cols[x[0]] != null && (x[1] || rev[x[0]])) sombrear(fila.getCell(extras.cols[x[0]]), x[1] ? COLOR_DISTINTO : COLOR_COINCIDE);
+        });
     });
     // Que Excel recalcule el TOTAL (H. REAL − H.F) al abrir
     b.wb.calcProperties = Object.assign({}, b.wb.calcProperties, { fullCalcOnLoad: true });
