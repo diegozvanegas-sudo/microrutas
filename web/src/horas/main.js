@@ -87,7 +87,7 @@ function pintar() {
                 .filter(Boolean);
             return '<tr class="' + est[1] + '" data-i="' + i + '">' +
                 '<td class="num">' + f.fila + '</td>' +
-                '<td><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
+                '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
                 '<td>' + esc(f.rutaVer || f.ruta) + '</td><td class="num">' + hhmm(f.hf) + '</td><td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +

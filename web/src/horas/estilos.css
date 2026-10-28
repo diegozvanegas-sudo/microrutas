@@ -1,5 +1,6 @@
 /* Horas extras (horas.html): sobre la base del informe diario (../diario/estilos.css) */
-main { max-width: 1100px; }
+/* Más específico que el main de ../diario/estilos.css, que Vite carga después (es compartido con Informe y Pendientes) */
+body > main { max-width: 1500px; }
 .cargas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .carga { display: grid; gap: 2px; border: 2px dashed var(--line); border-radius: 12px; padding: 14px; cursor: pointer; background: #fbfdfc; overflow-wrap: anywhere; }
 .carga:hover, .carga.encima { border-color: var(--brand); background: #edf8f3; }
@@ -16,9 +17,10 @@ main { max-width: 1100px; }
 .totales .rojo { color: var(--pend); }
 
 .tabla-caja { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
-.tabla-horas { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 780px; }
+.tabla-horas { width: 100%; border-collapse: collapse; font-size: 13px; min-width: 900px; }
+.tabla-horas td.persona { min-width: 260px; }
 .tabla-horas th { position: sticky; top: 0; background: #eef4f1; text-align: left; font-size: 12px; color: var(--muted); padding: 7px 8px; white-space: nowrap; }
-.tabla-horas td { padding: 6px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.tabla-horas td { padding: 5px 8px; border-top: 1px solid var(--line); vertical-align: middle; }
 .tabla-horas td .sub, .tabla-horas td .nota { display: block; }
 .tabla-horas .nota { color: var(--aviso); font-size: 12px; }
 .tabla-horas .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
