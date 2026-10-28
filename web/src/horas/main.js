@@ -7,7 +7,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
-import { distribuir, MINIMO } from './distribucion.js';
+import { distribuir, enHoras, MINIMO } from './distribucion.js';
 import { hojaVista, COLOR_REAL, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
 import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
 import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
@@ -52,18 +52,22 @@ function mostrarHorarios(error) {
 }
 function malHorario(f) { return f.difHi || f.difHf; }
 
-// Reparto del extra de la fila: de la H.F a la H. REAL si se va a escribir; si no, a la H. EXTRA reportada
+// Reparto del extra de la fila: de la H.F a la H. REAL si se va a escribir; si no, a la H. EXTRA reportada.
+// -> horas enteras { od, on, fd, fn, total } con los minutos exactos en .min, o null si falta algo
 var CLASES = [['od', 'OD'], ['on', 'ON'], ['fd', 'FD'], ['fn', 'FN']];
 function reparto(f) {
-    return distribuir(f.fecha, f.hi, f.hf, f.usar && f.real != null ? f.real : f.extra);
+    var d = distribuir(f.fecha, f.hi, f.hf, f.usar && f.real != null ? f.real : f.extra);
+    return d && Object.assign(enHoras(d), { min: d });
 }
 function celdaReparto(f) {
     var d = reparto(f);
     if (!d) return '<td class="reparto">–</td>';
-    if (!d.total) return '<td class="reparto sub" title="Con menos de ' + MINIMO + ' minutos no hay extra">sin extra (&lt; ' + MINIMO + ' min)</td>';
-    return '<td class="reparto">' + CLASES.filter(function (c) { return d[c[0]]; }).map(function (c) {
-        return '<span class="clase ' + c[0] + '">' + c[1] + ' ' + duracion(d[c[0]]) + '</span>';
-    }).join(' ') + '<span class="sub">' + duracion(d.total) + (f.usar && f.real != null ? ' con la H. REAL' : ' con la H. EXTRA') + '</span></td>';
+    if (!d.min.total) return '<td class="reparto sub" title="Con menos de ' + MINIMO + ' minutos no hay extra">sin extra (&lt; ' + MINIMO + ' min)</td>';
+    var exacto = CLASES.filter(function (c) { return d.min[c[0]]; }).map(function (c) { return c[1] + ' ' + duracion(d.min[c[0]]); }).join(' · ');
+    return '<td class="reparto" title="Minutos exactos: ' + esc(exacto) + '">' + (CLASES.filter(function (c) { return d[c[0]]; }).map(function (c) {
+        return '<span class="clase ' + c[0] + '">' + c[1] + ' ' + d[c[0]] + '</span>';
+    }).join(' ') || '<span class="sub">0 horas</span>') +
+        '<span class="sub">' + d.total + (d.total === 1 ? ' hora' : ' horas') + ' (' + duracion(d.min.total) + ' exactas) con la ' + (f.usar && f.real != null ? 'H. REAL' : 'H. EXTRA') + '</span></td>';
 }
 
 async function procesar() {
@@ -108,8 +112,8 @@ function pintar() {
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
     var suma = { od: 0, on: 0, fd: 0, fn: 0, total: 0 };
     filas.forEach(function (f) { var d = reparto(f); if (d) Object.keys(suma).forEach(function (k) { suma[k] += d[k]; }); });
-    $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + duracion(suma[c[0]]) + '</b></span>'; }).join(' ') +
-        ' · total <b>' + duracion(suma.total) + '</b>';
+    $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
+        ' · total <b>' + suma.total + (suma.total === 1 ? ' hora' : ' horas') + '</b>';
 
     var vis = filas.filter(function (f) {
         return !filtro || f.estado === filtro || filtro === 'horario' && malHorario(f) || filtro === 'distinto' && (f.difRuta || f.difControl);
@@ -197,14 +201,14 @@ async function armarLibro() {
     filas.forEach(function (f) {
         var fila = b.ws.getRow(f.fila);
         formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
-        // OD, ON, FD, FN y su TOTAL, en h:mm (si el archivo trae esas columnas)
+        // OD, ON, FD, FN y su TOTAL, en horas enteras (si el archivo trae esas columnas)
         var d = reparto(f);
         if (d) CLASES.concat([['total']]).forEach(function (c) {
             var k = c[0] === 'total' ? 'totalDist' : c[0];
             if (extras.cols[k] == null) return;
             var celda = fila.getCell(extras.cols[k]);
-            celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(d[c[0]] / 60), d[c[0]] % 60));
-            celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), { numFmt: 'h:mm' });
+            celda.value = d[c[0]];
+            celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), { numFmt: '0' });
         });
         // TOTAL (H. REAL − H.F): si la llegada pasa la medianoche la resta da negativa y Excel muestra ######.
         // Con MOD(…;1) da la hora de más (23:00 → 0:01 = 1:01) y sin H. REAL queda vacío

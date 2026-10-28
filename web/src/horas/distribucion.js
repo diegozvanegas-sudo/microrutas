@@ -1,10 +1,11 @@
 // Distribución de las horas extras en OD (ordinaria diurna), ON (ordinaria nocturna), FD (festiva diurna) y FN (festiva nocturna).
-// El tiempo extra va de la H.F a la hora de llegada; con menos de MINIMO minutos no hay extra y desde ahí se cuenta exacto.
+// El tiempo extra va de la H.F a la hora de llegada; con menos de MINIMO minutos no hay extra. Se reparte en minutos
+// y cada tipo se pasa a horas enteras con enHoras(): la fracción de MINIMO minutos o más sube a la hora siguiente.
 // Diurna de 6:00 a 19:00 y nocturna de 19:00 a 6:00; festiva los domingos y festivos de Colombia, en los mismos horarios.
 // Se reparte minuto a minuto por el reloj y el día, así un extra que pasa la medianoche del sábado al domingo (o del
 // domingo al lunes) cambia de ordinaria a festiva (o al revés) a las 0:00. Sin nada de la página, para probarlo con npm test.
 
-// Desde cuántos minutos de extra se reconocen
+// Desde cuántos minutos de extra se reconocen (y desde cuántos una fracción cuenta como hora completa)
 export var MINIMO = 36;
 var DIURNA_DESDE = 6 * 60, DIURNA_HASTA = 19 * 60;
 
@@ -57,5 +58,15 @@ export function distribuir(fecha, hi, hf, llegada) {
         r.total += n;
         t += n;
     }
+    return r;
+}
+
+// Minutos de cada tipo ({ od, on, fd, fn }) -> horas enteras: 2:47 -> 3, 2:35 -> 2, 0:20 -> 0. total: la suma de los enteros
+export function enHoras(d) {
+    var r = { total: 0 };
+    ['od', 'on', 'fd', 'fn'].forEach(function (k) {
+        r[k] = Math.floor(d[k] / 60) + (d[k] % 60 >= MINIMO ? 1 : 0);
+        r.total += r[k];
+    });
     return r;
 }

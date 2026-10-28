@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { distribuir, esFestivo, festivos } from '../src/horas/distribucion.js';
+import { distribuir, enHoras, esFestivo, festivos } from '../src/horas/distribucion.js';
 
 const h = (hh, mm) => hh * 60 + (mm || 0);
 const sin = (d) => [d.od, d.on, d.fd, d.fn, d.total];
@@ -42,4 +42,12 @@ test('distribución: domingos y festivos, y el cambio de día a medianoche', () 
     assert.deepEqual(sin(distribuir('2026-11-08', h(15), h(23), h(1))), [0, 60, 0, 60, 120]);
     // Domingo 1/11 → lunes 2/11 festivo: todo sigue festivo
     assert.deepEqual(sin(distribuir('2026-11-01', h(21), h(5), h(7))), [0, 0, 60, 60, 120]);
+});
+
+test('distribución: horas enteras, la fracción de 36 minutos o más sube a la hora siguiente', () => {
+    const e = (d) => [d.od, d.on, d.fd, d.fn, d.total];
+    assert.deepEqual(e(enHoras({ od: 167, on: 20, fd: 0, fn: 0 })), [3, 0, 0, 0, 3]);
+    assert.deepEqual(e(enHoras({ od: 155, on: 36, fd: 60, fn: 95 })), [2, 1, 1, 1, 5]);   // 1:35 → 1
+    // Sábado → domingo: 1:00 ON y 1:30 FN -> 1 y 1
+    assert.deepEqual(e(enHoras(distribuir('2026-10-31', h(15), h(23), h(1, 30)))), [0, 1, 0, 1, 2]);
 });
