@@ -1,6 +1,7 @@
 /* Encabezado común (subsanaciones.html, contrato.html, …), en dos filas:
    1) marca · menú "Más" (herramientas y cuenta) · acción principal
-   2) secciones de la app como pestañas, a todo el ancho y pegadas al borde de abajo.
+   2) secciones de la app como pestañas, a todo el ancho y pegadas al borde de abajo; un servicio con varias
+      páginas (LV y RyT) es un botón que las despliega (.nav-menu).
    Así una pestaña nueva no le quita espacio al nombre de la página.
    Las secciones nuevas van en .nav-app y las herramientas en .menu-lista. */
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px max(16px, calc((100% - 1320px) / 2 + 16px)) 0; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 30; }
@@ -21,6 +22,18 @@ header .lema { font-size: 12px; color: var(--ok); font-weight: 600; white-space:
 /* Servicios (Zonas verdes · LV y RyT): título pequeño antes de sus pestañas y una raya más marcada entre ellos */
 .nav-app .grupo-nav { flex: none; align-self: center; margin-bottom: 3px; padding: 0 4px 0 2px; font-size: 11px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; color: var(--muted); white-space: nowrap; }
 .nav-app .sep-nav.servicio { width: 2px; margin: 6px 10px 9px; }
+/* Servicio con varias páginas (LV y RyT): botón que despliega sus opciones. La lista va en posición fija
+   (encabezado.js la ubica debajo del botón) para que la fila de pestañas, que se desplaza de lado, no la recorte */
+.nav-menu > summary { list-style: none; display: flex; align-items: center; gap: 6px; color: var(--muted); font-weight: 650; padding: 8px 12px 9px; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; white-space: nowrap; cursor: pointer; user-select: none; }
+.nav-menu > summary::-webkit-details-marker { display: none; }
+.nav-menu > summary::after { content: '▾'; font-size: 12px; transition: transform .15s; }
+.nav-menu[open] > summary::after { transform: rotate(180deg); }
+.nav-menu > summary:hover, .nav-menu[open] > summary { color: var(--brand); background: #f1f8f4; }
+.nav-menu:has([aria-current="page"]) > summary { color: var(--brand); border-bottom-color: var(--brand); }
+.nav-menu-lista { position: fixed; min-width: 220px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 10px 30px rgba(15, 45, 35, .18); display: grid; gap: 2px; z-index: 40; }
+.nav-app .nav-menu-lista a { display: block; color: var(--ink); text-decoration: none; font-weight: 600; padding: 10px 12px; border: 0; border-radius: 8px; white-space: nowrap; }
+.nav-app .nav-menu-lista a:hover, .nav-app .nav-menu-lista a:focus-visible { background: #edf8f3; color: var(--brand); outline: none; }
+.nav-app .nav-menu-lista a[aria-current="page"] { color: var(--brand); background: #edf8f3; }
 /* La acción principal ("+ Nueva visita") en una sola línea */
 header > .primario { flex: none; white-space: nowrap; }
 

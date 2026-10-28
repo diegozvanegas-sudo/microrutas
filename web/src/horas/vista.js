@@ -6,6 +6,8 @@ import { minutos, hhmm } from './cruce.js';
 export var COLOR_REAL = 'FFFFFF00';
 // RUTA o CONTROL que no coinciden con el reporte de cumplimiento: rojo claro
 export var COLOR_DISTINTO = 'FFFFC7CE';
+// H.I o H.F que no son las del horario de la ruta (horarios.html): naranja claro
+export var COLOR_HORARIO = 'FFF8CBAD';
 
 var GRIS = 'FFD9D9D9';
 function argb(celda) {

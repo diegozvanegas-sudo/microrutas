@@ -27,8 +27,13 @@
         <a href="informe.html" title="Reporte diario de actividades">🗒️ <span>Informe</span></a>
         <a href="contrato.html" id="nav-contrato" hidden title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
         <span class="sep-nav servicio" aria-hidden="true"></span>
-        <span class="grupo-nav">LV y RyT</span>
-        <a href="horas.html" aria-current="page">⏱️ <span>Horas extras</span></a>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" aria-current="page">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+            </div>
+        </details>
     </nav>
     <details class="menu-mas">
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
@@ -40,8 +45,9 @@
 </header>
 <main>
     <section class="tarjeta">
-        <h2>📂 Los dos archivos</h2>
-        <p class="ayuda">Se cruzan por <b>cédula</b> y <b>fecha</b>: la HORA REAL del reporte de cumplimiento pasa a la columna H. REAL del reporte de horas extras.</p>
+        <h2>📂 Los archivos</h2>
+        <p class="ayuda">Se cruzan por <b>cédula</b> y <b>fecha</b>: la HORA REAL del reporte de cumplimiento pasa a la columna H. REAL del reporte de horas extras.
+            Con los <a href="horarios.html">horarios de rutas</a> se revisa además que la H.I y la H.F sean las del horario de cada ruta ese día.</p>
         <div class="cargas">
             <label class="carga" id="caja-extras">
                 <input type="file" id="archivo-extras" accept=".xlsx">
@@ -53,6 +59,10 @@
                 <b>2. Reporte de cumplimiento por turno</b>
                 <span class="sub" id="nombre-cumplimiento">Toque para elegir o arrastre el .xlsx aquí</span>
             </label>
+            <a class="carga" id="caja-horarios" href="horarios.html" title="Ver o cargar los horarios de rutas">
+                <b>3. Horarios de rutas</b>
+                <span class="sub" id="nombre-horarios">Leyendo de la base de datos…</span>
+            </a>
         </div>
         <label class="opcion">Dar por buena una diferencia de hasta
             <select id="tolerancia"><option value="0">0</option><option value="5" selected>5</option><option value="10">10</option><option value="15">15</option></select> minutos</label>
@@ -66,13 +76,13 @@
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
         <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
         <div class="acciones fin">
-            <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, y la RUTA o el CONTROL que no coinciden con el cumplimiento, en rojo.</span>
+            <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, la RUTA o el CONTROL que no coinciden con el cumplimiento, en rojo, y la H.I o la H.F que no son las del horario, en naranja.</span>
             <span class="espacio"></span>
             <button type="button" class="secundario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
             <button type="button" class="primario" id="btn-ver-excel">📗 Ver Excel consolidado</button>
         </div>
     </section>
-    <p class="nota-privada">🔒 Los archivos se leen solo en este equipo: no se suben a ningún servidor.</p>
+    <p class="nota-privada">🔒 Los dos reportes se leen solo en este equipo: no se suben a ningún servidor. Los horarios de rutas vienen de la base de datos.</p>
 </main>
 <dialog id="dlg-excel">
     <div class="cuerpo">

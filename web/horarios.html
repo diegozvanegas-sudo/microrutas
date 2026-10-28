@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Horarios de rutas</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🕒</span>
+        <div class="nombre"><h1>Horarios de rutas</h1><div class="lema">LV y RyT · Horario de salida de cada ruta de recolección</div></div>
+    </div>
+    <!-- Secciones agrupadas por servicio: Zonas verdes (campo · seguimiento · documentos) y LV y RyT -->
+    <nav class="nav-app" aria-label="Secciones">
+        <span class="grupo-nav">Zonas verdes</span>
+        <a href="subsanaciones.html">📋 <span>Subsanaciones</span></a>
+        <a href="mapa_rapido.html" title="Mapa rápido">⚡ <span>Mapa rápido</span></a>
+        <a href="index.html" title="Mapa completo con todas las capas">🗺️ <span>Mapa completo</span></a>
+        <span class="sep-nav" aria-hidden="true"></span>
+        <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 <span>PQR</span></a>
+        <a href="pendientes.html" title="Lo que queda por hacer">📌 <span>Pendientes</span></a>
+        <span class="sep-nav" aria-hidden="true"></span>
+        <a href="informe.html" title="Reporte diario de actividades">🗒️ <span>Informe</span></a>
+        <a href="contrato.html" id="nav-contrato" hidden title="Resumen de las especificaciones técnicas del contrato">📜 <span>Contrato</span></a>
+        <span class="sep-nav servicio" aria-hidden="true"></span>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" aria-current="page">🕒 Horarios de rutas</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main>
+    <section class="tarjeta">
+        <h2>📂 Archivo de horarios</h2>
+        <p class="ayuda">El Excel de horarios de rutas de recolección (una hoja por zona). Se guarda en la base de datos y <b>Horas extras</b> lo usa para marcar las H.I y H.F que no son las del horario.</p>
+        <p class="sub" id="cargados">Cargando…</p>
+        <label class="carga" id="caja-horarios" hidden>
+            <input type="file" id="archivo-horarios" accept=".xlsx">
+            <b>Horarios de rutas</b>
+            <span class="sub" id="nombre-horarios">Toque para elegir o arrastre el .xlsx aquí (reemplaza los horarios cargados)</span>
+        </label>
+        <div id="estado" class="estado-carga" hidden></div>
+    </section>
+
+    <section class="tarjeta" id="resultado" hidden>
+        <h2>🔎 Rutas</h2>
+        <input type="search" id="buscar" placeholder="Buscar ruta, macrorruta u observación…" aria-label="Buscar ruta">
+        <div class="chips" id="zonas"></div>
+        <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
+        <p class="ayuda">Si la observación dice que un día sale a otra hora (por ejemplo "LOS DIAS JUEVES SALE LA RUTA A LAS 8:00"), ese día se revisa con esa hora. Con varias horas en el HORARIO se acepta cualquiera. El turno es de 8 horas: H.F = H.I + 8.</p>
+    </section>
+    <p class="nota-privada">🔒 Solo los usuarios con sesión ven los horarios y solo el administrador los carga. El Excel se lee en este equipo: a la base de datos van solo las filas.</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/horarios/main.js"></script>
+</body>
+</html>

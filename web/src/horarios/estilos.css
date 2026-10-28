@@ -1,0 +1,7 @@
+/* Horarios de rutas (horarios.html): sobre el informe diario y Horas extras (tarjetas de carga y tabla) */
+#buscar { width: 100%; margin: 4px 0; }
+.tabla-horas td.obs { min-width: 220px; font-size: 12px; color: var(--muted); }
+.tabla-horas td.vacio { text-align: center; color: var(--muted); padding: 18px; }
+.tabla-horas tfoot td { text-align: center; padding: 8px; }
+/* La casilla de carga solo la ve el administrador (display: grid de .carga taparía el hidden) */
+.carga[hidden] { display: none; }

@@ -1,17 +1,21 @@
 // horas.html: valida las horas extras con la HORA REAL del reporte de cumplimiento por turno (cruce por cédula y fecha)
-// y devuelve el mismo Excel de horas extras con la columna H. REAL llena. Todo pasa en el navegador: los archivos no se suben.
+// y devuelve el mismo Excel de horas extras con la columna H. REAL llena. Con los horarios de rutas de la base de datos
+// (horarios.html) marca además la H.I y la H.F que no son las del horario. Los dos reportes se leen en el navegador: no se suben.
 import '../diario/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
-import { hojaVista, COLOR_REAL, COLOR_DISTINTO } from './vista.js';
+import { hojaVista, COLOR_REAL, COLOR_DISTINTO, COLOR_HORARIO } from './vista.js';
+import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
+import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var archivos = { extras: null, cumplimiento: null };   // { nombre, buffer }
 var extras = null, filas = [], filtro = '';
+var horarios = null;   // de la base de datos, al tener sesión
 
 function toast(msg) {
     var t = $('toast');
@@ -40,6 +44,13 @@ async function elegir(tipo, archivo) {
     if (archivos.extras && archivos.cumplimiento) procesar();
 }
 
+// Horarios de rutas: los de la base de datos (se cargan en horarios.html)
+function mostrarHorarios(error) {
+    $('nombre-horarios').textContent = error ? '⚠ No se pudieron leer: ' + error : horarios ? textoGuardados(horarios) : 'Todavía no hay horarios cargados: se cargan en Horarios de rutas';
+    $('caja-horarios').classList.toggle('listo', !!horarios);
+}
+function malHorario(f) { return f.difHi || f.difHf; }
+
 async function procesar() {
     $('estado').hidden = false; $('estado').textContent = 'Cruzando…';
     $('resultado').hidden = true;
@@ -53,7 +64,7 @@ async function procesar() {
         if (!cumplimiento) throw new Error('No encontré en el reporte de cumplimiento las columnas Fecha, HORA REAL y Dotación.');
         filas = cruzar(extras.filas, cumplimiento, +$('tolerancia').value || 0).map(function (f) {
             // Se escribe por defecto lo encontrado por cédula; lo encontrado por ruta queda para revisar
-            return Object.assign(f, { usar: f.real != null && f.como === 'cedula' });
+            return Object.assign(f, { usar: f.real != null && f.como === 'cedula' }, revisarHorario(f, horarios));
         });
         $('estado').hidden = true;
         $('resultado').hidden = false;
@@ -72,25 +83,31 @@ function pintar() {
     $('resumen').innerHTML = [
         ['', 'Todas', r.total], ['ok', '✓ Coinciden', r.ok], ['mas', '⬆ Reportaron más tarde', r.mas], ['menos', '⬇ Reportaron más temprano', r.menos],
         ['sinhora', 'Sin hora real', r.sinhora], ['nada', 'No aparecen', r.nada],
-    ].map(function (x) {
+        ['horario', '🕒 Horario incorrecto', filas.filter(malHorario).length],
+        ['distinto', 'Ruta o control distinto', filas.filter(function (f) { return f.difRuta || f.difControl; }).length],
+    ].filter(function (x) { return x[0] !== 'horario' || horarios; }).map(function (x) {
         return '<button type="button" class="chip ' + x[0] + '" data-filtro="' + x[0] + '" aria-pressed="' + (filtro === x[0]) + '">' + x[1] + ' <b>' + x[2] + '</b></button>';
     }).join('');
     $('totales').innerHTML = 'Horas extras reportadas <b>' + duracion(r.minReportados) + '</b> · según la hora real <b>' + duracion(r.minReales) + '</b>' +
         ' · diferencia <b class="' + (r.minReales < r.minReportados ? 'rojo' : '') + '">' + duracion(r.minReales - r.minReportados, true) + '</b>' +
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
 
-    var vis = filas.filter(function (f) { return !filtro || f.estado === filtro; });
-    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>Escribir</th></tr></thead><tbody>' +
+    var vis = filas.filter(function (f) {
+        return !filtro || f.estado === filtro || filtro === 'horario' && malHorario(f) || filtro === 'distinto' && (f.difRuta || f.difControl);
+    });
+    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.I</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>Escribir</th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
-            var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '']
+            var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
+                f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
+                horarios && !f.horario && /^\d+$/.test(f.ruta) ? 'la ruta no está en los horarios' : '']
                 .filter(Boolean);
             return '<tr class="' + est[1] + '" data-i="' + i + '">' +
                 '<td class="num">' + f.fila + '</td>' +
                 '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
                 comparada(f.rutaVer || f.ruta, f.difRuta, f.rutaReal) + comparada(f.control, f.difControl, f.controlReal) +
-                '<td class="num">' + hhmm(f.hf) + '</td><td class="num">' + hhmm(f.extra) + '</td>' +
+                horaRevisada(f.hi, f.difHi, f.esperadas) + horaRevisada(f.hf, f.difHf, (f.esperadas || []).map(function (x) { return (x + TURNO) % 1440; })) + '<td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +
                 '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
                 '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' +
@@ -105,6 +122,12 @@ function pintar() {
 function comparada(valor, distinto, real) {
     if (!distinto) return '<td>' + esc(valor) + '</td>';
     return '<td class="distinto" title="No coincide con el reporte de cumplimiento">' + esc(valor) + '<span class="sub">cumpl.: ' + esc(real) + '</span></td>';
+}
+
+// Celda de H.I o H.F: en naranja si no es la del horario de la ruta ese día, con la del horario debajo
+function horaRevisada(valor, mal, esperadas) {
+    if (!mal) return '<td class="num">' + hhmm(valor) + '</td>';
+    return '<td class="num horario-mal" title="No es la del horario de la ruta">' + hhmm(valor) + '<span class="sub">horario: ' + esc(esperadas.map(hhmm).join(' o ')) + '</span></td>';
 }
 
 // Corregir a mano la hora real de una fila: se recalcula su diferencia y estado
@@ -137,6 +160,9 @@ async function armarLibro() {
         // RUTA y CONTROL que no coinciden con el cumplimiento, en rojo claro
         if (f.difRuta) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.ruta), COLOR_DISTINTO);
         if (f.difControl) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.control), COLOR_DISTINTO);
+        // H.I y H.F que no son las del horario de la ruta, en naranja
+        if (f.difHi && extras.cols.hi != null) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.hi), COLOR_HORARIO);
+        if (f.difHf && extras.cols.hf != null) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.hf), COLOR_HORARIO);
         if (!f.usar || f.real == null) return;
         var celda = b.ws.getRow(f.fila).getCell(col);
         formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
@@ -237,6 +263,11 @@ function arrancar() {
         salir.title = 'Cerrar sesión de ' + usuario.email;
         salir.onclick = function () { cerrarSesion(supabase); };
         aplicarPermisos(supabase, usuario);
+        horariosGuardados(supabase).then(function (h) {
+            horarios = h;
+            mostrarHorarios();
+            if (archivos.extras && archivos.cumplimiento) procesar();
+        }, function (e) { mostrarHorarios(e.message); });
     });
 }
 

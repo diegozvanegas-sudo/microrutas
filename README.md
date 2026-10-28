@@ -129,6 +129,9 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
   y los pendientes hechos ese día.
 - `contrato_secciones`: solo administradores y usuarios con `perfiles.ver_contrato` (casilla "Puede ver el contrato" en
   usuarios.html, `0007_contrato_permiso.sql`); a los demás no les aparece "Contrato" en el encabezado.
+- `horarios_rutas` (`0011_horarios_rutas.sql`): horarios de rutas de recolección (LV y RyT). Los lee quien tenga sesión
+  (`horarios.html` y Horas extras, que marca en naranja la H.I y la H.F que no son las del horario); solo el administrador
+  los carga desde el Excel con `cargar_horarios()`, que reemplaza todos. El Excel no va al repositorio.
 - `perfiles` (nombre y rol de cada usuario): los lee quien tenga sesión; solo cambian con las funciones `admin_*`
   (`0004_usuarios.sql`), que rechazan a quien no sea admin.
 - Cada visita queda a nombre de la sesión: `registrado_por` / `creado_por` al crearla, `subsanado_por` al pasar a

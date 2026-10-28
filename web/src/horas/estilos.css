@@ -35,6 +35,11 @@ body > main { max-width: 1500px; }
 /* Ruta o control que no coinciden con el reporte de cumplimiento */
 .tabla-horas td.distinto { background: var(--pend-bg); color: var(--pend); font-weight: 700; }
 .tabla-horas td.distinto .sub { font-weight: 400; }
+/* H.I o H.F que no son las del horario (naranja, como en el Excel) */
+.tabla-horas td.horario-mal { background: #fbe0cf; color: #9a3412; font-weight: 700; }
+.tabla-horas td.horario-mal .sub { font-weight: 400; }
+.chip.horario[aria-pressed="true"] { border-color: #c2410c; color: #c2410c; background: #fbe0cf; }
+.chip.distinto[aria-pressed="true"] { border-color: var(--pend); color: var(--pend); background: var(--pend-bg); }
 
 /* Vista previa del Excel consolidado: mismas reglas que la de Subsanaciones (src/subsanaciones/estilos.css) */
 dialog { border: 0; border-radius: 14px; padding: 0; width: min(820px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }
@@ -76,3 +81,5 @@ dialog h2 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: cente
     #dlg-excel { width: 100%; height: 100dvh; margin: 0; border-radius: 0; }
     #dlg-excel .cuerpo { padding: 14px; }
 }
+/* 3. Horarios de rutas: enlace a horarios.html con lo cargado en la base de datos */
+a.carga { color: inherit; text-decoration: none; }
