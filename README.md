@@ -130,7 +130,7 @@ Pruebas de estas reglas (no dejan nada guardado): `npm run probar:visitas`
 - `contrato_secciones`: solo administradores y usuarios con `perfiles.ver_contrato` (casilla "Puede ver el contrato" en
   usuarios.html, `0007_contrato_permiso.sql`); a los demás no les aparece "Contrato" en el encabezado.
 - `horarios_rutas` (`0011_horarios_rutas.sql`): horarios de rutas de recolección (LV y RyT). Los lee quien tenga sesión
-  (`horarios.html` y Horas extras, que marca en naranja la H.I y la H.F que no son las del horario); solo los administradores
+  (`horarios.html` y Horas extras, que marca en rojo la H.I y la H.F que no son las del horario y en amarillo las que sí); solo los administradores
   y los usuarios con `perfiles.cargar_horarios` (`0012_horarios_permiso.sql`; se marca en la base, no en el repositorio)
   los cargan desde el Excel con `cargar_horarios()`, que reemplaza todos. Antes de guardar, la página muestra la revisión del
   cargue (rutas nuevas, las que cambian y en qué, las que se quitan y las que tienen algo que revisar). Después se pueden

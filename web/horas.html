@@ -76,7 +76,8 @@
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
         <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
         <div class="acciones fin">
-            <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, la RUTA o el CONTROL que no coinciden con el cumplimiento, en rojo, y la H.I o la H.F que no son las del horario, en naranja.</span>
+            <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, y la RUTA, el CONTROL, la H.I y la H.F revisadas quedan en amarillo si coinciden (con el cumplimiento o con el horario) y en rojo si hay una inconsistencia.</span>
+            <span class="sub">Las columnas OD, ON, FD, FN y su TOTAL se llenan con el extra de la H.F a la H. REAL (o a la H. EXTRA si no se escribe la real), en h:mm: con menos de 36 minutos no hay extra y desde ahí se cuenta exacto. Diurna de 6:00 a 19:00, nocturna de 19:00 a 6:00 y festiva los domingos y festivos; si el extra pasa la medianoche, desde las 0:00 cuenta como del día siguiente.</span>
             <span class="espacio"></span>
             <button type="button" class="secundario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
             <button type="button" class="primario" id="btn-ver-excel">📗 Ver Excel consolidado</button>

@@ -68,6 +68,8 @@ export function columnas(encabezados, claves) {
 export var COLUMNAS_EXTRAS = {
     fecha: ['fecha'], ruta: ['ruta'], control: ['control'], cargo: ['cargo'], cedula: ['cedula', 'cc', 'documento'], nombre: ['nombre'],
     hi: ['hi', 'horainicio'], hf: ['hf', 'horafin'], extra: ['hextra', 'horaextra', 'hext'], real: ['hreal', 'horareal'],
+    // Distribución de las horas extras (distribucion.js): ordinaria y festiva, diurna y nocturna
+    od: ['od'], on: ['on'], fd: ['fd'], fn: ['fn'],
 };
 export var COLUMNAS_CUMPLIMIENTO = { fecha: ['fecha'], real: ['horareal'], codigo: ['codigo', 'ruta'], camion: ['camion', 'vehiculo'], dotacion: ['dotacion'] };
 
@@ -89,6 +91,11 @@ export function leerExtras(hoja) {
     var t = tabla(hoja, COLUMNAS_EXTRAS, ['fecha', 'cedula', 'extra']);
     if (!t) return null;
     var c = t.cols, val = function (f, k) { return c[k] == null ? null : f.v[c[k]]; };
+    // El TOTAL de la distribución: el que va después de FN (el primero es H. REAL − H.F)
+    if (c.fn != null) {
+        var cab = hoja[t.encabezado] || [];
+        for (var i = c.fn + 1; i < cab.length; i++) if (plano(cab[i]) === 'total') { c.totalDist = i; break; }
+    }
     return { cols: c, encabezado: t.encabezado, filas: t.filas.map(function (f) {
         return { fila: f.fila, fecha: fechaIso(val(f, 'fecha')), ruta: ruta(val(f, 'ruta')), rutaVer: texto(val(f, 'ruta')).trim(), control: texto(val(f, 'control')).trim(), cargo: texto(val(f, 'cargo')).trim(),
             cedula: cedula(val(f, 'cedula')), nombre: texto(val(f, 'nombre')).trim(), hi: minutos(val(f, 'hi')), hf: minutos(val(f, 'hf')), extra: minutos(val(f, 'extra')) };

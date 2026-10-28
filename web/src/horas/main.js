@@ -1,13 +1,14 @@
 // horas.html: valida las horas extras con la HORA REAL del reporte de cumplimiento por turno (cruce por cédula y fecha)
 // y devuelve el mismo Excel de horas extras con la columna H. REAL llena. Con los horarios de rutas de la base de datos
-// (horarios.html) marca además la H.I y la H.F que no son las del horario. Los dos reportes se leen en el navegador: no se suben.
+// (horarios.html) marca además la H.I y la H.F que no son las del horario, y reparte el extra en OD, ON, FD y FN (distribucion.js). Los dos reportes se leen en el navegador: no se suben.
 import '../diario/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
-import { hojaVista, COLOR_REAL, COLOR_DISTINTO, COLOR_HORARIO } from './vista.js';
+import { distribuir, MINIMO } from './distribucion.js';
+import { hojaVista, COLOR_REAL, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
 import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
 import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
@@ -51,6 +52,20 @@ function mostrarHorarios(error) {
 }
 function malHorario(f) { return f.difHi || f.difHf; }
 
+// Reparto del extra de la fila: de la H.F a la H. REAL si se va a escribir; si no, a la H. EXTRA reportada
+var CLASES = [['od', 'OD'], ['on', 'ON'], ['fd', 'FD'], ['fn', 'FN']];
+function reparto(f) {
+    return distribuir(f.fecha, f.hi, f.hf, f.usar && f.real != null ? f.real : f.extra);
+}
+function celdaReparto(f) {
+    var d = reparto(f);
+    if (!d) return '<td class="reparto">–</td>';
+    if (!d.total) return '<td class="reparto sub" title="Con menos de ' + MINIMO + ' minutos no hay extra">sin extra (&lt; ' + MINIMO + ' min)</td>';
+    return '<td class="reparto">' + CLASES.filter(function (c) { return d[c[0]]; }).map(function (c) {
+        return '<span class="clase ' + c[0] + '">' + c[1] + ' ' + duracion(d[c[0]]) + '</span>';
+    }).join(' ') + '<span class="sub">' + duracion(d.total) + (f.usar && f.real != null ? ' con la H. REAL' : ' con la H. EXTRA') + '</span></td>';
+}
+
 async function procesar() {
     $('estado').hidden = false; $('estado').textContent = 'Cruzando…';
     $('resultado').hidden = true;
@@ -91,11 +106,15 @@ function pintar() {
     $('totales').innerHTML = 'Horas extras reportadas <b>' + duracion(r.minReportados) + '</b> · según la hora real <b>' + duracion(r.minReales) + '</b>' +
         ' · diferencia <b class="' + (r.minReales < r.minReportados ? 'rojo' : '') + '">' + duracion(r.minReales - r.minReportados, true) + '</b>' +
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
+    var suma = { od: 0, on: 0, fd: 0, fn: 0, total: 0 };
+    filas.forEach(function (f) { var d = reparto(f); if (d) Object.keys(suma).forEach(function (k) { suma[k] += d[k]; }); });
+    $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + duracion(suma[c[0]]) + '</b></span>'; }).join(' ') +
+        ' · total <b>' + duracion(suma.total) + '</b>';
 
     var vis = filas.filter(function (f) {
         return !filtro || f.estado === filtro || filtro === 'horario' && malHorario(f) || filtro === 'distinto' && (f.difRuta || f.difControl);
     });
-    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.I</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>Escribir</th></tr></thead><tbody>' +
+    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.I</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>OD · ON · FD · FN</th><th>Escribir</th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
             var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
@@ -106,11 +125,12 @@ function pintar() {
                 '<td class="num">' + f.fila + '</td>' +
                 '<td class="persona"><b>' + esc(f.nombre) + '</b><span class="sub">' + esc(f.cargo) + ' · ' + esc(f.cedula) + '</span>' +
                 (notas.length ? '<span class="nota">⚠ ' + esc(notas.join(' · ')) + '</span>' : '') + '</td>' +
-                comparada(f.rutaVer || f.ruta, f.difRuta, f.rutaReal) + comparada(f.control, f.difControl, f.controlReal) +
-                horaRevisada(f.hi, f.difHi, f.esperadas) + horaRevisada(f.hf, f.difHf, (f.esperadas || []).map(function (x) { return (x + TURNO) % 1440; })) + '<td class="num">' + hhmm(f.extra) + '</td>' +
+                comparada(f.rutaVer || f.ruta, f.difRuta, f.rutaReal, revisada(f).ruta) + comparada(f.control, f.difControl, f.controlReal, revisada(f).control) +
+                horaRevisada(f.hi, f.difHi, f.esperadas, revisada(f).hi) +
+                horaRevisada(f.hf, f.difHf, (f.esperadas || []).map(function (x) { return (x + TURNO) % 1440; }), revisada(f).hf) + '<td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +
-                '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
-                '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' +
+                '<td class="num dif' + (f.estado === 'ok' ? ' coincide' : f.estado === 'mas' || f.estado === 'menos' ? ' inconsistente' : '') + '">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
+                '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' + celdaReparto(f) +
                 '<td class="centro"><input type="checkbox"' + (f.usar ? ' checked' : '') + (f.real == null ? ' disabled' : '') + ' aria-label="Escribir en H. REAL"></td></tr>';
         }).join('') + '</tbody>';
     var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
@@ -118,16 +138,23 @@ function pintar() {
     $('btn-descargar').disabled = !n;
 }
 
-// Celda de ruta o control: en rojo si no coincide con el cumplimiento, con lo que dice el cumplimiento debajo
-function comparada(valor, distinto, real) {
-    if (!distinto) return '<td>' + esc(valor) + '</td>';
-    return '<td class="distinto" title="No coincide con el reporte de cumplimiento">' + esc(valor) + '<span class="sub">cumpl.: ' + esc(real) + '</span></td>';
+// Qué celdas de la fila se pudieron revisar: la ruta y el control si el cumplimiento los trae, y la H.I y la H.F
+// si la ruta está en los horarios con hora de salida. Solo esas se pintan: amarillo si coinciden, rojo si no
+function revisada(f) {
+    var conHorario = !!f.horario && !!(f.esperadas && f.esperadas.length);
+    return { ruta: !!f.ruta && !!f.rutaReal, control: !!f.control && !!f.controlReal, hi: conHorario && f.hi != null, hf: conHorario && f.hf != null };
 }
 
-// Celda de H.I o H.F: en naranja si no es la del horario de la ruta ese día, con la del horario debajo
-function horaRevisada(valor, mal, esperadas) {
-    if (!mal) return '<td class="num">' + hhmm(valor) + '</td>';
-    return '<td class="num horario-mal" title="No es la del horario de la ruta">' + hhmm(valor) + '<span class="sub">horario: ' + esc(esperadas.map(hhmm).join(' o ')) + '</span></td>';
+// Celda de ruta o control: amarilla si coincide con el cumplimiento; roja si no, con lo que dice el cumplimiento debajo
+function comparada(valor, distinto, real, revisar) {
+    if (!distinto) return '<td' + (revisar ? ' class="coincide" title="Coincide con el reporte de cumplimiento"' : '') + '>' + esc(valor) + '</td>';
+    return '<td class="inconsistente" title="No coincide con el reporte de cumplimiento">' + esc(valor) + '<span class="sub">cumpl.: ' + esc(real) + '</span></td>';
+}
+
+// Celda de H.I o H.F: amarilla si es la del horario de la ruta ese día; roja si no, con la del horario debajo
+function horaRevisada(valor, mal, esperadas, revisar) {
+    if (!mal) return '<td class="num' + (revisar ? ' coincide" title="Es la del horario de la ruta' : '') + '">' + hhmm(valor) + '</td>';
+    return '<td class="num inconsistente" title="No es la del horario de la ruta">' + hhmm(valor) + '<span class="sub">horario: ' + esc(esperadas.map(hhmm).join(' o ')) + '</span></td>';
 }
 
 // Corregir a mano la hora real de una fila: se recalcula su diferencia y estado
@@ -157,15 +184,24 @@ async function armarLibro() {
     }
     var formato = null;
     filas.forEach(function (f) {
-        // RUTA y CONTROL que no coinciden con el cumplimiento, en rojo claro
-        if (f.difRuta) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.ruta), COLOR_DISTINTO);
-        if (f.difControl) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.control), COLOR_DISTINTO);
-        // H.I y H.F que no son las del horario de la ruta, en naranja
-        if (f.difHi && extras.cols.hi != null) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.hi), COLOR_HORARIO);
-        if (f.difHf && extras.cols.hf != null) sombrear(b.ws.getRow(f.fila).getCell(extras.cols.hf), COLOR_HORARIO);
+        // RUTA y CONTROL frente al cumplimiento y H.I y H.F frente al horario: amarillo si coinciden, rojo si no
+        var rev = revisada(f), fila = b.ws.getRow(f.fila);
+        if (f.difRuta || rev.ruta) sombrear(fila.getCell(extras.cols.ruta), f.difRuta ? COLOR_DISTINTO : COLOR_COINCIDE);
+        if (f.difControl || rev.control) sombrear(fila.getCell(extras.cols.control), f.difControl ? COLOR_DISTINTO : COLOR_COINCIDE);
+        if (extras.cols.hi != null && (f.difHi || rev.hi)) sombrear(fila.getCell(extras.cols.hi), f.difHi ? COLOR_DISTINTO : COLOR_COINCIDE);
+        if (extras.cols.hf != null && (f.difHf || rev.hf)) sombrear(fila.getCell(extras.cols.hf), f.difHf ? COLOR_DISTINTO : COLOR_COINCIDE);
+        formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
+        // OD, ON, FD, FN y su TOTAL, en h:mm (si el archivo trae esas columnas)
+        var d = reparto(f);
+        if (d) CLASES.concat([['total']]).forEach(function (c) {
+            var k = c[0] === 'total' ? 'totalDist' : c[0];
+            if (extras.cols[k] == null) return;
+            var celda = fila.getCell(extras.cols[k]);
+            celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(d[c[0]] / 60), d[c[0]] % 60));
+            celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), { numFmt: 'h:mm' });
+        });
         if (!f.usar || f.real == null) return;
         var celda = b.ws.getRow(f.fila).getCell(col);
-        formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
         // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
         celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
         sombrear(celda, COLOR_REAL, { numFmt: formato });

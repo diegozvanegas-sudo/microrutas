@@ -32,12 +32,11 @@ body > main { max-width: 1500px; }
 .tabla-horas tr.mas .dif { color: var(--pend); font-weight: 700; }
 .tabla-horas tr.menos .dif, .tabla-horas tr.sinhora .dif { color: var(--aviso); }
 .tabla-horas tr.nada { color: var(--muted); }
-/* Ruta o control que no coinciden con el reporte de cumplimiento */
-.tabla-horas td.distinto { background: var(--pend-bg); color: var(--pend); font-weight: 700; }
-.tabla-horas td.distinto .sub { font-weight: 400; }
-/* H.I o H.F que no son las del horario (naranja, como en el Excel) */
-.tabla-horas td.horario-mal { background: #fbe0cf; color: #9a3412; font-weight: 700; }
-.tabla-horas td.horario-mal .sub { font-weight: 400; }
+/* Celdas revisadas (ruta y control con el cumplimiento, H.I y H.F con el horario, Dif. con la hora real):
+   toda la celda amarilla si coinciden y roja si hay una inconsistencia, como en el Excel */
+.tabla-horas td.coincide, .tabla-horas tr td.dif.coincide { background: #fff176; color: var(--ink); }
+.tabla-horas td.inconsistente, .tabla-horas tr td.dif.inconsistente { background: #ff7c80; color: #5f0b0b; font-weight: 700; }
+.tabla-horas td.inconsistente .sub { font-weight: 400; color: #5f0b0b; }
 .chip.horario[aria-pressed="true"] { border-color: #c2410c; color: #c2410c; background: #fbe0cf; }
 .chip.distinto[aria-pressed="true"] { border-color: var(--pend); color: var(--pend); background: var(--pend-bg); }
 
@@ -83,3 +82,11 @@ dialog h2 { margin: 0 0 14px; font-size: 18px; display: flex; align-items: cente
 }
 /* 3. Horarios de rutas: enlace a horarios.html con lo cargado en la base de datos */
 a.carga { color: inherit; text-decoration: none; }
+
+/* Distribución del extra: ordinaria y festiva, diurna y nocturna */
+.tabla-horas td.reparto { min-width: 150px; white-space: nowrap; }
+.clase { display: inline-block; border-radius: 6px; padding: 0 6px; font-size: 12px; font-weight: 700; font-variant-numeric: tabular-nums; margin: 1px 0; }
+.clase.od { background: #e0f2fe; color: #075985; }
+.clase.on { background: #e0e7ff; color: #3730a3; }
+.clase.fd { background: #fce7f3; color: #9d174d; }
+.clase.fn { background: #ede9fe; color: #5b21b6; }
