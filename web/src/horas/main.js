@@ -125,9 +125,11 @@ async function armarLibro() {
         formato = formato || b.ws.getRow(f.fila).getCell(extras.cols.extra).numFmt || 'h:mm';
         // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
         celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
-        celda.numFmt = formato;
-        // Verde si coincide, rojo si reportaron más tarde de lo real, amarillo el resto
-        celda.fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: f.estado === 'ok' ? COLOR_REAL.ok : f.estado === 'mas' ? COLOR_REAL.mas : COLOR_REAL.otro } };
+        // Formato propio de la celda: las celdas del archivo comparten el objeto de estilo y cambiarlo en una
+        // sombreaba toda la columna. Copia del estilo, con la hora y el sombreado amarillo
+        celda.style = Object.assign(JSON.parse(JSON.stringify(celda.style || {})), {
+            numFmt: formato, fill: { type: 'pattern', pattern: 'solid', fgColor: { argb: COLOR_REAL } },
+        });
     });
     // Que Excel recalcule el TOTAL (H. REAL − H.F) al abrir
     b.wb.calcProperties = Object.assign({}, b.wb.calcProperties, { fullCalcOnLoad: true });

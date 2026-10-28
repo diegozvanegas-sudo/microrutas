@@ -2,8 +2,8 @@
 // htmlHoja de Subsanaciones ({ nombre, cab, anchos, fondoCab, filas: [{ v, fondo, ajustar }] }), para verla igual que en Excel.
 import { minutos, hhmm } from './cruce.js';
 
-// Colores de la H. REAL escrita (también van en el archivo): coincide · reportaron más tarde · el resto
-export var COLOR_REAL = { ok: 'FFC6EFCE', mas: 'FFFFC7CE', otro: 'FFFFEB9C' };
+// Sombreado de la H. REAL escrita (en el archivo y en la vista): amarillo, como el de Subsanaciones
+export var COLOR_REAL = 'FFFFFF00';
 
 var GRIS = 'FFD9D9D9';
 function argb(celda) {
