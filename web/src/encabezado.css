@@ -1,20 +1,23 @@
-/* Encabezado común (subsanaciones.html, contrato.html):
-   marca · secciones de la app · menú "Más" (herramientas y cuenta) · acción principal.
-   Las secciones nuevas van en .nav-app y las herramientas en .menu-lista: el encabezado no crece. */
-header { display: flex; align-items: center; gap: 10px 14px; padding: 10px max(16px, calc((100% - 1320px) / 2 + 16px)); background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 30; }
-header .marca { display: flex; align-items: center; gap: 10px; flex: 0 1 auto; min-width: 0; margin-right: auto; }
+/* Encabezado común (subsanaciones.html, contrato.html, …), en dos filas:
+   1) marca · menú "Más" (herramientas y cuenta) · acción principal
+   2) secciones de la app como pestañas, a todo el ancho y pegadas al borde de abajo.
+   Así una pestaña nueva no le quita espacio al nombre de la página.
+   Las secciones nuevas van en .nav-app y las herramientas en .menu-lista. */
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px max(16px, calc((100% - 1320px) / 2 + 16px)) 0; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 30; }
+header .marca { display: flex; align-items: center; gap: 10px; flex: 1 1 0; min-width: 0; }
 header .logo { flex: none; width: 40px; height: 40px; border-radius: 11px; background: #e3f4ec; display: grid; place-items: center; font-size: 21px; }
 header .nombre { min-width: 0; }
 header h1 { margin: 0; font-size: 21px; line-height: 1.15; font-weight: 800; letter-spacing: -.01em; }
 header .lema { font-size: 12px; color: var(--ok); font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
-/* Secciones: pestañas */
-.nav-app { display: flex; gap: 2px; background: var(--bg); border: 1px solid var(--line); border-radius: 11px; padding: 3px; }
-.nav-app a { display: flex; align-items: center; gap: 6px; color: var(--muted); text-decoration: none; font-weight: 650; padding: 7px 12px; border-radius: 8px; white-space: nowrap; }
-.nav-app a:hover { color: var(--brand); background: #fff; }
-.nav-app a[aria-current="page"] { color: var(--brand); background: #fff; box-shadow: 0 1px 3px rgba(15, 45, 35, .12); }
+/* Secciones: pestañas en su propia fila; si no caben, se desplazan de lado */
+.nav-app { order: 3; flex: 1 0 100%; display: flex; gap: 2px; margin-top: 2px; overflow-x: auto; scrollbar-width: none; }
+.nav-app::-webkit-scrollbar { display: none; }
+.nav-app a { display: flex; align-items: center; gap: 6px; color: var(--muted); text-decoration: none; font-weight: 650; padding: 8px 12px 9px; border-bottom: 3px solid transparent; border-radius: 8px 8px 0 0; white-space: nowrap; }
+.nav-app a:hover { color: var(--brand); background: #f1f8f4; }
+.nav-app a[aria-current="page"] { color: var(--brand); border-bottom-color: var(--brand); }
 /* Raya entre grupos de pestañas (campo · seguimiento · documentos) */
-.nav-app .sep-nav { flex: none; width: 1px; margin: 6px 4px; background: var(--line); }
+.nav-app .sep-nav { flex: none; width: 1px; margin: 9px 6px 12px; background: var(--line); }
 /* La acción principal ("+ Nueva visita") en una sola línea */
 header > .primario { flex: none; white-space: nowrap; }
 
@@ -32,20 +35,12 @@ header > .primario { flex: none; white-space: nowrap; }
 /* Título de cada grupo del menú (subsanaciones.html) */
 .menu-lista .titulo-menu { font-size: 11px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--muted, #6b7c75); padding: 8px 12px 2px; }
 
-/* Computador mediano: las pestañas sin texto largo si no caben */
-@media (max-width: 1100px) {
-    .nav-app a { padding: 7px 10px; }
-}
-/* Celular: marca y "Más" arriba; las secciones en una fila desplazable debajo */
+/* Celular: marca y "Más" arriba; las pestañas debajo, en una fila desplazable */
 @media (max-width: 760px) {
-    header { flex-wrap: wrap; padding: 10px 16px 8px; gap: 8px; }
-    /* Base 0: un lema largo (pqr.html) no empuja "Más" a otra fila, donde su lista se abría por fuera de la pantalla */
-    header .marca { flex: 1 1 0; }
+    header { padding: 10px 16px 0; gap: 8px; }
     header .logo { width: 36px; height: 36px; font-size: 19px; border-radius: 10px; }
     header h1 { font-size: 19px; }
-    .nav-app { order: 3; width: 100%; overflow-x: auto; scrollbar-width: none; justify-content: flex-start; }
-    .nav-app::-webkit-scrollbar { display: none; }
-    .nav-app a { flex: 1 0 auto; justify-content: center; font-size: 13px; padding: 8px 10px; }
+    .nav-app a { font-size: 13px; padding: 8px 10px 9px; }
     .menu-mas > summary { padding: 9px 12px; }
     .menu-lista { min-width: 240px; }
     .menu-lista .item-menu { padding: 13px 14px; font-size: 15px; }
