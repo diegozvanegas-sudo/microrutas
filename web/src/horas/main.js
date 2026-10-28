@@ -6,7 +6,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra } from './cruce.js';
+import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, plano } from './cruce.js';
 import { distribuir, enHoras, MINIMO } from './distribucion.js';
 import { hojaVista, COLOR_REAL, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
 import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
@@ -53,14 +53,18 @@ function mostrarHorarios(error) {
 function malHorario(f) { return f.difHi || f.difHf; }
 
 // Reparto del extra de la fila: de la H.F a la H. REAL si se va a escribir; si no, a la H. EXTRA reportada.
-// -> horas enteras { od, on, fd, fn, total } con los minutos exactos en .min, o null si falta algo
+// -> horas enteras { od, on, fd, fn, total } con los minutos exactos en .min, o null si falta algo.
+// Solo para los conductores: a los tripulantes no se les calcula
 var CLASES = [['od', 'OD'], ['on', 'ON'], ['fd', 'FD'], ['fn', 'FN']];
+function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
 function reparto(f) {
+    if (!esConductor(f)) return null;
     var d = distribuir(f.fecha, f.hi, f.hf, f.usar && f.real != null ? f.real : f.extra);
     return d && Object.assign(enHoras(d), { min: d });
 }
 function celdaReparto(f) {
     var d = reparto(f);
+    if (!esConductor(f)) return '<td class="reparto sub" title="La distribución se calcula solo para los conductores">no aplica (' + esc(f.cargo.toLowerCase() || 'sin cargo') + ')</td>';
     if (!d) return '<td class="reparto">–</td>';
     if (!d.min.total) return '<td class="reparto sub" title="Con menos de ' + MINIMO + ' minutos no hay extra">sin extra (&lt; ' + MINIMO + ' min)</td>';
     var exacto = CLASES.filter(function (c) { return d.min[c[0]]; }).map(function (c) { return c[1] + ' ' + duracion(d.min[c[0]]); }).join(' · ');
@@ -112,7 +116,7 @@ function pintar() {
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
     var suma = { od: 0, on: 0, fd: 0, fn: 0, total: 0 };
     filas.forEach(function (f) { var d = reparto(f); if (d) Object.keys(suma).forEach(function (k) { suma[k] += d[k]; }); });
-    $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
+    $('totales').innerHTML += '<br>Distribución (solo conductores): ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
         ' · total <b>' + suma.total + (suma.total === 1 ? ' hora' : ' horas') + '</b>';
 
     var vis = filas.filter(function (f) {
