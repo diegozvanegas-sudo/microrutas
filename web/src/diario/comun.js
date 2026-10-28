@@ -147,4 +147,13 @@ export var FRASES_RECORRIDO = [
     { t: 'Aliado recolectando', texto: 'Se evidenció la presencia del aliado … realizando actividades de recolección en … .' },
     { t: 'Sector controlado', texto: 'El sector se encuentra controlado; sin embargo, las novedades identificadas fueron reportadas durante el recorrido para su gestión.' },
     { t: 'Sin novedades', texto: 'El sector se encuentra controlado y no se identificaron novedades durante el recorrido.' },
+    { t: 'Recorrido zonas verdes', texto: 'La Interventoría del Área de Servicio de Aseo realiza recorrido en las zonas verdes de … , donde se identificaron varias novedades por RCD, voluminosos y ordinarios.' },
+    { t: 'Plan choque', texto: 'Los puntos de … se encuentran descargados; hay plan choque interviniendo.' },
+    { t: 'Acompañamiento plan choque', texto: 'Se realizó acompañamiento al plan choque en … , verificando la recolección de RCD, voluminosos y ordinarios.' },
+    { t: 'Habitantes de calle', texto: 'Se observan habitantes en condición de calle generando novedades, las cuales fueron reportadas a los grupos correspondientes para su gestión.' },
+    { t: 'Voluminosos', texto: 'Se identificaron residuos voluminosos (colchones, muebles, entre otros) en … ; se reportaron al grupo correspondiente para su recolección.' },
+    { t: 'Punto crítico', texto: 'Se identificó punto crítico por arrojo de residuos en … ; se reportó a los grupos correspondientes para su recolección y seguimiento.' },
+    { t: 'Recolección verificada', texto: 'Se verificó la recolección de las novedades reportadas en … ; el sector se encuentra limpio.' },
+    { t: 'Barrido', texto: 'Se verificó la actividad de barrido y limpieza de vías y áreas públicas en … .' },
+    { t: 'Cestas', texto: 'Se verificó el estado de las cestas públicas en … ; se reportaron las que se encontraron llenas o en mal estado.' },
 ];
