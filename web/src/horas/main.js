@@ -15,7 +15,7 @@ import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var archivos = { extras: null, cumplimiento: null };   // { nombre, buffer }
-var extras = null, filas = [], filtro = '';
+var extras = null, filas = [], filtro = '', omitidos = 0;   // omitidos: filas que no son de conductores
 var horarios = null;   // de la base de datos, al tener sesión
 
 function toast(msg) {
@@ -53,18 +53,14 @@ function mostrarHorarios(error) {
 function malHorario(f) { return f.difHi || f.difHf; }
 
 // Reparto del extra de la fila: de la H.F a la H. REAL si se va a escribir; si no, a la H. EXTRA reportada.
-// -> horas enteras { od, on, fd, fn, total } con los minutos exactos en .min, o null si falta algo.
-// Solo para los conductores: a los tripulantes no se les calcula
+// -> horas enteras { od, on, fd, fn, total } con los minutos exactos en .min, o null si falta algo
 var CLASES = [['od', 'OD'], ['on', 'ON'], ['fd', 'FD'], ['fn', 'FN']];
-function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
 function reparto(f) {
-    if (!esConductor(f)) return null;
     var d = distribuir(f.fecha, f.hi, f.hf, f.usar && f.real != null ? f.real : f.extra);
     return d && Object.assign(enHoras(d), { min: d });
 }
 function celdaReparto(f) {
     var d = reparto(f);
-    if (!esConductor(f)) return '<td class="reparto sub" title="La distribución se calcula solo para los conductores">no aplica (' + esc(f.cargo.toLowerCase() || 'sin cargo') + ')</td>';
     if (!d) return '<td class="reparto">–</td>';
     if (!d.min.total) return '<td class="reparto sub" title="Con menos de ' + MINIMO + ' minutos no hay extra">sin extra (&lt; ' + MINIMO + ' min)</td>';
     var exacto = CLASES.filter(function (c) { return d.min[c[0]]; }).map(function (c) { return c[1] + ' ' + duracion(d.min[c[0]]); }).join(' · ');
@@ -73,6 +69,8 @@ function celdaReparto(f) {
     }).join(' ') || '<span class="sub">0 horas</span>') +
         '<span class="sub">' + d.total + (d.total === 1 ? ' hora' : ' horas') + ' (' + duracion(d.min.total) + ' exactas) con la ' + (f.usar && f.real != null ? 'H. REAL' : 'H. EXTRA') + '</span></td>';
 }
+
+function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
 
 async function procesar() {
     $('estado').hidden = false; $('estado').textContent = 'Cruzando…';
@@ -85,7 +83,11 @@ async function procesar() {
         if (!extras && !cumplimiento) { extras = leerExtras(b.valores); cumplimiento = leerCumplimiento(a.valores); if (extras) archivos = { extras: archivos.cumplimiento, cumplimiento: archivos.extras }; }
         if (!extras) throw new Error('No encontré en el reporte de horas extras las columnas FECHA, CEDULA y H. EXTRA.');
         if (!cumplimiento) throw new Error('No encontré en el reporte de cumplimiento las columnas Fecha, HORA REAL y Dotación.');
-        filas = cruzar(extras.filas, cumplimiento, +$('tolerancia').value || 0).map(function (f) {
+        // Todo (H. REAL, ruta, control, horario, colores y distribución) solo para los conductores: los tripulantes
+        // no se revisan ni se tocan en el Excel
+        var conductores = extras.filas.filter(esConductor);
+        omitidos = extras.filas.length - conductores.length;
+        filas = cruzar(conductores, cumplimiento, +$('tolerancia').value || 0).map(function (f) {
             // Se escribe por defecto lo encontrado por cédula; lo encontrado por ruta queda para revisar
             return Object.assign(f, { usar: f.real != null && f.como === 'cedula' }, revisarHorario(f, horarios));
         });
@@ -111,12 +113,13 @@ function pintar() {
     ].filter(function (x) { return x[0] !== 'horario' || horarios; }).map(function (x) {
         return '<button type="button" class="chip ' + x[0] + '" data-filtro="' + x[0] + '" aria-pressed="' + (filtro === x[0]) + '">' + x[1] + ' <b>' + x[2] + '</b></button>';
     }).join('');
-    $('totales').innerHTML = 'Horas extras reportadas <b>' + duracion(r.minReportados) + '</b> · según la hora real <b>' + duracion(r.minReales) + '</b>' +
+    $('totales').innerHTML = 'Solo conductores' + (omitidos ? ' (' + omitidos + (omitidos === 1 ? ' fila de tripulante u otro cargo no se revisa' : ' filas de tripulantes u otros cargos no se revisan') + ')' : '') + '.<br>' +
+        'Horas extras reportadas <b>' + duracion(r.minReportados) + '</b> · según la hora real <b>' + duracion(r.minReales) + '</b>' +
         ' · diferencia <b class="' + (r.minReales < r.minReportados ? 'rojo' : '') + '">' + duracion(r.minReales - r.minReportados, true) + '</b>' +
         '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
     var suma = { od: 0, on: 0, fd: 0, fn: 0, total: 0 };
     filas.forEach(function (f) { var d = reparto(f); if (d) Object.keys(suma).forEach(function (k) { suma[k] += d[k]; }); });
-    $('totales').innerHTML += '<br>Distribución (solo conductores): ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
+    $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
         ' · total <b>' + suma.total + (suma.total === 1 ? ' hora' : ' horas') + '</b>';
 
     var vis = filas.filter(function (f) {

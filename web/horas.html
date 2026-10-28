@@ -46,7 +46,7 @@
 <main>
     <section class="tarjeta">
         <h2>📂 Los archivos</h2>
-        <p class="ayuda">Se cruzan por <b>cédula</b> y <b>fecha</b>: la HORA REAL del reporte de cumplimiento pasa a la columna H. REAL del reporte de horas extras.
+        <p class="ayuda">Se revisan solo los <b>conductores</b> (los tripulantes quedan como vienen) y se cruzan por <b>cédula</b> y <b>fecha</b>: la HORA REAL del reporte de cumplimiento pasa a la columna H. REAL del reporte de horas extras.
             Con los <a href="horarios.html">horarios de rutas</a> se revisa además que la H.I y la H.F sean las del horario de cada ruta ese día.</p>
         <div class="cargas">
             <label class="carga" id="caja-extras">
@@ -77,7 +77,7 @@
         <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
         <div class="acciones fin">
             <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, y cada fila queda toda en amarillo si está bien o toda en rojo si tiene alguna inconsistencia (RUTA o CONTROL distintos al cumplimiento, H.I o H.F que no son las del horario, o la H. EXTRA que no coincide con la real); lo que falla va en negrilla.</span>
-            <span class="sub">Las columnas OD, ON, FD, FN y su TOTAL se llenan solo para los conductores (a los tripulantes no se les calcula), con el extra de la H.F a la H. REAL (o a la H. EXTRA si no se escribe la real), en horas enteras: con menos de 36 minutos no hay extra y en cada tipo la fracción de 36 minutos o más sube a la hora siguiente (2:47 → 3, 2:35 → 2). Diurna de 6:00 a 19:00, nocturna de 19:00 a 6:00 y festiva los domingos y festivos; si el extra pasa la medianoche, desde las 0:00 cuenta como del día siguiente.</span>
+            <span class="sub">Las columnas OD, ON, FD, FN y su TOTAL se llenan con el extra de la H.F a la H. REAL (o a la H. EXTRA si no se escribe la real), en horas enteras: con menos de 36 minutos no hay extra y en cada tipo la fracción de 36 minutos o más sube a la hora siguiente (2:47 → 3, 2:35 → 2). Diurna de 6:00 a 19:00, nocturna de 19:00 a 6:00 y festiva los domingos y festivos; si el extra pasa la medianoche, desde las 0:00 cuenta como del día siguiente.</span>
             <span class="espacio"></span>
             <button type="button" class="secundario" id="btn-descargar" disabled>⬇ Descargar Excel con H. REAL</button>
             <button type="button" class="primario" id="btn-ver-excel">📗 Ver Excel consolidado</button>
