@@ -81,6 +81,7 @@
         <button type="button" class="secundario" id="btn-resumen" title="Texto con todas las novedades pendientes de lo filtrado, para pegar en WhatsApp">📋 Copiar resumen</button>
         <button type="button" class="secundario" id="btn-dia" title="Novedades de hoy (o del día filtrado) por cuadrilla, para pegar en WhatsApp">📊 Resumen del día</button>
         <button type="button" class="secundario" id="btn-cumpl" title="Lotes ejecutados por cuadrilla contra los que pide la frecuencia de cada lote">📈 Cumplimiento</button>
+        <button type="button" class="secundario" id="btn-venc" title="Pendientes por cuadrilla: cuántas vencen pronto y cuántas ya pasaron el plazo (para descuento)">⏰ Vencimientos</button>
         <button type="button" class="secundario" id="btn-excel" title="Ver cómo queda el Excel de interventoría con lo filtrado y descargarlo">📗 Excel</button>
     </div>
     <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
@@ -165,6 +166,18 @@
         <div class="sub" id="cumpl-nota"></div>
         <div class="pie">
             <button type="button" class="secundario" id="cumpl-cerrar">Cerrar</button>
+        </div>
+    </div>
+</dialog>
+<dialog id="dlg-venc">
+    <div class="cuerpo">
+        <h2>⏰ Vencimientos de las pendientes</h2>
+        <div id="venc-tabla"></div>
+        <div id="venc-lista"></div>
+        <div class="sub" id="venc-nota"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="venc-cerrar">Cerrar</button>
+            <button type="button" class="wa" id="venc-wa">📋 Copiar para WhatsApp</button>
         </div>
     </div>
 </dialog>

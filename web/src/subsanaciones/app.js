@@ -10,6 +10,7 @@ import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
 import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
+import { TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -176,8 +177,9 @@ export function iniciar(api, CFG) {
         return !u || (u === '-' ? !r.USUARIO : r.USUARIO === u);
     }
 
-    function filtrados() {
-        var texto = norm($('f-texto').value), est = $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
+    // sinEstado: con todos los filtros menos el de estado (los vencimientos miran solo las pendientes)
+    function filtrados(sinEstado) {
+        var texto = norm($('f-texto').value), est = sinEstado ? '' : $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
         return registros.filter(function (r) {
             if (!filtroUsuario(r)) return false;
             if (tipo && r.TIPO !== tipo) return false;
@@ -381,6 +383,40 @@ export function iniciar(api, CFG) {
     };
     $('cumpl-mes').onchange = pintarCumpl;
     $('cumpl-cerrar').onclick = function () { $('dlg-cumpl').close(); };
+    // Vencimientos: pendientes por cuadrilla según el plazo de cada novedad (a tiempo / para descuento)
+    var ultimoVenc = null;
+    $('btn-venc').onclick = function () {
+        var res = vencimientos(filtrados(true));
+        if (!res.total.total) return toast('No hay novedades pendientes con plazo en lo filtrado.');
+        ultimoVenc = res;
+        var celda = function (n, t) { return '<td class="' + (n ? 'g-' + t.grupo : 'cero') + '">' + (n || '·') + '</td>'; };
+        var fila = function (f, total) {
+            return '<tr' + (total ? ' class="total"' : '') + '><td>' + (total ? 'Total' : f.cuad ? '<span class="cuad-pill" style="--c:' + colorCuadrilla(f.cuad) + '">C' + esc(f.cuad) + '</span>' : 'Sin cuadrilla') + '</td>' +
+                TRAMOS_VENC.map(function (t) { return celda(f[t.id], t); }).join('') + '<td><b>' + f.descuento + '</b> / ' + f.total + '</td></tr>';
+        };
+        $('venc-tabla').innerHTML = '<div class="cumpl-scroll"><table class="cumpl venc"><thead>' +
+            '<tr><th rowspan="2">Cuadrilla</th><th colspan="3" class="g-tiempo">⏳ A tiempo</th><th colspan="4" class="g-descuento">💸 Para descuento</th><th rowspan="2">Descuento / pendientes</th></tr><tr>' +
+            TRAMOS_VENC.map(function (t) { return '<th>' + esc(t.titulo.replace(/^Vence en |^Vence |^Vencida hace /, '')) + '</th>'; }).join('') + '</tr></thead><tbody>' +
+            res.filas.map(function (f) { return fila(f, false); }).join('') + fila(res.total, true) + '</tbody></table></div>';
+        // Detalle: lo vencido y lo que vence hoy o mañana, lo más atrasado primero
+        var urgentes = res.detalle.filter(function (x) { return x.tramo !== 'pronto'; });
+        $('venc-lista').innerHTML = urgentes.length ? '<h3>Lo más urgente</h3><ul class="venc-lista">' + urgentes.map(function (x) {
+            var r = x.r;
+            return '<li class="' + (x.p.descuento ? 'g-descuento' : 'g-tiempo') + '"><b>' + esc(r.LOTE ? 'Lote ' + r.LOTE : r.MICRORRUTA || r.ID) + '</b> ' +
+                '<span class="sub">' + esc([r.LOTE ? r.MICRORRUTA : '', x.cuad ? 'C' + x.cuad : '', 'visita ' + (r['FECHA DE LA VISITA'] || '—')].filter(Boolean).join(' · ')) + '</span> · ' + esc(textoVence(x)) + '</li>';
+        }).join('') + '</ul>' : '';
+        $('venc-nota').textContent = 'Plazo desde la fecha de la visita: recolección y barrido el mismo día, operación (mallas, demarcación, PMT) de inmediato, lo demás 5 días; ' +
+            'heridas a árboles no son subsanables. Con los filtros de la lista, menos el de estado.';
+        $('dlg-venc').showModal();
+    };
+    $('venc-cerrar').onclick = function () { $('dlg-venc').close(); };
+    $('venc-wa').onclick = function () {
+        if (!ultimoVenc) return;
+        $('dlg-venc').close();
+        $('wa-texto').value = textoVencimientos(ultimoVenc, aTexto(hoy()));
+        actualizarEnlaceWa();
+        $('dlg-wa').showModal();
+    };
     // @menciones de los encargados por cuadrilla, aprendidas del texto que se copia o se abre en WhatsApp
     function menciones() { try { return JSON.parse(localStorage.getItem('subsanaciones_menciones')) || {}; } catch (e) { return {}; } }
     function recordarMenciones() {

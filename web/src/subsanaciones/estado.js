@@ -39,7 +39,8 @@ export function plazoNovedad(texto, op) {
 }
 export function itemsEnNo(r) { return itemsDe(r).filter(function (i) { return valorItem(r[i]) === 'NO'; }); }
 // Pendiente con alguna novedad que ya pasó su plazo (o no es subsanable): va para descuento en la factura.
-// { descuento: true, motivo } o, si aún está a tiempo, { descuento: false, resta: días que le quedan }; null si no aplica
+// { descuento: true, motivo, vencido: días de atraso (0 si no es subsanable) } o, si aún está a tiempo,
+// { descuento: false, resta: días que le quedan }; null si no aplica
 export function plazoVisita(r) {
     var d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
     if (d == null) return null;
@@ -49,9 +50,9 @@ export function plazoVisita(r) {
     if (obs && norm(obs) !== 'SIN NOVEDAD') textos = textos.concat(obs);
     var plazos = textos.map(function (t) { return diasPlazo(t, op); }).filter(function (p) { return p != null; });
     if (!plazos.length) return null;
-    if (plazos.indexOf(-1) !== -1) return { descuento: true, motivo: 'No subsanable' };
+    if (plazos.indexOf(-1) !== -1) return { descuento: true, motivo: 'No subsanable', vencido: 0 };
     var resta = Math.min.apply(null, plazos) - d;
-    return resta < 0 ? { descuento: true, motivo: 'Plazo vencido hace ' + (-resta === 1 ? '1 día' : -resta + ' días') } : { descuento: false, resta: resta };
+    return resta < 0 ? { descuento: true, motivo: 'Plazo vencido hace ' + (-resta === 1 ? '1 día' : -resta + ' días'), vencido: -resta } : { descuento: false, resta: resta };
 }
 export function paraDescuento(r) { var p = plazoVisita(r); return !!(p && p.descuento); }
 // Ítems que estuvieron en NO y ya se corrigieron (los anota la base al subsanar)

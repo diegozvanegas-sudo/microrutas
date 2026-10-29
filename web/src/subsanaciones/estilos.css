@@ -423,3 +423,17 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .ia-no { background: var(--pend); }
 .ia-nd { background: #94a3b8; }
 .ia-alerta { margin-top: 6px; color: #9a3412; }
+
+/* Vencimientos de las pendientes: a tiempo (naranja, como "Vence en…") y para descuento (morado, como "Para descuento") */
+#dlg-venc { width: min(900px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
+#dlg-venc .cuerpo { padding: 18px; }
+#dlg-venc h3 { font-size: 15px; margin: 16px 0 6px; }
+.venc th, .venc td { text-align: center; }
+.venc th:first-child, .venc td:first-child { text-align: left; }
+.venc th.g-tiempo, .venc td.g-tiempo { background: #ffedd5; color: #9a3412; font-weight: 700; }
+.venc th.g-descuento, .venc td.g-descuento { background: #f3e8ff; color: #6b21a8; font-weight: 700; }
+.venc td.cero { color: #cbd5e1; }
+.venc-lista { margin: 0; padding: 0; list-style: none; display: grid; gap: 4px; }
+.venc-lista li { padding: 6px 10px; border-radius: 8px; border-left: 4px solid; font-size: 14px; }
+.venc-lista li.g-descuento { border-color: #7e22ce; background: #faf5ff; }
+.venc-lista li.g-tiempo { border-color: #ea580c; background: #fff7ed; }
