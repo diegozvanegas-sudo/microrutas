@@ -74,6 +74,7 @@
     .ficha-lote .titulo { font-size: 22px; font-weight: 800; }
     .ficha-lote .cuad { color: #fff; font-weight: 700; font-size: 12px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
     .ficha-lote .mr { color: var(--muted); font-size: 13px; margin-top: 2px; }
+    .ficha-lote .aviso-aprox { margin-top: 8px; padding: 7px 10px; border: 1px dashed #111827; border-radius: 8px; background: #fef9c3; color: #713f12; font-size: 13px; }
     .ficha-lote .datos { display: grid; grid-template-columns: repeat(auto-fit, minmax(92px, 1fr)); gap: 6px; margin: 10px 0; }
     .ficha-lote .dato { background: var(--bg); border-radius: 8px; padding: 6px 9px; min-width: 0; }
     .ficha-lote .et { display: block; font-size: 11px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
@@ -347,7 +348,11 @@
     }
     var coloresCuadrilla = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
     function colorCuadrilla(c) { var n = Number(c); return Number.isFinite(n) ? coloresCuadrilla[Math.abs(n) % coloresCuadrilla.length] : '#64748b'; }
-    function estiloLote(c) { var col = colorCuadrilla(c); return { color: col, weight: 1, opacity: .95, fillColor: col, fillOpacity: .55 }; }
+    // aprox: lote sin polígono oficial, ubicado por la dirección (círculo): borde negro punteado y relleno suave para que se note
+    function estiloLote(c, aprox) {
+        var col = colorCuadrilla(c);
+        return aprox ? { color: '#111827', weight: 2.5, opacity: 1, dashArray: '5 4', fillColor: col, fillOpacity: .3 } : { color: col, weight: 1, opacity: .95, fillColor: col, fillOpacity: .55 };
+    }
     var RESALTADO = { color: '#111827', weight: 3, fillColor: '#fde047', fillOpacity: .85 };
     // Lotes de una pre-ruta (?lote=...&hechos=...&cerrados=...): el color dice si ya se registró la visita
     var ESTILO_RUTA = {
@@ -363,7 +368,7 @@
     function estiloBase(c) {
         if (c.rutaEstado) return ESTILO_RUTA[c.rutaEstado];
         if (seleccion && seleccion.indexOf(idCapa(c)) !== -1) return ESTILO_SEL;
-        return vencidos ? ESTILO_VENCE[venceDe(c).estado] : L.extend({ dashArray: null }, estiloLote(c.lote.c));
+        return vencidos ? ESTILO_VENCE[venceDe(c).estado] : L.extend({ dashArray: null }, estiloLote(c.lote.c, c.lote.u));
     }
     var ESTILO_SEL = { color: '#4c1d95', weight: 3, opacity: 1, fillColor: '#8b5cf6', fillOpacity: .75, dashArray: null };
 
@@ -429,7 +434,7 @@
         datos.lotes.forEach(function (p) {
             ['d', 's', 'f', 'k', 'x'].forEach(function (k) { if (typeof p[k] === 'number') p[k] = t[p[k]]; });
             // bubblingMouseEvents: el clic en el lote no llega al mapa (que borra el resaltado)
-            var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c)));
+            var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c, p.u)));
             delete p.g;
             capa.lote = p;
             if (vencidos) capa.setStyle(estiloBase(capa));
@@ -616,6 +621,7 @@
             '<div class="cab"><span class="titulo">' + (lote ? 'Lote ' + esc(lote) : esc(p.m || 'Lote')) + '</span>' +
                 (p.c ? '<span class="cuad" style="background:' + colorCuadrilla(p.c) + '">Cuadrilla ' + esc(p.c) + '</span>' : '') + '</div>' +
             '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
+            (p.u ? '<div class="aviso-aprox">⚠ <b>Sin polígono oficial.</b> ' + esc(p.u.replace(/\s*No es el polígono oficial\.?$/, '')) + ' La forma y el sitio exacto hay que confirmarlos en campo.</div>' : '') +
             lineaEstado(capa) +
             '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
             // x: lo propio de este polígono (tools/detalle_sector.mjs); s: descripción de la microrruta en la programación.

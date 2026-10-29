@@ -79,6 +79,8 @@ for (const f of leerZonas()) {
     l: lote, m: mr, c: cuad === 'sin' ? undefined : cuad,
     a: limpio(p.Area_campo) || (p.Area_m2 ? String(Math.round(p.Area_m2)) : undefined),
     d: limpio(p.DIRECCION) || limpio(pr.d) || limpio(ex.d), s: limpio(desc), f: limpio(pr.frec), k: limpio(ex.c),
+    // u: sin polígono oficial, ubicado por la dirección (lotes_correcciones.js, APROX); el mapa lo marca distinto
+    u: limpio(p.APROX),
   };
   (grupos[cuad] ??= []).push({ properties: props, geometry: g });
   if (lote && lote !== 'NA' && !indice.lotes[lote]) indice.lotes[lote] = cuad;
