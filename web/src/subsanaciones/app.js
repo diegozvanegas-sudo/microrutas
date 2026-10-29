@@ -10,7 +10,7 @@ import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
 import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
-import { TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
+import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -405,8 +405,14 @@ export function iniciar(api, CFG) {
             return '<li class="' + (x.p.descuento ? 'g-descuento' : 'g-tiempo') + '"><b>' + esc(r.LOTE ? 'Lote ' + r.LOTE : r.MICRORRUTA || r.ID) + '</b> ' +
                 '<span class="sub">' + esc([r.LOTE ? r.MICRORRUTA : '', x.cuad ? 'C' + x.cuad : '', 'visita ' + (r['FECHA DE LA VISITA'] || '—')].filter(Boolean).join(' · ')) + '</span> · ' + esc(textoVence(x)) + '</li>';
         }).join('') + '</ul>' : '';
-        $('venc-nota').textContent = 'Plazo desde la fecha de la visita: recolección y barrido el mismo día, operación (mallas, demarcación, PMT) de inmediato, lo demás 5 días; ' +
-            'heridas a árboles no son subsanables. Con los filtros de la lista, menos el de estado.';
+        // Reglas de vencimiento: de dónde salen los días de cada columna
+        $('venc-nota').innerHTML = '<details class="venc-reglas" open><summary>📏 Reglas de vencimiento</summary>' +
+            '<table class="cumpl"><thead><tr><th>Visita</th><th>Novedad</th><th>Plazo para subsanar</th></tr></thead><tbody>' +
+            REGLAS_VENC.map(function (g) { return '<tr><td>' + esc(g.tipo) + '</td><td>' + esc(g.novedad) + '</td><td><b>' + esc(g.plazo) + '</b></td></tr>'; }).join('') + '</tbody></table>' +
+            '<ul><li>Los días son calendario y se cuentan desde la <b>fecha de la visita</b>.</li>' +
+            '<li>Si la visita tiene varias novedades, manda el <b>plazo más corto</b>.</li>' +
+            '<li>Pasado el plazo sin subsanar queda <b>para descuento</b>: primero se habla con el supervisor del contratista y, si no hay respuesta, se descuenta en la factura.</li>' +
+            '<li>Este resumen usa los filtros de la lista, menos el de estado (solo cuenta pendientes).</li></ul></details>';
         $('dlg-venc').showModal();
     };
     $('venc-cerrar').onclick = function () { $('dlg-venc').close(); };

@@ -1,6 +1,16 @@
 // Vencimientos de las pendientes por cuadrilla: cuántas están a tiempo (y cuánto les queda) y cuántas
 // ya van para descuento en la factura (y hace cuánto se vencieron). Usa el plazo de cada novedad (estado.js).
-import { esOp, plazoVisita } from './estado.js';
+import { esOp, plazoVisita, PLAZO_D } from './estado.js';
+
+// Reglas de plazo (las mismas de diasPlazo en estado.js), para mostrarlas junto al resumen
+export var REGLAS = [
+    { tipo: 'Posoperación (lote ejecutado)', novedad: 'Recolección y barrido', plazo: 'El mismo día de la visita' },
+    { tipo: 'Posoperación (lote ejecutado)', novedad: 'Afectación o heridas a árboles', plazo: 'No subsanable: va directo a descuento' },
+    { tipo: 'Posoperación (lote ejecutado)', novedad: 'Las demás novedades', plazo: PLAZO_D + ' días' },
+    { tipo: 'Operación', novedad: 'Mallas, demarcación del área de trabajo y PMT', plazo: 'Inmediato (el mismo día)' },
+    { tipo: 'Operación', novedad: 'Las demás novedades', plazo: PLAZO_D + ' días' },
+    { tipo: 'Cualquiera', novedad: 'Lote cerrado o no realizado', plazo: 'Sin plazo: no entra en este resumen' },
+];
 
 // Columnas del resumen, de la más tranquila a la más grave
 export var TRAMOS = [
