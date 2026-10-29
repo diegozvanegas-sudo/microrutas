@@ -30,7 +30,7 @@ export default defineConfig({
           { src: 'icons/icono-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
         ],
         shortcuts: [
-          { name: 'Mapa rápido', url: './mapa_rapido.html' },
+          { name: 'Mapa', url: './mapa_rapido.html' },
           { name: 'Pendientes', url: './pendientes.html' },
           { name: 'Informe diario', url: './informe.html' },
         ],
