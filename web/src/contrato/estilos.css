@@ -41,3 +41,31 @@ mark { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 1px; 
     body { background: #fff; font-size: 12px; }
     .seccion { break-inside: avoid; border-color: #ccc; }
 }
+
+/* Documentos (contrato de zonas verdes, convenios y mapas mentales) y vista resumen / mapa */
+.docs { display: grid; gap: 8px; margin: 0 0 10px; }
+.grupo-docs { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.grupo-docs span { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; margin-right: 4px; }
+.grupo-docs button, .vistas button { font-size: 13px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); cursor: pointer; }
+.grupo-docs button[aria-pressed="true"], .vistas button[aria-pressed="true"] { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 650; }
+.vistas { display: inline-flex; gap: 6px; margin: 2px 0 10px; }
+
+.mapa { display: flex; align-items: center; margin-top: 12px; }
+.raiz { flex: 0 0 200px; background: var(--brand); color: #fff; border-radius: 14px; padding: 18px 14px; font-weight: 700; text-align: center; }
+.ramas { flex: 1; display: grid; gap: 10px; margin-left: 24px; border-left: 2px solid var(--line); }
+.rama { position: relative; padding-left: 24px; --c: var(--brand); }
+.rama::before { content: ""; position: absolute; left: 0; top: 21px; width: 22px; border-top: 2px solid var(--line); }
+.rama details { background: var(--surface); border: 1px solid var(--line); border-left: 6px solid var(--c); border-radius: 10px; }
+.rama summary { cursor: pointer; padding: 9px 12px; font-weight: 650; }
+.rama ul { margin: 0; padding: 0 14px 12px 32px; display: grid; gap: 4px; }
+.rama.r1 { --c: #2d6cb5; } .rama.r2 { --c: #b8862d; } .rama.r3 { --c: #8a5bb8; } .rama.r4 { --c: #c2416b; } .rama.r5 { --c: #3b8a8f; } .rama.r6 { --c: #d4561c; }
+.rama.alerta details { background: var(--aviso-bg); }
+@media (max-width: 760px) {
+    .mapa { flex-direction: column; align-items: stretch; }
+    .raiz { flex: none; }
+    .ramas { margin: 12px 0 0 12px; }
+}
+@media print {
+    .docs, .vistas { display: none; }
+    .rama details { break-inside: avoid; }
+}

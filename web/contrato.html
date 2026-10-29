@@ -6,13 +6,13 @@
     <meta name="theme-color" content="#167a55">
     <link rel="icon" type="image/png" href="icons/icono-192.png">
     <link rel="apple-touch-icon" href="icons/icono-192.png">
-    <title>Contrato · Corte de césped</title>
+    <title>Contratos y convenios</title>
 </head>
 <body>
 <header>
     <div class="marca">
         <span class="logo" aria-hidden="true">📜</span>
-        <div class="nombre"><h1>Contrato</h1><div class="lema">Especificaciones técnicas · Corte de césped</div></div>
+        <div class="nombre"><h1>Contratos</h1><div class="lema">Corte de césped · convenios LV y RyT · mapas mentales</div></div>
     </div>
     <!-- Secciones agrupadas por servicio: Zonas verdes (campo · seguimiento · documentos) y LV y RyT -->
     <nav class="nav-app" aria-label="Secciones">
@@ -47,14 +47,20 @@
     </details>
 </header>
 <main>
+    <!-- Documento que se ve: el contrato de zonas verdes, el PPSA, los convenios con fundaciones y los mapas mentales -->
+    <div class="docs" id="docs" aria-label="Documentos"></div>
+    <div class="vistas" role="group" aria-label="Vista">
+        <button type="button" id="v-lista" aria-pressed="true">📄 Resumen</button>
+        <button type="button" id="v-mapa" aria-pressed="false">🧠 Mapa mental</button>
+    </div>
     <p class="doc" id="doc"></p>
     <div class="buscador">
-        <input type="search" id="buscar" placeholder="Buscar en el contrato: plateo, 8 horas, fotos, caña brava, desmonte…" aria-label="Buscar en el contrato" autocomplete="off">
+        <input type="search" id="buscar" placeholder="Buscar en este documento…" aria-label="Buscar en este documento" autocomplete="off">
     </div>
     <nav class="indice" id="indice" aria-label="Secciones del contrato"></nav>
     <div id="estado" class="estado-carga">Cargando…</div>
     <div id="secciones"></div>
-    <p class="nota-privada">🔒 Este contenido solo se ve con sesión iniciada. Las páginas (pág.) son las del PDF de especificaciones técnicas.</p>
+    <p class="nota-privada">🔒 Este contenido solo se ve con sesión iniciada. Las páginas (pág. o p.) son las del PDF de cada documento.</p>
 </main>
 <script type="module" src="/src/contrato/main.js"></script>
 </body>
