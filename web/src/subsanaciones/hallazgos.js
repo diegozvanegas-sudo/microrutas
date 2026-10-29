@@ -4,6 +4,7 @@
 import { norm } from './util.js';
 
 export var HALLAZGOS = [
+    // ---------- Antes y durante la operación (preventivos) ----------
     { t: 'Uso de mamparas de protección', c: 'mampara mamparas pantalla lona polisombra proteccion guadana guadanadora',
         m: 'Favor verificar el uso de mamparas de protección durante las actividades de corte de césped, especialmente cuando operen varios guadañadores simultáneamente, con el fin de prevenir accidentes y posibles afectaciones a peatones, vehículos y terceros.' },
     { t: 'Uso de sopladoras', c: 'sopladora sopladoras soplador soplar polvo',
@@ -62,6 +63,9 @@ export var HALLAZGOS = [
         m: 'Favor informar oportunamente a la interventoría las novedades de personal o equipos que puedan afectar la seguridad, la calidad o el cumplimiento de la actividad programada.' },
     { t: 'Afectación a la comunidad', c: 'queja quejas reclamo reclamos comunidad vecino vecinos molestia afectacion pqr',
         m: 'Favor registrar y reportar oportunamente a la interventoría las quejas, daños o situaciones presentadas con la comunidad durante la intervención, con la información y el registro fotográfico correspondiente.' },
+
+    { t: 'Residuos de jardinería en el lote (limpieza previa)', c: 'jardineria jardin residuos poda podas ramas hojas troncos pila pilas acopio limpieza previa disponer sector antes operacion',
+        m: 'Los residuos encontrados en el lote son de jardinería. Favor tener presente la limpieza previa: disponerlos en un sector del lote para poder garantizar la ejecución completa del corte. La pila de residuos se puede reportar a la interventoría, con el registro fotográfico, para su recolección.' },
 
     // ---------- Barrido y recolección ----------
     { t: 'Blower soplando residuos a la zona verde', c: 'blower sopladora soplador soplando soplan residuos zona verde zv recogidos recogen',
