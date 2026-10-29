@@ -1,9 +1,9 @@
 /* Encabezado común (subsanaciones.html, contrato.html, …), en dos filas:
    1) marca · menú "Más" (herramientas y cuenta) · acción principal
-   2) secciones de la app como pestañas, a todo el ancho y pegadas al borde de abajo; un servicio con varias
-      páginas (LV y RyT) es un botón que las despliega (.nav-menu).
-   Así una pestaña nueva no le quita espacio al nombre de la página.
-   Las secciones nuevas van en .nav-app y las herramientas en .menu-lista. */
+   2) secciones de la app, a todo el ancho y pegadas al borde de abajo: un desplegable (.nav-menu) por servicio
+      (Zonas verdes, General, LV y RyT) con sus páginas.
+   Así una página nueva no le quita espacio al nombre de la página.
+   Las páginas nuevas van en el desplegable de su servicio y las herramientas en .menu-lista. */
 header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 10px max(16px, calc((100% - 1320px) / 2 + 16px)) 0; background: var(--surface); border-bottom: 1px solid var(--line); position: relative; z-index: 30; }
 header .marca { display: flex; align-items: center; gap: 10px; flex: 1 1 0; min-width: 0; }
 header .logo { flex: none; width: 40px; height: 40px; border-radius: 11px; background: #e3f4ec; display: grid; place-items: center; font-size: 21px; }
@@ -30,6 +30,8 @@ header .lema { font-size: 12px; color: var(--ok); font-weight: 600; white-space:
 .nav-menu[open] > summary::after { transform: rotate(180deg); }
 .nav-menu > summary:hover, .nav-menu[open] > summary { color: var(--brand); background: #f1f8f4; }
 .nav-menu:has([aria-current="page"]) > summary { color: var(--brand); border-bottom-color: var(--brand); }
+/* Un enlace oculto (p. ej. Contrato sin permiso) no debe aparecer aunque la lista lo ponga en bloque */
+.nav-app [hidden] { display: none !important; }
 .nav-menu-lista { position: fixed; min-width: 220px; background: #fff; border: 1px solid var(--line); border-radius: 12px; padding: 6px; box-shadow: 0 10px 30px rgba(15, 45, 35, .18); display: grid; gap: 2px; z-index: 40; }
 .nav-app .nav-menu-lista a { display: block; color: var(--ink); text-decoration: none; font-weight: 600; padding: 10px 12px; border: 0; border-radius: 8px; white-space: nowrap; }
 .nav-app .nav-menu-lista a:hover, .nav-app .nav-menu-lista a:focus-visible { background: #edf8f3; color: var(--brand); outline: none; }
