@@ -1,6 +1,6 @@
 // Página de subsanaciones: listado de visitas, formulario, buscador, pre-rutas, WhatsApp y Excel.
 // Viene del <script> de la página original; lo que no depende del estado de la página ya está en módulos aparte.
-import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
+import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegistro, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
 import { textoWhatsapp, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
@@ -50,11 +50,6 @@ export function iniciar(api, CFG) {
     }
     // La lista muestra primero lo último registrado (FECHA DE REGISTRO; si la hoja aún no la tiene, la última modificación).
     // registros sigue ordenado por fecha de visita: de eso dependen la frecuencia, la "última visita" y la pre-ruta.
-    function claveRegistro(r) {
-        var m = String(r['FECHA DE REGISTRO'] || r['ÚLTIMA MODIFICACIÓN'] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
-        var z = function (n) { return ('0' + (n || 0)).slice(-2); };
-        return m ? m[3] + z(m[2]) + z(m[1]) + z(m[4]) + z(m[5]) + z(m[6]) : claveFecha(r['FECHA DE LA VISITA']) + '000000';
-    }
     function porRegistro(a, b) {
         var num = function (r) { return Number(String(r.ID || '').replace(/\D/g, '')) || 0; };
         return claveRegistro(b).localeCompare(claveRegistro(a)) || num(b) - num(a);

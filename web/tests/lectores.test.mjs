@@ -5,7 +5,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { parsearMensaje } from '../src/subsanaciones/mensaje.js';
 import { recorridoCorto } from '../src/subsanaciones/recorrido.js';
-import { textoDia, textoResumen } from '../src/subsanaciones/whatsapp.js';
+import { textoDia, textoResumen, textoNovedadesDia } from '../src/subsanaciones/whatsapp.js';
 import { fijarItems, calcularEstado, limpiarObs } from '../src/subsanaciones/estado.js';
 import { claveFecha, aInput, aTexto, metros } from '../src/subsanaciones/util.js';
 import { leerPqr, armarRespuestas, hablaDeCobro, fechaLarga, temasDeQueja } from '../src/pqr/plantillas.js';
@@ -141,9 +141,27 @@ test('WhatsApp: resumen del día por cuadrilla', () => {
     assert.match(t, /^Resumen de visitas 22\/10\/2026\n3 lotes revisados · 1 con novedad/);
     assert.match(t, /Cuadrilla 2: 2 lotes revisados · 1 con novedad\n✓ Z2CC0202 lote 400\n⚠ Z2CC0100 lote 532: 2 ítems en NO/);
     assert.match(t, /Cuadrilla 4: 0 lotes revisados · 1 visita en operación\n🦺 Z2CC0339 lote 339: 1 novedad en operación/);
-    // Cuadrillas en orden numérico: la 10 va después de la 4
+    // Sin FECHA DE REGISTRO quedan en el orden en que llegan
     assert.ok(t.indexOf('Cuadrilla 4') < t.indexOf('Cuadrilla 10'));
     assert.match(t, /🔒 Z3CC0001 lote 7: cerrado/);
+});
+
+test('WhatsApp: resúmenes del día por hora de registro, primero lo más temprano', () => {
+    fijarItems(['CORTE', 'LIMPIEZA'], ['PMT']);
+    const visitas = [
+        { ID: 'SUB-1', CUADRILLA: '2', MICRORRUTA: 'Z2CC0202', LOTE: '400', ESTADO: 'PENDIENTE', CORTE: 'NO', 'FECHA DE REGISTRO': '28/10/2026 15:10:00' },
+        { ID: 'SUB-2', CUADRILLA: '4', MICRORRUTA: 'Z1CC0052', LOTE: '58', ESTADO: 'PENDIENTE', CORTE: 'NO', 'FECHA DE REGISTRO': '28/10/2026 8:05:00' },
+        { ID: 'SUB-3', CUADRILLA: '2', MICRORRUTA: 'Z2CC0100', LOTE: '532', ESTADO: 'PENDIENTE', LIMPIEZA: 'NO', 'FECHA DE REGISTRO': '28/10/2026 9:40:00' },
+        { ID: 'SUB-4', CUADRILLA: '4', MICRORRUTA: 'Z1CC0001', LOTE: '3', ESTADO: 'PENDIENTE', CORTE: 'NO', 'FECHA DE REGISTRO': '28/10/2026 11:20:00' },
+    ];
+    const n = textoNovedadesDia(visitas, '28/10/2026', {});
+    // La cuadrilla 4 empezó primero (8:05); dentro de cada una, los lotes en el orden en que se revisaron
+    const pos = (x) => n.indexOf(x);
+    assert.ok(pos('Cuadrilla: 4') < pos('Cuadrilla: 2'));
+    assert.ok(pos('Z1CC0052') < pos('Z1CC0001') && pos('Z1CC0001') < pos('Cuadrilla: 2'));
+    assert.ok(pos('Z2CC0100') < pos('Z2CC0202'));
+    const d = textoDia(visitas, '28/10/2026');
+    assert.ok(d.indexOf('Cuadrilla 4') < d.indexOf('Cuadrilla 2') && d.indexOf('Z2CC0100') < d.indexOf('Z2CC0202'));
 });
 
 test('WhatsApp: resumen de pendientes agrupa por tipo y cuadrilla', () => {

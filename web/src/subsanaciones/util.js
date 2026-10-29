@@ -23,6 +23,13 @@ export function claveFecha(s) {
     m = s.match(/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4}|\d{2})\b/);
     return m ? (m[3].length === 2 ? '20' + m[3] : m[3]) + ('0' + m[2]).slice(-2) + ('0' + m[1]).slice(-2) : '';
 }
+// Cuándo se registró la visita, para ordenar: aaaammddhhmmss de FECHA DE REGISTRO (si la hoja aún no la tiene, la
+// última modificación; y si tampoco, la fecha de la visita a las 0:00)
+export function claveRegistro(r) {
+    var m = String(r['FECHA DE REGISTRO'] || r['ÚLTIMA MODIFICACIÓN'] || '').match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})(?:\s+(\d{1,2}):(\d{2})(?::(\d{2}))?)?/);
+    var z = function (n) { return ('0' + (n || 0)).slice(-2); };
+    return m ? m[3] + z(m[2]) + z(m[1]) + z(m[4]) + z(m[5]) + z(m[6]) : claveFecha(r['FECHA DE LA VISITA']) + '000000';
+}
 export function textoDias(d) { return d === 0 ? 'hoy' : d === 1 ? 'ayer' : 'hace ' + d + ' días'; }
 export function frase(s) { s = String(s || '').trim().toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); }
 

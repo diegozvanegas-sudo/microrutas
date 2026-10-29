@@ -1,5 +1,5 @@
 // Textos para WhatsApp: novedad de una visita y resumen de las pendientes.
-import { norm, frase } from './util.js';
+import { norm, frase, claveRegistro } from './util.js';
 import { esOp, itemsEnNo, plazoNovedad, plazoVisita, NO_REALIZADO } from './estado.js';
 
 // "Barrido del lote (Plazo: el mismo día)": el plazo de corrección queda visible en cada novedad
@@ -20,8 +20,11 @@ export function textoWhatsapp(r) {
         lineas.join('\n');
 }
 
+// En los resúmenes del día, en el orden en que se revisó: primero lo registrado más temprano
+function porHora(a, b) { return claveRegistro(a).localeCompare(claveRegistro(b)); }
+
 // Resumen final del día con el formato de interventoría: por cuadrilla, los lotes con novedad y sus ítems,
-// y al final los requerimientos al contratista. menciones: { '1': '@~Nombre del encargado' } (se aprenden del texto copiado)
+// y al final los requerimientos al contratista. Cuadrillas y lotes por hora de registro: primero lo más temprano. menciones: { '1': '@~Nombre del encargado' } (se aprenden del texto copiado)
 // "¡Buenas tardes! \n\n NOVEDADES POSOPERACION \n Fecha: 23/10/2026 \n Cuadrilla: 1 \n @~Nombre \n\n Z2CC0235 (453): \n\n * Barrido de zonas duras"
 export var REQUERIMIENTOS = 'REQUERIMIENTOS:\n\n' +
     '1. Dar respuesta a lo solicitado de manera oportuna, citando el número de la microruta asociada al hallazgo.\n\n' +
@@ -33,24 +36,19 @@ export function textoNovedadesDia(lista, dia, menciones) {
     var h = new Date().getHours();
     var saludo = h < 12 ? '¡Buenos días!' : h < 19 ? '¡Buenas tardes!' : '¡Buenas noches!';
     var grupos = {}, orden = [];
-    lista.filter(function (r) { return r.ESTADO === 'PENDIENTE' || (esOp(r) && itemsEnNo(r).length); }).forEach(function (r) {
+    lista.filter(function (r) { return r.ESTADO === 'PENDIENTE' || (esOp(r) && itemsEnNo(r).length); }).sort(porHora).forEach(function (r) {
         var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
         var k = (esOp(r) ? '1' : '0') + '|' + cuad;
         if (!grupos[k]) { grupos[k] = { op: esOp(r), cuad: cuad, rs: [] }; orden.push(k); }
         grupos[k].rs.push(r);
     });
     if (!orden.length) return '';
-    orden.sort(function (a, b) {
-        var x = grupos[a], y = grupos[b];
-        return (x.cuad ? 0 : 1) - (y.cuad ? 0 : 1) || x.cuad.localeCompare(y.cuad, 'es', { numeric: true }) || (x.op - y.op);
-    });
+    // orden ya va por la primera visita de cada grupo: la lista se recorrió por hora
     var bloques = orden.map(function (k) {
         var g = grupos[k], m = (menciones || {})[g.cuad];
         var cab = ['NOVEDADES ' + (g.op ? 'EN OPERACION' : 'POSOPERACION'), 'Fecha: ' + dia]
             .concat(g.cuad ? ['Cuadrilla: ' + g.cuad] : []).concat(m ? [m] : []).join('\n');
-        var lotes = g.rs.slice().sort(function (a, b) {
-            return String(a.MICRORRUTA || '').localeCompare(String(b.MICRORRUTA || ''), 'es', { numeric: true });
-        }).map(function (r) {
+        var lotes = g.rs.map(function (r) {
             return (r.MICRORRUTA || '') + (r.LOTE && r.LOTE !== 'NA' ? ' (' + r.LOTE + ')' : '') + ':\n\n' + lineasNovedad(r).join('\n');
         });
         return cab + '\n\n' + lotes.join('\n\n');
@@ -64,16 +62,16 @@ export function leerMenciones(texto) {
     return res;
 }
 
-// Resumen del día por cuadrilla: cuántos lotes se revisaron, cuáles quedaron con novedad y las visitas de operación
+// Resumen del día por cuadrilla: cuántos lotes se revisaron, cuáles quedaron con novedad y las visitas de operación.
+// Por hora de registro: primero la cuadrilla y el lote que se revisaron más temprano
 // "Resumen de visitas 22/10/2026 \n\n Cuadrilla 2: 3 lotes revisados · 1 con novedad \n ✓ Z2CC0202 lote 400 \n ⚠ Z2CC0100 lote 532: 2 ítems en NO"
 export function textoDia(lista, dia) {
     var grupos = {}, orden = [];
-    lista.forEach(function (r) {
+    lista.slice().sort(porHora).forEach(function (r) {
         var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
         if (!grupos[cuad]) { grupos[cuad] = []; orden.push(cuad); }
         grupos[cuad].push(r);
     });
-    orden.sort(function (a, b) { return (a ? 0 : 1) - (b ? 0 : 1) || a.localeCompare(b, 'es', { numeric: true }); });
     var lote = function (r) { return [r.MICRORRUTA, r.LOTE ? 'lote ' + r.LOTE : ''].filter(Boolean).join(' '); };
     var total = { lotes: 0, novedad: 0 };
     var bloques = orden.map(function (cuad) {
