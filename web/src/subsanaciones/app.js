@@ -980,7 +980,26 @@ export function iniciar(api, CFG) {
         lista.forEach(function (r) { if (!r.orden) sinOrden[r.cuadrilla] = true; });
         if (!desdeCache) rutas.forEach(function (ruta) { if (sinOrden[ruta.cuad]) { ordenar(ruta, posicion); subirRuta(ruta); } });
         repartirSinCuadrilla(!desdeCache);
+        quitarDuplicados(!desdeCache);
         guardarRutas();
+    }
+    // Un lote no puede estar en dos tarjetas: queda en la de la ejecución más reciente (si empatan, la última cargada)
+    function quitarDuplicados(subir) {
+        var mejor = {}, tocadas = [];
+        rutas.forEach(function (r) {
+            r.paradas.forEach(function (p) {
+                var m = mejor[p.id];
+                if (!m || (p.fecha || '') > (m.p.fecha || '') || ((p.fecha || '') === (m.p.fecha || '') && claveCarga(p) > claveCarga(m.p))) mejor[p.id] = { r: r, p: p };
+            });
+        });
+        rutas.forEach(function (r) {
+            var antes = r.paradas.length;
+            r.paradas = r.paradas.filter(function (p) { return mejor[p.id].p === p; });
+            if (r.paradas.length !== antes) tocadas.push(r);
+        });
+        if (!tocadas.length) return;
+        rutas = rutas.filter(function (r) { return r.paradas.length; });
+        if (subir) tocadas.forEach(subirRuta);
     }
     function agregarParadas(cuad, nuevas) {
         var ruta = rutas.find(function (r) { return r.cuad === cuad; });
@@ -988,12 +1007,13 @@ export function iniciar(api, CFG) {
         nuevas.forEach(function (n) {
             var ya = ruta.paradas.find(function (p) { return p.id === n.id; });
             if (ya) {
-                // El mismo lote ejecutado de nuevo: se revisa la ejecución más reciente
-                if (n.fecha && (!ya.fecha || n.fecha > ya.fecha)) ya.fecha = n.fecha;
+                // El mismo lote ejecutado de nuevo: se revisa la ejecución más reciente (o la que se eligió: fechaElegida)
+                if (n.fechaElegida) ya.fecha = n.fecha;
+                else if (n.fecha && (!ya.fecha || n.fecha > ya.fecha)) ya.fecha = n.fecha;
                 ya.creada = n.creada; ya.carga = n.carga || ya.carga;
                 if (n.encurso !== undefined) ya.encurso = n.encurso;
                 if (n.sinfotos !== undefined) ya.sinfotos = n.sinfotos;
-            } else ruta.paradas.push(n);
+            } else { delete n.fechaElegida; ruta.paradas.push(n); }
         });
         // Cuadrillas en orden numérico; las sin cuadrilla al final
         rutas.sort(function (a, b) { return (a.cuad ? 0 : 1) - (b.cuad ? 0 : 1) || a.cuad.localeCompare(b.cuad, 'es', { numeric: true }); });
@@ -1661,10 +1681,40 @@ export function iniciar(api, CFG) {
         }, function () { $('ruta-texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
     };
     $('ruta-cancelar').onclick = function () { $('dlg-ruta').close(); };
+    // Lotes del mensaje que ya están en alguna tarjeta con otra fecha de ejecución: se pregunta con cuál se quedan.
+    // usarNueva: true = la del mensaje, false = la que ya tenían; en las dos el lote queda en una sola tarjeta.
     $('ruta-crear').onclick = function () {
+        var lista = lotesRuta(parsearMensaje($('ruta-texto').value)), fecha = $('ruta-fecha').value || hoy();
+        if (!lista.length) return;
+        var dup = [];
+        rutas.forEach(function (r) {
+            r.paradas.forEach(function (q) { if (lista.indexOf(q.id) !== -1 && q.fecha && q.fecha !== fecha) dup.push({ r: r, q: q }); });
+        });
+        if (!dup.length) return crearRuta(null);
+        confirmar('⚠ ' + (dup.length === 1 ? 'Este lote ya está' : 'Estos lotes ya están') + ' en la pre-ruta',
+            dup.map(function (d) { return 'Lote ' + d.q.id + ' · ' + (d.r.cuad ? 'C' + d.r.cuad : 'sin cuadrilla') + ' · ejec. ' + aTexto(d.q.fecha).slice(0, 5); }).join('\n') +
+            '\n\n¿Con qué fecha de ejecución se dejan? Quedan una sola vez.', 'Usar la nueva (' + aTexto(fecha).slice(0, 5) + ')', 'Dejar la que tenían')
+            .then(function (nueva) {
+                if (nueva === null) return;
+                var antes = {};
+                if (!nueva) dup.forEach(function (d) { antes[d.q.id] = d.q.fecha; });
+                crearRuta(antes);
+            });
+    };
+    // fechaDe: { lote: fecha } para dejar la ejecución que ya tenían (null: la del mensaje para todos)
+    function crearRuta(fechaDe) {
         var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p);
         if (!lista.length) return;
         var cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), fecha = $('ruta-fecha').value || hoy();
+        // El lote que se vuelve a ingresar sale de cualquier otra tarjeta: queda solo en la nueva
+        var destino = function (id) { return cuad || cuadDe(id); }, quitadas = [];
+        rutas.forEach(function (r) {
+            var antes = r.paradas.length;
+            r.paradas = r.paradas.filter(function (q) { return lista.indexOf(q.id) === -1 || r.cuad === destino(q.id); });
+            if (r.paradas.length !== antes) quitadas.push(r);
+        });
+        quitadas.forEach(subirRuta);
+        rutas = rutas.filter(function (r) { return r.paradas.length; });
         var cursoIds = lotesEnCurso(p, lista), curso = cursoIds.length > 0, ahora = new Date(), enCurso = marca(ahora);
         // Sin cuadrilla en el mensaje: cada lote va a la tarjeta de su cuadrilla en la programación (no se crea otra tarjeta)
         var grupos = {};
@@ -1681,7 +1731,7 @@ export function iniciar(api, CFG) {
             // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
             var ruta = agregarParadas(c, grupos[c].map(function (id) {
                 var i = lista.indexOf(id);
-                return { id: id, fecha: fecha, creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
+                return { id: id, fecha: fechaDe && fechaDe[id] || fecha, fechaElegida: true, creada: hoy(), carga: marca(new Date(ahora.getTime() + i * 1000)),
                          encurso: cursoIds.indexOf(id) !== -1 ? enCurso : '', sinfotos: p.sinFotos[id] || '' };
             }));
             ordenar(ruta, posicion);
@@ -1699,7 +1749,7 @@ export function iniciar(api, CFG) {
               ' · ejec. ' + aTexto(fecha).slice(0, 5) + '.');
         var tarjeta = $('ruta').querySelectorAll('.ruta-card:not(.ruta-completa)')[rutas.indexOf(nuevas[0])];
         if (tarjeta) tarjeta.scrollIntoView({ behavior: 'smooth', block: 'start' });
-    };
+    }
     pintarRutas();
 
     // ---------- Eventos generales ----------
@@ -1883,7 +1933,7 @@ export function iniciar(api, CFG) {
 
     // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
     // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan
-    var NOTA = 'subsanaciones_nota', nota = { texto: '', estilo: 'blanco', fecha: true };
+    var NOTA = 'subsanaciones_nota', nota = { texto: '', estilo: 'blanco', fecha: true, numeros: false };
     try { nota = Object.assign(nota, JSON.parse(localStorage.getItem(NOTA)) || {}); } catch (e) {}
     function guardarNota() { try { localStorage.setItem(NOTA, JSON.stringify(nota)); } catch (e) {} }
     function pintarNota() {
@@ -1895,8 +1945,21 @@ export function iniciar(api, CFG) {
         var e = ESTILOS_NOTA[k];
         return '<button type="button" role="radio" data-estilo="' + k + '" title="' + e.nombre + '" aria-label="' + e.nombre + '" style="background:' + e.fondo + ';outline:4px solid ' + e.acento + ';outline-offset:-8px"></button>';
     }).join('');
+    // 🔢 Solo números: el celular muestra el teclado numérico (para el número del lote). Se recuerda.
+    function tecladoNota() {
+        $('nota-texto').inputMode = nota.numeros ? 'numeric' : 'text';
+        $('nota-numeros').setAttribute('aria-pressed', !!nota.numeros);
+    }
+    $('nota-numeros').onclick = function () {
+        nota.numeros = !nota.numeros; guardarNota(); tecladoNota();
+        // El teclado cambia solo al volver a enfocar el campo
+        $('nota-texto').blur(); $('nota-texto').focus();
+    };
+    $('nota-borrar').onclick = function () {
+        $('nota-texto').value = ''; nota.texto = ''; guardarNota(); pintarNota(); $('nota-texto').focus();
+    };
     $('btn-nota').onclick = function () {
-        $('nota-texto').value = nota.texto; $('nota-fecha').checked = nota.fecha;
+        $('nota-texto').value = nota.texto; $('nota-fecha').checked = nota.fecha; tecladoNota();
         $('nota-compartir').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] }));
         pintarNota();
         $('dlg-nota').showModal();
@@ -1908,6 +1971,17 @@ export function iniciar(api, CFG) {
     });
     $('nota-estilos').onclick = function (ev) { var b = ev.target.closest('[data-estilo]'); if (b) { nota.estilo = b.dataset.estilo; guardarNota(); pintarNota(); } };
     $('nota-cerrar').onclick = function () { $('dlg-nota').close(); };
+    // Desde la ficha del mapa: subsanaciones.html?nota=396&volver=mapa_rapido.html%3Flote%3D... abre la imagen con el
+    // número ya puesto y un botón para volver al mapa con los mismos lotes y ese lote abierto
+    (function () {
+        var q = new URLSearchParams(location.search), texto = q.get('nota'), volver = q.get('volver') || '';
+        if (texto == null) return;
+        try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+        nota.texto = texto; guardarNota();
+        $('nota-volver').hidden = !/^mapa_rapido\.html(\?|$)/.test(volver);
+        if (!$('nota-volver').hidden) $('nota-volver').href = volver;
+        $('btn-nota').onclick();
+    })();
     function imagenNota() {
         if (!nota.texto.trim()) { $('nota-texto').focus(); toast('Escriba el texto de la imagen.'); return null; }
         pintarNota();

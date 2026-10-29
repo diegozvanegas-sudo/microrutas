@@ -139,9 +139,11 @@ fieldset { min-width: 0; }
                     grid-template-areas: "titulo" "campos" "vista" "pie"; }
 #dlg-nota h2 { grid-area: titulo; margin: 0; }
 #dlg-nota .pie { grid-area: pie; margin: 0; position: static; padding: 0; border: 0; background: none; }
-#dlg-nota .pie button { flex: 1; padding: 12px 14px; font-size: 16px; }
-.nota-campos { grid-area: campos; display: grid; gap: 10px; align-content: start; }
-.nota-campos textarea { resize: none; font-size: 18px; height: 74px; min-height: 0; }
+#dlg-nota .pie button, #dlg-nota .pie .boton { flex: 1; padding: 12px 14px; font-size: 16px; text-align: center; }
+.nota-mini { padding: 6px 10px; font-size: 14px; }
+.nota-mini[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: var(--brand); }
+.nota-campos { grid-area: campos; display: grid; gap: 8px; align-content: start; }
+.nota-campos textarea { resize: none; font-size: 18px; height: 46px; min-height: 0; padding: 8px 10px; }
 .nota-opciones { display: flex; gap: 8px 14px; flex-wrap: wrap; align-items: center; }
 .nota-estilos { display: flex; gap: 8px; }
 .nota-estilos button { width: 38px; height: 38px; border-radius: 50%; border: 2px solid var(--line); padding: 0; cursor: pointer; }

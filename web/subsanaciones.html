@@ -222,14 +222,17 @@
         <h2>🖊️ Texto a imagen
             <button type="button" class="cerrar-dlg" id="nota-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
         <div class="nota-campos">
-            <label>TEXTO <textarea id="nota-texto" rows="5" placeholder="Escriba lo que quiere que diga la imagen: sale centrado y lo más grande que quepa"></textarea></label>
+            <label>TEXTO <textarea id="nota-texto" rows="1" placeholder="Escriba el texto: sale centrado y lo más grande que quepa"></textarea></label>
             <div class="nota-opciones">
                 <div class="nota-estilos" id="nota-estilos" role="radiogroup" aria-label="Colores"></div>
                 <label class="nota-check"><input type="checkbox" id="nota-fecha" checked> Fecha y hora abajo</label>
+                <button type="button" class="secundario nota-mini" id="nota-numeros" aria-pressed="false" title="Usar el teclado de solo números">🔢 Solo números</button>
+                <button type="button" class="secundario nota-mini" id="nota-borrar" title="Borrar todo el texto">⌫ Borrar</button>
             </div>
         </div>
         <div class="nota-vista"><canvas id="nota-canvas" aria-label="Vista previa de la imagen"></canvas></div>
         <div class="pie">
+            <a class="boton secundario" id="nota-volver" href="mapa_rapido.html" hidden>🗺️ Volver al mapa</a>
             <button type="button" class="secundario" id="nota-compartir" hidden>📤 Compartir</button>
             <button type="button" class="primario" id="nota-guardar">⬇ Guardar en el celular</button>
         </div>

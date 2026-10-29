@@ -34,9 +34,9 @@ function renglones(ctx, texto, ancho) {
     return out;
 }
 
-// Letra más grande (de 240 a 48 px) con la que el texto cabe sin partir palabras y sin pasar del alto máximo:
-// "120" sale enorme y un párrafo largo baja hasta que quepa
-var MAYOR = 240, MENOR = 48, ALTO_MAX = 1200, INTERLINEA = 1.2;
+// Letra más grande (de 560 a 48 px) con la que el texto cabe sin partir palabras y sin pasar del alto máximo:
+// un número de lote ("371") ocupa casi toda la imagen y un párrafo largo baja hasta que quepa
+var MAYOR = 560, MENOR = 48, ALTO_MAX = 1200, INTERLINEA = 1.2;
 function medidaLetra(ctx, texto, util) {
     var palabras = String(texto).split(/\s+/).filter(Boolean);
     for (var t = MAYOR; t > MENOR; t -= 4) {

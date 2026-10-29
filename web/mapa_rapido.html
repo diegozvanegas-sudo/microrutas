@@ -638,6 +638,7 @@
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
                 '<a class="boton secundario ancho" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
                 '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
+                '<a class="boton secundario ancho" data-nota="' + esc(idCapa(capa)) + '" href="subsanaciones.html?nota=' + encodeURIComponent(idCapa(capa)) + '">🖊️ Copiar número y hacer imagen</a>' +
             '</div></div>';
     }
     // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa
@@ -733,6 +734,8 @@
     document.addEventListener('click', function (ev) {
         var c = ev.target.closest('[data-copiar]');
         if (c) return copiarTexto(c.closest('.sector').querySelector('[data-sector]').textContent);
+        var n = ev.target.closest('a[data-nota]');
+        if (n) { ev.preventDefault(); return irANota(n.dataset.nota); }
         var m = ev.target.closest('[data-desc], [data-desc-mas]');
         if (!m) return;
         var bloque = m.parentNode, d = bloque.querySelector('[data-desc]'), mas = bloque.querySelector('[data-desc-mas]');
@@ -743,6 +746,21 @@
         var listo = function () { toast('Texto del sector copiado'); };
         if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(texto).then(listo, function () { copiarViejo(texto) && listo(); });
         if (copiarViejo(texto)) listo();
+    }
+    // 🖊️ Copia el número del lote y abre "Texto a imagen" con él puesto. "Volver al mapa" regresa a los mismos lotes
+    // (si el lote venía en el enlace, p. ej. la pre-ruta) o solo a ese lote, y con su ficha abierta (&abrir=)
+    function irANota(id) {
+        var q = new URLSearchParams(location.search);
+        var enLista = (q.get('lote') || q.get('mr') || '').split(',').map(clave).indexOf(clave(id)) !== -1;
+        if (!enLista) q = new URLSearchParams({ lote: id });
+        q.set('abrir', id);
+        var url = 'subsanaciones.html?nota=' + encodeURIComponent(id) + '&volver=' + encodeURIComponent('mapa_rapido.html?' + q.toString());
+        var ir = function () { location.href = url; };
+        if (navigator.clipboard && window.isSecureContext) {
+            // Si el portapapeles tarda, se sigue igual: el número ya va puesto en la imagen
+            var t = setTimeout(ir, 800);
+            navigator.clipboard.writeText(id).then(function () { clearTimeout(t); ir(); }, function () { clearTimeout(t); copiarViejo(id); ir(); });
+        } else { copiarViejo(id); ir(); }
     }
     // Navegadores sin portapapeles (http, celulares viejos)
     function copiarViejo(texto) {
@@ -779,6 +797,11 @@
             if (/^OPE-/.test(r.ID)) return false;
             return lote ? String(r.LOTE || '').trim() === lote : mr && String(r.MICRORRUTA || '').trim().toUpperCase() === mr;
         })[0] || null;
+    }
+    function visitaDeHoy(capa) {
+        var u = visitaDeCapa(capa), f = u && fechaDe(u['FECHA DE LA VISITA']), hoy0 = new Date();
+        hoy0.setHours(0, 0, 0, 0);
+        return f && f.getTime() === hoy0.getTime() ? u : null;
     }
     function lineaEstado(capa) {
         var u = visitaDeCapa(capa), id = capa.rutaVisita || (u && u.ID), html = '';
@@ -962,7 +985,8 @@
     // ---------- Buscar lote(s) o microrruta ----------
     // Varios lotes separados por coma = una ruta: se resaltan y se numeran en ese orden
     var marcadores = L.layerGroup().addTo(map);
-    function ir(valores, abrirVentana) {
+    // abrirId: con varios lotes, el que queda con la ficha abierta (al volver de "Texto a imagen")
+    function ir(valores, abrirVentana, abrirId) {
         // n: número de parada según el orden recibido, aunque algún lote no se encuentre
         var claves = valores.map(clave).map(function (v, i) {
             if (!v) return null;
@@ -991,6 +1015,9 @@
                 // La copia guardada manda sobre el enlace: un lote marcado subsanado después ya sale en verde
                 var rv = est && visitaRuta[k.v] && visitaGuardada(visitaRuta[k.v]);
                 if (rv) est = estadoDeVisita(rv.r.ESTADO);
+                // Pendiente en el enlace pero ya revisado hoy en la app: cuenta como revisado (o por subsanar / cerrado)
+                var vh = est === 'pendiente' && !visitaRuta[k.v] && visitaDeHoy(cs[0]);
+                if (vh) { est = estadoDeVisita(vh.ESTADO); visitaRuta[k.v] = vh.ID; }
                 if (est) {
                     cuenta[est]++;
                     cs.forEach(function (c) { c.rutaEstado = est; c.rutaVisita = visitaRuta[k.v] || ''; c.setStyle(ESTILO_RUTA[est]); enRuta.push(c); });
@@ -1009,12 +1036,13 @@
             pintarLeyenda(estadoRuta ? cuenta : null);
             if (!capas.length) return;
             if (!estadoRuta) resaltar(capas);
-            var abrir = abrirVentana && claves.length === 1;
+            var unico = abrirId && (porLote[clave(abrirId)] || porMr[clave(abrirId)] || [])[0];
+            var abrir = abrirVentana && (claves.length === 1 || !!unico), cual = unico || capas[0];
             if (movil.matches) plegarBarra(true);
             // Celular: primero el panel, porque su alto dice cuánto mapa queda a la vista para el lote
-            if (abrir && movil.matches) verLote(capas[0]);
-            encuadrar(L.featureGroup(capas).getBounds(), abrir);
-            if (abrir && !movil.matches) verLote(capas[0]);
+            if (abrir && movil.matches) verLote(cual);
+            encuadrar(unico ? L.featureGroup((porLote[clave(abrirId)] || porMr[clave(abrirId)])).getBounds() : L.featureGroup(capas).getBounds(), abrir);
+            if (abrir && !movil.matches) verLote(cual);
         }
     }
     // Acerca el mapa al lote. Con la ficha abierta: sin animación (si el mapa sigue moviéndose, la ventana del computador
@@ -1468,7 +1496,7 @@
     else if (q.get('lote') || q.get('mr')) {
         var lista = (q.get('lote') || q.get('mr')).split(',');
         $('buscar').value = lista.join(', ');
-        ir(lista, true);
+        ir(lista, true, q.get('abrir'));
     }
 })();
 </script>
