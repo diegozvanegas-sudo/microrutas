@@ -25,6 +25,7 @@ body > main { max-width: 1500px; }
 .tabla-horas .nota { color: var(--aviso); font-size: 12px; }
 .tabla-horas .num { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .tabla-horas .centro { text-align: center; }
+.tabla-horas th label.todas { display: grid; justify-items: center; gap: 2px; cursor: pointer; }
 .tabla-horas input[type="time"] { width: 110px; padding: 3px 6px; font-size: 14px; }
 .tabla-horas input[type="checkbox"] { width: 20px; height: 20px; accent-color: var(--brand); }
 .tabla-horas tr.ok .dif { color: var(--ok); }

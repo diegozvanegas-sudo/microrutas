@@ -4,6 +4,8 @@ import { minutos, hhmm } from './cruce.js';
 
 // Sombreado de la H. REAL escrita (en el archivo y en la vista): amarillo, como el de Subsanaciones
 export var COLOR_REAL = 'FFFFFF00';
+// Sin hora real en el cumplimiento y marcada para escribir: se deja la H. EXTRA reportada, en naranja (no se verificó)
+export var COLOR_REPORTADA = 'FFFFC000';
 // Celdas revisadas (RUTA y CONTROL con el cumplimiento, H.I y H.F con el horario de la ruta): amarillo si coinciden,
 // rojo si hay una inconsistencia
 export var COLOR_COINCIDE = 'FFFFFF00';

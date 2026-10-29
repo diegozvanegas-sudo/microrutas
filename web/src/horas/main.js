@@ -8,13 +8,13 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, plano } from './cruce.js';
 import { distribuir, enHoras, MINIMO } from './distribucion.js';
-import { hojaVista, COLOR_REAL, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
+import { hojaVista, COLOR_REAL, COLOR_REPORTADA, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
 import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
 import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
-var archivos = { extras: null, cumplimiento: null };   // { nombre, buffer }
+var archivos = { extras: null, cumplimiento: null };   // extras: { nombre, buffer }; cumplimiento: [{ nombre, buffer }] (uno o varios)
 var extras = null, filas = [], filtro = '', omitidos = 0;   // omitidos: filas que no son de conductores
 var horarios = null;   // de la base de datos, al tener sesión
 
@@ -36,11 +36,16 @@ async function hoja(buffer) {
     return { wb: wb, ws: ws, valores: ws.getSheetValues().map(function (r) { return r || []; }) };
 }
 
-async function elegir(tipo, archivo) {
-    if (!archivo) return;
-    if (!/\.xlsx$/i.test(archivo.name)) return toast('Use el archivo en formato .xlsx (en Excel: Guardar como → Libro de Excel).');
-    archivos[tipo] = { nombre: archivo.name, buffer: await archivo.arrayBuffer() };
-    $('nombre-' + tipo).textContent = archivo.name;
+// Del cumplimiento se pueden cargar varios a la vez (p. ej. el de ayer y uno bajado más tarde, cuando la plataforma
+// ya llenó más HORAS REALES): se cruzan todos juntos
+async function elegir(tipo, lista) {
+    lista = Array.prototype.slice.call(lista || []);
+    if (!lista.length) return;
+    if (lista.some(function (a) { return !/\.xlsx$/i.test(a.name); })) return toast('Use el archivo en formato .xlsx (en Excel: Guardar como → Libro de Excel).');
+    if (tipo === 'extras') lista = lista.slice(0, 1);
+    var leidos = await Promise.all(lista.map(async function (a) { return { nombre: a.name, buffer: await a.arrayBuffer() }; }));
+    archivos[tipo] = tipo === 'extras' ? leidos[0] : leidos;
+    $('nombre-' + tipo).textContent = leidos.map(function (a) { return a.nombre; }).join(' · ');
     $('caja-' + tipo).classList.add('listo');
     if (archivos.extras && archivos.cumplimiento) procesar();
 }
@@ -71,18 +76,26 @@ function celdaReparto(f) {
 }
 
 function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
+// Hora que se escribe en H. REAL: la real; sin ella (no vino en el cumplimiento) y marcada, la H. EXTRA reportada
+function horaEscrita(f) { return !f.usar ? null : f.real != null ? f.real : f.extra; }
+function sePuedeEscribir(f) { return f.real != null || f.extra != null; }
 
 async function procesar() {
     $('estado').hidden = false; $('estado').textContent = 'Cruzando…';
     $('resultado').hidden = true;
     try {
-        var a = await hoja(archivos.extras.buffer), b = await hoja(archivos.cumplimiento.buffer);
+        var a = await hoja(archivos.extras.buffer), bs = await Promise.all(archivos.cumplimiento.map(function (x) { return hoja(x.buffer); }));
         extras = leerExtras(a.valores);
-        var cumplimiento = leerCumplimiento(b.valores);
-        // Si los cargaron al revés, se intercambian solos
-        if (!extras && !cumplimiento) { extras = leerExtras(b.valores); cumplimiento = leerCumplimiento(a.valores); if (extras) archivos = { extras: archivos.cumplimiento, cumplimiento: archivos.extras }; }
+        var leidos = bs.map(function (b) { return leerCumplimiento(b.valores); });
+        // Si los cargaron al revés (uno y uno), se intercambian solos
+        if (!extras && bs.length === 1 && !leidos[0]) {
+            extras = leerExtras(bs[0].valores); leidos = [leerCumplimiento(a.valores)];
+            if (extras) archivos = { extras: archivos.cumplimiento[0], cumplimiento: [archivos.extras] };
+        }
         if (!extras) throw new Error('No encontré en el reporte de horas extras las columnas FECHA, CEDULA y H. EXTRA.');
-        if (!cumplimiento) throw new Error('No encontré en el reporte de cumplimiento las columnas Fecha, HORA REAL y Dotación.');
+        var malo = leidos.indexOf(null);
+        if (malo !== -1) throw new Error('No encontré en ' + archivos.cumplimiento[malo].nombre + ' las columnas Fecha, HORA REAL y Dotación.');
+        var cumplimiento = [].concat.apply([], leidos);
         // Todo (H. REAL, ruta, control, horario, colores y distribución) solo para los conductores: los tripulantes
         // no se revisan ni se tocan en el Excel
         var conductores = extras.filas.filter(esConductor);
@@ -103,6 +116,9 @@ var ESTADOS = {
     ok: ['✓ Coincide', 'ok'], mas: ['Reportó más tarde', 'mas'], menos: ['Reportó más temprano', 'menos'],
     sinhora: ['Sin hora real', 'sinhora'], nada: ['No aparece', 'nada'],
 };
+function visible(f) {
+    return !filtro || f.estado === filtro || filtro === 'horario' && malHorario(f) || filtro === 'distinto' && (f.difRuta || f.difControl);
+}
 function pintar() {
     var r = resumen(filas);
     $('resumen').innerHTML = [
@@ -122,10 +138,11 @@ function pintar() {
     $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
         ' · total <b>' + suma.total + (suma.total === 1 ? ' hora' : ' horas') + '</b>';
 
-    var vis = filas.filter(function (f) {
-        return !filtro || f.estado === filtro || filtro === 'horario' && malHorario(f) || filtro === 'distinto' && (f.difRuta || f.difControl);
-    });
-    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.I</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>OD · ON · FD · FN</th><th>Escribir</th></tr></thead><tbody>' +
+    var vis = filas.filter(visible);
+    // ☑ en el encabezado: marca o desmarca todas las filas que se ven (con el filtro puesto, solo esas)
+    var marcables = vis.filter(sePuedeEscribir), todas = marcables.length && marcables.every(function (f) { return f.usar; });
+    $('tabla').innerHTML = '<thead><tr><th>Fila</th><th>Nombre</th><th>Ruta</th><th>Control</th><th>H.I</th><th>H.F</th><th>Reportada</th><th>Real</th><th>Dif.</th><th>Extra rep. → real</th><th>OD · ON · FD · FN</th>' +
+        '<th class="centro"><label class="todas" title="Marcar o desmarcar todas las filas que se ven">Escribir<input type="checkbox" data-todas' + (todas ? ' checked' : '') + (marcables.length ? '' : ' disabled') + ' aria-label="Seleccionar todas"></label></th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
             var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
@@ -142,9 +159,11 @@ function pintar() {
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '"></td>' +
                 '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
                 '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' + celdaReparto(f) +
-                '<td class="centro"><input type="checkbox"' + (f.usar ? ' checked' : '') + (f.real == null ? ' disabled' : '') + ' aria-label="Escribir en H. REAL"></td></tr>';
+                '<td class="centro"><input type="checkbox"' + (f.usar ? ' checked' : '') + (sePuedeEscribir(f) ? '' : ' disabled') +
+                    (f.real == null ? ' title="Sin hora real: se escribe la H. EXTRA reportada (en naranja)"' : '') + ' aria-label="Escribir en H. REAL">' +
+                    (f.real == null && f.usar ? '<span class="sub">la reportada</span>' : '') + '</td></tr>';
         }).join('') + '</tbody>';
-    var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
+    var n = filas.filter(function (f) { return horaEscrita(f) != null; }).length;
     $('btn-descargar').textContent = '⬇ Descargar Excel con H. REAL (' + n + ')';
     $('btn-descargar').disabled = !n;
 }
@@ -212,11 +231,12 @@ async function armarLibro() {
         var tot = extras.cols.total != null && fila.getCell(extras.cols.total), fm = tot && tot.value && tot.value.formula;
         var resta = fm && /^\s*([A-Z]+\d+)\s*-\s*([A-Z]+\d+)\s*$/.exec(fm);
         if (resta) tot.value = { formula: 'IF(' + resta[1] + '="","",MAX(0,MOD(' + resta[1] + '-' + resta[2] + '+0.5,1)-0.5))' };
-        if (f.usar && f.real != null) {
+        var h = horaEscrita(f);
+        if (h != null) {
             var celda = fila.getCell(col);
             // Las horas en Excel son fracciones de día: se escriben como hora de 1899, igual que H.I, H.F y H. EXTRA
-            celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(f.real / 60), f.real % 60));
-            sombrear(celda, COLOR_REAL, { numFmt: formato });
+            celda.value = new Date(Date.UTC(1899, 11, 30, Math.floor(h / 60), h % 60));
+            sombrear(celda, f.real != null ? COLOR_REAL : COLOR_REPORTADA, { numFmt: formato });
         }
         // Solo las casillas revisadas: RUTA y CONTROL frente al cumplimiento, H.I y H.F frente al horario de la ruta.
         // Amarilla si coincide; roja solo la que tiene el error
@@ -249,7 +269,7 @@ function ampliarExcel(si) {
 async function verExcel() {
     var b = await armarLibro();
     hojaActual = hojaVista(b.ws, extras.encabezado, b.ws.name);
-    var n = filas.filter(function (f) { return f.usar && f.real != null; }).length;
+    var n = filas.filter(function (f) { return horaEscrita(f) != null; }).length;
     $('excel-info').textContent = '· ' + hojaActual.filas.length + ' personas · ' + n + ' con H. REAL';
     $('excel-hojas').innerHTML = '<button type="button" role="tab" aria-selected="true">' + esc(hojaActual.nombre) + ' <small>' + hojaActual.filas.length + '</small></button>';
     $('excel-vista').innerHTML = htmlHoja(hojaActual);
@@ -273,15 +293,20 @@ function arrancar() {
     iniciarEncabezado();
     ['extras', 'cumplimiento'].forEach(function (tipo) {
         var caja = $('caja-' + tipo), input = $('archivo-' + tipo);
-        input.onchange = function () { elegir(tipo, input.files[0]); };
+        input.onchange = function () { elegir(tipo, input.files); };
         // También se pueden arrastrar los archivos encima
         caja.addEventListener('dragover', function (ev) { ev.preventDefault(); caja.classList.add('encima'); });
         caja.addEventListener('dragleave', function () { caja.classList.remove('encima'); });
-        caja.addEventListener('drop', function (ev) { ev.preventDefault(); caja.classList.remove('encima'); elegir(tipo, ev.dataTransfer.files[0]); });
+        caja.addEventListener('drop', function (ev) { ev.preventDefault(); caja.classList.remove('encima'); elegir(tipo, ev.dataTransfer.files); });
     });
     $('tolerancia').onchange = function () { if (archivos.extras && archivos.cumplimiento) procesar(); };
     $('resumen').onclick = function (ev) { var b = ev.target.closest('[data-filtro]'); if (b) { filtro = b.dataset.filtro; pintar(); } };
     $('tabla').addEventListener('change', function (ev) {
+        if (ev.target.matches('[data-todas]')) {
+            var si = ev.target.checked;
+            filas.forEach(function (f) { if (visible(f) && sePuedeEscribir(f)) f.usar = si; });
+            return pintar();
+        }
         var tr = ev.target.closest('[data-i]');
         if (!tr) return;
         var f = filas[+tr.dataset.i];

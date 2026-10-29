@@ -61,9 +61,9 @@
                 <span class="sub" id="nombre-extras">Toque para elegir o arrastre el .xlsx aquí</span>
             </label>
             <label class="carga" id="caja-cumplimiento">
-                <input type="file" id="archivo-cumplimiento" accept=".xlsx">
+                <input type="file" id="archivo-cumplimiento" accept=".xlsx" multiple>
                 <b>2. Reporte de cumplimiento por turno</b>
-                <span class="sub" id="nombre-cumplimiento">Toque para elegir o arrastre el .xlsx aquí</span>
+                <span class="sub" id="nombre-cumplimiento">Toque para elegir o arrastre el .xlsx aquí (puede elegir varios)</span>
             </label>
             <a class="carga" id="caja-horarios" href="horarios.html" title="Ver o cargar los horarios de rutas">
                 <b>3. Horarios de rutas</b>
@@ -80,7 +80,9 @@
         <div class="chips" id="resumen"></div>
         <p class="totales" id="totales"></p>
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
-        <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.</p>
+        <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.
+            Con ☑ <b>Escribir</b> del encabezado se marcan todas las filas que se ven. Las que no tienen hora real en el cumplimiento también se pueden marcar: se escribe la H. EXTRA reportada, en <b>naranja</b> en el Excel (no se pudo verificar).
+            Si al cumplimiento le faltan horas reales, bájelo de nuevo más tarde y cárguelo junto con el anterior.</p>
         <div class="acciones fin">
             <span class="sub">En el Excel la H. REAL que se escribe queda sombreada en amarillo, y en la RUTA, el CONTROL, la H.I y la H.F revisadas la casilla queda en amarillo si coincide (con el cumplimiento o con el horario) y en rojo solo la que tiene el error.</span>
             <span class="sub">Las columnas OD, ON, FD, FN y su TOTAL se llenan con el extra de la H.F a la H. REAL (o a la H. EXTRA si no se escribe la real), en horas enteras: con menos de 36 minutos no hay extra y en cada tipo la fracción de 36 minutos o más sube a la hora siguiente (2:47 → 3, 2:35 → 2). Diurna de 6:00 a 19:00, nocturna de 19:00 a 6:00 y festiva los domingos y festivos; si el extra pasa la medianoche, desde las 0:00 cuenta como del día siguiente.</span>
