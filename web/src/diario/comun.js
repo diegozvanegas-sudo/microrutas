@@ -172,4 +172,8 @@ export var FRASES_RECORRIDO = [
     { t: 'Animal muerto', texto: 'Se reportó animal muerto en vía pública en … para su recolección.' },
     { t: 'Lavado', texto: 'Se verificó la actividad de lavado de áreas públicas (puentes peatonales, plazoletas) en … .' },
     { t: 'Georreferenciadas', texto: 'Las novedades identificadas fueron georreferenciadas y registradas fotográficamente para su seguimiento.' },
+    { t: 'Reportados en grupos', texto: 'En los recorridos realizados se reportaron material vegetal, RCD, voluminosos y llantas en los grupos correspondientes.' },
+    { t: 'Voluminosos, RCD y llantas', texto: 'Durante los recorridos se evidenciaron residuos voluminosos, RCD, residuos ordinarios y llantas, los cuales fueron reportados en los grupos correspondientes para su respectiva gestión.' },
+    { t: 'Recorrido por la zona', texto: 'Durante el recorrido por la zona se reportaron los voluminosos, RCD y llantas a sus respectivos grupos.' },
+    { t: 'Vías principales', texto: 'Se hizo recorrido en vías principales y se visitaron puntos críticos.' },
 ];
