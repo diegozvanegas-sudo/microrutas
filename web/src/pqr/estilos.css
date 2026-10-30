@@ -43,6 +43,9 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .campo.ancho { margin-top: 10px; }
 .rejilla { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 10px; margin-top: 10px; }
 .rejilla .campo.ancho { grid-column: 1 / -1; margin-top: 0; }
+/* Zona EMV y coordenadas de la dirección */
+.ubicacion { background: #edf8f3; border-radius: 9px; padding: 8px 12px; font-size: 14px; margin-bottom: 4px; overflow-wrap: anywhere; }
+.ubicacion .sub { color: var(--muted, #64748b); font-size: 13px; }
 .aviso { background: var(--aviso-bg); color: var(--aviso); border-radius: 9px; padding: 8px 12px; font-size: 14px; margin-bottom: 8px; }
 .check { display: flex; gap: 8px; align-items: center; margin-top: 12px; font-size: 14px; flex-wrap: wrap; }
 .check input { width: auto; }

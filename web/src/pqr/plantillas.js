@@ -15,10 +15,14 @@ export function fechaLarga(iso) {
 }
 
 // "CR 38 # 91 83 MANRIQUE CENTRAL No.2" -> { via: 'CR 38 # 91 83', barrio: 'MANRIQUE CENTRAL No.2' }:
-// la dirección son las piezas con números (y letras sueltas, #, sur) del principio; el barrio, lo que sigue
+// la dirección son las piezas con números (y letras sueltas, #, sur) del principio; el barrio, lo que sigue.
+// También "CL 79 A # ENTRE CARRERA 85 A - 86", "cr 85 cl 76AF-4" y "CR 95 A CL 70 A -2"
+var VIA_CRUCE = /^(CALLE|CL|CLL|CARRERA|CRA|CR|KR|KRA|DIAGONAL|DG|TRANSVERSAL|TV|TR|CIRCULAR|CQ)$/i;
 function partirDireccion(linea) {
     var t = linea.trim().split(/\s+/), i = 1;
-    while (i < t.length && /^(#|-|N[°ºO]?\.?|#?\d{1,3}[A-H]{0,2}(-\d{1,3}[A-H]{0,2})?|[A-H]{1,2}|SUR|ESTE|BIS|CON|X)$/i.test(t[i])) i++;
+    while (i < t.length && (/^(#|\*|%|-|N[°ºO]?\.?|[#-]?\d{1,3}[A-H]{0,2}(-\d{1,3}[A-H]{0,2})?|[A-H]{1,2}|SUR|ESTE|BIS|CON|X|Y|ENTRE)$/i.test(t[i]) ||
+        // El tipo de la vía que cruza, solo si le sigue un número ("cl 76AF"); así un barrio no se come
+        (VIA_CRUCE.test(t[i]) && /^\d/.test(t[i + 1] || '')))) i++;
     // "Casa", "Apto 201", "Interior 3"… van con la dirección, no con el barrio
     var fin = i;
     while (i < t.length && /^(casa|apto?|apartamento|int(erior)?|local|piso|bloque|torre|lote)$/i.test(t[i])) i += /^\d/.test(t[i + 1] || '') ? 2 : 1;

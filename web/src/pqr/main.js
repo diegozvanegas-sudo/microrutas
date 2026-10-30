@@ -126,7 +126,7 @@ var propuestas = [];
 function actualizar() {
     var dir = $('f-direccion').value.trim(), tel = $('f-telefono').value.replace(/\D/g, '');
     $('btn-mapa').hidden = !dir;
-    $('btn-mapa').href = 'mapa_rapido.html?q=' + encodeURIComponent(dir);
+    if (dir !== ubicada) { $('btn-mapa').href = 'mapa_rapido.html?q=' + encodeURIComponent(dir); ubicar(dir); }
     $('btn-llamar').hidden = !tel;
     $('btn-llamar').href = 'tel:' + tel;
     $('cobro-auto').textContent = hablaDeCobro($('texto').value) ? '(la queja habla de cobro o factura)' : '';
@@ -138,6 +138,58 @@ function actualizar() {
             '<button type="button" class="primario pequeno" data-usar="' + i + '">Usar esta</button></div>' +
             '<p>' + esc(r.texto).replace(/\n/g, '<br>') + '</p></div>';
     }).join('');
+}
+
+// ---------- Dónde queda: coordenadas de la dirección y zona EMV ----------
+// La dirección se ubica como en el mapa rápido (cruces guardados, public/js/direcciones.js) y la zona sale de la capa
+// "Zonas EMV" del mapa (data/rapido/capa_zonas.js). "Ver en el mapa" abre el mapa con el pin en esas coordenadas.
+var MEDELLIN = [6.15, -75.75, 6.38, -75.47];   // sur, oeste, norte, este (con los corregimientos)
+var zonas = null, ubicada = null;
+function cargarZonas() {
+    if (zonas) return zonas;
+    zonas = new Promise(function (listo) {
+        window.cargarCapa = function (k, d) { listo(d.items); };
+        var s = document.createElement('script');
+        s.src = 'data/rapido/capa_zonas.js';
+        s.onerror = function () { zonas = null; listo([]); };
+        document.head.appendChild(s);
+    });
+    return zonas;
+}
+// Puntos guardados como diferencias en millonésimas: [lng, lat, dlng, dlat, …] -> [[lat, lng], …]
+function decodificar(p) {
+    var out = [], x = 0, y = 0;
+    for (var i = 0; i < p.length; i += 2) { x += p[i]; y += p[i + 1]; out.push([y / 1e6, x / 1e6]); }
+    return out;
+}
+function dentro(pol, ll) {
+    var adentro = false;
+    pol.forEach(function (plano) {
+        var a = decodificar(plano);
+        for (var i = 0, j = a.length - 1; i < a.length; j = i++) {
+            if ((a[i][0] > ll.lat) !== (a[j][0] > ll.lat) && ll.lng < (a[j][1] - a[i][1]) * (ll.lat - a[i][0]) / (a[j][0] - a[i][0]) + a[i][1]) adentro = !adentro;
+        }
+    });
+    return adentro;
+}
+function ubicar(dir) {
+    ubicada = dir;
+    var caja = $('ubicacion'), d = dir && window.leerDireccion && window.leerDireccion(dir);
+    if (!d || d.incompleta) { caja.hidden = !dir; caja.textContent = dir ? '📍 No se reconoce la dirección: escriba la vía, el cruce y la placa (CR 38 # 91 83).' : ''; return; }
+    caja.hidden = false;
+    caja.textContent = '📍 Buscando ' + d.texto + '…';
+    Promise.all([window.ubicarDireccion(d, MEDELLIN, null, function (t) { caja.textContent = '📍 ' + t; }), cargarZonas()]).then(function (r) {
+        if (ubicada !== dir) return;   // ya cambiaron la dirección
+        var c = r[0];
+        if (!c) { caja.textContent = '📍 No se encontró ' + d.texto + ' en el mapa. Revise la vía y el cruce.'; return; }
+        // g: los polígonos de la zona, cada uno con sus anillos
+        var z = r[1].filter(function (x) { return (x.g || []).some(function (pol) { return dentro(pol, c); }); }).map(function (x) { return x.n; })[0];
+        var ll = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
+        caja.innerHTML = '📍 <b>' + esc(z || 'Fuera de las zonas EMV') + '</b> · ' + esc(d.texto) + ' · <span class="sub">ubicación ' + esc(c.aprox) + ' (' + ll + ')</span>';
+        $('btn-mapa').href = 'mapa_rapido.html?ll=' + ll;
+    }, function () {
+        if (ubicada === dir) caja.textContent = '📍 No se pudo buscar la dirección (sin conexión). «Ver en el mapa» la busca allá.';
+    });
 }
 
 // ---------- Contrato: cláusulas según los temas de la queja ----------
@@ -214,6 +266,25 @@ function leerTexto() {
 function cargarScript(src) {
     return new Promise(function (ok, mal) { var s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = mal; document.head.appendChild(s); });
 }
+// Pantallazos pequeños (letra de 12 px): el lector confunde "85" con "65". Al doble de tamaño los lee bien (probado
+// con pantallazos del sistema de PQR; más grande o en blanco y negro sale peor). Las fotos grandes quedan como vienen
+function agrandar(file) {
+    return new Promise(function (ok) {
+        var img = new Image(), url = URL.createObjectURL(file);
+        img.onload = function () {
+            URL.revokeObjectURL(url);
+            if (img.naturalWidth >= 1400) return ok(file);
+            var f = 2;
+            var cv = document.createElement('canvas'), ctx = cv.getContext('2d');
+            cv.width = Math.round(img.naturalWidth * f); cv.height = Math.round(img.naturalHeight * f);
+            ctx.imageSmoothingQuality = 'high';
+            ctx.drawImage(img, 0, 0, cv.width, cv.height);
+            ok(cv);
+        };
+        img.onerror = function () { URL.revokeObjectURL(url); ok(file); };
+        img.src = url;
+    });
+}
 async function leerFoto(file) {
     var aviso = $('ocr');
     aviso.hidden = false;
@@ -223,7 +294,7 @@ async function leerFoto(file) {
     try {
         if (!window.Tesseract) await cargarScript('https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js');
         worker = await window.Tesseract.createWorker('spa');
-        var r = await worker.recognize(file);
+        var r = await worker.recognize(await agrandar(file));
         var texto = r.data.text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
         if (!texto) throw new Error('No se encontró texto en la foto.');
         $('texto').value = texto;

@@ -31,12 +31,15 @@
     window.leerDireccion = function (texto) {
         var t = String(texto || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase()
             .replace(/(\d)([A-Z]{3,})/g, '$1 $2')          // 38SUR -> 38 SUR
-            .replace(/[#№°º.,\-]/g, ' ').trim().split(/\s+/);
+            .replace(/\b([A-Z]{1,10})(\d)/g, '$1 $2')       // CR85 -> CR 85 (la foto leída a veces los junta)
+            .replace(/[#№°º.,\-*%]/g, ' ').trim().split(/\s+/);   // * y %: "#" leído de una foto
         var tipo = TIPOS[t[0]];
         if (!tipo) return null;
         var i = 1, partes = [];
         while (i < t.length && partes.length < 3) {
             if (SOBRA[t[i]] || (TIPOS[t[i]] && partes.length === 1)) { i++; continue; }
+            // La foto leída cambia "#" por "4": "CL 79 A 4 ENTRE CARRERA 85" (un dígito suelto antes de ENTRE o de la otra vía)
+            if (partes.length === 1 && /^\d$/.test(t[i]) && (t[i + 1] === 'ENTRE' || TIPOS[t[i + 1]])) { i++; continue; }
             var p = pieza(t, i);
             if (!p) break;
             partes.push(p); i += p.usa;
@@ -132,6 +135,29 @@
         });
         return puntosEntre(ix, vias, despues);
     }
+    // Numeración como número: 76 < 76A < 76AD < 76AF < 76B < 77 (la segunda letra pesa menos que la primera)
+    function rango(n, l) {
+        var v = n;
+        for (var i = 0; i < l.length; i++) v += (l.charCodeAt(i) - 64) / Math.pow(10, i + 1);
+        return v;
+    }
+    // La vía que cruza d.via con la numeración más parecida a d.cruce (máximo 1 de diferencia) -> d con ese cruce, o null
+    function cruceCercano(ix, d) {
+        var pos = {}, re = /^(\w+) (\d+)([A-H]{0,2})( SUR| ESTE)?$/, tipos = CRUZAN[d.tipo].toLowerCase().split('|');
+        ix.v.forEach(function (k, i) { pos[k] = i; });
+        var mias = claves(NOMBRES[d.tipo], d.via).map(function (k) { return pos[k]; }).filter(function (i) { return i !== undefined; });
+        if (!mias.length) return null;
+        var meta = rango(d.cruce.n, d.cruce.l), sur = d.cruce.sur ? ' ' + d.cruce.sur : '', mejor = null;
+        Object.keys(ix.c).forEach(function (par) {
+            var ij = par.split(','), a = +ij[0], b = +ij[1], otra = mias.indexOf(a) !== -1 ? b : mias.indexOf(b) !== -1 ? a : -1;
+            if (otra === -1) return;
+            var m = re.exec(ix.v[otra]);
+            if (!m || tipos.indexOf(m[1]) === -1 || (m[4] || '') !== sur) return;
+            var dif = Math.abs(rango(+m[2], m[3]) - meta);
+            if (dif <= 1 && (!mejor || dif < mejor.dif)) mejor = { dif: dif, p: { n: +m[2], l: m[3], sur: d.cruce.sur } };
+        });
+        return mejor && Object.assign({}, d, { cruce: mejor.p });
+    }
     // Cruce + metros de la placa hacia la siguiente más cercana (a menos de 400 m)
     function resolver(d, cruces, siguientes, preferir) {
         if (!cruces.length) return null;
@@ -166,6 +192,17 @@
             if (ix) {
                 var cruces = puntosEntre(ix, claves(NOMBRES[d.tipo], d.via), claves(CRUZAN[d.tipo], d.cruce)).filter(enCaja);
                 if (cruces.length) return resolver(d, cruces, siguientesLocal(ix, d), preferir);
+                // Esas dos vías no se cruzan en el mapa ("cr 85 cl 76AF": la 85 cruza la 76AD y la 76BB): el cruce de la
+                // misma vía con la numeración más cercana (hasta un número de diferencia). Se marca como cercana
+                var e = cruceCercano(ix, d) || cruceCercano(ix, Object.assign({}, d, { via: { n: d.via.n, l: '', sur: d.via.sur } }));
+                if (e) {
+                    var cs = puntosEntre(ix, claves(NOMBRES[e.tipo], e.via), claves(CRUZAN[e.tipo], e.cruce)).filter(enCaja);
+                    if (cs.length) {
+                        var r = resolver(Object.assign({}, e, { placa: null }), cs, [], preferir);
+                        r.aprox = 'cercana: en el cruce ' + txt(e.via) + ' con ' + txt(e.cruce) + ', confírmela en el mapa';
+                        return r;
+                    }
+                }
             }
             if (aviso) aviso('No está en los cruces guardados: buscando ' + d.texto + ' en OpenStreetMap en línea…');
             var sig = { n: d.cruce.n + 1, l: '', sur: d.cruce.sur };
