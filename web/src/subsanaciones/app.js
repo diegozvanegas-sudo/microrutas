@@ -221,7 +221,15 @@ export function iniciar(api, CFG) {
             $('tabla').innerHTML = '<div class="vacio">' + (registros.length ? 'Ningún registro coincide con los filtros.' : 'Aún no hay visitas. Use "+ Nueva visita".') + '</div>';
             return;
         }
-        $('tabla').innerHTML = '<div class="movil">' + lista.map(tarjetaMovil).join('') + '</div>' +
+        // Cuántas hay en la lista (con los filtros puestos) y de qué estado
+        var porEstado = {};
+        lista.forEach(function (r) { porEstado[r.ESTADO] = (porEstado[r.ESTADO] || 0) + 1; });
+        var conteo = '<div class="conteo-lista"><b>' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + '</b>' +
+            (lista.length !== registros.length ? ' de ' + registros.length : '') +
+            [['SIN NOVEDAD', 'sin novedad', 'sin novedad'], ['PENDIENTE', 'pendiente', 'pendientes'], ['SUBSANADO', 'subsanada', 'subsanadas'], ['CERRADO', 'cerrada', 'cerradas']]
+                .filter(function (t) { return porEstado[t[0]]; })
+                .map(function (t) { return ' · ' + porEstado[t[0]] + ' ' + (porEstado[t[0]] === 1 ? t[1] : t[2]); }).join('') + '</div>';
+        $('tabla').innerHTML = conteo + '<div class="movil">' + lista.map(tarjetaMovil).join('') + '</div>' +
             '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Fecha de ejecución</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             lista.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
