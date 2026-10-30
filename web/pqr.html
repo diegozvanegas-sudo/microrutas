@@ -56,6 +56,7 @@
     <section id="vista-lista">
         <div class="barra-lista">
             <input type="search" id="buscar" placeholder="Buscar por ID, dirección, barrio o nombre" aria-label="Buscar PQR" autocomplete="off">
+            <button type="button" class="secundario" id="btn-llamado" title="Armar un llamado de atención a la cuadrilla para enviarlo por WhatsApp">📣 Llamado de atención</button>
             <button type="button" class="primario" id="btn-nuevo">+ Nuevo PQR</button>
         </div>
         <div class="filtros" role="group" aria-label="Estado">
@@ -154,6 +155,30 @@
     </section>
     <p class="nota-privada">🔒 Los PQR traen datos personales: solo los ve quien los registró (y el administrador). La foto no se guarda, solo el texto.</p>
 </main>
+<!-- Llamado de atención a una cuadrilla (src/pqr/llamados.js): se arma con las quejas elegidas y se envía por WhatsApp -->
+<dialog id="dlg-llamado">
+    <div class="cuerpo">
+        <h2>📣 Llamado de atención <button type="button" class="cerrar-dlg" id="ll-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="rejilla">
+            <label class="campo">CUADRILLA <input id="ll-cuadrilla" inputmode="numeric" placeholder="2"></label>
+            <label class="campo">CUÁNDO
+                <select id="ll-tipo">
+                    <option value="general">General (antes de la visita)</option>
+                    <option value="visita">Con lo encontrado en la visita</option>
+                </select></label>
+        </div>
+        <div class="ll-grupo"><b>Quejas</b> <span class="sub">(sus barrios salen en el mensaje; con lo encontrado, también la dirección y lo que se vio)</span>
+            <div id="ll-quejas" class="ll-opciones"></div></div>
+        <div class="ll-grupo"><b>Puntos a recordar</b>
+            <div id="ll-puntos" class="ll-opciones"></div></div>
+        <label class="campo ancho">MENSAJE <span class="sub">(puede cambiarlo antes de enviarlo)</span>
+            <textarea id="ll-texto" rows="12"></textarea></label>
+        <div class="pie">
+            <button type="button" class="secundario" id="ll-copiar">📋 Copiar</button>
+            <a class="boton primario" id="ll-whatsapp" target="_blank" rel="noopener">💬 Enviar por WhatsApp</a>
+        </div>
+    </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script src="js/direcciones.js"></script>
 <script type="module" src="/src/pqr/main.js"></script>

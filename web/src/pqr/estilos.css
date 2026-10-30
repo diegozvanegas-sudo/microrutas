@@ -74,6 +74,18 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
     .acciones.fin button { flex: 1 1 45%; }
 }
 /* Ventana de ingreso (src/sesion.js) */
+/* Llamado de atención a la cuadrilla */
+#dlg-llamado { border: 0; width: min(720px, calc(100% - 24px)); max-height: calc(100dvh - 24px); border-radius: 14px; padding: 0; box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }
+#dlg-llamado::backdrop { background: rgba(15, 30, 25, .45); }
+#dlg-llamado .cuerpo { padding: 16px 18px; display: grid; gap: 10px; }
+#dlg-llamado h2 { margin: 0; display: flex; align-items: center; justify-content: space-between; }
+#dlg-llamado .cerrar-dlg { background: #eef2f1; border-radius: 50%; width: 34px; height: 34px; padding: 0; font-size: 20px; }
+#dlg-llamado textarea { width: 100%; font: inherit; font-size: 14px; }
+#dlg-llamado .pie { display: flex; gap: 8px; }
+#dlg-llamado .pie > * { flex: 1; text-align: center; padding: 11px 14px; }
+.ll-opciones { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 4px; font-size: 14px; }
+.ll-opciones label { display: flex; gap: 6px; align-items: center; }
+.ll-opciones input { width: auto; margin: 0; }
 #dlg-ingreso { border: 0; width: min(400px, calc(100% - 32px)); border-radius: 14px; padding: 0; box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }
 #dlg-ingreso::backdrop { background: rgba(15, 30, 25, .45); }
 #dlg-ingreso .cuerpo { padding: 18px; }

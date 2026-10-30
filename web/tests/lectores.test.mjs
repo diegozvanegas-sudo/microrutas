@@ -308,3 +308,18 @@ test('direcciones: se ubican con los cruces guardados en la app, sin Overpass', 
         globalThis.fetch = fetchAntes;
     }
 });
+
+test('PQR: llamado de atención a la cuadrilla', async () => {
+    const { textoLlamado } = await import('../src/pqr/llamados.js');
+    const casos = [{ radicado: '441721', direccion: 'cr 85 cl 76AF-4', barrio: 'VILLA FLORA', hallazgo: 'residuos sin recoger' },
+        { radicado: '441812', direccion: 'CL 79 A # 85 A - 86', barrio: 'ROBLEDO' }];
+    const g = textoLlamado({ cuadrilla: '2', tipo: 'general', casos });
+    assert.match(g, /^\*Cuadrilla 2 – Llamado de atención\*/);
+    assert.match(g, /han llegado 2 quejas de la comunidad en Villa Flora y Robledo/);
+    assert.match(g, /🌿 \*Residuos:\*/);
+    assert.doesNotMatch(g, /441721/);
+    const v = textoLlamado({ cuadrilla: '2', tipo: 'visita', puntos: ['vehiculos'], casos });
+    assert.match(v, /• \*PQR 441721\* – cr 85 cl 76AF-4, Villa Flora: residuos sin recoger/);
+    assert.match(v, /🚗/);
+    assert.doesNotMatch(v, /🌿/);
+});

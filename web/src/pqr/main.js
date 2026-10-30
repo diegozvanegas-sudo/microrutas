@@ -5,6 +5,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja } from './plantillas.js';
+import { textoLlamado, PUNTOS } from './llamados.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
@@ -388,6 +389,33 @@ async function borrar(p) {
     return true;
 }
 
+// ---------- Llamado de atención a la cuadrilla (llamados.js) ----------
+// Salen marcadas las quejas abiertas; la cuadrilla, la que se anotó en la visita si todas dicen la misma
+function abrirLlamado() {
+    var abiertos = pqrs.filter(function (p) { return p.estado !== 'respondido'; });
+    $('ll-quejas').innerHTML = pqrs.length ? pqrs.map(function (p) {
+        return '<label><input type="checkbox" data-ll-pqr="' + esc(p.id) + '"' + (p.estado !== 'respondido' ? ' checked' : '') + '> ' +
+            esc((p.radicado || 's/n') + ' · ' + ([p.direccion, p.barrio].filter(Boolean).join(', ') || 'sin dirección')) + '</label>';
+    }).join('') : '<span class="sub">No hay PQR guardados: el mensaje sale sin barrios.</span>';
+    $('ll-puntos').innerHTML = Object.keys(PUNTOS).map(function (k) {
+        return '<label><input type="checkbox" data-ll-punto="' + k + '" checked> ' + esc(PUNTOS[k].titulo) + '</label>';
+    }).join('');
+    var cuads = abiertos.map(function (p) { return String((p.visita || {}).cuadrilla || '').replace(/\D/g, ''); }).filter(Boolean);
+    if (cuads.length && cuads.every(function (c) { return c === cuads[0]; })) $('ll-cuadrilla').value = cuads[0];
+    armarLlamado();
+    $('dlg-llamado').showModal();
+}
+function armarLlamado() {
+    var casos = Array.prototype.map.call($('ll-quejas').querySelectorAll('[data-ll-pqr]:checked'), function (c) {
+        var p = pqrs.find(function (x) { return x.id === c.dataset.llPqr; }) || {}, v = p.visita || {};
+        return { radicado: p.radicado, direccion: p.direccion, barrio: p.barrio, hallazgo: v.observacion || RESULTADOS[v.resultado] || '' };
+    });
+    var puntos = Array.prototype.map.call($('ll-puntos').querySelectorAll('[data-ll-punto]:checked'), function (c) { return c.dataset.llPunto; });
+    $('ll-texto').value = textoLlamado({ cuadrilla: $('ll-cuadrilla').value.trim(), tipo: $('ll-tipo').value, puntos: puntos, casos: casos });
+    enlaceWhatsapp();
+}
+function enlaceWhatsapp() { $('ll-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent($('ll-texto').value); }
+
 // ---------- Inicio ----------
 async function arrancar() {
     iniciarEncabezado();
@@ -422,6 +450,13 @@ async function arrancar() {
             function () { $('texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
     };
     $('btn-nuevo').onclick = function () { abrir(null); };
+    $('btn-llamado').onclick = abrirLlamado;
+    // Cambiar cuadrilla, tipo, quejas o puntos rehace el mensaje; lo escrito a mano en el mensaje se respeta hasta entonces
+    $('dlg-llamado').addEventListener('change', function (ev) { if (ev.target.id !== 'll-texto') armarLlamado(); });
+    $('ll-cuadrilla').addEventListener('input', armarLlamado);
+    $('ll-texto').addEventListener('input', enlaceWhatsapp);
+    $('ll-copiar').onclick = function () { copiar($('ll-texto').value); };
+    $('ll-cerrar').onclick = function () { $('dlg-llamado').close(); };
     $('ya-existe').onclick = function (ev) {
         var b = ev.target.closest('[data-abrir-repetido]');
         if (b) abrir(pqrs.find(function (p) { return p.id === b.dataset.abrirRepetido; }));
