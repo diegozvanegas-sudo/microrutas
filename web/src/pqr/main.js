@@ -122,8 +122,24 @@ function datos() {
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
     };
 }
+// ¿Ya hay otro PQR guardado con ese ID? Entonces no se sigue: se avisa y se ofrece abrir el guardado
+function repetido() {
+    var id = $('f-id').value.replace(/\D/g, '');
+    return id ? pqrs.find(function (p) { return String(p.radicado || '').replace(/\D/g, '') === id && (!actual || p.id !== actual.id); }) || null : null;
+}
+function revisarRepetido() {
+    var p = repetido();
+    $('ya-existe').hidden = !p;
+    $('vista-pqr').classList.toggle('duplicado', !!p);
+    if (p) $('ya-existe').innerHTML = '⚠ <b>El ID ' + esc(p.radicado) + ' ya se encuentra guardado</b>' +
+        (p.estado === 'respondido' ? ' y ya está respondido' : '') + (p.nombre ? ' (' + esc(p.nombre) + ')' : '') + '. No se puede registrar otra vez.' +
+        '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(p.id) + '">Abrir el guardado</button>';
+    return p;
+}
+
 var propuestas = [];
 function actualizar() {
+    revisarRepetido();
     var dir = $('f-direccion').value.trim(), tel = $('f-telefono').value.replace(/\D/g, '');
     $('btn-mapa').hidden = !dir;
     if (dir !== ubicada) { $('btn-mapa').href = 'mapa_rapido.html?q=' + encodeURIComponent(dir); ubicar(dir); }
@@ -321,6 +337,7 @@ function fila(estado) {
 async function guardar(estado) {
     var f = fila(estado);
     if (!f.radicado && !f.direccion && !f.queja) return toast('Escriba o lea la queja antes de guardar.');
+    if (revisarRepetido()) return toast('El ID ' + f.radicado + ' ya se encuentra guardado: abra ese PQR.');
     if (estado === 'respondido' && !f.respuesta) return toast('Falta la respuesta final: toque «Usar esta» en una propuesta.');
     ['btn-guardar', 'btn-respondido'].forEach(function (id) { $(id).disabled = true; });
     var res = actual ? await supabase.from('pqrs').update(f).eq('id', actual.id).select().single()
@@ -379,6 +396,10 @@ async function arrancar() {
             function () { $('texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
     };
     $('btn-nuevo').onclick = function () { abrir(null); };
+    $('ya-existe').onclick = function (ev) {
+        var b = ev.target.closest('[data-abrir-repetido]');
+        if (b) abrir(pqrs.find(function (p) { return p.id === b.dataset.abrirRepetido; }));
+    };
     $('btn-volver').onclick = cerrarPqr;
     $('btn-guardar').onclick = function () { guardar(); };
     $('btn-respondido').onclick = function () { guardar('respondido'); };
