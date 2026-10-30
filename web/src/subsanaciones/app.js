@@ -1933,7 +1933,7 @@ export function iniciar(api, CFG) {
 
     // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
     // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan
-    var NOTA = 'subsanaciones_nota', nota = { texto: '', estilo: 'blanco', fecha: true, numeros: false };
+    var NOTA = 'subsanaciones_nota', nota = { texto: '', estilo: 'blanco', fecha: true, numeros: true };
     try { nota = Object.assign(nota, JSON.parse(localStorage.getItem(NOTA)) || {}); } catch (e) {}
     function guardarNota() { try { localStorage.setItem(NOTA, JSON.stringify(nota)); } catch (e) {} }
     function pintarNota() {
@@ -1945,13 +1945,14 @@ export function iniciar(api, CFG) {
         var e = ESTILOS_NOTA[k];
         return '<button type="button" role="radio" data-estilo="' + k + '" title="' + e.nombre + '" aria-label="' + e.nombre + '" style="background:' + e.fondo + ';outline:4px solid ' + e.acento + ';outline-offset:-8px"></button>';
     }).join('');
-    // 🔢 Solo números: el celular muestra el teclado numérico (para el número del lote). Se recuerda.
+    // 🔢 Solo números: el celular muestra el teclado numérico (para el número del lote). Siempre arranca así;
+    // quitarlo vale solo hasta cerrar la ventana
     function tecladoNota() {
         $('nota-texto').inputMode = nota.numeros ? 'numeric' : 'text';
         $('nota-numeros').setAttribute('aria-pressed', !!nota.numeros);
     }
     $('nota-numeros').onclick = function () {
-        nota.numeros = !nota.numeros; guardarNota(); tecladoNota();
+        nota.numeros = !nota.numeros; tecladoNota();
         // El teclado cambia solo al volver a enfocar el campo
         $('nota-texto').blur(); $('nota-texto').focus();
     };
@@ -1959,6 +1960,7 @@ export function iniciar(api, CFG) {
         $('nota-texto').value = ''; nota.texto = ''; guardarNota(); pintarNota(); $('nota-texto').focus();
     };
     $('btn-nota').onclick = function () {
+        nota.numeros = true;
         $('nota-texto').value = nota.texto; $('nota-fecha').checked = nota.fecha; tecladoNota();
         $('nota-compartir').hidden = !(navigator.canShare && navigator.canShare({ files: [new File([''], 'x.png', { type: 'image/png' })] }));
         pintarNota();

@@ -7,7 +7,7 @@ export var ESTILOS = {
     nota: { nombre: 'Nota', fondo: '#fff7c2', tinta: '#3f3a1d', acento: '#b45309', suave: '#857a45' },
     oscuro: { nombre: 'Oscuro', fondo: '#1f2937', tinta: '#f8fafc', acento: '#6ee7b7', suave: '#94a3b8' },
 };
-var ANCHO = 1080, MARGEN = 80, LETRA = '"Segoe UI", Roboto, Arial, sans-serif';
+var ANCHO = 1080, MARGEN = 40, LETRA = '"Segoe UI", Roboto, Arial, sans-serif';
 
 // Renglones que caben en el ancho, respetando los saltos de línea; una palabra muy larga se parte
 function renglones(ctx, texto, ancho) {
@@ -34,9 +34,9 @@ function renglones(ctx, texto, ancho) {
     return out;
 }
 
-// Letra más grande (de 560 a 48 px) con la que el texto cabe sin partir palabras y sin pasar del alto máximo:
+// Letra más grande (de 720 a 48 px) con la que el texto cabe sin partir palabras y sin pasar del alto máximo:
 // un número de lote ("371") ocupa casi toda la imagen y un párrafo largo baja hasta que quepa
-var MAYOR = 560, MENOR = 48, ALTO_MAX = 1200, INTERLINEA = 1.2;
+var MAYOR = 720, MENOR = 48, ALTO_MAX = 1200, INTERLINEA = 1.2;
 function medidaLetra(ctx, texto, util) {
     var palabras = String(texto).split(/\s+/).filter(Boolean);
     for (var t = MAYOR; t > MENOR; t -= 4) {

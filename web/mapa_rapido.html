@@ -72,6 +72,7 @@
     .ficha-lote { font-size: 14px; line-height: 1.35; color: var(--ink); }
     .ficha-lote .cab { display: flex; align-items: center; gap: 8px; padding-right: 26px; }
     .ficha-lote .titulo { font-size: 22px; font-weight: 800; }
+    .ficha-lote .nota-lote { display: grid; place-items: center; width: 36px; height: 36px; border-radius: 50%; background: #edf8f3; text-decoration: none; font-size: 18px; flex: none; }
     .ficha-lote .cuad { color: #fff; font-weight: 700; font-size: 12px; padding: 3px 9px; border-radius: 999px; white-space: nowrap; }
     .ficha-lote .mr { color: var(--muted); font-size: 13px; margin-top: 2px; }
     .ficha-lote .aviso-aprox { margin-top: 8px; padding: 7px 10px; border: 1px dashed #111827; border-radius: 8px; background: #fef9c3; color: #713f12; font-size: 13px; }
@@ -618,7 +619,9 @@
         var u = visitaDeCapa(capa);
         capaFicha = capa;
         return '<div class="ficha-lote">' +
+            // 🖊️ junto al número: lo copia y abre "Texto a imagen" con él puesto
             '<div class="cab"><span class="titulo">' + (lote ? 'Lote ' + esc(lote) : esc(p.m || 'Lote')) + '</span>' +
+                '<a class="nota-lote" data-nota="' + esc(idCapa(capa)) + '" href="subsanaciones.html?nota=' + encodeURIComponent(idCapa(capa)) + '" title="Copiar el número y hacer la imagen" aria-label="Copiar el número y hacer la imagen">🖊️</a>' +
                 (p.c ? '<span class="cuad" style="background:' + colorCuadrilla(p.c) + '">Cuadrilla ' + esc(p.c) + '</span>' : '') + '</div>' +
             '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
             (p.u ? '<div class="aviso-aprox">⚠ <b>Sin polígono oficial.</b> ' + esc(p.u.replace(/\s*No es el polígono oficial\.?$/, '')) + ' La forma y el sitio exacto hay que confirmarlos en campo.</div>' : '') +
@@ -638,7 +641,6 @@
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
                 '<a class="boton secundario ancho" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
                 '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
-                '<a class="boton secundario ancho" data-nota="' + esc(idCapa(capa)) + '" href="subsanaciones.html?nota=' + encodeURIComponent(idCapa(capa)) + '">🖊️ Copiar número y hacer imagen</a>' +
             '</div></div>';
     }
     // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa

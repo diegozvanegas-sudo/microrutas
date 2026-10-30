@@ -36,13 +36,20 @@ export default defineConfig({
         ],
       },
       workbox: {
-        // Páginas, código, estilos e íconos quedan guardados al instalar (funcionan sin conexión).
+        // Código, estilos e íconos quedan guardados al instalar (funcionan sin conexión).
         // Las capas de data/ (hasta 16 MB) se guardan la primera vez que se abren.
-        globPatterns: ['**/*.{html,js,css,png,svg,gif,woff,woff2}'],
+        globPatterns: ['**/*.{js,css,png,svg,gif,woff,woff2}'],
         globIgnores: ['data/**', '**/*.map'],
         maximumFileSizeToCacheInBytes: 3 * 1024 * 1024,
         navigateFallback: null,
         runtimeCaching: [
+          {
+            // Las páginas: con señal siempre la versión publicada (guardadas, el celular mostraba la vieja hasta
+            // abrirla dos veces); sin señal, la última que se abrió. ?lote=... no cuenta para encontrarla guardada
+            urlPattern: ({ request }) => request.mode === 'navigate',
+            handler: 'NetworkFirst',
+            options: { cacheName: 'paginas', networkTimeoutSeconds: 6, matchOptions: { ignoreSearch: true } },
+          },
           {
             urlPattern: ({ url }) => url.pathname.includes('/data/'),
             handler: 'StaleWhileRevalidate',
