@@ -99,6 +99,7 @@ function abrir(p) {
     pintarBusqueda();
     $('btn-eliminar').hidden = !actual;
     $('ocr').hidden = true;
+    yaLeido = '';
     $('vista-lista').hidden = true;
     $('vista-pqr').hidden = false;
     window.scrollTo(0, 0);
@@ -134,6 +135,7 @@ function repetido() {
 }
 function revisarRepetido() {
     var p = repetido(), bloquea = !!p && !actual;
+    if (!p && yaLeido) { $('ya-existe').hidden = false; $('ya-existe').innerHTML = yaLeido; $('vista-pqr').classList.remove('duplicado'); return null; }
     $('ya-existe').hidden = !p;
     $('vista-pqr').classList.toggle('duplicado', bloquea);
     if (p) $('ya-existe').innerHTML = '⚠ <b>El ID ' + esc(p.radicado) + (bloquea ? ' ya se encuentra guardado</b>' : ' está guardado dos veces</b>') +
@@ -275,13 +277,28 @@ function elegirClausula(k, si) {
 }
 
 // Texto de la queja -> campos (cada vez que cambia el texto; después se pueden corregir a mano)
+// En un PQR nuevo, si la queja leída (foto o texto pegado) es de un ID ya guardado no se copia nada: queda solo el
+// aviso y el formulario limpio para leer la siguiente. -> false si era repetida
+var yaLeido = '';   // ID de la última queja repetida, para que el aviso no se borre al limpiar
 function leerTexto() {
     var r = leerPqr($('texto').value);
+    yaLeido = '';
+    var ya = !actual && r.id && pqrs.find(function (p) { return String(p.radicado || '').replace(/\D/g, '') === r.id; });
+    if (ya) {
+        yaLeido = '⚠ <b>El ID ' + esc(ya.radicado) + ' ya existe</b>' + (ya.estado === 'respondido' ? ' y ya está respondido' : '') +
+            '. No se copió: lea o pegue la siguiente queja.' +
+            '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(ya.id) + '">Abrir el guardado</button>';
+        $('texto').value = '';
+        Object.keys(CAMPOS).forEach(function (id) { $(id).value = ''; });
+        actualizar();
+        return false;
+    }
     $('f-id').value = r.id; $('f-fecha').value = r.fecha; $('f-nombre').value = r.nombre;
     $('f-telefono').value = r.telefono; $('f-direccion').value = r.direccion; $('f-barrio').value = r.barrio;
     $('v-cobro').checked = hablaDeCobro(r.queja);
     $('v-barrido').checked = hablaDeBarrido(r.queja);
     actualizar();
+    return true;
 }
 
 // ---------- Foto: OCR en español (Tesseract, se descarga la primera vez) ----------
@@ -320,8 +337,8 @@ async function leerFoto(file) {
         var texto = r.data.text.split('\n').map(function (l) { return l.trim(); }).filter(Boolean).join('\n');
         if (!texto) throw new Error('No se encontró texto en la foto.');
         $('texto').value = texto;
-        leerTexto();
-        aviso.textContent = '✓ Foto leída. Revise los datos: el lector a veces cambia letras o números.';
+        if (leerTexto()) aviso.textContent = '✓ Foto leída. Revise los datos: el lector a veces cambia letras o números.';
+        else aviso.hidden = true;   // repetida: lo dice el aviso rojo
     } catch (e) {
         aviso.textContent = 'No se pudo leer la foto (' + (e && e.message || e) + '). Copie el texto y péguelo.';
     } finally {
