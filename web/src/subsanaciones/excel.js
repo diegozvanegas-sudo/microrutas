@@ -92,6 +92,18 @@ export async function exportarExcel(lista, items, itemsOp) {
 
 // Vista previa de una hoja como la muestra Excel: mismos anchos (1 de ancho ≈ 7 px), colores, bordes y letra 11
 function color(argb) { return '#' + argb.slice(2); }
+// Las filas de la hoja para pegarlas en otro Excel con sus colores y bordes: { html, texto } (texto: separado por
+// tabulaciones, para donde no se pega con formato). Sin el encabezado: solo los datos, como se agregan al Excel que se lleva
+export function filasParaCopiar(h) {
+    var celda = 'border:.5pt solid windowtext;text-align:center;vertical-align:middle;font:11pt Calibri,sans-serif;';
+    var html = '<html><head><meta charset="utf-8"></head><body><table style="border-collapse:collapse">' + h.filas.map(function (f) {
+        return '<tr>' + f.v.map(function (v, i) {
+            return '<td style="' + celda + (f.fondo[i] ? 'background:' + color(f.fondo[i]) + ';' : '') + (f.ajustar[i] ? 'white-space:normal;' : 'white-space:nowrap;') + '">' + esc(v) + '</td>';
+        }).join('') + '</tr>';
+    }).join('') + '</table></body></html>';
+    var texto = h.filas.map(function (f) { return f.v.map(function (v) { return String(v == null ? '' : v).replace(/[\t\r\n]+/g, ' '); }).join('\t'); }).join('\r\n');
+    return { html: html, texto: texto };
+}
 export function htmlHoja(h) {
     var col = '<colgroup><col class="xl-num">' + h.anchos.map(function (w) { return '<col style="width:' + (w * 7 + 5) + 'px">'; }).join('') + '</colgroup>';
     var letras = function (i) { var s = ''; for (i++; i > 0; i = Math.floor((i - 1) / 26)) s = String.fromCharCode(65 + (i - 1) % 26) + s; return s; };

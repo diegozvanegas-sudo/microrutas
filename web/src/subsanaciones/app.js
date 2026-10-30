@@ -6,7 +6,7 @@ import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, i
 import { textoWhatsapp, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
-import { exportarExcel, hojasExcel, htmlHoja } from './excel.js';
+import { exportarExcel, hojasExcel, htmlHoja, filasParaCopiar } from './excel.js';
 import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
@@ -206,8 +206,10 @@ export function iniciar(api, CFG) {
     function pintar() {
         pintarRutas();
         pintarLimpiar();
-        var cuenta = { '': registros.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, descuento = registros.filter(paraDescuento).length;
-        registros.forEach(function (r) { if (cuenta[r.ESTADO] != null) cuenta[r.ESTADO]++; });
+        // Las tarjetas cuentan con los demás filtros puestos (cuadrilla, día, zona…); el de estado no, porque es el que eligen
+        var base = filtrados(true);
+        var cuenta = { '': base.length, PENDIENTE: 0, SUBSANADO: 0, 'SIN NOVEDAD': 0 }, descuento = base.filter(paraDescuento).length;
+        base.forEach(function (r) { if (cuenta[r.ESTADO] != null) cuenta[r.ESTADO]++; });
         var est = $('f-estado').value;
         $('resumen').innerHTML = [['', 'Visitas'], ['PENDIENTE', 'Pendientes de subsanar'], ['SUBSANADO', 'Subsanadas'], ['SIN NOVEDAD', 'Sin novedad']].map(function (t) {
             return '<div class="tarjeta' + (est === t[0] || (est === 'DESCUENTO' && t[0] === 'PENDIENTE') ? ' activa' : '') + '" data-estado="' + t[0] + '"><div class="num">' + cuenta[t[0]] + '</div><div class="tit">' + t[1] + '</div>' +
@@ -1870,6 +1872,31 @@ export function iniciar(api, CFG) {
     }
     try { ampliarExcel(localStorage.getItem('excel_completo') === '1'); } catch (e) {}
     $('excel-ampliar').onclick = function () { ampliarExcel(!$('dlg-excel').classList.contains('completo')); };
+    // 📋 Copiar filas: las de la hoja que se ve, con colores, para pegarlas tal cual en otro Excel
+    $('excel-copiar').onclick = function () {
+        var b = $('excel-hojas').querySelector('[aria-selected="true"]'), h = hojasVista[b ? +b.dataset.hoja : 0];
+        if (!h || !h.filas.length) return toast('No hay filas para copiar.');
+        var c = filasParaCopiar(h), n = h.filas.length + (h.filas.length === 1 ? ' fila copiada' : ' filas copiadas');
+        var listo = function () { toast('✓ ' + n + ' con colores: péguelas en Excel con Ctrl+V.'); };
+        if (navigator.clipboard && window.ClipboardItem) {
+            navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([c.html], { type: 'text/html' }), 'text/plain': new Blob([c.texto], { type: 'text/plain' }),
+            })]).then(listo, function () { copiarHtmlViejo(c.html) ? listo() : toast('No se pudo copiar.'); });
+        } else if (copiarHtmlViejo(c.html)) listo();
+        else toast('No se pudo copiar.');
+    };
+    // Sin ClipboardItem: se selecciona la tabla en la página y se copia (también lleva los colores)
+    function copiarHtmlViejo(html) {
+        var d = document.createElement('div');
+        d.innerHTML = html; d.style.position = 'fixed'; d.style.left = '-9999px';
+        document.body.appendChild(d);
+        var r = document.createRange(); r.selectNodeContents(d);
+        var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) {}
+        sel.removeAllRanges(); d.remove();
+        return ok;
+    }
     $('excel-descargar').onclick = function () {
         var b = this;
         b.disabled = true;
