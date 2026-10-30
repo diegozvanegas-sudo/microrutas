@@ -41,13 +41,17 @@ function pintarLista() {
     if (!vis.length) $('estado').textContent = pqrs.length ? 'No hay PQR con ese filtro.' : 'Aún no hay PQR. Toque «+ Nuevo PQR» y tome la foto de la queja.';
     $('lista').innerHTML = vis.map(function (p) {
         var res = p.visita && RESULTADOS[p.visita.resultado];
-        return '<button type="button" class="item-pqr" data-id="' + esc(p.id) + '">' +
+        // Tarjeta con ✏️ Editar y 🗑 Borrar (borrar pide un segundo toque: «¿Borrar? Sí»)
+        return '<div class="item-pqr" data-id="' + esc(p.id) + '" role="button" tabindex="0">' +
             '<span class="cab"><b>' + esc(p.radicado ? 'ID ' + p.radicado : 'Sin ID') + '</b>' +
             '<span class="badge ' + esc(p.estado) + '">' + (p.estado === 'respondido' ? '✓ Respondido' : 'Abierto') + '</span>' +
             (p.fecha_pqr ? '<span class="sub">' + esc(p.fecha_pqr) + '</span>' : '') + '</span>' +
             '<span class="dir">' + esc([p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección') + '</span>' +
             '<span class="sub">' + esc((p.queja || '').slice(0, 140)) + (p.queja && p.queja.length > 140 ? '…' : '') + '</span>' +
-            (res ? '<span class="sub">Visita: ' + esc(res) + '</span>' : '') + '</button>';
+            (res ? '<span class="sub">Visita: ' + esc(res) + '</span>' : '') +
+            '<span class="acciones-item"><button type="button" class="primario pequeno" data-responder>' + (p.estado === 'respondido' ? '📄 Ver respuesta' : '✍️ Responder') + '</button>' +
+            '<button type="button" class="secundario pequeno" data-editar>✏️ Editar</button>' +
+            '<button type="button" class="peligro pequeno" data-borrar>🗑 Borrar</button></span></div>';
     }).join('');
 }
 
@@ -122,19 +126,21 @@ function datos() {
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
     };
 }
-// ¿Ya hay otro PQR guardado con ese ID? Entonces no se sigue: se avisa y se ofrece abrir el guardado
+// ¿Ya hay otro PQR guardado con ese ID? En uno nuevo no se sigue: se avisa y se ofrece abrir el guardado.
+// Abriendo uno ya guardado se puede gestionar y responder igual; solo se avisa del otro (para borrarlo si sobra)
 function repetido() {
     var id = $('f-id').value.replace(/\D/g, '');
     return id ? pqrs.find(function (p) { return String(p.radicado || '').replace(/\D/g, '') === id && (!actual || p.id !== actual.id); }) || null : null;
 }
 function revisarRepetido() {
-    var p = repetido();
+    var p = repetido(), bloquea = !!p && !actual;
     $('ya-existe').hidden = !p;
-    $('vista-pqr').classList.toggle('duplicado', !!p);
-    if (p) $('ya-existe').innerHTML = '⚠ <b>El ID ' + esc(p.radicado) + ' ya se encuentra guardado</b>' +
-        (p.estado === 'respondido' ? ' y ya está respondido' : '') + (p.nombre ? ' (' + esc(p.nombre) + ')' : '') + '. No se puede registrar otra vez.' +
-        '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(p.id) + '">Abrir el guardado</button>';
-    return p;
+    $('vista-pqr').classList.toggle('duplicado', bloquea);
+    if (p) $('ya-existe').innerHTML = '⚠ <b>El ID ' + esc(p.radicado) + (bloquea ? ' ya se encuentra guardado</b>' : ' está guardado dos veces</b>') +
+        (p.estado === 'respondido' ? ' (el otro ya está respondido)' : '') + (p.nombre && bloquea ? ' (' + esc(p.nombre) + ')' : '') +
+        (bloquea ? '. No se puede registrar otra vez.' : '. Puede seguir con este y borrar el que sobra.') +
+        '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(p.id) + '">' + (bloquea ? 'Abrir el guardado' : 'Abrir el otro') + '</button>';
+    return bloquea ? p : null;
 }
 
 var propuestas = [];
@@ -353,13 +359,16 @@ async function guardar(estado) {
 }
 async function eliminar() {
     if (!actual || !confirm('¿Eliminar el PQR ' + (actual.radicado || '') + '? No se puede deshacer.')) return;
-    var res = await supabase.from('pqrs').delete().eq('id', actual.id);
-    if (res.error) return toast('No se eliminó: ' + res.error.message);
-    var id = actual.id;
-    pqrs = pqrs.filter(function (p) { return p.id !== id; });
+    if (await borrar(actual)) cerrarPqr();
+}
+// Borra el PQR de la base y de la copia del equipo -> true si se borró
+async function borrar(p) {
+    var res = await supabase.from('pqrs').delete().eq('id', p.id);
+    if (res.error) { toast('No se eliminó: ' + res.error.message); return false; }
+    pqrs = pqrs.filter(function (x) { return x.id !== p.id; });
     try { localStorage.setItem(CACHE, JSON.stringify(pqrs)); } catch (e) {}
-    toast('PQR eliminado.');
-    cerrarPqr();
+    toast('PQR ' + (p.radicado ? p.radicado + ' ' : '') + 'eliminado.');
+    return true;
 }
 
 // ---------- Inicio ----------
@@ -414,8 +423,25 @@ async function arrancar() {
     };
     $('lista').onclick = function (ev) {
         var b = ev.target.closest('[data-id]');
-        if (b) abrir(pqrs.find(function (p) { return p.id === b.dataset.id; }));
+        if (!b) return;
+        var p = pqrs.find(function (x) { return x.id === b.dataset.id; }), del = ev.target.closest('[data-borrar]');
+        if (!p) return;
+        if (del) {
+            // Primer toque: pide confirmar en el mismo botón; segundo: borra. Se arrepiente si no lo toca en 4 s
+            if (!del.dataset.seguro) {
+                del.dataset.seguro = '1'; del.textContent = '¿Borrar? Sí';
+                setTimeout(function () { if (del.isConnected) { delete del.dataset.seguro; del.textContent = '🗑 Borrar'; } }, 4000);
+                return;
+            }
+            del.disabled = true;
+            borrar(p).then(function () { pintarLista(); });
+            return;
+        }
+        abrir(p);
+        // ✍️ Responder: directo al paso de la respuesta (las propuestas ya salen armadas con lo guardado)
+        if (ev.target.closest('[data-responder]')) $('respuesta').closest('.tarjeta-pqr').scrollIntoView({ block: 'start' });
     };
+    $('lista').onkeydown = function (ev) { if (ev.key === 'Enter' && ev.target.matches('.item-pqr')) ev.target.click(); };
     $('btn-recargar').onclick = cargar;
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env).'; return; }
     var usuario = await asegurarSesion(supabase);

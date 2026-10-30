@@ -25,6 +25,8 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 #lista { display: grid; gap: 8px; }
 .item-pqr { display: grid; gap: 2px; text-align: left; background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; font-weight: 400; color: var(--ink); }
 .item-pqr:hover { border-color: var(--brand); }
+.item-pqr { cursor: pointer; }
+.item-pqr .acciones-item { display: flex; gap: 8px; margin-top: 6px; }
 .item-pqr .cab { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .item-pqr .dir { font-weight: 600; }
 .badge { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--aviso-bg); color: var(--aviso); }
