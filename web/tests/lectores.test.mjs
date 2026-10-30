@@ -94,6 +94,17 @@ test('mensaje: inicio de labores y código de microrruta', () => {
     assert.deepEqual(parsearMensaje('Z2CC0500', LOTES).lotes, ['Z2CC0500']);
 });
 
+test('mensaje: "Cuadrilla: 4", "C4" y "Z1cc0062 (68)"', () => {
+    const p = parsearMensaje('REPORTE MICRORRUTAS EJECUTADAS CW394406\nFecha: 29-10-2026\n\nCuadrilla: 4\n\nMicrorrutas ejecutadas:\n\nZ2cc0339 (339)\nZ1cc0062 (68)\n', LOTES);
+    assert.equal(p.fecha, '2026-10-29');
+    assert.equal(p.cuad, '4');
+    assert.deepEqual(p.lotes, ['339', '68']);
+    assert.equal(p.tipo, 'hecho');
+    const c = parsearMensaje('C4 ejecutados\n532\n371', LOTES);
+    assert.equal(c.cuad, '4');
+    assert.deepEqual(c.lotes, ['532', '371']);
+});
+
 test('mensaje: terminó uno y pasó al otro', () => {
     const p = parsearMensaje('Terminó el lote 532, pasamos al 371', LOTES);
     assert.deepEqual(p.lotes, ['532', '371']);
@@ -213,7 +224,9 @@ test('direcciones: formatos de PQR y escritos a mano', () => {
 
 test('mensaje: lotes sin fotos por orden público', () => {
     const p = parsearMensaje('Cuadrilla: 4\n\nMicrorrutas ejecutadas:\n\nZ1cc0072 (78)\nZ1cc0073 (79)\nZ1cc0074 (80) sin fotos por orden público\nZ1cc0084 (93) sin fotos por orden publico\nZ1cc0133 (1141)', {});
-    assert.deepEqual(p.sinFotos, { Z1CC0074: 'Orden público', '80': 'Orden público', Z1CC0084: 'Orden público', '93': 'Orden público' });
+    // "Z1cc0074 (80)" es un solo lote: sin la microrruta en la programación queda el número entre paréntesis
+    assert.deepEqual(p.lotes, ['78', '79', '80', '93', '1141']);
+    assert.deepEqual(p.sinFotos, { '80': 'Orden público', '93': 'Orden público' });
     assert.deepEqual(parsearMensaje('532 no se pudo tomar fotos\n371', {}).sinFotos, { '532': 'Sin fotos' });
     assert.deepEqual(parsearMensaje('532\n371', {}).sinFotos, {});
 });
