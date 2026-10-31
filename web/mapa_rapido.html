@@ -453,7 +453,7 @@
         grupos[c] = g;
         terminar('lotes_' + c);
     };
-    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: 'Barrido dom/fest' };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: 'Barrido dom/fest', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
     var ESTILOS_CAPA = {
         comunas: { color: '#e41a1c', weight: 2, fill: false },
         operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
@@ -463,8 +463,13 @@
         zonas: { weight: 2, opacity: .9, fillOpacity: .25, interactive: false, pane: 'zonas', renderer: L.canvas({ pane: 'zonas' }) },
         puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false },
         // Microrrutas de barrido (plano de Emvarias, tools/barrido_desde_pdf.py): cada una con su color del plano
-        barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false }
+        barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false },
+        // Microrrutas de LV y RyT (GeoPDF de Emvarias, tools/rutas_desde_geopdf.py): un color por servicio
+        rutas_lv: { color: '#d62828', weight: 3, opacity: .85, bubblingMouseEvents: false },
+        rutas_ryt: { color: '#6a1b9a', weight: 3, opacity: .85, bubblingMouseEvents: false }
     };
+    // Capas de microrrutas: al tocar una se resalta, salen inicio y fin y se abre su ficha
+    var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
     map.createPane('zonas').style.zIndex = 350;
     map.getPane('zonas').style.pointerEvents = 'none';
     window.cargarCapa = function (k, datos) {
@@ -476,10 +481,11 @@
             else capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), estilo);
             delete p.g;
             if (k === 'zonas') capa.bindTooltip(esc(p.n), { permanent: true, direction: 'center', className: 'etiqueta-zona', pane: 'zonas' });
-            if (k === 'barrido_dom') {
-                // Borde blanco debajo: las rutas negras y azules no se verían sobre la ortofoto
-                g.addLayer(L.polyline(capa.getLatLngs(), { color: '#fff', weight: 7, opacity: .7, interactive: false }));
-                capa.datos = p;
+            if (CAPAS_RUTA[k]) {
+                // Borde blanco debajo: las rutas negras y azules no se verían sobre la ortofoto (LV y RyT son rojo y
+                // morado, se ven sin él, y son miles: el borde duplicaría lo que hay que pintar)
+                if (k === 'barrido_dom') g.addLayer(L.polyline(capa.getLatLngs(), { color: '#fff', weight: 7, opacity: .7, interactive: false }));
+                capa.datos = p; capa.capa = k;
                 capa.bindTooltip(esc(p.n), { sticky: true });
                 capa.on('click', function () { verBarrido([capa]); });
                 g.addLayer(capa);
@@ -513,12 +519,39 @@
             verBarrido(capas, true);
         });
     }
+    // Código completo de LV o RyT (Z2R91LJ, Z7R215_DOM): se busca en las capas de rutas encendidas, o en las dos si no
+    // hay ninguna, y se enciende la que lo tenga. Si no está, sigue como código de barrido.
+    function codigoRuta(v) { v = String(v).trim().toUpperCase(); return /^Z\d+R\d+[A-Z]*(?:_DOM)?$/.test(v) && v; }
+    function buscarRutas(cods, siNo) {
+        var ks = ['rutas_lv', 'rutas_ryt'].filter(function (k) { return IDX.capas && IDX.capas[k]; });
+        var activasR = ks.filter(function (k) { return capasActivas.indexOf(k) !== -1; });
+        if (activasR.length) ks = activasR;
+        var faltan = ks.length;
+        $('estado').textContent = 'Buscando la microrruta…';
+        ks.forEach(function (k) {
+            (capasExtra[k] ? function (fn) { fn(); } : function (fn) { cargarArchivo('capa_' + k, fn); })(function () {
+                if (--faltan) return;
+                var capas = [];
+                ks.forEach(function (k) {
+                    var esta = false;
+                    capasExtra[k].eachLayer(function (c) { if (c.datos && cods.indexOf(c.datos.n) !== -1) { capas.push(c); esta = true; } });
+                    if (esta && capasActivas.indexOf(k) === -1) { capasActivas.push(k); guardar('rapido_capas', capasActivas); }
+                    if (esta) mostrarCapa(k, true);
+                });
+                pintarChips();
+                if (!capas.length) return siNo();
+                verBarrido(capas, true);
+            });
+        });
+    }
     // Con una ruta elegida las demás se atenúan: en el centro hay muchas rutas pegadas y solo engrosarla no basta
     function atenuarBarrido(on) {
-        if (!capasExtra[CAPA_BARRIDO]) return;
-        capasExtra[CAPA_BARRIDO].eachLayer(function (c) {
-            if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[CAPA_BARRIDO], { opacity: on ? .3 : .95 }));
-            else c.setStyle({ opacity: on ? .15 : .7 });
+        Object.keys(CAPAS_RUTA).forEach(function (k) {
+            if (!capasExtra[k]) return;
+            capasExtra[k].eachLayer(function (c) {
+                if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
+                else c.setStyle({ opacity: on ? .15 : .7 });
+            });
         });
     }
     function quitarBarridoSel() {
@@ -538,9 +571,16 @@
         var b = L.featureGroup(capas).getBounds(), d = capas[0].datos;
         var inicio = d.i && d.i[0];
         var html = '<div class="ficha-lote ficha-barrido">' +
-            '<div class="cab"><span class="titulo">' + esc(capas.map(function (c) { return c.datos.n; }).join(' · ')) + '</span></div>' +
-            '<div class="mr">Microrruta de barrido · ' + esc(d.z || '') + '</div>' +
-            '<div class="bloque"><div class="txt">🟢 Inicio · 🏁 Fin · Barrer en sentido contrario al flujo vehicular. Los puntos de inicio, fin y recorrido son de obligatorio cumplimiento.</div></div>' +
+            '<div class="cab"><span class="titulo">' + esc(capas.map(function (c) { return c.datos.n; }).filter(function (n, i, a) { return a.indexOf(n) === i; }).join(' · ')) + '</span></div>' +
+            // Una línea por ruta (el mismo código puede estar en LV y en RyT). LV y RyT traen del plano la frecuencia (q),
+            // los km (k), el tipo de barrido (t) y el archivo (a); las líneas iguales (barrido A y B) salen una vez
+            capas.map(function (c) {
+                var x = c.datos;
+                return '<div class="mr">' + esc([capas.length > 1 && c.capa !== 'barrido_dom' ? x.n : '', CAPAS_RUTA[c.capa], x.z].filter(Boolean).join(' · ')) + '</div>' +
+                    (x.q || x.k || x.t || x.a ? '<div class="bloque"><div class="txt">' + esc([x.q, x.k && x.k + ' km', x.t].filter(Boolean).join(' · ')) +
+                        (x.a ? '<br><span style="color:#6b7c75;font-size:12px">Plano: ' + esc(x.a) + '</span>' : '') + '</div></div>' : '');
+            }).filter(function (h, i, a) { return a.indexOf(h) === i; }).join('') +
+            '<div class="bloque"><div class="txt">🟢 Inicio · 🏁 Fin' + (capas.every(function (c) { return c.capa === 'rutas_ryt'; }) ? '' : ' · Barrer en sentido contrario al flujo vehicular. Los puntos de inicio, fin y recorrido son de obligatorio cumplimiento.') + '</div></div>' +
             '<div class="acciones">' +
                 (inicio ? '<a class="boton primario" href="' + esc(urlComoLlegar(L.latLng(inicio))) + '" target="_blank" rel="noopener">🧭 Ir al inicio</a>' +
                     '<a class="boton secundario" href="' + esc(urlCalle(L.latLng(inicio))) + '" target="_blank" rel="noopener">🚶 Street View</a>' : '') +
@@ -1309,7 +1349,11 @@
         if (dir && dir.incompleta) return toast('Escriba la vía, el cruce y la placa. Ej.: CR 38 # 91 83 o Calle 10 sur 43A 20');
         if (dir) { buscarDireccion(dir); $('buscar').blur(); return; }
         // Microrrutas de barrido (Z7R191B_DOM): todo lo escrito tiene que ser código de barrido
-        var partes = v.split(/[,\s]+/).filter(Boolean), cods = partes.map(codigoBarrido);
+        var partes = v.split(/[,\s]+/).filter(Boolean), cods = partes.map(codigoBarrido), rutas = partes.map(codigoRuta);
+        if (rutas.every(Boolean) && !(cods.every(Boolean) && capasActivas.indexOf(CAPA_BARRIDO) !== -1)) {
+            $('buscar').blur();
+            return buscarRutas(rutas, function () { if (cods.every(Boolean)) buscarBarrido(cods); else toast('No se encontró esa microrruta en LV ni en RyT.'); });
+        }
         if (cods.every(Boolean)) { buscarBarrido(cods); $('buscar').blur(); return; }
         quitarBarridoSel();
         puntoCapa.clearLayers();
