@@ -1263,6 +1263,11 @@ export function iniciar(api, CFG) {
             if (fijada && precision <= 30 && (fijada.p ? distLotes(gps, puntosDe(fijada.id).length ? fijada.id : fijada.p) : Infinity) > 150) { soltar(); }
             usarFijada();
             var antes = estadoUbic; estadoUbic = 'ok';
+            // Por defecto cada pre-ruta se ordena desde su ubicación en cuanto el GPS la encuentra (salvo las que están "por llegada")
+            if (antes !== 'ok') {
+                rutas.forEach(function (ruta) { if (!porLlegada(ruta)) { ordenar(ruta, posicion); subirRuta(ruta); } });
+                guardarRutas();
+            }
             if (antes !== 'ok' || !pintadaEn || metros(pintadaEn, posicion) > 25) pintarRutas();
         }, function (err) {
             if (err.code === 1) { estadoUbic = 'negada'; navigator.geolocation.clearWatch(vigia); }
@@ -2190,6 +2195,14 @@ export function iniciar(api, CFG) {
           });
     };
 
+    // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
+    (function () {
+        var q = new URLSearchParams(location.search), h = q.get('herramienta');
+        var btn = h && /^(hallazgos|fotos|zip|nota|ocr)$/.test(h) && $('btn-' + h);
+        if (!btn) return;
+        try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+        btn.onclick();
+    })();
     cargar();
     return {
         // main.js lo llama cuando confirma que la sesión es de un administrador
