@@ -33,18 +33,25 @@ function copiar(texto) {
 }
 
 // ---------- Lista ----------
-function pintarLista() {
+// De hoy: la fecha del PQR es hoy, o se registró hoy
+function fechaLocal(t) { var d = new Date(t); return isNaN(d) ? '' : d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+function esHoy(p) { return p.fecha_pqr === hoy() || (!!p.creado && fechaLocal(p.creado) === hoy()); }
+function visibles() {
     var q = plano($('buscar').value.trim());
-    var vis = pqrs.filter(function (p) {
-        return (!filtro || p.estado === filtro) && (!q || plano([p.radicado, p.direccion, p.barrio, p.nombre, p.queja].join(' ')).indexOf(q) >= 0);
+    return pqrs.filter(function (p) {
+        return (!filtro || (filtro === 'hoy' ? esHoy(p) : p.estado === filtro)) && (!q || plano([p.radicado, p.direccion, p.barrio, p.nombre, p.queja].join(' ')).indexOf(q) >= 0);
     });
+}
+function pintarLista() {
+    var vis = visibles();
     $('estado').hidden = !!vis.length;
     if (!vis.length) $('estado').textContent = pqrs.length ? 'No hay PQR con ese filtro.' : 'Aún no hay PQR. Toque «+ Nuevo PQR» y tome la foto de la queja.';
     $('lista').innerHTML = vis.map(function (p) {
         var res = p.visita && RESULTADOS[p.visita.resultado];
         // Tarjeta con ✏️ Editar y 🗑 Borrar (borrar pide un segundo toque: «¿Borrar? Sí»)
-        return '<div class="item-pqr" data-id="' + esc(p.id) + '" role="button" tabindex="0">' +
+        return '<div class="item-pqr' + (esHoy(p) ? ' de-hoy' : '') + '" data-id="' + esc(p.id) + '" role="button" tabindex="0">' +
             '<span class="cab"><b>' + esc(p.radicado ? 'ID ' + p.radicado : 'Sin ID') + '</b>' +
+            (esHoy(p) ? '<span class="badge hoy">🆕 Hoy</span>' : '') +
             '<span class="badge ' + esc(p.estado) + '">' + (p.estado === 'respondido' ? '✓ Respondido' : 'Abierto') + '</span>' +
             (p.fecha_pqr ? '<span class="sub">' + esc(p.fecha_pqr) + '</span>' : '') + '</span>' +
             '<span class="dir">' + esc([p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección') + '</span>' +
@@ -53,6 +60,91 @@ function pintarLista() {
             '<span class="acciones-item"><button type="button" class="primario pequeno" data-responder>' + (p.estado === 'respondido' ? '📄 Ver respuesta' : '✍️ Responder') + '</button>' +
             '<button type="button" class="secundario pequeno" data-editar>✏️ Editar</button>' +
             '<button type="button" class="peligro pequeno" data-borrar>🗑 Borrar</button></span></div>';
+    }).join('');
+    if (!$('recorrido').hidden) pintarRecorrido();
+}
+
+// ---------- Recorrido: los PQR de la lista en el mapa y en orden de visita ----------
+// Cada dirección se ubica como en el paso 1 (queda guardada en el equipo). El orden sale del vecino más cercano desde
+// donde está el celular (o desde el primero de hoy) y se mejora quitando cruces (2-opt).
+var mapa = null, capaRec = null, recVez = 0, aqui = null;
+function distancia(a, b) {
+    var x = (b.lng - a.lng) * Math.cos((a.lat + b.lat) * Math.PI / 360), y = b.lat - a.lat;
+    return Math.sqrt(x * x + y * y);
+}
+function ordenar(puntos, inicio) {
+    var resto = puntos.slice(), ruta = [], act = inicio;
+    if (!act) act = resto[Math.max(0, resto.findIndex(function (x) { return x.hoy; }))];
+    while (resto.length) {
+        var mejor = 0;
+        resto.forEach(function (x, i) { if (distancia(act, x) < distancia(act, resto[mejor])) mejor = i; });
+        act = resto.splice(mejor, 1)[0]; ruta.push(act);
+    }
+    // 2-opt con el punto de partida fijo: se invierte un tramo si así el recorrido queda más corto
+    var base = inicio ? [inicio].concat(ruta) : ruta, cambio = true;
+    for (var vuelta = 0; cambio && vuelta < 50; vuelta++) {
+        cambio = false;
+        for (var a = 0; a < base.length - 2; a++) for (var b = a + 2; b < base.length; b++) {
+            var c = base[b + 1];
+            var antes = distancia(base[a], base[a + 1]) + (c ? distancia(base[b], c) : 0);
+            var despues = distancia(base[a], base[b]) + (c ? distancia(base[a + 1], c) : 0);
+            if (despues < antes - 1e-9) { base = base.slice(0, a + 1).concat(base.slice(a + 1, b + 1).reverse(), base.slice(b + 1)); cambio = true; }
+        }
+    }
+    return inicio ? base.slice(1) : base;
+}
+function dondeEstoy() {
+    if (aqui !== null || !navigator.geolocation) return Promise.resolve(aqui || null);
+    return new Promise(function (listo) {
+        navigator.geolocation.getCurrentPosition(function (g) { aqui = { lat: g.coords.latitude, lng: g.coords.longitude }; listo(aqui); },
+            function () { aqui = false; listo(null); }, { timeout: 6000, maximumAge: 300000 });
+    });
+}
+async function pintarRecorrido() {
+    var vez = ++recVez, vis = visibles(), puntos = [], sinUbicar = [];
+    if (!mapa) {
+        mapa = L.map('rec-mapa').setView([6.25, -75.58], 12);
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© OpenStreetMap' }).addTo(mapa);
+        capaRec = L.layerGroup().addTo(mapa);
+    }
+    setTimeout(function () { mapa.invalidateSize(); }, 0);
+    for (var i = 0; i < vis.length; i++) {
+        var p = vis[i], d = p.direccion && window.leerDireccion && window.leerDireccion(p.direccion), c = null;
+        $('rec-estado').textContent = 'Ubicando ' + (i + 1) + ' de ' + vis.length + '…';
+        if (d && !d.incompleta) try { c = await window.ubicarDireccion(d, MEDELLIN); } catch (e) {}
+        if (vez !== recVez) return;   // cambiaron el filtro o la búsqueda mientras tanto
+        if (c) puntos.push({ p: p, lat: c.lat, lng: c.lng, hoy: esHoy(p) }); else sinUbicar.push(p);
+    }
+    var inicio = await dondeEstoy();
+    if (vez !== recVez) return;
+    var ruta = puntos.length ? ordenar(puntos, inicio) : [];
+    capaRec.clearLayers();
+    if (inicio) L.circleMarker([inicio.lat, inicio.lng], { radius: 7, color: '#fff', weight: 2, fillColor: '#2563eb', fillOpacity: 1 }).bindTooltip('Usted está aquí').addTo(capaRec);
+    var linea = (inicio ? [[inicio.lat, inicio.lng]] : []).concat(ruta.map(function (x) { return [x.lat, x.lng]; }));
+    if (linea.length > 1) L.polyline(linea, { color: '#167a55', weight: 3, opacity: .7, dashArray: '6 6' }).addTo(capaRec);
+    ruta.forEach(function (x, i) {
+        var tipo = x.hoy ? 'hoy' : x.p.estado === 'respondido' ? 'respondido' : 'abierto';
+        L.marker([x.lat, x.lng], { zIndexOffset: x.hoy ? 1000 : 0,
+            icon: L.divIcon({ className: '', html: '<span class="pin-rec ' + tipo + '">' + (i + 1) + '</span>', iconSize: [28, 28], iconAnchor: [14, 14] }) })
+            .bindPopup('<b>' + (i + 1) + '. ' + esc(x.p.radicado ? 'ID ' + x.p.radicado : 'Sin ID') + '</b>' + (x.hoy ? ' 🆕 Hoy' : '') + '<br>' +
+                esc([x.p.direccion, x.p.barrio].filter(Boolean).join(' · ')) + '<div class="acciones-pin">' +
+                '<button type="button" class="primario pequeno" data-abrir-pqr="' + esc(x.p.id) + '">Abrir</button>' +
+                '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&destination=' + x.lat.toFixed(6) + ',' + x.lng.toFixed(6) + '">Cómo llegar</a></div>')
+            .addTo(capaRec);
+    });
+    if (linea.length) mapa.fitBounds(linea, { padding: [30, 30], maxZoom: 16 });
+    // Google Maps recibe hasta 9 paradas intermedias: el enlace lleva las primeras 10 del recorrido
+    var tramo = ruta.slice(0, 10).map(function (x) { return x.lat.toFixed(6) + ',' + x.lng.toFixed(6); });
+    $('rec-google').hidden = !tramo.length;
+    if (tramo.length) $('rec-google').href = 'https://www.google.com/maps/dir/?api=1&travelmode=driving&destination=' + tramo[tramo.length - 1] +
+        (tramo.length > 1 ? '&waypoints=' + encodeURIComponent(tramo.slice(0, -1).join('|')) : '');
+    $('rec-google').textContent = '🧭 Abrir el recorrido en Google Maps' + (ruta.length > 10 ? ' (primeras 10 paradas)' : '');
+    $('rec-estado').textContent = !vis.length ? 'No hay PQR con ese filtro.' :
+        ruta.length + ' en el mapa' + (inicio ? ', desde donde está usted' : '') + (sinUbicar.length ? ' · ' + sinUbicar.length + ' sin ubicar (al final de la lista)' : '') + '.';
+    $('rec-lista').innerHTML = ruta.map(function (x) { return x.p; }).concat(sinUbicar).map(function (p, i) {
+        return '<li class="' + (esHoy(p) ? 'de-hoy' : '') + (i >= ruta.length ? ' sin-ubicar' : '') + '"><button type="button" class="enlace" data-abrir-pqr="' + esc(p.id) + '">' +
+            '<b>' + esc(p.radicado ? 'ID ' + p.radicado : 'Sin ID') + '</b>' + (esHoy(p) ? ' <span class="badge hoy">🆕 Hoy</span>' : '') +
+            ' ' + esc([p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección') + (i >= ruta.length ? ' <span class="sub">(sin ubicar)</span>' : '') + '</button></li>';
     }).join('');
 }
 
@@ -495,6 +587,16 @@ async function arrancar() {
     };
     $('lista').onkeydown = function (ev) { if (ev.key === 'Enter' && ev.target.matches('.item-pqr')) ev.target.click(); };
     $('btn-recargar').onclick = cargar;
+    $('btn-recorrido').onclick = function () {
+        var ver = $('recorrido').hidden;
+        $('recorrido').hidden = !ver;
+        this.setAttribute('aria-pressed', ver);
+        if (ver) pintarRecorrido();
+    };
+    $('recorrido').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-abrir-pqr]');
+        if (b) abrir(pqrs.find(function (p) { return p.id === b.dataset.abrirPqr; }));
+    });
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env).'; return; }
     var usuario = await asegurarSesion(supabase);
     var salir = $('btn-salir');

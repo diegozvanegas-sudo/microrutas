@@ -103,3 +103,32 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .clausula .ref { display: block; color: var(--muted); font-size: 12px; }
 .clausula:has(input:checked) { border-color: var(--brand); background: #edf8f3; }
 .buscar-contrato { margin-top: 12px; }
+/* Celular: el buscador a todo lo ancho y los botones debajo (antes quedaba un cuadro blanco aplastado) */
+@media (max-width: 640px) {
+    .barra-lista { flex-wrap: wrap; }
+    .barra-lista input { flex: 1 1 100%; }
+    .barra-lista button { flex: 1 1 0; padding: 9px 8px; font-size: 14px; }
+}
+/* PQR de hoy: marca naranja y borde a la izquierda */
+.badge.hoy { background: #ffedd5; color: #c2410c; }
+.item-pqr.de-hoy { border-color: #fdba74; box-shadow: inset 4px 0 0 #f97316; }
+.filtro.hoy.activo { border-color: #f97316; color: #c2410c; background: #fff7ed; }
+#btn-recorrido[aria-pressed="true"] { background: var(--brand); color: #fff; }
+/* Recorrido en el mapa */
+#recorrido { display: grid; gap: 8px; margin-bottom: 12px; }
+#rec-mapa { height: 55vh; min-height: 280px; border-radius: 12px; border: 1px solid var(--line); z-index: 0; }
+#rec-google { text-align: center; }
+.pin-rec { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 50%; color: #fff; font-weight: 700; font-size: 13px;
+           border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .4); background: var(--brand); }
+.pin-rec.hoy { background: #f97316; width: 32px; height: 32px; margin: -2px; }
+.pin-rec.respondido { background: #94a3b8; }
+.acciones-pin { display: flex; gap: 6px; margin-top: 6px; }
+.rec-leyenda { display: flex; gap: 6px 10px; align-items: center; flex-wrap: wrap; }
+.rec-leyenda .punto { width: 12px; height: 12px; border-radius: 50%; display: inline-block; background: var(--brand); }
+.rec-leyenda .punto.hoy { background: #f97316; }
+.rec-leyenda .punto.respondido { background: #94a3b8; }
+#rec-lista { margin: 0; padding-left: 26px; display: grid; gap: 4px; }
+#rec-lista li.de-hoy::marker { color: #c2410c; font-weight: 700; }
+#rec-lista li.sin-ubicar::marker { content: '– '; }
+#rec-lista .enlace { background: none; padding: 2px 0; font-weight: 400; text-align: left; color: var(--ink); }
+#rec-lista .enlace:hover { color: var(--brand); }

@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="icons/icono-192.png">
     <link rel="apple-touch-icon" href="icons/icono-192.png">
     <title>PQR · Respuestas</title>
+    <link rel="stylesheet" href="css/leaflet.css">
 </head>
 <body>
 <header>
@@ -56,6 +57,7 @@
     <section id="vista-lista">
         <div class="barra-lista">
             <input type="search" id="buscar" placeholder="Buscar por ID, dirección, barrio o nombre" aria-label="Buscar PQR" autocomplete="off">
+            <button type="button" class="secundario" id="btn-recorrido" aria-pressed="false" title="Ver los PQR de la lista en el mapa, en el orden para visitarlos">🗺️ Recorrido</button>
             <button type="button" class="secundario" id="btn-llamado" title="Armar un llamado de atención a la cuadrilla para enviarlo por WhatsApp">📣 Llamado de atención</button>
             <button type="button" class="primario" id="btn-nuevo">+ Nuevo PQR</button>
         </div>
@@ -63,6 +65,15 @@
             <button type="button" class="filtro activo" data-estado="">Todos</button>
             <button type="button" class="filtro" data-estado="abierto">Abiertos</button>
             <button type="button" class="filtro" data-estado="respondido">Respondidos</button>
+            <button type="button" class="filtro hoy" data-estado="hoy">🆕 Hoy</button>
+        </div>
+        <!-- Recorrido: los PQR de la lista (con el filtro y la búsqueda) en el mapa, numerados en el orden de visita -->
+        <div id="recorrido" hidden>
+            <div id="rec-estado" class="sub"></div>
+            <div id="rec-mapa"></div>
+            <div class="rec-leyenda sub"><span class="punto hoy"></span> De hoy <span class="punto abierto"></span> Abierto <span class="punto respondido"></span> Respondido</div>
+            <a class="boton primario" id="rec-google" target="_blank" rel="noopener" hidden>🧭 Abrir el recorrido en Google Maps</a>
+            <ol id="rec-lista"></ol>
         </div>
         <div id="estado" class="estado-carga">Cargando…</div>
         <div id="lista"></div>
@@ -180,6 +191,7 @@
     </div>
 </dialog>
 <div id="toast" role="status" aria-live="polite"></div>
+<script src="js/leaflet.js"></script>
 <script src="js/direcciones.js"></script>
 <script type="module" src="/src/pqr/main.js"></script>
 </body>
