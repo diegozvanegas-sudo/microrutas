@@ -9,7 +9,7 @@ import { textoLlamado, PUNTOS } from './llamados.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
-var pqrs = [], actual = null, filtro = '';
+var pqrs = [], actual = null, filtro = '', posLista = 0;
 // Cláusulas del contrato (contrato_secciones, mismo permiso y copia que contrato.html) y las elegidas para citar: { k: { k, t, ref } }
 var CACHE_CONTRATO = 'contrato_cache', contrato = null, elegidas = {};
 
@@ -195,6 +195,7 @@ function abrir(p) {
     $('btn-eliminar').hidden = !actual;
     $('ocr').hidden = true;
     yaLeido = '';
+    posLista = window.scrollY;
     $('vista-lista').hidden = true;
     $('vista-pqr').hidden = false;
     window.scrollTo(0, 0);
@@ -204,6 +205,7 @@ function cerrarPqr() {
     $('vista-pqr').hidden = true;
     $('vista-lista').hidden = false;
     pintarLista();
+    window.scrollTo(0, posLista);   // donde estaba en la lista
 }
 
 function marcarResultado(r) {
@@ -467,7 +469,7 @@ async function guardar(estado) {
     try { localStorage.setItem(CACHE, JSON.stringify(pqrs)); } catch (e) {}
     $('btn-eliminar').hidden = false;
     toast(estado === 'respondido' ? '✓ PQR respondido y guardado.' : 'PQR guardado.');
-    if (estado === 'respondido') cerrarPqr();
+    cerrarPqr();   // vuelve a la lista con el mismo filtro (Todos, Abiertos…)
 }
 async function eliminar() {
     if (!actual || !confirm('¿Eliminar el PQR ' + (actual.radicado || '') + '? No se puede deshacer.')) return;
