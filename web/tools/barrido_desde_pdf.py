@@ -1,20 +1,23 @@
 """Microrrutas de barrido desde el plano PDF de Emvarias (vectorial, exportado de CAD) a una capa del mapa rápido.
 
-    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>"
-    p. ej. python tools/barrido_desde_pdf.py Z7am_bloque_dom_fes_redis_V4_2022.pdf barrido_dom "Zona 7Am · Domingos y festivos · V4 mayo 2022"
+    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>" <jornada>
+    p. ej. python tools/barrido_desde_pdf.py Z7am_bloque_dom_fes_redis_V4_2022.pdf barrido_dom "Zona 7Am · Domingos y festivos · V4 mayo 2022" Mañana
+           python tools/barrido_desde_pdf.py z7noc_redis_V8_2018.pdf barrido_noche "Zona 7 Noche · Lunes a sábado · V8 octubre 2018" Noche
 
 El PDF no trae coordenadas: se ubica con los nombres de calles del plano (Cl. 52, Cr. 46...). Cada pareja Calle/Carrera
 cercana se asocia al cruce real de esas calles en OpenStreetMap (RANSAC) y luego cada nombre se acerca a su calle
 (ICP por nombre). En el plano de la Zona 7Am el error mediano queda en ~4 m.
 Las rutas son los trazos gruesos (1,92) de color; cada una toma el nombre Z7R..._DOM más cercano. Si una ruta viene en
 varios pedazos, los pedazos sin nombre cerca se unen a la ruta de su mismo color más próxima.
+Los nombres son Z7R191B_DOM (domingos) o Z7R417NOC (noche). La jornada (Mañana, Tarde o Noche) va en cada ruta (j) para
+filtrarlas en el mapa.
 Escribe public/data/rapido/capa_<capa>.js y lo agrega a indice.js. Necesita: pip install pymupdf numpy
 """
 import json, os, random, re, sys, urllib.parse, urllib.request
 import numpy as np
 import pymupdf
 
-PDF, CAPA, DESC = sys.argv[1], sys.argv[2], sys.argv[3]
+PDF, CAPA, DESC, JORNADA = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
 LAT0, LNG0 = 6.25, -75.57
@@ -31,7 +34,7 @@ calles = []
 for t, p in lineas_txt:
     m = re.match(r'^(Cl|Cll|Cr)\.?\s*(\d+[A-Z]?)$', t)
     if m: calles.append((('Calle ' if m.group(1).startswith('Cl') else 'Carrera ') + m.group(2), p))
-rutas_txt = [(t, p) for t, p in lineas_txt if re.match(r'^Z\d+R\d+[A-Z]?_[A-Z]+$', t)]
+rutas_txt = [(t, p) for t, p in lineas_txt if re.match(r'^Z\d+R\d+[A-Z]?(?:_[A-Z]+|NOC)$', t)]
 print(len(calles), 'nombres de calle,', len(rutas_txt), 'nombres de ruta')
 
 # ---------- Calles de OpenStreetMap alrededor del plano (se ubica a ojo: el centro de Medellín) ----------
@@ -52,23 +55,6 @@ for e in osm('6.15,-75.70,6.35,-75.48'):
 def ajustar(src, dst): return np.linalg.lstsq(np.hstack([src, np.ones((len(src), 1))]), dst, rcond=None)[0]
 def aplicar(M, p): return np.hstack([p, np.ones((len(p), 1))]) @ M
 
-pares = []
-for na, pa in calles:
-    for nb, pb in calles:
-        if na.startswith('Calle') and nb.startswith('Carrera') and np.linalg.norm(pa - pb) < 45:
-            comunes = nodos_nombre.get(na, set()) & nodos_nombre.get(nb, set())
-            if comunes: pares.append(((pa + pb) / 2, np.mean([coord[n] for n in comunes], axis=0)))
-src, dst = np.array([p[0] for p in pares]), np.array([p[1] for p in pares])
-random.seed(1)
-dentro = []
-for _ in range(5000):
-    idx = random.sample(range(len(pares)), 3)
-    M = ajustar(src[idx], dst[idx])
-    d = np.where(np.linalg.norm(aplicar(M, src) - dst, axis=1) < 60)[0]
-    if len(d) > len(dentro): dentro = d
-M = ajustar(src[dentro], dst[dentro])
-print('cruces que cuadran:', len(dentro), 'de', len(pares))
-
 def mas_cercano(p, lineas):
     mejor, bd = None, 1e18
     for g in lineas:
@@ -76,14 +62,44 @@ def mas_cercano(p, lineas):
         t = np.clip(((p - a) * ab).sum(1) / L, 0, 1); q = a + ab * t[:, None]; d = ((q - p) ** 2).sum(1); i = d.argmin()
         if d[i] < bd: bd, mejor = d[i], q[i]
     return mejor, np.sqrt(bd)
-for _ in range(8):
-    S, D, E = [], [], []
-    for n, p in calles:
-        if n in por_nombre:
-            q, d = mas_cercano(aplicar(M, p[None])[0], por_nombre[n])
-            if d < 80: S.append(p); D.append(q); E.append(d)
-    E = np.array(E); ok = E < max(15, 3 * np.median(E))
-    M = ajustar(np.array(S)[ok], np.array(D)[ok])
+
+def ubicar(junto, margen):
+    """Ajuste del plano a las calles. junto: unidades del plano entre el nombre de la calle y el de la carrera para
+    tomarlos como un cruce; margen: metros para que un cruce cuadre en el RANSAC."""
+    pares = []
+    for na, pa in calles:
+        for nb, pb in calles:
+            if na.startswith('Calle') and nb.startswith('Carrera') and np.linalg.norm(pa - pb) < junto:
+                comunes = nodos_nombre.get(na, set()) & nodos_nombre.get(nb, set())
+                if comunes: pares.append(((pa + pb) / 2, np.mean([coord[n] for n in comunes], axis=0)))
+    if len(pares) < 3: return None
+    src, dst = np.array([p[0] for p in pares]), np.array([p[1] for p in pares])
+    random.seed(1)
+    dentro = []
+    for _ in range(5000):
+        idx = random.sample(range(len(pares)), 3)
+        M = ajustar(src[idx], dst[idx])
+        d = np.where(np.linalg.norm(aplicar(M, src) - dst, axis=1) < margen)[0]
+        if len(d) > len(dentro): dentro = d
+    M = ajustar(src[dentro], dst[dentro])
+    for _ in range(8):
+        S, D, E = [], [], []
+        for n, p in calles:
+            if n in por_nombre:
+                q, d = mas_cercano(aplicar(M, p[None])[0], por_nombre[n])
+                if d < 80: S.append(p); D.append(q); E.append(d)
+        E = np.array(E); ok = E < max(15, 3 * np.median(E))
+        M = ajustar(np.array(S)[ok], np.array(D)[ok])
+    return np.median(E), M, E, ok, len(dentro), len(pares)
+# Los planos vienen a distinta escala (el de la Zona 7 Noche es apaisado y más alejado que el de domingos): se prueban
+# varias distancias entre nombres, en orden, y se queda la primera que cuadra (o la de menor error si ninguna)
+pruebas = []
+for junto, margen in ((45, 60), (60, 100), (30, 60)):
+    r = ubicar(junto, margen)
+    if r: pruebas.append(r)
+    if r and r[0] <= 12: break
+_, M, E, ok, n_dentro, n_pares = min(pruebas, key=lambda r: r[0])
+print('cruces que cuadran:', n_dentro, 'de', n_pares)
 print('error mediano %.1f m, 90%% bajo %.1f m (%d nombres de calle)' % (np.median(E), np.percentile(E, 90), ok.sum()))
 if np.median(E) > 12: sys.exit('El plano no cuadró con las calles: revise el PDF')
 
@@ -168,7 +184,7 @@ for t in sorted(rutas):
     r = rutas[t]
     if not r['trazos']: continue
     g = [codificar(aplicar(M, l)) for i in r['trazos'] for l in trazos[i]['lineas'] if len(l) > 1]
-    it = {'n': t, 'z': DESC, 'c': r['color'], 'g': g}
+    it = {'n': t, 'z': DESC, 'j': JORNADA, 'c': r['color'], 'g': g}
     for k in ('i', 'f'):
         if r.get(k): it[k] = [a_ll_pdf(p) for p in r[k]]
     items.append(it)

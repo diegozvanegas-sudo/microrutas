@@ -11,6 +11,8 @@ de él.
 Se dejan por fuera los planos sin georreferencia (los escaneados de 2009-2012) y los generales de toda la zona (redis,
 macro, RT_BARRIDO), que pintan muchas rutas de colores sin decir cuál es cuál. Si un código sale en varios planos queda
 el más reciente (año y versión del nombre del archivo).
+La jornada sale de la carpeta del plano: ZONA 7Am_Semana (Mañana), Z4_BLOQUE_LaS_PM o ZONA 7Pm_Dom_Fes (Tarde),
+ZONA 7Noc_Semana o Z4_BLOQUE_LaS_NOC (Noche). Si la carpeta no la dice, la ruta queda sin jornada.
 Escribe public/data/rapido/capa_<capa>.js, lo agrega a indice.js y deja <capa>_informe.csv junto al .zip.
 Necesita: pip install pymupdf numpy
 """
@@ -249,6 +251,13 @@ def orden_version(nombre):
     v = [int(x) for x in re.findall(r'_V(\d+)', b, re.I)]
     return (max(anios) if anios else 0, max(v) if v else 0)
 
+def jornada(nombre):
+    """Mañana, Tarde o Noche según la carpeta (o el nombre) del plano; '' si no lo dice."""
+    if re.search(r'(?<![a-z])noc(?![a-z])', nombre, re.I): return 'Noche'
+    if re.search(r'(?<![a-z])pm(?![a-z])', nombre, re.I): return 'Tarde'
+    if re.search(r'(?<![a-z])am(?![a-z])', nombre, re.I): return 'Mañana'
+    return ''
+
 def zona(cod, nombre):
     m = re.match(r'Z(\d+)', cod) or re.search(r'zona\s*(\d+)', nombre, re.I)
     return int(m.group(1)) if m else 0
@@ -286,6 +295,7 @@ if __name__ == '__main__':
             if ruta[k]: it[etq] = limpiar(ruta[k])
         for k in ('i', 'f'):
             if ruta[k]: it[k] = ruta[k]
+        if jornada(archivo): it['j'] = jornada(archivo)
         items.append(it)
     for it, c in zip(items, colorear([mejor[it['n']][1]['lineas'] for it in items])): it['c'] = c
     with open(os.path.splitext(ZIP)[0] + '_' + CAPA + '_informe.csv', 'w', newline='', encoding='utf-8-sig') as f:

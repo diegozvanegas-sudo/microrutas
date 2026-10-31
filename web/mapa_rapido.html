@@ -28,6 +28,8 @@
     .chip.cargando { opacity: .6; }
     .chip.capa { border-style: dashed; color: var(--muted); }
     .chip.capa[aria-pressed="true"] { border-style: solid; color: var(--ink); }
+    .chip.filtro { font-weight: 500; }
+    .chip.filtro[aria-pressed="true"] { border-color: #0369a1; background: #e0f2fe; box-shadow: inset 0 0 0 1px #0369a1; }
     .separador { flex: none; width: 1px; background: var(--line); margin: 4px 2px; }
     #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #map { flex: 1; min-height: 0; }
@@ -453,7 +455,7 @@
         grupos[c] = g;
         terminar('lotes_' + c);
     };
-    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: 'Barrido dom/fest', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: '☀️ Barrido dom/fest', barrido_noche: '🌙 Barrido noche', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
     var ESTILOS_CAPA = {
         comunas: { color: '#e41a1c', weight: 2, fill: false },
         operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
@@ -464,17 +466,43 @@
         puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false },
         // Microrrutas de barrido (plano de Emvarias, tools/barrido_desde_pdf.py): cada una con su color del plano
         barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false },
+        // Barrido nocturno de la Zona 7: mismo trazo, con borde azul noche (no blanco) para no confundirlo con el de día
+        barrido_noche: { weight: 4, opacity: .95, bubblingMouseEvents: false },
         // Microrrutas de LV y RyT (GeoPDF de Emvarias, tools/rutas_desde_geopdf.py): cada ruta con su color (p.c, distinto
         // al de sus vecinas); RyT punteada para no confundirla con LV
         rutas_lv: { weight: 3, opacity: .9, bubblingMouseEvents: false },
         rutas_ryt: { weight: 3, opacity: .9, dashArray: '7 5', bubblingMouseEvents: false }
     };
     // Capas de microrrutas: al tocar una se resalta, salen inicio y fin y se abre su ficha
-    var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
+    var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', barrido_noche: 'Microrruta de barrido nocturno', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
+    var BORDE_RUTA = { barrido_dom: '#fff', barrido_noche: '#1e1b4b' };
+    // Jornada de la ruta (j), de la carpeta o del plano: Mañana, Tarde o Noche; sin dato si el plano no la dice
+    var JORNADAS = [['Mañana', '☀️ Mañana'], ['Tarde', '🌇 Tarde'], ['Noche', '🌙 Noche'], ['-', 'Sin jornada']];
+    function textoJornada(j) { var x = JORNADAS.filter(function (p) { return p[0] === j; })[0]; return x ? x[1] : ''; }
+    function zonaRuta(d) { var m = /^Z(\d+)/i.exec(d.n || '') || /Zona\s*(\d+)/i.exec(d.z || ''); return m ? m[1] : ''; }
+    // Filtro de las capas de rutas por zona y por jornada (vacío = todas); la ruta elegida se ve aunque no pase
+    function pasaFiltro(d) {
+        return (!filtroRutas.z.length || filtroRutas.z.indexOf(zonaRuta(d)) !== -1) && (!filtroRutas.j.length || filtroRutas.j.indexOf(d.j || '-') !== -1);
+    }
+    function filtrarRutas() {
+        var n = 0;
+        Object.keys(CAPAS_RUTA).forEach(function (k) {
+            var g = capasExtra[k];
+            if (!g) return;
+            g.rutas.forEach(function (c) {
+                var ver = pasaFiltro(c.datos) || barridoSel.indexOf(c) !== -1;
+                if (ver && !g.hasLayer(c)) { if (c.halo) g.addLayer(c.halo); g.addLayer(c); }
+                else if (!ver && g.hasLayer(c)) { g.removeLayer(c); if (c.halo) g.removeLayer(c.halo); }
+                if (ver && capasActivas.indexOf(k) !== -1) n++;
+            });
+        });
+        return n;
+    }
     map.createPane('zonas').style.zIndex = 350;
     map.getPane('zonas').style.pointerEvents = 'none';
     window.cargarCapa = function (k, datos) {
         var g = L.featureGroup();
+        g.rutas = [];
         datos.items.forEach(function (p) {
             var estilo = p.c ? L.extend({}, ESTILOS_CAPA[k], { color: p.c, fillColor: p.c }) : ESTILOS_CAPA[k], capa;
             if (datos.tipo === 'punto') capa = L.circleMarker(decodificar(p.g)[0], estilo);
@@ -485,10 +513,13 @@
             if (CAPAS_RUTA[k]) {
                 // Borde blanco debajo: las rutas negras y azules no se verían sobre la ortofoto (LV y RyT son rojo y
                 // morado, se ven sin él, y son miles: el borde duplicaría lo que hay que pintar)
-                if (k === 'barrido_dom') g.addLayer(L.polyline(capa.getLatLngs(), { color: '#fff', weight: 7, opacity: .7, interactive: false }));
+                if (BORDE_RUTA[k]) capa.halo = L.polyline(capa.getLatLngs(), { color: BORDE_RUTA[k], weight: k === 'barrido_noche' ? 8 : 7, opacity: k === 'barrido_noche' ? .85 : .7, interactive: false });
                 capa.datos = p; capa.capa = k;
-                capa.bindTooltip(esc(p.n), { sticky: true });
+                capa.bindTooltip(esc(p.n) + (p.j ? ' · ' + textoJornada(p.j) : ''), { sticky: true });
                 capa.on('click', function () { verBarrido([capa]); });
+                g.rutas.push(capa);
+                if (!pasaFiltro(p)) return;
+                if (capa.halo) g.addLayer(capa.halo);
                 g.addLayer(capa);
                 return;
             }
@@ -520,13 +551,14 @@
             verBarrido(capas, true);
         });
     }
-    // Código completo de LV o RyT (Z2R91LJ, Z7R215_DOM): se busca en las capas de rutas encendidas, o en las dos si no
-    // hay ninguna, y se enciende la que lo tenga. Si no está, sigue como código de barrido.
+    // Código completo de LV, RyT o barrido nocturno (Z2R91LJ, Z7R215_DOM, Z7R417NOC): se busca en las capas de rutas
+    // encendidas, o en todas si no hay ninguna, y se enciende la que lo tenga. Si no está, sigue como código de barrido.
     function codigoRuta(v) { v = String(v).trim().toUpperCase(); return /^Z\d+R\d+[A-Z]*(?:_DOM)?$/.test(v) && v; }
     function buscarRutas(cods, siNo) {
-        var ks = ['rutas_lv', 'rutas_ryt'].filter(function (k) { return IDX.capas && IDX.capas[k]; });
+        var ks = ['rutas_lv', 'rutas_ryt', 'barrido_noche'].filter(function (k) { return IDX.capas && IDX.capas[k]; });
         var activasR = ks.filter(function (k) { return capasActivas.indexOf(k) !== -1; });
-        if (activasR.length) ks = activasR;
+        // Un código NOC solo está en el barrido nocturno: se busca ahí aunque esa capa esté apagada
+        if (activasR.length) ks = ks.filter(function (k) { return activasR.indexOf(k) !== -1 || (k === 'barrido_noche' && cods.some(function (c) { return /NOC$/.test(c); })); });
         var faltan = ks.length;
         $('estado').textContent = 'Buscando la microrruta…';
         ks.forEach(function (k) {
@@ -551,13 +583,14 @@
             if (!capasExtra[k]) return;
             capasExtra[k].eachLayer(function (c) {
                 if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], c.datos.c ? { color: c.datos.c } : {}, { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
-                else c.setStyle({ opacity: on ? .15 : .7 });
+                else c.setStyle({ opacity: on ? .15 : k === 'barrido_noche' ? .85 : .7 });
             });
         });
     }
     function quitarBarridoSel() {
         if (barridoSel.length) atenuarBarrido(false);
         barridoSel = []; marcasBarrido.clearLayers();
+        filtrarRutas(); // la que se vio por búsqueda y no pasa el filtro vuelve a ocultarse
     }
     // Resalta la(s) ruta(s), pone 🟢 inicio y 🏁 fin (los del plano) y abre la ficha
     function verBarrido(capas, encuadrarla) {
@@ -565,6 +598,8 @@
         barridoSel = capas;
         atenuarBarrido(true);
         capas.forEach(function (c) {
+            var g = capasExtra[c.capa];
+            if (!g.hasLayer(c)) { if (c.halo) g.addLayer(c.halo); g.addLayer(c); }
             c.setStyle({ weight: 8, opacity: 1 }); c.bringToFront();
             (c.datos.i || []).forEach(function (ll) { L.marker(ll, { icon: L.divIcon({ className: 'barrido-punta', html: '🟢', iconSize: [24, 24] }), title: 'Inicio ' + c.datos.n, zIndexOffset: 900 }).addTo(marcasBarrido); });
             (c.datos.f || []).forEach(function (ll) { L.marker(ll, { icon: L.divIcon({ className: 'barrido-punta', html: '🏁', iconSize: [24, 24], iconAnchor: [5, 22] }), title: 'Fin ' + c.datos.n, zIndexOffset: 900 }).addTo(marcasBarrido); });
@@ -577,7 +612,7 @@
             // los km (k), el tipo de barrido (t) y el archivo (a); las líneas iguales (barrido A y B) salen una vez
             capas.map(function (c) {
                 var x = c.datos;
-                return '<div class="mr">' + esc([capas.length > 1 && c.capa !== 'barrido_dom' ? x.n : '', CAPAS_RUTA[c.capa], x.z].filter(Boolean).join(' · ')) + '</div>' +
+                return '<div class="mr">' + esc([capas.length > 1 && c.capa !== 'barrido_dom' ? x.n : '', CAPAS_RUTA[c.capa], x.z, textoJornada(x.j)].filter(Boolean).join(' · ')) + '</div>' +
                     (x.q || x.k || x.t || x.a ? '<div class="bloque"><div class="txt">' + esc([x.q, x.k && x.k + ' km', x.t].filter(Boolean).join(' · ')) +
                         (x.a ? '<br><span style="color:#6b7c75;font-size:12px">Plano: ' + esc(x.a) + '</span>' : '') + '</div></div>' : '');
             }).filter(function (h, i, a) { return a.indexOf(h) === i; }).join('') +
@@ -911,6 +946,9 @@
     var ordenCuad = Object.keys(IDX.cuadrillas).sort(function (a, b) { return (a === 'sin') - (b === 'sin') || Number(a) - Number(b); });
     var activas = leer('rapido_cuadrillas', []).filter(function (c) { return IDX.cuadrillas[c]; });
     var capasActivas = leer('rapido_capas', []).filter(function (k) { return IDX.capas && IDX.capas[k]; });
+    var filtroRutas = leer('rapido_filtro_rutas', null);
+    if (!filtroRutas || !Array.isArray(filtroRutas.z) || !Array.isArray(filtroRutas.j)) filtroRutas = { z: [], j: [] };
+    var ZONAS_RUTA = ['1', '2', '3', '4', '5', '6', '7', '8'];
     // Celular: barra plegada = hoja de cuadrillas cerrada (abajo queda el botón que dice cuáles están puestas).
     // Las cuadrillas se ponen tocando varias seguidas y la hoja se cierra con Listo o tocando el mapa.
     var plegada = leer('rapido_barra_plegada', false);
@@ -956,7 +994,16 @@
             '<span class="separador"></span>' +
             Object.keys(IDX.capas || {}).map(function (k) {
                 return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
-            }).join('');
+            }).join('') +
+            // Con alguna capa de rutas puesta: filtro por zona (Z1, Z2...) y por jornada; sin ninguno marcado salen todas
+            (Object.keys(CAPAS_RUTA).some(function (k) { return capasActivas.indexOf(k) !== -1; }) ?
+                '<span class="separador"></span>' +
+                ZONAS_RUTA.map(function (z) {
+                    return '<button type="button" class="chip filtro" data-fzona="' + z + '" aria-pressed="' + (filtroRutas.z.indexOf(z) !== -1) + '" title="Solo las rutas de la zona ' + z + '">Zona ' + z + '</button>';
+                }).join('') +
+                JORNADAS.map(function (p) {
+                    return '<button type="button" class="chip filtro" data-fjor="' + p[0] + '" aria-pressed="' + (filtroRutas.j.indexOf(p[0]) !== -1) + '" title="Solo las rutas de esta jornada">' + p[1] + '</button>';
+                }).join('') : '');
         var n = 0, kb = 0;
         activas.forEach(function (c) { n += IDX.cuadrillas[c].n; kb += IDX.cuadrillas[c].kb; });
         var faltan = activas.filter(function (c) { return !grupos[c]; }).length;
@@ -1022,6 +1069,16 @@
             guardar('rapido_capas', capasActivas);
             mostrarCapa(k, j === -1);
             pintarChips();
+        }
+        if (b.dataset.fzona || b.dataset.fjor) {
+            var lista = b.dataset.fzona ? filtroRutas.z : filtroRutas.j, v = b.dataset.fzona || b.dataset.fjor, i2 = lista.indexOf(v);
+            if (i2 === -1) lista.push(v); else lista.splice(i2, 1);
+            guardar('rapido_filtro_rutas', filtroRutas);
+            if (barridoSel.length) { quitarBarridoSel(); cerrarFicha(); }
+            var n = filtrarRutas();
+            pintarChips();
+            var que = filtroRutas.z.map(function (z) { return 'zona ' + z; }).concat(filtroRutas.j.map(function (j) { return textoJornada(j).toLowerCase(); }));
+            toast(que.length ? 'Rutas: ' + que.join(', ') + ' · ' + n + ' en el mapa' : 'Rutas: todas las zonas y jornadas');
         }
     };
 
