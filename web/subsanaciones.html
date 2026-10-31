@@ -53,6 +53,7 @@
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
             <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
+            <button type="button" class="item-menu" id="btn-ocr" title="Sacar el texto de una o muchas imágenes o pantallazos">🔤 Imágenes a texto</button>
             <hr>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
             <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
@@ -250,6 +251,24 @@
         <div class="pie">
             <button type="button" class="secundario" id="zip-cerrar">Cerrar</button>
             <button type="button" class="primario" id="zip-convertir" disabled>Convertir</button>
+        </div>
+    </div>
+</dialog>
+<!-- Imágenes a texto (src/subsanaciones/ocr.js): se leen en este equipo, en el orden de los nombres -->
+<dialog id="dlg-ocr">
+    <div class="cuerpo">
+        <h2>🔤 Imágenes a texto</h2>
+        <div class="sub">Elija una o muchas imágenes (fotos o pantallazos), o pegue una con Ctrl+V: se saca el texto de todas, en el orden de los nombres.
+            Se hace en este equipo, las imágenes no se suben a ningún lado. El lector a veces cambia letras o números: revise el texto.</div>
+        <input type="file" id="ocr-archivos" accept="image/*" multiple hidden>
+        <button type="button" class="secundario zip-elegir" id="ocr-elegir">📁 Elegir imágenes</button>
+        <label class="fotos-check"><input type="checkbox" id="ocr-titulos" checked> Poner el nombre de cada imagen antes de su texto</label>
+        <div class="fotos-resumen" id="ocr-estado"></div>
+        <textarea id="ocr-texto" rows="12" placeholder="Aquí sale el texto de las imágenes."></textarea>
+        <div class="pie">
+            <button type="button" class="secundario" id="ocr-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="ocr-descargar" disabled>⬇ Descargar .txt</button>
+            <button type="button" class="primario" id="ocr-copiar" disabled>📋 Copiar todo</button>
         </div>
     </div>
 </dialog>

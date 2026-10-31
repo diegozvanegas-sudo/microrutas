@@ -14,6 +14,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf } from './zippdf.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
+import { leerImagenes, ordenarPorNombre } from './ocr.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -2079,6 +2080,56 @@ export function iniciar(api, CFG) {
         $('dlg-fotos').showModal();
     };
     $('fotos-elegir').onclick = function () { if (!fotosOcupado) $('fotos-archivos').click(); };
+    // 🔤 Imágenes a texto: una o muchas, o pegadas; el texto de todas en un solo cuadro (con el nombre de cada una si se quiere)
+    var ocrLeidas = [], ocrOcupado = false;
+    function pintarOcr() {
+        var titulos = $('ocr-titulos').checked;
+        $('ocr-texto').value = ocrLeidas.map(function (r) {
+            var t = r.texto || '(' + r.error + ')';
+            return titulos && ocrLeidas.length > 1 ? '── ' + r.nombre + ' ──\n' + t : t;
+        }).join('\n\n');
+        $('ocr-copiar').disabled = $('ocr-descargar').disabled = !ocrLeidas.length;
+    }
+    async function leerOcr(files) {
+        files = ordenarPorNombre(files.filter(function (f) { return /^image\//.test(f.type); }));
+        if (!files.length || ocrOcupado) return;
+        ocrOcupado = true;
+        $('ocr-elegir').disabled = true;
+        $('ocr-estado').textContent = 'Preparando el lector… (la primera vez se descarga, puede tardar)';
+        try {
+            ocrLeidas = await leerImagenes(files, function (i, t, n) { $('ocr-estado').textContent = 'Leyendo ' + (i + 1) + ' de ' + t + ': ' + n + '…'; });
+            var malas = ocrLeidas.filter(function (r) { return !r.texto; }).length;
+            $('ocr-estado').textContent = '✓ ' + (ocrLeidas.length - malas) + ' de ' + ocrLeidas.length + (ocrLeidas.length === 1 ? ' imagen leída' : ' imágenes leídas') +
+                (malas ? ' · ' + malas + ' sin texto' : '') + '.';
+            pintarOcr();
+        } catch (e) {
+            $('ocr-estado').textContent = 'No se pudo leer: ' + ((e && e.message) || e);
+        } finally {
+            ocrOcupado = false;
+            $('ocr-elegir').disabled = false;
+            $('ocr-archivos').value = '';
+        }
+    }
+    $('btn-ocr').onclick = function () {
+        if (!ocrOcupado) { ocrLeidas = []; $('ocr-estado').textContent = ''; pintarOcr(); }
+        $('dlg-ocr').showModal();
+    };
+    $('ocr-elegir').onclick = function () { if (!ocrOcupado) $('ocr-archivos').click(); };
+    $('ocr-archivos').onchange = function () { leerOcr(Array.prototype.slice.call(this.files || [])); };
+    $('dlg-ocr').addEventListener('paste', function (ev) {
+        var files = Array.prototype.slice.call((ev.clipboardData && ev.clipboardData.files) || []);
+        if (files.length) { ev.preventDefault(); leerOcr(files.map(function (f, i) { return f.name && f.name !== 'image.png' ? f : new File([f], 'pegada ' + (i + 1) + '.png', { type: f.type }); })); }
+    });
+    $('ocr-titulos').onchange = pintarOcr;
+    $('ocr-copiar').onclick = function () { copiarTexto($('ocr-texto').value, 'Texto copiado'); };
+    $('ocr-descargar').onclick = function () {
+        var a = document.createElement('a');
+        a.href = URL.createObjectURL(new Blob([$('ocr-texto').value], { type: 'text/plain;charset=utf-8' }));
+        a.download = 'Texto de imágenes ' + new Date().toISOString().slice(0, 10) + '.txt';
+        document.body.appendChild(a); a.click(); a.remove();
+        setTimeout(function () { URL.revokeObjectURL(a.href); }, 1000);
+    };
+    $('ocr-cerrar').onclick = function () { $('dlg-ocr').close(); };
     $('fotos-archivos').onchange = async function () {
         $('fotos-resumen').textContent = 'Leyendo fotos…';
         fotosElegidas = await examinar(Array.prototype.slice.call($('fotos-archivos').files || []));

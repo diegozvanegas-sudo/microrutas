@@ -212,6 +212,14 @@ fieldset { min-width: 0; }
 .zip-informe li.zip-ok { color: var(--brand); }
 .zip-informe li.zip-aviso { color: #9a3412; }
 .zip-informe li.zip-error { color: #b91c1c; font-weight: 650; }
+/* Imágenes a texto */
+#dlg-ocr { width: min(640px, calc(100% - 24px)); height: auto; max-height: calc(100dvh - 24px); margin: auto; border-radius: 14px; overscroll-behavior: contain; }
+#dlg-ocr .cuerpo { padding: 18px; display: grid; gap: 8px; }
+#dlg-ocr h2 { margin: 0; }
+#dlg-ocr .zip-elegir { width: 100%; margin: 6px 0 0; padding: 14px; border: 2px dashed #9fd3bd; }
+#dlg-ocr textarea { width: 100%; min-height: 200px; height: 40vh; font: inherit; font-size: 14px; border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; resize: vertical; }
+#dlg-ocr .pie { display: flex; gap: 8px; flex-wrap: wrap; }
+#dlg-ocr .pie button { flex: 1; }
 /* Fotos a PDF */
 #dlg-fotos { width: min(560px, calc(100% - 24px)); height: auto; margin: auto; border-radius: 14px; }
 #dlg-fotos .cuerpo { padding: 18px; }
