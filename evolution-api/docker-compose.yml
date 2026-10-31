@@ -1,0 +1,79 @@
+# Microservicio de WhatsApp (Evolution API) para enviar mensajes y archivos a los grupos desde la aplicación.
+# Va en un servidor (VPS) encendido todo el día, NO en GitHub ni en Supabase. Ver README.md.
+#   cp .env.example .env   (y llenar las claves)
+#   docker compose up -d
+# Caddy pone el HTTPS solo con el dominio de .env; Evolution no queda abierto a internet sin él.
+services:
+  evolution:
+    # Desde la v2.3.0 la imagen es evoapicloud/... (antes atendai/...). Revise la última versión en Docker Hub antes de cambiarla
+    image: evoapicloud/evolution-api:v2.3.7
+    container_name: evolution-api
+    restart: always
+    env_file: .env
+    environment:
+      SERVER_TYPE: http
+      SERVER_PORT: 8080
+      SERVER_URL: https://${DOMINIO}
+      DATABASE_PROVIDER: postgresql
+      DATABASE_CONNECTION_URI: postgresql://evolution:${CLAVE_POSTGRES}@postgres:5432/evolution?schema=public
+      DATABASE_CONNECTION_CLIENT_NAME: microrutas
+      # Solo lo necesario para la sesión: los mensajes y contactos de los grupos no se guardan en este servidor
+      DATABASE_SAVE_DATA_INSTANCE: "true"
+      DATABASE_SAVE_DATA_NEW_MESSAGE: "false"
+      DATABASE_SAVE_MESSAGE_UPDATE: "false"
+      DATABASE_SAVE_DATA_CONTACTS: "false"
+      DATABASE_SAVE_DATA_CHATS: "false"
+      DATABASE_SAVE_DATA_HISTORIC: "false"
+      CACHE_REDIS_ENABLED: "true"
+      CACHE_REDIS_URI: redis://redis:6379/6
+      CACHE_REDIS_PREFIX_KEY: evolution
+      CACHE_LOCAL_ENABLED: "false"
+      CONFIG_SESSION_PHONE_CLIENT: Microrrutas
+      CONFIG_SESSION_PHONE_NAME: Chrome
+      DEL_INSTANCE: "false"
+    volumes:
+      - evolution-instancias:/evolution/instances
+    depends_on:
+      - postgres
+      - redis
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: evolution-postgres
+    restart: always
+    environment:
+      POSTGRES_USER: evolution
+      POSTGRES_PASSWORD: ${CLAVE_POSTGRES}
+      POSTGRES_DB: evolution
+    volumes:
+      - evolution-postgres:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: evolution-redis
+    restart: always
+    command: redis-server --appendonly yes
+    volumes:
+      - evolution-redis:/data
+
+  # HTTPS automático (Let's Encrypt) para el dominio: https://DOMINIO -> evolution:8080
+  caddy:
+    image: caddy:2-alpine
+    container_name: evolution-caddy
+    restart: always
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMINIO: ${DOMINIO}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-datos:/data
+    depends_on:
+      - evolution
+
+volumes:
+  evolution-instancias:
+  evolution-postgres:
+  evolution-redis:
+  caddy-datos:

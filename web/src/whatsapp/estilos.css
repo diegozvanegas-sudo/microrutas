@@ -1,0 +1,16 @@
+/* whatsapp.html: conexión, grupos y prueba de envío (base: diario/estilos.css) */
+.badge { font-size: 12px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: var(--aviso-bg); color: var(--aviso); }
+.badge.ok { background: var(--ok-bg); color: var(--ok); }
+.badge.pend { background: var(--pend-bg); color: var(--pend); }
+.acciones input { flex: 1 1 200px; width: auto; }
+.qr-caja { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; background: #f4fbf8; border-radius: 12px; padding: 12px; }
+.qr-caja img { width: 240px; max-width: 100%; aspect-ratio: 1; background: #fff; border-radius: 8px; }
+.qr-caja .sub { flex: 1 1 220px; font-size: 14px; }
+.qr-caja .codigo { font-size: 20px; letter-spacing: .12em; color: var(--ink); }
+.grupos { display: grid; gap: 6px; margin-top: 10px; max-height: 55vh; overflow-y: auto; }
+.grupo-wa { display: flex; gap: 8px; align-items: center; border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; }
+.grupo-wa > div { flex: 1; min-width: 0; }
+.grupo-wa b { display: block; }
+.grupo-wa .sub { overflow-wrap: anywhere; }
+.campo { display: block; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; margin-top: 10px; }
+.campo input, .campo textarea { margin-top: 4px; font-weight: 400; letter-spacing: 0; }

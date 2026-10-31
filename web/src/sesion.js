@@ -61,7 +61,7 @@ export async function esAdmin(supabase) {
 }
 
 // Permisos de la sesión ({ admin, contrato }, 0007_contrato_permiso.sql). Muestra "Contrato" en las secciones y
-// "Usuarios" en el menú Más solo a quien puede. Sin conexión usa los últimos que recibió este usuario en el equipo.
+// "Usuarios" y "WhatsApp" en el menú Más solo a quien puede. Sin conexión usa los últimos que recibió este usuario en el equipo.
 export async function aplicarPermisos(supabase, usuario) {
     var clave = 'permisos_' + usuario.id, p = { admin: false, contrato: false };
     var res = await supabase.rpc('mis_permisos');
@@ -71,9 +71,10 @@ export async function aplicarPermisos(supabase, usuario) {
     } else {
         try { p = JSON.parse(localStorage.getItem(clave)) || p; } catch (e) {}
     }
-    var nav = document.getElementById('nav-contrato'), menu = document.getElementById('menu-usuarios');
+    var nav = document.getElementById('nav-contrato'), menu = document.getElementById('menu-usuarios'), wa = document.getElementById('menu-whatsapp');
     if (nav) nav.hidden = !p.contrato;
     if (menu) menu.hidden = !p.admin;
+    if (wa) wa.hidden = !p.admin;
     return p;
 }
 

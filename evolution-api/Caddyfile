@@ -1,0 +1,4 @@
+# HTTPS para Evolution API con el dominio de .env (DOMINIO). Caddy saca y renueva el certificado solo.
+{$DOMINIO} {
+	reverse_proxy evolution:8080
+}

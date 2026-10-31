@@ -17,7 +17,8 @@ en lugar de la Hoja de Google. El proyecto anterior (mapa qgis2web + Apps Script
 
 ```
 microrutas/
-├── supabase/            config.toml (Supabase local) y migrations/ (tablas, reglas, permisos)
+├── supabase/            config.toml (Supabase local), migrations/ (tablas, reglas, permisos) y functions/ (puente de WhatsApp)
+├── evolution-api/       microservicio de WhatsApp (Evolution API en un VPS); ver su README.md
 ├── scripts/             importar lotes, crear usuarios, pruebas de la base
 ├── datos/origen/        capas del mapa anterior (para importar lotes)
 └── web/                 la aplicación (Vite + PWA)
