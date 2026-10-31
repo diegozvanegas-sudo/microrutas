@@ -464,9 +464,10 @@
         puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false },
         // Microrrutas de barrido (plano de Emvarias, tools/barrido_desde_pdf.py): cada una con su color del plano
         barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false },
-        // Microrrutas de LV y RyT (GeoPDF de Emvarias, tools/rutas_desde_geopdf.py): un color por servicio
-        rutas_lv: { color: '#d62828', weight: 3, opacity: .85, bubblingMouseEvents: false },
-        rutas_ryt: { color: '#6a1b9a', weight: 3, opacity: .85, bubblingMouseEvents: false }
+        // Microrrutas de LV y RyT (GeoPDF de Emvarias, tools/rutas_desde_geopdf.py): cada ruta con su color (p.c, distinto
+        // al de sus vecinas); RyT punteada para no confundirla con LV
+        rutas_lv: { weight: 3, opacity: .9, bubblingMouseEvents: false },
+        rutas_ryt: { weight: 3, opacity: .9, dashArray: '7 5', bubblingMouseEvents: false }
     };
     // Capas de microrrutas: al tocar una se resalta, salen inicio y fin y se abre su ficha
     var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
@@ -549,7 +550,7 @@
         Object.keys(CAPAS_RUTA).forEach(function (k) {
             if (!capasExtra[k]) return;
             capasExtra[k].eachLayer(function (c) {
-                if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
+                if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], c.datos.c ? { color: c.datos.c } : {}, { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
                 else c.setStyle({ opacity: on ? .15 : .7 });
             });
         });

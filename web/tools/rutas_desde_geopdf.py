@@ -210,6 +210,38 @@ def frecuencia(cod, texto):
     if not dias: return texto
     return dias + (' · ' + texto if re.search(r'vez|veces', texto, re.I) else '')
 
+# Un color por ruta: sobre la ortofoto se distinguen bien estos 12 (ninguno oscuro)
+PALETA = ['#e6194b', '#3cb44b', '#ffe119', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#bfef45', '#469990',
+          '#ff9fbf', '#9a6324']
+CELDA_M = 40
+
+def colorear(rutas):
+    """Colores para que dos rutas vecinas (a menos de ~CELDA_M) no queden iguales. Se reparte primero a las que tienen
+    más vecinas; si ya no queda un color libre (el centro está lleno de rutas), el que menos comparte con las vecinas."""
+    celdas = []
+    for lineas in rutas:
+        s = set()
+        for l in lineas:
+            p = np.array(l)
+            for lat, lng in p:
+                s.add((int(lng * KX // CELDA_M), int(lat * KY // CELDA_M)))
+        celdas.append({(x + dx, y + dy) for x, y in s for dx in (-1, 0, 1) for dy in (-1, 0, 1)})
+    por_celda = {}
+    for i, s in enumerate(celdas):
+        for c in s: por_celda.setdefault(c, []).append(i)
+    vecinas = [{} for _ in rutas]
+    for ids in por_celda.values():
+        for a in ids:
+            for b in ids:
+                if a != b: vecinas[a][b] = vecinas[a].get(b, 0) + 1
+    color = [None] * len(rutas)
+    for i in sorted(range(len(rutas)), key=lambda i: -len(vecinas[i])):
+        costo = [0] * len(PALETA)
+        for j, peso in vecinas[i].items():
+            if color[j] is not None: costo[color[j]] += peso
+        color[i] = min(range(len(PALETA)), key=lambda k: (costo[k], k))
+    return [PALETA[k] for k in color]
+
 def orden_version(nombre):
     """(año, versión) del nombre del archivo para quedarse con el plano más reciente de cada código."""
     b = os.path.basename(nombre)
@@ -255,6 +287,7 @@ if __name__ == '__main__':
         for k in ('i', 'f'):
             if ruta[k]: it[k] = ruta[k]
         items.append(it)
+    for it, c in zip(items, colorear([mejor[it['n']][1]['lineas'] for it in items])): it['c'] = c
     with open(os.path.splitext(ZIP)[0] + '_' + CAPA + '_informe.csv', 'w', newline='', encoding='utf-8-sig') as f:
         csv.writer(f, delimiter=';').writerows([['archivo', 'codigo', 'estado', 'nota', 'frecuencia', 'km', 'tramos']] + informe)
     js = 'cargarCapa(%s,%s);\n' % (json.dumps(CAPA), json.dumps({'tipo': 'linea', 'items': items}, ensure_ascii=False, separators=(',', ':')))
