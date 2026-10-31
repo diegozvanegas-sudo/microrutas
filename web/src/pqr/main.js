@@ -4,12 +4,14 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja } from './plantillas.js';
+import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga } from './plantillas.js';
 import { textoLlamado, PUNTOS } from './llamados.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
 var pqrs = [], actual = null, filtro = '', posLista = 0;
+// abierto · respondido · trasladado (daño durante el corte: lo gestiona el grupo de Precoodes)
+var ESTADOS = { abierto: 'Abierto', respondido: '✓ Respondido', trasladado: '↪ Trasladado a Precoodes' };
 // Cláusulas del contrato (contrato_secciones, mismo permiso y copia que contrato.html) y las elegidas para citar: { k: { k, t, ref } }
 var CACHE_CONTRATO = 'contrato_cache', contrato = null, elegidas = {};
 
@@ -52,7 +54,7 @@ function pintarLista() {
         return '<div class="item-pqr' + (esHoy(p) ? ' de-hoy' : '') + '" data-id="' + esc(p.id) + '" role="button" tabindex="0">' +
             '<span class="cab"><b>' + esc(p.radicado ? 'ID ' + p.radicado : 'Sin ID') + '</b>' +
             (esHoy(p) ? '<span class="badge hoy">🆕 Hoy</span>' : '') +
-            '<span class="badge ' + esc(p.estado) + '">' + (p.estado === 'respondido' ? '✓ Respondido' : 'Abierto') + '</span>' +
+            '<span class="badge ' + esc(p.estado) + '">' + (ESTADOS[p.estado] || 'Abierto') + '</span>' +
             (p.fecha_pqr ? '<span class="sub">' + esc(p.fecha_pqr) + '</span>' : '') + '</span>' +
             '<span class="dir">' + esc([p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección') + '</span>' +
             '<span class="sub">' + esc((p.queja || '').slice(0, 140)) + (p.queja && p.queja.length > 140 ? '…' : '') + '</span>' +
@@ -125,7 +127,7 @@ async function pintarRecorrido() {
     var linea = (inicio ? [[inicio.lat, inicio.lng]] : []).concat(ruta.map(function (x) { return [x.lat, x.lng]; }));
     if (linea.length > 1) L.polyline(linea, { color: '#167a55', weight: 3, opacity: .7, dashArray: '6 6' }).addTo(capaRec);
     ruta.forEach(function (x, i) {
-        var tipo = x.hoy ? 'hoy' : x.p.estado === 'respondido' ? 'respondido' : 'abierto';
+        var tipo = x.hoy ? 'hoy' : ESTADOS[x.p.estado] ? x.p.estado : 'abierto';
         L.marker([x.lat, x.lng], { zIndexOffset: x.hoy ? 1000 : 0,
             icon: L.divIcon({ className: '', html: '<span class="pin-rec ' + tipo + '">' + (i + 1) + '</span>', iconSize: [28, 28], iconAnchor: [14, 14] }) })
             .bindPopup('<b>' + (i + 1) + '. ' + esc(x.p.radicado ? 'ID ' + x.p.radicado : 'Sin ID') + '</b>' + (x.hoy ? ' 🆕 Hoy' : '') + '<br>' +
@@ -188,6 +190,7 @@ function abrir(p) {
     $('v-cobro').checked = v.cobro != null ? !!v.cobro : hablaDeCobro(p.queja);
     $('v-obs').value = v.observacion || '';
     $('respuesta').value = p.respuesta || '';
+    ['tr-precoodes', 'tr-grupo'].forEach(function (id) { delete $(id).dataset.mano; });
     elegidas = {};
     (v.clausulas || []).forEach(function (c) { if (c && c.k) elegidas[c.k] = c; });
     $('contrato-buscar').value = '';
@@ -252,6 +255,7 @@ function actualizar() {
     $('btn-llamar').href = 'tel:' + tel;
     $('cobro-auto').textContent = hablaDeCobro($('texto').value) ? '(la queja habla de cobro o factura)' : '';
     pintarTemas();
+    armarTraslado();
     propuestas = armarRespuestas(datos());
     $('propuestas').innerHTML = propuestas.map(function (r, i) {
         return '<div class="propuesta"><div class="cab"><b>' + esc(r.titulo) + '</b>' +
@@ -259,6 +263,30 @@ function actualizar() {
             '<button type="button" class="primario pequeno" data-usar="' + i + '">Usar esta</button></div>' +
             '<p>' + esc(r.texto).replace(/\n/g, '<br>') + '</p></div>';
     }).join('');
+}
+
+// ---------- Daño durante el corte: pasar el caso a Precoodes ----------
+// Dos mensajes para WhatsApp: el caso completo al grupo «PQR corte césped Precoodes» y el aviso al grupo propio.
+// Se rehacen con los datos hasta que se cambien a mano
+function armarTraslado() {
+    var id = $('f-id').value.trim(), barrio = $('f-barrio').value.trim(), visita = $('v-visita').value, obs = $('v-obs').value.trim();
+    var queja = $('texto').value.trim().replace(/\s+/g, ' ');
+    var textos = {
+        'tr-precoodes': ['🚨 *Traslado de PQR: daño durante el corte de césped*',
+            '*ID:* ' + (id || 's/n') + ($('f-fecha').value ? ' · ' + fechaLarga($('f-fecha').value) : ''),
+            '*Usuario:* ' + [$('f-nombre').value.trim(), $('f-telefono').value.trim()].filter(Boolean).join(' · '),
+            '*Dirección:* ' + [$('f-direccion').value.trim(), barrio].filter(Boolean).join(' · '),
+            '*Queja:* ' + (queja.length > 600 ? queja.slice(0, 600) + '…' : queja),
+            visita || obs ? '*Visita' + (visita ? ' del ' + fechaLarga(visita) : '') + ':* ' + (obs || 'se verificó la afectación reportada.') : '',
+            '', 'Quedan a cargo de la gestión con el usuario (verificación, arreglo o pago de los daños). Por favor informen cuando quede resuelto, con el soporte.']
+            .filter(function (l, i, a) { return l || a[i - 1]; }).join('\n'),
+        'tr-grupo': '📌 *PQR ' + (id || 's/n') + '*' + (barrio ? ' (' + barrio + ')' : '') + ': daño durante el corte. Se trasladó el ' + fechaLarga(hoy()) +
+            ' al grupo *PQR corte césped Precoodes*, quienes siguen con la gestión.',
+    };
+    Object.keys(textos).forEach(function (k) {
+        if (!$(k).dataset.mano) $(k).value = textos[k];
+        document.querySelector('[data-tr-whatsapp="' + k + '"]').href = 'https://wa.me/?text=' + encodeURIComponent($(k).value);
+    });
 }
 
 // ---------- Dónde queda: coordenadas de la dirección y zona EMV ----------
@@ -459,16 +487,16 @@ async function guardar(estado) {
     if (!f.radicado && !f.direccion && !f.queja) return toast('Escriba o lea la queja antes de guardar.');
     if (revisarRepetido()) return toast('El ID ' + f.radicado + ' ya se encuentra guardado: abra ese PQR.');
     if (estado === 'respondido' && !f.respuesta) return toast('Falta la respuesta final: toque «Usar esta» en una propuesta.');
-    ['btn-guardar', 'btn-respondido'].forEach(function (id) { $(id).disabled = true; });
+    ['btn-guardar', 'btn-respondido', 'btn-trasladado'].forEach(function (id) { $(id).disabled = true; });
     var res = actual ? await supabase.from('pqrs').update(f).eq('id', actual.id).select().single()
                      : await supabase.from('pqrs').insert(f).select().single();
-    ['btn-guardar', 'btn-respondido'].forEach(function (id) { $(id).disabled = false; });
+    ['btn-guardar', 'btn-respondido', 'btn-trasladado'].forEach(function (id) { $(id).disabled = false; });
     if (res.error) return toast('No se guardó: ' + res.error.message);
     actual = res.data;
     pqrs = [actual].concat(pqrs.filter(function (p) { return p.id !== actual.id; }));
     try { localStorage.setItem(CACHE, JSON.stringify(pqrs)); } catch (e) {}
     $('btn-eliminar').hidden = false;
-    toast(estado === 'respondido' ? '✓ PQR respondido y guardado.' : 'PQR guardado.');
+    toast(estado === 'respondido' ? '✓ PQR respondido y guardado.' : estado === 'trasladado' ? '↪ PQR guardado como trasladado a Precoodes.' : 'PQR guardado.');
     cerrarPqr();   // vuelve a la lista con el mismo filtro (Todos, Abiertos…)
 }
 async function eliminar() {
@@ -519,7 +547,7 @@ async function arrancar() {
         return '<button type="button" role="radio" class="resultado" data-r="' + k + '" aria-checked="false">' + esc(RESULTADOS[k]) + '</button>';
     }).join('');
     $('resultados').onclick = function (ev) { var b = ev.target.closest('[data-r]'); if (b) { marcarResultado(b.dataset.r); actualizar(); } };
-    var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1 };
+    var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1, 'tr-precoodes': 1, 'tr-grupo': 1 };
     $('vista-pqr').addEventListener('input', function (ev) { if (ev.target.id === 'texto') leerTexto(); else if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
     $('vista-pqr').addEventListener('change', function (ev) { if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
     // Va antes que el de vista-pqr (está más adentro): la cláusula queda elegida antes de rehacer las respuestas
@@ -564,6 +592,15 @@ async function arrancar() {
     $('btn-volver').onclick = cerrarPqr;
     $('btn-guardar').onclick = function () { guardar(); };
     $('btn-respondido').onclick = function () { guardar('respondido'); };
+    $('btn-trasladado').onclick = function () { guardar('trasladado'); };
+    // Mensajes del traslado: lo escrito a mano se respeta; Copiar y WhatsApp llevan lo que esté en el cuadro
+    ['tr-precoodes', 'tr-grupo'].forEach(function (id) {
+        $(id).addEventListener('input', function () { this.dataset.mano = '1'; armarTraslado(); });
+    });
+    $('vista-pqr').addEventListener('click', function (ev) {
+        var c = ev.target.closest('[data-tr-copiar]');
+        if (c) copiar($(c.dataset.trCopiar).value);
+    });
     $('btn-eliminar').onclick = eliminar;
     $('buscar').addEventListener('input', pintarLista);
     document.querySelector('.filtros').onclick = function (ev) {

@@ -65,13 +65,14 @@
             <button type="button" class="filtro activo" data-estado="">Todos</button>
             <button type="button" class="filtro" data-estado="abierto">Abiertos</button>
             <button type="button" class="filtro" data-estado="respondido">Respondidos</button>
+            <button type="button" class="filtro" data-estado="trasladado">↪ Trasladados</button>
             <button type="button" class="filtro hoy" data-estado="hoy">🆕 Hoy</button>
         </div>
         <!-- Recorrido: los PQR de la lista (con el filtro y la búsqueda) en el mapa, numerados en el orden de visita -->
         <div id="recorrido" hidden>
             <div id="rec-estado" class="sub"></div>
             <div id="rec-mapa"></div>
-            <div class="rec-leyenda sub"><span class="punto hoy"></span> De hoy <span class="punto abierto"></span> Abierto <span class="punto respondido"></span> Respondido</div>
+            <div class="rec-leyenda sub"><span class="punto hoy"></span> De hoy <span class="punto abierto"></span> Abierto <span class="punto respondido"></span> Respondido <span class="punto trasladado"></span> Trasladado</div>
             <a class="boton primario" id="rec-google" target="_blank" rel="noopener" hidden>🧭 Abrir el recorrido en Google Maps</a>
             <ol id="rec-lista"></ol>
         </div>
@@ -138,6 +139,20 @@
             <label class="campo ancho">OBSERVACIÓN (se agrega a la respuesta)
                 <textarea id="v-obs" rows="2" placeholder="Ej.: Se evidencia el frente de la vivienda intervenido, con registro fotográfico."></textarea>
             </label>
+            <!-- Daño durante el corte: el caso pasa al grupo de WhatsApp de Precoodes, que sigue la gestión, y se avisa al grupo propio -->
+            <div class="traslado" data-si="danos">
+                <h3>↪ Pasar el caso a Precoodes</h3>
+                <label class="campo ancho"><span>PARA EL GRUPO «PQR CORTE CÉSPED PRECOODES» <span class="sub">(puede cambiarlo antes de enviarlo)</span></span>
+                    <textarea id="tr-precoodes" rows="9"></textarea></label>
+                <div class="acciones"><button type="button" class="secundario pequeno" data-tr-copiar="tr-precoodes">📋 Copiar</button>
+                    <a class="boton secundario pequeno" data-tr-whatsapp="tr-precoodes" target="_blank" rel="noopener">💬 WhatsApp</a></div>
+                <label class="campo ancho"><span>PARA SU GRUPO</span>
+                    <textarea id="tr-grupo" rows="3"></textarea></label>
+                <div class="acciones"><button type="button" class="secundario pequeno" data-tr-copiar="tr-grupo">📋 Copiar</button>
+                    <a class="boton secundario pequeno" data-tr-whatsapp="tr-grupo" target="_blank" rel="noopener">💬 WhatsApp</a>
+                    <span class="espacio"></span>
+                    <button type="button" class="primario pequeno" id="btn-trasladado">↪ Guardar como trasladado</button></div>
+            </div>
         </div>
 
         <div class="tarjeta-pqr" id="tarjeta-contrato">

@@ -31,6 +31,7 @@ input:focus, select:focus, textarea:focus { outline: 2px solid var(--brand); out
 .item-pqr .dir { font-weight: 600; }
 .badge { font-size: 12px; font-weight: 700; padding: 1px 8px; border-radius: 99px; background: var(--aviso-bg); color: var(--aviso); }
 .badge.respondido { background: var(--ok-bg); color: var(--ok); }
+.badge.trasladado { background: #ede9fe; color: #6d28d9; }
 
 .volver { background: none; color: var(--brand); padding: 4px 0; margin-bottom: 8px; }
 .tarjeta-pqr { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
@@ -142,3 +143,11 @@ html:has(dialog[open]) { overflow: hidden; }
 #rec-lista li.sin-ubicar::marker { content: '– '; }
 #rec-lista .enlace { background: none; padding: 2px 0; font-weight: 400; text-align: left; color: var(--ink); }
 #rec-lista .enlace:hover { color: var(--brand); }
+/* Daño durante el corte: pasar el caso a Precoodes */
+.traslado { margin-top: 14px; padding: 12px; border: 1px solid #ddd6fe; background: #faf5ff; border-radius: 12px; }
+.traslado h3 { margin: 0; font-size: 15px; color: #6d28d9; }
+.traslado .campo.ancho { margin-top: 8px; }
+.traslado .acciones { margin: 6px 0 0; align-items: center; }
+.traslado textarea { font-size: 14px; }
+.pin-rec.trasladado { background: #7c3aed; }
+.rec-leyenda .punto.trasladado { background: #7c3aed; }
