@@ -59,6 +59,8 @@ function pintarLista() {
             (res ? '<span class="sub">Visita: ' + esc(res) + '</span>' : '') +
             '<span class="acciones-item"><button type="button" class="primario pequeno" data-responder>' + (p.estado === 'respondido' ? '📄 Ver respuesta' : '✍️ Responder') + '</button>' +
             '<button type="button" class="secundario pequeno" data-editar>✏️ Editar</button>' +
+            (p.direccion ? '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="mapa_rapido.html?q=' + encodeURIComponent(p.direccion) +
+                '" title="Abre el mapa con el pin en la dirección">🗺️ Ver en el mapa</a>' : '') +
             '<button type="button" class="peligro pequeno" data-borrar>🗑 Borrar</button></span></div>';
     }).join('');
     if (!$('recorrido').hidden) pintarRecorrido();
@@ -549,6 +551,10 @@ async function arrancar() {
     $('ll-texto').addEventListener('input', enlaceWhatsapp);
     $('ll-copiar').onclick = function () { copiar($('ll-texto').value); };
     $('ll-cerrar').onclick = function () { $('dlg-llamado').close(); };
+    $('ll-ampliar').onclick = function () {
+        var c = $('dlg-llamado').classList.toggle('completo');
+        this.setAttribute('aria-pressed', c); this.textContent = c ? '⤡' : '⤢'; this.title = c ? 'Volver al tamaño normal' : 'Pantalla completa';
+    };
     $('ya-existe').onclick = function (ev) {
         var b = ev.target.closest('[data-abrir-repetido]');
         if (b) abrir(pqrs.find(function (p) { return p.id === b.dataset.abrirRepetido; }));
@@ -567,7 +573,7 @@ async function arrancar() {
     };
     $('lista').onclick = function (ev) {
         var b = ev.target.closest('[data-id]');
-        if (!b) return;
+        if (!b || ev.target.closest('a')) return;   // 🗺️ Ver en el mapa abre su propia pestaña
         var p = pqrs.find(function (x) { return x.id === b.dataset.id; }), del = ev.target.closest('[data-borrar]');
         if (!p) return;
         if (del) {
