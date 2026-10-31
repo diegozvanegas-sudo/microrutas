@@ -151,3 +151,12 @@ html:has(dialog[open]) { overflow: hidden; }
 .traslado textarea { font-size: 14px; }
 .pin-rec.trasladado { background: #7c3aed; }
 .rec-leyenda .punto.trasladado { background: #7c3aed; }
+/* Conteo en los filtros y páginas de la lista */
+.filtros { flex-wrap: wrap; }
+.filtro .n { display: inline-block; min-width: 18px; margin-left: 5px; padding: 0 5px; border-radius: 99px; background: #eef2f1; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
+.filtro.activo .n { background: var(--brand); color: #fff; }
+.paginas { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
+.paginas label { display: flex; gap: 6px; align-items: center; }
+.paginas select { width: auto; padding: 4px 8px; font-size: 14px; }
+.pag-botones { display: flex; gap: 4px; align-items: center; margin-left: auto; }
+.pag-botones button { min-width: 32px; }

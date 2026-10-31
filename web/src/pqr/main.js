@@ -38,17 +38,41 @@ function copiar(texto) {
 // De hoy: la fecha del PQR es hoy, o se registró hoy
 function fechaLocal(t) { var d = new Date(t); return isNaN(d) ? '' : d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
 function esHoy(p) { return p.fecha_pqr === hoy() || (!!p.creado && fechaLocal(p.creado) === hoy()); }
-function visibles() {
+function enFiltro(p, f) { return !f || (f === 'hoy' ? esHoy(p) : p.estado === f); }
+function buscados() {
     var q = plano($('buscar').value.trim());
-    return pqrs.filter(function (p) {
-        return (!filtro || (filtro === 'hoy' ? esHoy(p) : p.estado === filtro)) && (!q || plano([p.radicado, p.direccion, p.barrio, p.nombre, p.queja].join(' ')).indexOf(q) >= 0);
-    });
+    return pqrs.filter(function (p) { return !q || plano([p.radicado, p.direccion, p.barrio, p.nombre, p.queja].join(' ')).indexOf(q) >= 0; });
 }
+function visibles() { return buscados().filter(function (p) { return enFiltro(p, filtro); }); }
+// Páginas: tamaño guardado en el equipo; la página vuelve a la 1 al cambiar el filtro o la búsqueda
+var PAG = 'pqr_por_pagina', pagina = 1, porPagina = 10;
+try { porPagina = +localStorage.getItem(PAG) || 10; } catch (e) {}
 function pintarLista() {
-    var vis = visibles();
+    var vis = visibles(), todos = buscados();
+    // Conteo en cada filtro (con la búsqueda que haya escrita)
+    document.querySelectorAll('.filtro').forEach(function (b) {
+        var n = b.querySelector('.n') || b.appendChild(document.createElement('span'));
+        n.className = 'n';
+        n.textContent = todos.filter(function (p) { return enFiltro(p, b.dataset.estado); }).length;
+    });
     $('estado').hidden = !!vis.length;
     if (!vis.length) $('estado').textContent = pqrs.length ? 'No hay PQR con ese filtro.' : 'Aún no hay PQR. Toque «+ Nuevo PQR» y tome la foto de la queja.';
-    $('lista').innerHTML = vis.map(function (p) {
+    var total = Math.max(1, Math.ceil(vis.length / porPagina));
+    pagina = Math.min(Math.max(1, pagina), total);
+    var desde = (pagina - 1) * porPagina, hasta = Math.min(vis.length, desde + porPagina);
+    $('paginas').hidden = !vis.length;
+    $('pag-tam').value = porPagina;
+    $('pag-rango').textContent = vis.length ? (desde + 1) + '–' + hasta + ' de ' + vis.length + ' PQR' : '';
+    var nums = [];
+    for (var i = 1; i <= total; i++) if (i === 1 || i === total || Math.abs(i - pagina) <= 1) nums.push(i); else if (nums[nums.length - 1] !== '…') nums.push('…');
+    $('pag-botones').innerHTML = total < 2 ? '' :
+        '<button type="button" class="secundario pequeno" data-pag="' + (pagina - 1) + '"' + (pagina === 1 ? ' disabled' : '') + ' aria-label="Página anterior">‹</button>' +
+        nums.map(function (n) {
+            return n === '…' ? '<span class="sub">…</span>' : '<button type="button" class="pequeno ' + (n === pagina ? 'primario' : 'secundario') + '" data-pag="' + n + '"' +
+                (n === pagina ? ' aria-current="page"' : '') + '>' + n + '</button>';
+        }).join('') +
+        '<button type="button" class="secundario pequeno" data-pag="' + (pagina + 1) + '"' + (pagina === total ? ' disabled' : '') + ' aria-label="Página siguiente">›</button>';
+    $('lista').innerHTML = vis.slice(desde, hasta).map(function (p) {
         var res = p.visita && RESULTADOS[p.visita.resultado];
         // Tarjeta con ✏️ Editar y 🗑 Borrar (borrar pide un segundo toque: «¿Borrar? Sí»)
         return '<div class="item-pqr' + (esHoy(p) ? ' de-hoy' : '') + '" data-id="' + esc(p.id) + '" role="button" tabindex="0">' +
@@ -602,11 +626,22 @@ async function arrancar() {
         if (c) copiar($(c.dataset.trCopiar).value);
     });
     $('btn-eliminar').onclick = eliminar;
-    $('buscar').addEventListener('input', pintarLista);
+    $('buscar').addEventListener('input', function () { pagina = 1; pintarLista(); });
+    $('pag-tam').onchange = function () {
+        porPagina = +this.value; pagina = 1;
+        try { localStorage.setItem(PAG, porPagina); } catch (e) {}
+        pintarLista();
+    };
+    $('pag-botones').onclick = function (ev) {
+        var b = ev.target.closest('[data-pag]');
+        if (!b || b.disabled) return;
+        pagina = +b.dataset.pag; pintarLista();
+        $('vista-lista').scrollIntoView({ block: 'start' });
+    };
     document.querySelector('.filtros').onclick = function (ev) {
         var b = ev.target.closest('[data-estado]');
         if (!b) return;
-        filtro = b.dataset.estado;
+        filtro = b.dataset.estado; pagina = 1;
         document.querySelectorAll('.filtro').forEach(function (x) { x.classList.toggle('activo', x === b); });
         pintarLista();
     };

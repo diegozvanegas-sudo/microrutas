@@ -78,6 +78,12 @@
         </div>
         <div id="estado" class="estado-carga">Cargando…</div>
         <div id="lista"></div>
+        <!-- Páginas de la lista: cuántos por página (5, 10, 15, 20; queda guardado en el equipo) -->
+        <div class="paginas" id="paginas" hidden>
+            <span class="sub" id="pag-rango"></span>
+            <label class="sub">Por página <select id="pag-tam"><option>5</option><option selected>10</option><option>15</option><option>20</option></select></label>
+            <span class="pag-botones" id="pag-botones"></span>
+        </div>
     </section>
 
     <!-- Un PQR: queja, visita y respuesta -->
