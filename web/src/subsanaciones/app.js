@@ -1978,7 +1978,7 @@ export function iniciar(api, CFG) {
     }
     $('nota-estilos').innerHTML = Object.keys(ESTILOS_NOTA).map(function (k) {
         var e = ESTILOS_NOTA[k];
-        return '<button type="button" role="radio" data-estilo="' + k + '" title="' + e.nombre + '" aria-label="' + e.nombre + '" style="background:' + e.fondo + ';outline:4px solid ' + e.acento + ';outline-offset:-8px"></button>';
+        return '<button type="button" role="radio" data-estilo="' + k + '" title="' + e.nombre + '" aria-label="' + e.nombre + '" style="background:' + e.fondo + ';outline:3px solid ' + e.acento + ';outline-offset:-6px"></button>';
     }).join('');
     // 🔢 Solo números: el celular muestra el teclado numérico (para el número del lote). Siempre arranca así;
     // quitarlo vale solo hasta cerrar la ventana
