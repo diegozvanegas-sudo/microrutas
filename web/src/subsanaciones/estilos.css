@@ -5,7 +5,8 @@
 body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--bg); font-size: 14px; }
 /* El encabezado está en src/encabezado.css (compartido con contrato.html) */
 .corto { display: none; }
-main { max-width: 1320px; margin: 0 auto; padding: 16px; }
+:root { --ancho-pagina: 1800px; } /* el encabezado se alinea con este ancho */
+main { max-width: var(--ancho-pagina); margin: 0 auto; padding: 16px; }
 button, .boton { font: inherit; border-radius: 8px; border: 0; padding: 8px 14px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
 .primario { color: #fff; background: var(--brand); }
 .primario:hover { background: var(--brand-dark); }
@@ -39,7 +40,7 @@ table { width: 100%; border-collapse: collapse; }
 th, td { text-align: left; padding: 10px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
 th { font-size: 12px; color: var(--muted); font-weight: 650; background: #f8fafb; }
 tr:last-child td { border-bottom: 0; }
-td.acciones { white-space: nowrap; }
+td.acciones { white-space: nowrap; width: 1%; text-align: right; }
 .vacio { padding: 30px; text-align: center; color: var(--muted); }
 .estado { display: inline-block; padding: 3px 9px; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .e-PENDIENTE { color: var(--pend); background: var(--pend-bg); }

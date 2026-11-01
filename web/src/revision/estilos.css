@@ -48,7 +48,8 @@
 }
 
 /* Lista de revisiones: misma estructura que Subsanaciones */
-main.lista-revisiones { max-width: 1320px; }
+:root:has(main.lista-revisiones) { --ancho-pagina: 1800px; }
+main.lista-revisiones { max-width: var(--ancho-pagina); }
 .resumen { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 10px; margin-bottom: 14px; }
 .resumen .tarjeta { margin: 0; padding: 12px 14px; cursor: pointer; }
 .resumen .tarjeta.activa { outline: 2px solid var(--brand); }
@@ -66,7 +67,7 @@ main.lista-revisiones { max-width: 1320px; }
 .fila-rev { cursor: pointer; }
 .fila-rev:hover > td { background: #f2fbf7; }
 .fila-rev .tit-ruta { font-weight: 800; font-size: 16px; display: block; overflow-wrap: anywhere; }
-td.acciones { white-space: nowrap; }
+td.acciones { white-space: nowrap; width: 1%; text-align: right; }
 td.acciones button { margin-left: 4px; }
 .fila-detalle > td { background: #fafcfb; }
 .badge { display: inline-block; padding: 2px 10px; border-radius: 999px; font-size: 12px; font-weight: 700; }
@@ -104,7 +105,7 @@ dialog::backdrop { background: rgba(15, 30, 25, .45); }
     .panel tr, .panel td { display: block; border: 0; }
     .panel td { padding: 3px 14px; }
     .fila-rev { border-top: 1px solid var(--line); padding: 8px 0; }
-    td.acciones { white-space: normal; padding-top: 6px; }
+    td.acciones { white-space: normal; width: auto; text-align: left; padding-top: 6px; }
     td.acciones button { margin: 0 4px 4px 0; }
     .paginador .sub { font-size: 12px; }
     dialog { width: 100%; max-width: 100%; max-height: 100dvh; margin: auto 0 0; border-radius: 14px 14px 0 0; }
