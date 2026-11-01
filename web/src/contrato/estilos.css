@@ -3,7 +3,7 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--bg); font-size: 15px; line-height: 1.5; }
-main { max-width: 1000px; margin: 0 auto; padding: 16px 16px 40px; }
+main { max-width: var(--ancho-pagina); margin: 0 auto; padding: 16px 16px 40px; }
 button { font: inherit; }
 .doc { color: var(--muted); font-size: 13px; margin: 0 0 10px; }
 .buscador input { width: 100%; font: inherit; font-size: 16px; padding: 12px 14px; border: 1px solid #b8c6cd; border-radius: 10px; background: #fff; }

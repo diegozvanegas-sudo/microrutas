@@ -14,3 +14,9 @@
 .grupo-wa .sub { overflow-wrap: anywhere; }
 .campo { display: block; font-size: 12px; font-weight: 700; color: var(--muted); letter-spacing: .02em; margin-top: 10px; }
 .campo input, .campo textarea { margin-top: 4px; font-weight: 400; letter-spacing: 0; }
+
+/* Pantalla ancha: las tarjetas una al lado de la otra */
+@media (min-width: 1000px) {
+    main.tarjetas-lado { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 0 14px; align-items: start; }
+    main.tarjetas-lado > p { grid-column: 1 / -1; }
+}

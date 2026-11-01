@@ -5,7 +5,6 @@
 body { margin: 0; font-family: "Segoe UI", Arial, sans-serif; color: var(--ink); background: var(--bg); font-size: 14px; }
 /* El encabezado está en src/encabezado.css (compartido con contrato.html) */
 .corto { display: none; }
-:root { --ancho-pagina: 1800px; } /* el encabezado se alinea con este ancho */
 main { max-width: var(--ancho-pagina); margin: 0 auto; padding: 16px; }
 button, .boton { font: inherit; border-radius: 8px; border: 0; padding: 8px 14px; cursor: pointer; font-weight: 600; text-decoration: none; display: inline-block; }
 .primario { color: #fff; background: var(--brand); }

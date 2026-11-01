@@ -1,5 +1,5 @@
 /* usuarios.html: lo propio de la página; botones, tabla, formulario y avisos vienen de subsanaciones/estilos.css */
-main { max-width: 1100px; }
+main { max-width: var(--ancho-pagina); }
 .tabla-usuarios td { vertical-align: middle; }
 .tabla-usuarios tr.inactivo td:not(.acciones) { opacity: .6; }
 .tu { font-size: 11px; font-weight: 700; color: var(--brand); background: #edf8f3; border-radius: 999px; padding: 1px 7px; }

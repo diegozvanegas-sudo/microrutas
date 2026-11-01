@@ -88,7 +88,7 @@ function pintar() {
             hechos.map(function (p) { return item(p, true); }).join('') + '</details>';
     }
     $('estado').hidden = !!abiertos.length;
-    if (!abiertos.length) $('estado').textContent = pendientes.length ? '🎉 Nada pendiente.' : 'Aún no hay pendientes. Anote arriba lo que queda por hacer.';
+    if (!abiertos.length) $('estado').textContent = pendientes.length ? '🎉 Nada pendiente.' : 'Aún no hay pendientes. Anote lo que queda por hacer.';
     var abierto = document.querySelector('details.hechos');
     $('lista').innerHTML = html;
     if (abierto && abierto.open && document.querySelector('details.hechos')) document.querySelector('details.hechos').open = true;

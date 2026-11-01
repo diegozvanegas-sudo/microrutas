@@ -1,6 +1,6 @@
 /* Horas extras (horas.html): sobre la base del informe diario (../diario/estilos.css) */
 /* Más específico que el main de ../diario/estilos.css, que Vite carga después (es compartido con Informe y Pendientes) */
-body > main { max-width: 1500px; }
+body > main { max-width: var(--ancho-pagina); }
 .cargas { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
 .carga { display: grid; gap: 2px; border: 2px dashed var(--line); border-radius: 12px; padding: 14px; cursor: pointer; background: #fbfdfc; overflow-wrap: anywhere; }
 .carga:hover, .carga.encima { border-color: var(--brand); background: #edf8f3; }

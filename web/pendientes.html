@@ -54,7 +54,7 @@
         </div>
     </details>
 </header>
-<main>
+<main class="pendientes">
     <section class="tarjeta nuevo">
         <h2>＋ Anotar</h2>
         <textarea id="nuevo" rows="3" placeholder="Un pendiente por renglón. Ej.:&#10;revisar pqr doce de octubre - robledo en la mañana&#10;en la tarde pqr manrique"></textarea>
@@ -80,8 +80,10 @@
         </div>
     </section>
 
+    <div class="col-lista">
     <div id="estado" class="estado-carga">Cargando…</div>
     <div id="lista"></div>
+    </div>
     <p class="nota-privada">🔒 Sus pendientes solo los ve usted (y el administrador). Lo que marque como hecho aparece en el 🗒️ Informe de ese día.</p>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
