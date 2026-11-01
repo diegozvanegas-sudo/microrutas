@@ -166,6 +166,8 @@ export var FRASES_RECORRIDO = [
     { t: 'Cestas', texto: 'Se verificó el estado de las cestas públicas en … ; se reportaron las que se encontraron llenas o en mal estado.' },
     { t: 'Contenedores', texto: 'Se verificó el estado y la limpieza de los contenedores ubicados en … ; se reportaron las novedades encontradas para su gestión.' },
     { t: 'Microrruta', texto: 'Se verificó el cumplimiento de la microrruta de recolección de residuos ordinarios en … .' },
+    { t: 'Segunda visita', texto: 'Se realizó verificación de las microrrutas … con novedades de recolección, en segunda visita para requerimiento.' },
+    { t: 'Segunda visita parcial', texto: 'Se realizó verificación de la microrruta … con novedades de recolección, en segunda visita para requerimiento: solo se recolectó … punto(s) de … .' },
     { t: 'Fuera de horario', texto: 'Se evidenció presentación de residuos fuera del horario de recolección en … ; se reportó para su gestión y sensibilización a la comunidad.' },
     { t: 'Sensibilización', texto: 'Se realizó sensibilización a la comunidad de … sobre la adecuada presentación de los residuos y los horarios de recolección.' },
     { t: 'Punto persiste', texto: 'El punto crítico de … persiste pese a la intervención; se reportó nuevamente a los grupos correspondientes para su gestión y seguimiento.' },

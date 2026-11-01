@@ -348,6 +348,16 @@
         if (a && capaFicha) a.href = urlComoLlegar(puntoCercano(capaFicha));
         var calle = ev.target.closest && ev.target.closest('a[data-calle]');
         if (calle && capaFicha) calle.href = urlCalle(puntoCercano(capaFicha));
+        var punto = ev.target.closest && ev.target.closest('[data-aqui-punto]');
+        if (punto) {
+            ev.preventDefault();
+            var c = punto.dataset.aquiPunto.split(',').map(Number);
+            fijada = { id: 'punto:' + punto.dataset.aquiPunto, nombre: punto.dataset.nombre, p: c, d: '', hora: Date.now() };
+            guardar(FIJADA, fijada); pintarFijada();
+            map.closePopup();
+            toast('📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.');
+            return;
+        }
         var aqui = ev.target.closest && ev.target.closest('[data-aqui]');
         if (aqui && capaFicha) {
             ev.preventDefault();
@@ -625,7 +635,8 @@
         capas.forEach(function (c) {
             var g = capasExtra[c.capa];
             if (!g.hasLayer(c)) { if (c.halo) g.addLayer(c.halo); g.addLayer(c); }
-            c.setStyle({ weight: 8, opacity: 1 }); c.bringToFront();
+            // 6 px: más grueso tapa las calles del lado y las pasadas de ida y vuelta se vuelven una mancha
+            c.setStyle({ weight: 6, opacity: 1 }); c.bringToFront();
             (c.datos.i || []).forEach(function (ll) { L.marker(ll, { icon: L.divIcon({ className: 'barrido-punta', html: '🟢', iconSize: [24, 24] }), title: 'Inicio ' + c.datos.n, zIndexOffset: 900 }).addTo(marcasBarrido); });
             (c.datos.f || []).forEach(function (ll) { L.marker(ll, { icon: L.divIcon({ className: 'barrido-punta', html: '🏁', iconSize: [24, 24], iconAnchor: [5, 22] }), title: 'Fin ' + c.datos.n, zIndexOffset: 900 }).addTo(marcasBarrido); });
         });
@@ -639,7 +650,9 @@
                 var x = c.datos;
                 return '<div class="mr">' + esc([capas.length > 1 && c.capa !== 'barrido_dom' ? x.n : '', CAPAS_RUTA[c.capa], x.z, textoJornada(x.j)].filter(Boolean).join(' · ')) + '</div>' +
                     (x.q || x.k || x.t || x.a ? '<div class="bloque"><div class="txt">' + esc([x.q, x.k && x.k + ' km', x.t].filter(Boolean).join(' · ')) +
-                        (x.a ? '<br><span style="color:#6b7c75;font-size:12px">Plano: ' + esc(x.a) + '</span>' : '') + '</div></div>' : '');
+                        (x.a ? '<br><span style="color:#6b7c75;font-size:12px">Plano: ' + esc(x.a) + '</span>' : '') +
+                        // tools/ajustar_a_calles.py: el plano venía con la ubicación corrida y se movió hasta quedar sobre sus calles
+                        (x.cr ? '<br><span style="color:#92400e;font-size:12px">⚠ El plano venía corrido unos ' + x.cr + ' m; se ubicó sobre sus calles.</span>' : '') + '</div></div>' : '');
             }).filter(function (h, i, a) { return a.indexOf(h) === i; }).join('') +
             '<div class="bloque"><div class="txt">🟢 Inicio · 🏁 Fin' + (capas.every(function (c) { return c.capa === 'rutas_ryt'; }) ? '' : ' · Barrer en sentido contrario al flujo vehicular. Los puntos de inicio, fin y recorrido son de obligatorio cumplimiento.') + '</div></div>' +
             '<div class="acciones">' +
@@ -1333,8 +1346,13 @@
         estadoRuta = null;
         marcadores.clearLayers();
         puntoCapa.clearLayers();
+        // Al tocarlo: "Estoy aquí" toma el punto buscado como su ubicación (en el computador la del navegador sale por la
+        // red y puede estar a kilómetros)
         L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#7c3aed', fillOpacity: 1, bubblingMouseEvents: false })
-            .bindTooltip('📍 ' + txt, { direction: 'top', offset: [0, -8] }).addTo(puntoCapa);
+            .bindTooltip('📍 ' + txt, { direction: 'top', offset: [0, -8] })
+            .bindPopup('<div><b>' + esc(c.buscado || txt) + '</b><br><button type="button" class="boton secundario" style="margin-top:6px" data-aqui-punto="' +
+                c.lat + ',' + c.lng + '" data-nombre="' + esc(c.buscado || txt) + '">📍 Estoy aquí</button></div>')
+            .addTo(puntoCapa);
         $('buscar').value = c.buscado || txt;
         // Solo se cargan las cuadrillas cuyo recuadro (con margen) incluye el punto
         var cuads = ordenCuad.filter(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b).pad(0.05).contains(ll); });

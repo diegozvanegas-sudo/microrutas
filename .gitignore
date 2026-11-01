@@ -8,3 +8,7 @@ supabase/.branches/
 
 # Contrato y resumen: privados (se cargan a Supabase, no al repositorio público)
 datos/contrato/
+
+# Calles de OpenStreetMap descargadas por web/tools/ajustar_a_calles.py
+web/tools/.cache_osm_vias.json
+__pycache__/

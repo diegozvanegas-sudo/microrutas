@@ -1,6 +1,6 @@
 """Microrrutas de LV o RyT desde los GeoPDF de Emvarias (un .zip con un plano por ruta) a una capa del mapa rápido.
 
-    python tools/rutas_desde_geopdf.py <planos.zip> <capa> [--muestra N]
+    python tools/rutas_desde_geopdf.py <planos.zip> <capa> [--muestra N] [--sin-calles]
     p. ej. python tools/rutas_desde_geopdf.py LV.zip rutas_lv
 
 Los planos los exporta ArcMap como GeoPDF: cada marco del mapa (/VP) trae su /Measure con las esquinas en lat/lng, así
@@ -14,7 +14,8 @@ el más reciente (año y versión del nombre del archivo).
 La jornada sale de la carpeta del plano: ZONA 7Am_Semana (Mañana), Z4_BLOQUE_LaS_PM o ZONA 7Pm_Dom_Fes (Tarde),
 ZONA 7Noc_Semana o Z4_BLOQUE_LaS_NOC (Noche). Si la carpeta no la dice, la ruta queda sin jornada.
 Escribe public/data/rapido/capa_<capa>.js, lo agrega a indice.js y deja <capa>_informe.csv junto al .zip.
-Necesita: pip install pymupdf numpy
+Al final cada ruta se pega al eje de las calles de OpenStreetMap (ajustar_a_calles.py); --sin-calles lo omite.
+Necesita: pip install pymupdf numpy shapely
 """
 import csv, json, os, re, sys, zipfile
 from concurrent.futures import ProcessPoolExecutor
@@ -298,6 +299,11 @@ if __name__ == '__main__':
         if jornada(archivo): it['j'] = jornada(archivo)
         items.append(it)
     for it, c in zip(items, colorear([mejor[it['n']][1]['lineas'] for it in items])): it['c'] = c
+    # Trazo pegado al eje de las calles de OSM (ajustar_a_calles.py); --sin-calles lo deja como sale del plano
+    if '--sin-calles' not in sys.argv:
+        import ajustar_a_calles
+        V = ajustar_a_calles.vias()
+        for it in items: ajustar_a_calles.ajustar_ruta(V, it)
     with open(os.path.splitext(ZIP)[0] + '_' + CAPA + '_informe.csv', 'w', newline='', encoding='utf-8-sig') as f:
         csv.writer(f, delimiter=';').writerows([['archivo', 'codigo', 'estado', 'nota', 'frecuencia', 'km', 'tramos']] + informe)
     js = 'cargarCapa(%s,%s);\n' % (json.dumps(CAPA), json.dumps({'tipo': 'linea', 'items': items}, ensure_ascii=False, separators=(',', ':')))
