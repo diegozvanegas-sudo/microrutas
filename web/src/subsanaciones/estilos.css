@@ -271,7 +271,7 @@ fieldset { min-width: 0; }
 .ruta-cab [data-ruta="plegar"] { cursor: pointer; }
 .ruta-plegar { background: transparent; color: var(--muted); padding: 4px 8px; font-size: 18px; line-height: 1; transition: transform .2s; }
 .ruta-card.plegada .ruta-plegar { transform: rotate(-90deg); }
-.ruta-card.plegada .ruta-acciones, .ruta-card.plegada .paradas { display: none; }
+.ruta-card.plegada .ruta-acciones, .ruta-card.plegada .paradas, .ruta-card.plegada .plazo-vencido, .ruta-card.plegada .ubic { display: none; }
 .ruta-card.plegada .progreso { margin-bottom: 12px; }
 .ruta-completa { --c: #1e3a8a; } /* azul oscuro: no se confunde con la Cuadrilla 1 */
 .ruta-completa .ruta-cab { padding-bottom: 0; }

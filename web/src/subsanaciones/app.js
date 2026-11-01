@@ -1240,7 +1240,7 @@ export function iniciar(api, CFG) {
 
         var nombre = function (x) { return x.lote ? 'Lote ' + x.lote : x.mr || x.id; };
         var idMapa = function (x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; };
-        var plegada = !!plegadas['*todas'];
+        var plegada = !abiertas['*todas'];
         var cuads = function (x) { return x.cuads.map(function (c) { return c === 'pre-ruta' ? 'Sin cuadrilla' : 'C' + c; }).join(', '); };
         var todos = orden.length + orden.sinUbic.length + orden.curso.length;
         return '<div class="ruta-card ruta-completa' + (plegada ? ' plegada' : '') + '">' +
@@ -1375,12 +1375,10 @@ export function iniciar(api, CFG) {
         repartirSinCuadrilla(false);
     })();
 
-    // Pre-rutas plegadas en este dispositivo, por cuadrilla
-    var plegadas;
-    try { plegadas = JSON.parse(localStorage.getItem('subsanaciones_plegadas')) || {}; } catch (e) { plegadas = {}; }
+    // Pre-rutas abiertas, por cuadrilla: cada vez que se entra a la página salen todas cerradas
+    var abiertas = {};
     function plegar(cuad, si) {
-        if (si) plegadas[cuad || ''] = 1; else delete plegadas[cuad || ''];
-        try { localStorage.setItem('subsanaciones_plegadas', JSON.stringify(plegadas)); } catch (e) {}
+        if (si) delete abiertas[cuad || '']; else abiertas[cuad || ''] = 1;
     }
 
     // Lote ya revisado (tiene visita registrada): sale de la pre-ruta; la visita sigue en la tabla de abajo
@@ -1481,7 +1479,7 @@ export function iniciar(api, CFG) {
                 // lote:ID de la visita, para el botón "Ver detalles de la visita" en la ficha del mapa
                 '&visitas=' + enMapa.filter(function (x) { return x.visita; }).map(function (x) { return idMapa(x) + ':' + x.visita.ID; }).join(',') : '';
             var prev = posicion, prevUsted = !!posicion;
-            var plegada = !!plegadas[ruta.cuad || ''];
+            var plegada = !abiertas[ruta.cuad || ''];
             // Cada pre-ruta con el color de su cuadrilla (el mismo del mapa rápido) para distinguirlas de un vistazo
             var col = colorCuadrilla(ruta.cuad);
             return '<div class="ruta-card' + (plegada ? ' plegada' : '') + '" style="--c:' + col + '">' +
@@ -1576,12 +1574,12 @@ export function iniciar(api, CFG) {
         if (ed) return abrir(registros.find(function (r) { return r.ID === ed.dataset.editar; }));
         var b = ev.target.closest('[data-ruta]');
         if (!b) return;
-        if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !plegadas['*todas']); return pintarRutas(); }
+        if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !!abiertas['*todas']); return pintarRutas(); }
         var ruta = rutas[+b.dataset.ri], accion = b.dataset.ruta;
         if (accion === 'nueva') return abrirDlgRuta();
         if (accion === 'aqui') { fijar(b.dataset.id); pintarRutas(); return toast(fijada ? '📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.' : 'Ese lote no tiene ubicación ni dirección.'); }
         if (accion === 'soltar') { soltar(); pintarRutas(); return toast('Se usa de nuevo el GPS del celular.'); }
-        if (accion === 'plegar') { plegar(ruta.cuad, !plegadas[ruta.cuad || '']); return pintarRutas(); }
+        if (accion === 'plegar') { plegar(ruta.cuad, !!abiertas[ruta.cuad || '']); return pintarRutas(); }
         if (accion === 'despues' || accion === 'ahora') {
             aplazar(ruta, b.dataset.id, accion === 'despues');
             guardarRutas(); subirRuta(ruta); pintarRutas();
