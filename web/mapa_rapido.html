@@ -31,6 +31,12 @@
     .chip.filtro { font-weight: 500; }
     .chip.filtro[aria-pressed="true"] { border-color: #0369a1; background: #e0f2fe; box-shadow: inset 0 0 0 1px #0369a1; }
     .separador { flex: none; width: 1px; background: var(--line); margin: 4px 2px; }
+    /* Computador: los botones bajan a otra fila en vez de salirse de la pantalla; el filtro de rutas va en su propia fila */
+    @media (min-width: 761px) { .chips { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; } }
+    .salto { flex-basis: 100%; height: 0; }
+    .grupo, .grupo-cuerpo { display: contents; }
+    .sec { display: none; }
+    .et-grupo { flex: none; align-self: center; font-size: 12px; font-weight: 650; color: var(--muted); margin-right: 2px; }
     #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #map { flex: 1; min-height: 0; }
     .leaflet-bar a { color: var(--ink); }
@@ -143,11 +149,18 @@
                       box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 14px calc(16px + env(safe-area-inset-bottom)); max-height: 72vh; overflow-y: auto;
                       transform: translateY(105%); transition: transform .22s ease; }
         body:not(.barra-plegada) #hoja-capas { transform: none; }
-        #hoja-capas .chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; overflow: visible; padding: 0; }
+        #hoja-capas .chips { display: block; overflow: visible; padding: 0; }
+        #hoja-capas .grupo { display: block; border-top: 1px solid var(--line); }
+        #hoja-capas .grupo:first-child { border-top: 0; }
+        #hoja-capas .sec { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 2px; background: none; color: var(--ink); border-radius: 0; font-size: 16px; text-align: left; }
+        #hoja-capas .sec .res { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13px; font-weight: 500; text-align: right; }
+        #hoja-capas .sec .flecha { flex: none; width: 18px; color: var(--muted); }
+        #hoja-capas .grupo-cuerpo { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; padding-bottom: 12px; }
+        #hoja-capas .grupo.plegado .grupo-cuerpo { display: none; }
         #hoja-capas .chip { justify-content: center; padding: 13px 4px; font-size: 15px; border-radius: 12px; }
         #hoja-capas .chip .punto { width: 12px; height: 12px; }
-        #hoja-capas .separador { grid-column: 1 / -1; width: auto; height: 1px; margin: 4px 0; }
-        #hoja-capas [data-todas], #hoja-capas [data-cuad="sin"], #hoja-capas .chip.modo, #hoja-capas .chip.capa { grid-column: span 2; }
+        #hoja-capas .separador, #hoja-capas .salto, #hoja-capas .et-grupo { display: none; }
+        #hoja-capas [data-todas], #hoja-capas [data-cuad="sin"], #hoja-capas .chip.modo, #hoja-capas .chip.capa, #hoja-capas [data-fjor] { grid-column: span 2; }
         #btn-completo .txt { display: none; }
         #btn-completo .ico { display: inline; }
     }
@@ -455,7 +468,7 @@
         grupos[c] = g;
         terminar('lotes_' + c);
     };
-    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: '☀️ Barrido dom/fest', barrido_noche: '🌙 Barrido noche', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: '☀️ Barrido dom/fest', barrido_manana: '☀️ Barrido mañana', barrido_tarde: '🌇 Barrido tarde', barrido_noche: '🌙 Barrido noche', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
     var ESTILOS_CAPA = {
         comunas: { color: '#e41a1c', weight: 2, fill: false },
         operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
@@ -466,7 +479,10 @@
         puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false },
         // Microrrutas de barrido (plano de Emvarias, tools/barrido_desde_pdf.py): cada una con su color del plano
         barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false },
-        // Barrido nocturno de la Zona 7: mismo trazo, con borde azul noche (no blanco) para no confundirlo con el de día
+        // Barrido de lunes a sábado por jornada (planos generales de la Zona 7 y la Zona 9): mismo trazo; el borde dice la
+        // jornada: blanco la mañana, café la tarde y azul noche la noche
+        barrido_manana: { weight: 4, opacity: .95, bubblingMouseEvents: false },
+        barrido_tarde: { weight: 4, opacity: .95, bubblingMouseEvents: false },
         barrido_noche: { weight: 4, opacity: .95, bubblingMouseEvents: false },
         // Microrrutas de LV y RyT (GeoPDF de Emvarias, tools/rutas_desde_geopdf.py): cada ruta con su color (p.c, distinto
         // al de sus vecinas); RyT punteada para no confundirla con LV
@@ -474,8 +490,10 @@
         rutas_ryt: { weight: 3, opacity: .9, dashArray: '7 5', bubblingMouseEvents: false }
     };
     // Capas de microrrutas: al tocar una se resalta, salen inicio y fin y se abre su ficha
-    var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', barrido_noche: 'Microrruta de barrido nocturno', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
-    var BORDE_RUTA = { barrido_dom: '#fff', barrido_noche: '#1e1b4b' };
+    var CAPAS_RUTA = { barrido_dom: 'Microrruta de barrido', barrido_manana: 'Microrruta de barrido de mañana', barrido_tarde: 'Microrruta de barrido de tarde',
+        barrido_noche: 'Microrruta de barrido nocturno', rutas_lv: 'Microrruta LV', rutas_ryt: 'Microrruta RyT' };
+    var BORDE_RUTA = { barrido_dom: '#fff', barrido_manana: '#fff', barrido_tarde: '#78350f', barrido_noche: '#1e1b4b' };
+    function opacidadBorde(k) { return BORDE_RUTA[k] === '#fff' ? .7 : .85; }
     // Jornada de la ruta (j), de la carpeta o del plano: Mañana, Tarde o Noche; sin dato si el plano no la dice
     var JORNADAS = [['Mañana', '☀️ Mañana'], ['Tarde', '🌇 Tarde'], ['Noche', '🌙 Noche'], ['-', 'Sin jornada']];
     function textoJornada(j) { var x = JORNADAS.filter(function (p) { return p[0] === j; })[0]; return x ? x[1] : ''; }
@@ -513,7 +531,7 @@
             if (CAPAS_RUTA[k]) {
                 // Borde blanco debajo: las rutas negras y azules no se verían sobre la ortofoto (LV y RyT son rojo y
                 // morado, se ven sin él, y son miles: el borde duplicaría lo que hay que pintar)
-                if (BORDE_RUTA[k]) capa.halo = L.polyline(capa.getLatLngs(), { color: BORDE_RUTA[k], weight: k === 'barrido_noche' ? 8 : 7, opacity: k === 'barrido_noche' ? .85 : .7, interactive: false });
+                if (BORDE_RUTA[k]) capa.halo = L.polyline(capa.getLatLngs(), { color: BORDE_RUTA[k], weight: BORDE_RUTA[k] === '#fff' ? 7 : 8, opacity: opacidadBorde(k), interactive: false });
                 capa.datos = p; capa.capa = k;
                 capa.bindTooltip(esc(p.n) + (p.j ? ' · ' + textoJornada(p.j) : ''), { sticky: true });
                 capa.on('click', function () { verBarrido([capa]); });
@@ -554,11 +572,12 @@
     // Código completo de LV, RyT o barrido nocturno (Z2R91LJ, Z7R215_DOM, Z7R417NOC): se busca en las capas de rutas
     // encendidas, o en todas si no hay ninguna, y se enciende la que lo tenga. Si no está, sigue como código de barrido.
     function codigoRuta(v) { v = String(v).trim().toUpperCase(); return /^Z\d+R\d+[A-Z]*(?:_DOM)?$/.test(v) && v; }
-    function buscarRutas(cods, siNo) {
-        var ks = ['rutas_lv', 'rutas_ryt', 'barrido_noche'].filter(function (k) { return IDX.capas && IDX.capas[k]; });
+    // Si no está en las encendidas, se busca en todas (todas = true)
+    function buscarRutas(cods, siNo, todas) {
+        var ks = ['rutas_lv', 'rutas_ryt', 'barrido_manana', 'barrido_tarde', 'barrido_noche'].filter(function (k) { return IDX.capas && IDX.capas[k]; });
         var activasR = ks.filter(function (k) { return capasActivas.indexOf(k) !== -1; });
-        // Un código NOC solo está en el barrido nocturno: se busca ahí aunque esa capa esté apagada
-        if (activasR.length) ks = ks.filter(function (k) { return activasR.indexOf(k) !== -1 || (k === 'barrido_noche' && cods.some(function (c) { return /NOC$/.test(c); })); });
+        if (activasR.length && !todas) ks = activasR;
+        else todas = true;
         var faltan = ks.length;
         $('estado').textContent = 'Buscando la microrruta…';
         ks.forEach(function (k) {
@@ -567,12 +586,13 @@
                 var capas = [];
                 ks.forEach(function (k) {
                     var esta = false;
-                    capasExtra[k].eachLayer(function (c) { if (c.datos && cods.indexOf(c.datos.n) !== -1) { capas.push(c); esta = true; } });
+                    // g.rutas: también las que el filtro de zona o jornada tiene ocultas
+                    capasExtra[k].rutas.forEach(function (c) { if (cods.indexOf(c.datos.n) !== -1) { capas.push(c); esta = true; } });
                     if (esta && capasActivas.indexOf(k) === -1) { capasActivas.push(k); guardar('rapido_capas', capasActivas); }
                     if (esta) mostrarCapa(k, true);
                 });
                 pintarChips();
-                if (!capas.length) return siNo();
+                if (!capas.length) return todas ? siNo() : buscarRutas(cods, siNo, true);
                 verBarrido(capas, true);
             });
         });
@@ -583,7 +603,7 @@
             if (!capasExtra[k]) return;
             capasExtra[k].eachLayer(function (c) {
                 if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], c.datos.c ? { color: c.datos.c } : {}, { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
-                else c.setStyle({ opacity: on ? .15 : k === 'barrido_noche' ? .85 : .7 });
+                else c.setStyle({ opacity: on ? .15 : opacidadBorde(k) });
             });
         });
     }
@@ -978,32 +998,47 @@
     $('btn-capas').onclick = function () { plegarBarra(false); };
     $('hoja-listo').onclick = function () { plegarBarra(true); };
 
+    // Secciones de la hoja de capas (celular): cada una se contrae tocando su título, que dice lo que tiene puesto.
+    // En el computador el título no se ve y los botones siguen en la barra (antes: el separador o la etiqueta "antes").
+    var plegadas = leer('rapido_secciones', { capas: true });
+    function seccion(id, titulo, resumen, antes, botones) {
+        var cerrada = !!plegadas[id];
+        return '<div class="grupo' + (cerrada ? ' plegado' : '') + '">' +
+            '<button type="button" class="sec" data-sec="' + id + '" aria-expanded="' + !cerrada + '"><b>' + titulo + '</b><span class="res">' + esc(resumen) + '</span><span class="flecha">' + (cerrada ? '▸' : '▾') + '</span></button>' +
+            '<div class="grupo-cuerpo">' + antes + botones + '</div></div>';
+    }
     function pintarChips() {
         var todas = ordenCuad.length && ordenCuad.every(function (c) { return activas.indexOf(c) !== -1; });
+        var capaChip = function (k) {
+            return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
+        };
+        var ks = Object.keys(IDX.capas || {}), ksRuta = Object.keys(CAPAS_RUTA).filter(function (k) { return ks.indexOf(k) !== -1; }), ksOtras = ks.filter(function (k) { return !CAPAS_RUTA[k]; });
+        var puestas = function (lista) { return lista.filter(function (k) { return capasActivas.indexOf(k) !== -1; }).map(function (k) { return NOMBRES_CAPA[k]; }); };
+        var modos = [vencidos && '⏰ Vencidos', seleccion && '☑ Pre-ruta', verPrecision && '◎ GPS'].filter(Boolean);
+        var filtroTxt = filtroRutas.z.map(function (z) { return 'Z' + z; }).concat(filtroRutas.j.map(textoJornada));
         $('chips').innerHTML =
-            '<button type="button" class="chip" data-todas aria-pressed="' + todas + '" title="Cargar todas las cuadrillas">Todas</button>' +
-            ordenCuad.map(function (c) {
-                var info = IDX.cuadrillas[c], on = activas.indexOf(c) !== -1, cargando = on && !grupos[c];
-                return '<button type="button" class="chip' + (cargando ? ' cargando' : '') + '" data-cuad="' + esc(c) + '" aria-pressed="' + on + '" title="' + info.n + ' lotes · ' + info.kb + ' KB">' +
-                    '<span class="punto" style="background:' + colorCuadrilla(c) + '"></span>' + (c === 'sin' ? 'Sin cuadrilla' : 'C' + esc(c)) + '</button>';
-            }).join('') +
-            '<span class="separador"></span>' +
-            '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
-            '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
-            '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>' +
-            '<span class="separador"></span>' +
-            Object.keys(IDX.capas || {}).map(function (k) {
-                return '<button type="button" class="chip capa" data-capa="' + k + '" aria-pressed="' + (capasActivas.indexOf(k) !== -1) + '" title="' + IDX.capas[k].kb + ' KB">' + NOMBRES_CAPA[k] + '</button>';
-            }).join('') +
+            seccion('cuad', 'Cuadrillas', activas.length ? activas.map(function (c) { return c === 'sin' ? 'S/C' : 'C' + c; }).join(', ') : 'ninguna', '',
+                '<button type="button" class="chip" data-todas aria-pressed="' + todas + '" title="Cargar todas las cuadrillas">Todas</button>' +
+                ordenCuad.map(function (c) {
+                    var info = IDX.cuadrillas[c], on = activas.indexOf(c) !== -1, cargando = on && !grupos[c];
+                    return '<button type="button" class="chip' + (cargando ? ' cargando' : '') + '" data-cuad="' + esc(c) + '" aria-pressed="' + on + '" title="' + info.n + ' lotes · ' + info.kb + ' KB">' +
+                        '<span class="punto" style="background:' + colorCuadrilla(c) + '"></span>' + (c === 'sin' ? 'Sin cuadrilla' : 'C' + esc(c)) + '</button>';
+                }).join('')) +
+            seccion('modos', 'Herramientas', modos.join(', ') || 'ninguna', '<span class="separador"></span>',
+                '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
+                '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
+                '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>') +
+            seccion('capas', 'Capas', puestas(ksOtras).join(', ') || 'ninguna', '<span class="separador"></span>', ksOtras.map(capaChip).join('')) +
+            seccion('rutas', 'Microrrutas', puestas(ksRuta).join(', ') || 'ninguna', '<span class="separador"></span>', ksRuta.map(capaChip).join('')) +
             // Con alguna capa de rutas puesta: filtro por zona (Z1, Z2...) y por jornada; sin ninguno marcado salen todas
-            (Object.keys(CAPAS_RUTA).some(function (k) { return capasActivas.indexOf(k) !== -1; }) ?
-                '<span class="separador"></span>' +
-                ZONAS_RUTA.map(function (z) {
-                    return '<button type="button" class="chip filtro" data-fzona="' + z + '" aria-pressed="' + (filtroRutas.z.indexOf(z) !== -1) + '" title="Solo las rutas de la zona ' + z + '">Zona ' + z + '</button>';
-                }).join('') +
-                JORNADAS.map(function (p) {
-                    return '<button type="button" class="chip filtro" data-fjor="' + p[0] + '" aria-pressed="' + (filtroRutas.j.indexOf(p[0]) !== -1) + '" title="Solo las rutas de esta jornada">' + p[1] + '</button>';
-                }).join('') : '');
+            (puestas(ksRuta).length ?
+                seccion('filtro', 'Filtrar rutas por zona y jornada', filtroTxt.join(', ') || 'todas', '<span class="salto"></span><span class="et-grupo">Rutas por zona y jornada:</span>',
+                    ZONAS_RUTA.map(function (z) {
+                        return '<button type="button" class="chip filtro" data-fzona="' + z + '" aria-pressed="' + (filtroRutas.z.indexOf(z) !== -1) + '" title="Solo las rutas de la zona ' + z + '">Zona ' + z + '</button>';
+                    }).join('') +
+                    JORNADAS.map(function (p) {
+                        return '<button type="button" class="chip filtro" data-fjor="' + p[0] + '" aria-pressed="' + (filtroRutas.j.indexOf(p[0]) !== -1) + '" title="Solo las rutas de esta jornada">' + p[1] + '</button>';
+                    }).join('')) : '');
         var n = 0, kb = 0;
         activas.forEach(function (c) { n += IDX.cuadrillas[c].n; kb += IDX.cuadrillas[c].kb; });
         var faltan = activas.filter(function (c) { return !grupos[c]; }).length;
@@ -1039,6 +1074,11 @@
     $('chips').onclick = function (ev) {
         var b = ev.target.closest('button');
         if (!b) return;
+        if (b.dataset.sec) {
+            plegadas[b.dataset.sec] = !plegadas[b.dataset.sec];
+            guardar('rapido_secciones', plegadas);
+            return pintarChips();
+        }
         if (b.hasAttribute('data-todas')) {
             var todas = b.getAttribute('aria-pressed') === 'true';
             activas = todas ? [] : ordenCuad.slice();

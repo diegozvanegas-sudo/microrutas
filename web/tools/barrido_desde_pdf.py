@@ -1,15 +1,20 @@
 """Microrrutas de barrido desde el plano PDF de Emvarias (vectorial, exportado de CAD) a una capa del mapa rápido.
 
-    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>" <jornada>
+    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>" <jornada> [--agregar]
     p. ej. python tools/barrido_desde_pdf.py Z7am_bloque_dom_fes_redis_V4_2022.pdf barrido_dom "Zona 7Am · Domingos y festivos · V4 mayo 2022" Mañana
            python tools/barrido_desde_pdf.py z7noc_redis_V8_2018.pdf barrido_noche "Zona 7 Noche · Lunes a sábado · V8 octubre 2018" Noche
+           python tools/barrido_desde_pdf.py z7am_macro_LaS_redis_V9_2026.pdf barrido_manana "Zona 7 Am · Lunes a sábado · V9 julio 2026" Mañana
+           python tools/barrido_desde_pdf.py z7pm_macro_LaS_redis_V8_2025.pdf barrido_tarde "Zona 7 PM · Lunes a sábado · V8 agosto 2025" Tarde
+           python tools/barrido_desde_pdf.py z9pm_macro_las_redis_V8_2025.pdf barrido_tarde "Zona 9 PM · Lunes a sábado · V8 agosto 2025" Tarde --agregar
+--agregar: la capa conserva las rutas que ya tenía de otros planos (las de esta misma descripción se reemplazan).
 
 El PDF no trae coordenadas: se ubica con los nombres de calles del plano (Cl. 52, Cr. 46...). Cada pareja Calle/Carrera
 cercana se asocia al cruce real de esas calles en OpenStreetMap (RANSAC) y luego cada nombre se acerca a su calle
 (ICP por nombre). En el plano de la Zona 7Am el error mediano queda en ~4 m.
 Las rutas son los trazos gruesos (1,92) de color; cada una toma el nombre Z7R..._DOM más cercano. Si una ruta viene en
 varios pedazos, los pedazos sin nombre cerca se unen a la ruta de su mismo color más próxima.
-Los nombres son Z7R191B_DOM (domingos) o Z7R417NOC (noche). La jornada (Mañana, Tarde o Noche) va en cada ruta (j) para
+Los nombres son Z7R191B_DOM (domingos), Z7R417NOC (noche), Z2R202LaS o un número de 7 dígitos (0700121: zona 07,
+ruta 001; queda Z7R001LAS, como en LV). La jornada (Mañana, Tarde o Noche) va en cada ruta (j) para
 filtrarlas en el mapa.
 Escribe public/data/rapido/capa_<capa>.js y lo agrega a indice.js. Necesita: pip install pymupdf numpy
 """
@@ -17,7 +22,8 @@ import json, os, random, re, sys, urllib.parse, urllib.request
 import numpy as np
 import pymupdf
 
-PDF, CAPA, DESC, JORNADA = sys.argv[1], sys.argv[2], sys.argv[3], sys.argv[4]
+AGREGAR = '--agregar' in sys.argv
+PDF, CAPA, DESC, JORNADA = [a for a in sys.argv[1:] if a != '--agregar'][:4]
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
 LAT0, LNG0 = 6.25, -75.57
@@ -34,7 +40,12 @@ calles = []
 for t, p in lineas_txt:
     m = re.match(r'^(Cl|Cll|Cr)\.?\s*(\d+[A-Z]?)$', t)
     if m: calles.append((('Calle ' if m.group(1).startswith('Cl') else 'Carrera ') + m.group(2), p))
-rutas_txt = [(t, p) for t, p in lineas_txt if re.match(r'^Z\d+R\d+[A-Z]?(?:_[A-Z]+|NOC)$', t)]
+def nombre_ruta(t):
+    if re.match(r'^Z\d+R\d+[A-Z]?(?:_[A-Z]+|NOC)$', t): return t
+    if re.match(r'^Z\d+R\d+LaS$', t, re.I): return t.upper()
+    m = re.match(r'^0(\d)(\d{3})\d{2}$', t)
+    return m and 'Z%sR%sLAS' % m.groups()
+rutas_txt = [(nombre_ruta(t), p) for t, p in lineas_txt if nombre_ruta(t)]
 print(len(calles), 'nombres de calle,', len(rutas_txt), 'nombres de ruta')
 
 # ---------- Calles de OpenStreetMap alrededor del plano (se ubica a ojo: el centro de Medellín) ----------
@@ -188,8 +199,12 @@ for t in sorted(rutas):
     for k in ('i', 'f'):
         if r.get(k): it[k] = [a_ll_pdf(p) for p in r[k]]
     items.append(it)
-js = 'cargarCapa(%s,%s);\n' % (json.dumps(CAPA), json.dumps({'tipo': 'linea', 'items': items}, ensure_ascii=False, separators=(',', ':')))
 ruta_js = os.path.join(SALIDA, 'capa_%s.js' % CAPA)
+if AGREGAR and os.path.exists(ruta_js):
+    antes = open(ruta_js, encoding='utf-8').read()
+    antes = json.loads(antes[antes.index(',') + 1:antes.rindex(')')])['items']
+    items = [x for x in antes if x.get('z') != DESC] + items
+js = 'cargarCapa(%s,%s);\n' % (json.dumps(CAPA), json.dumps({'tipo': 'linea', 'items': items}, ensure_ascii=False, separators=(',', ':')))
 open(ruta_js, 'w', encoding='utf-8').write(js)
 kb = round(len(js.encode()) / 1024)
 idx_path = os.path.join(SALIDA, 'indice.js')
