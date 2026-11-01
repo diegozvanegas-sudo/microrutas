@@ -11,4 +11,5 @@ datos/contrato/
 
 # Calles de OpenStreetMap descargadas por web/tools/ajustar_a_calles.py
 web/tools/.cache_osm_vias.json
+web/tools/.cache_osm_edificios.json
 __pycache__/

@@ -670,10 +670,12 @@
             capas.map(function (c) {
                 var x = c.datos;
                 return '<div class="mr">' + esc([capas.length > 1 && c.capa !== 'barrido_dom' ? x.n : '', CAPAS_RUTA[c.capa], x.z, textoJornada(x.j)].filter(Boolean).join(' · ')) + '</div>' +
-                    (x.q || x.k || x.t || x.a ? '<div class="bloque"><div class="txt">' + esc([x.q, x.k && x.k + ' km', x.t].filter(Boolean).join(' · ')) +
+                    (x.q || x.k || x.t || x.a || x.pe ? '<div class="bloque"><div class="txt">' + esc([x.q, x.k && x.k + ' km', x.t].filter(Boolean).join(' · ')) +
                         (x.a ? '<br><span style="color:#6b7c75;font-size:12px">Plano: ' + esc(x.a) + '</span>' : '') +
                         // tools/ajustar_a_calles.py: el plano venía con la ubicación corrida y se movió hasta quedar sobre sus calles
-                        (x.cr ? '<br><span style="color:#92400e;font-size:12px">⚠ El plano venía corrido unos ' + x.cr + ' m; se ubicó sobre sus calles.</span>' : '') + '</div></div>' : '');
+                        (x.cr ? '<br><span style="color:#92400e;font-size:12px">⚠ El plano venía corrido unos ' + x.cr + ' m; se ubicó sobre sus calles.</span>' : '') +
+                        // tools/ajustar_a_calles.py: lo que no sigue una calle queda como en el plano, aunque pase sobre construcciones
+                        (x.pe ? '<br><span style="color:#92400e;font-size:12px">⚠ Unos ' + x.pe + ' m del trazo pasan sobre construcciones: así viene del plano o falta la calle en el mapa. Confírmelo en campo.</span>' : '') + '</div></div>' : '');
             }).filter(function (h, i, a) { return a.indexOf(h) === i; }).join('') +
             '<div class="bloque"><div class="txt">🟢 Inicio · 🏁 Fin' + (capas.every(function (c) { return c.capa === 'rutas_ryt'; }) ? '' : ' · Barrer en sentido contrario al flujo vehicular. Los puntos de inicio, fin y recorrido son de obligatorio cumplimiento.') + '</div></div>' +
             '<div class="acciones">' +

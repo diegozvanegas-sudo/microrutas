@@ -12,20 +12,25 @@ calle a otra sin necesidad. Lo que no tiene calle a menos de RADIO_M (un parque,
 tramo que en promedio queda a más de LEJOS_M de la calle elegida (en lo rural el plano va lejos de la vía), queda como
 venía. Inicio y fin se llevan a la calle más cercana.
 Antes, si el plano viene corrido (la ruta entera cae lejos de las calles), se busca cuánto moverla (corrimiento()).
-Guarda en "aj" el porcentaje de la ruta que quedó sobre calle y en "cr" los metros que se movió. El trazo del plano no
+Al pasar de una calle a otra la línea sigue la red de calles (por_la_red()); si no hay camino razonable, sigue recta. Nada
+del plano se quita: lo que no sigue ninguna calle queda como venía, aunque pise un edificio, y la ficha de la ruta lo avisa.
+Guarda en "aj" el porcentaje de la ruta que quedó sobre calle, en "cr" los metros que se movió y en "pe" los metros que
+pasan sobre edificios de OSM (si son al menos PISA_M). El trazo del plano no
 se guarda (el archivo pesaría el doble en el celular): se vuelve a sacar de los planos con rutas_desde_geopdf.py, que
-llama a este ajuste. Las calles se descargan de OSM una vez y quedan en tools/.cache_osm_vias.json (no se versiona).
+llama a este ajuste. Las calles y los edificios se descargan de OSM una vez y quedan en tools/.cache_osm_*.json (no se versionan).
+--desde=<capa.js>: parte de ese archivo (el trazo del plano, sin ajustar) en vez de la capa publicada.
 Necesita: pip install numpy shapely
 """
-import json, os, re, sys, time, urllib.parse, urllib.request
+import heapq, json, os, re, sys, time, urllib.parse, urllib.request
 import numpy as np
 import shapely
-from shapely.geometry import LineString, Point
+from shapely.geometry import LineString, Point, Polygon
 from shapely.strtree import STRtree
 
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
 CACHE = os.path.join(AQUI, '.cache_osm_vias.json')
+CACHE_EDIF = os.path.join(AQUI, '.cache_osm_edificios.json')
 BBOX = '6.150,-75.710,6.360,-75.455'  # Medellín y alrededores (las rutas de LV y RyT)
 TIPOS = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|pedestrian|footway|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link'
 PASO_M, RADIO_M, CANDIDATOS = 5.0, 60.0, 10
@@ -35,7 +40,9 @@ GIRO_M, CAMBIO_M = 14.0, 8.0  # castigos (en metros) del ajuste: calle en otra d
 CASTIGO_VIA = {'service': 12.0, 'pedestrian': 6.0, 'footway': 15.0, 'living_street': 2.0}
 TOL_M = 2.5
 LEJOS_M = 20.0
-CORRIDO_M, MAX_CORRIDO_M = 25.0, 400  # plano corrido: mediana a la calle desde la que se busca y hasta cuánto se mueve
+CORRIDO_M, MAX_CORRIDO_M = 8.0, 400  # plano corrido: mediana a la calle desde la que se busca y hasta cuánto se mueve
+RED_MAX_M, RED_FACTOR, RED_EXTRA_M = 300.0, 3.0, 60.0  # camino por la red entre dos puntos: largo máximo y frente a la línea recta
+PISA_M = 10.0  # metros sobre edificios desde los que se avisa (menos es la diferencia normal entre el eje de la calle y el techo)
 LAT0, LNG0 = 6.25, -75.57
 KX, KY = 111320 * np.cos(np.radians(LAT0)), 110574
 
@@ -49,20 +56,53 @@ def vias():
                                      headers={'User-Agent': 'microrutas-interventoria'})
         datos = urllib.request.urlopen(req, timeout=300).read()
         open(CACHE, 'wb').write(datos)
-    A, B, via, castigo = [], [], [], []
+    A, B, via, castigo, na, nb = [], [], [], [], [], []
     for w in json.load(open(CACHE, encoding='utf-8'))['elements']:
         g = w.get('geometry') or []
         if len(g) < 2: continue
         x, y = a_m([p['lat'] for p in g], [p['lon'] for p in g])
         for k in range(len(g) - 1):
             A.append((x[k], y[k])); B.append((x[k + 1], y[k + 1])); via.append(w['id']); castigo.append(CASTIGO_VIA.get(w['tags'].get('highway'), 0.0))
+            na.append((g[k]['lat'], g[k]['lon'])); nb.append((g[k + 1]['lat'], g[k + 1]['lon']))
     A, B = np.array(A), np.array(B)
     castigo = np.array(castigo)
+    # Red de calles: dos tramos se tocan si comparten un nodo de OSM
+    ids, ady, NA, NB = {}, [], [], []
+    for a, b, pa, pb in zip(na, nb, A, B):
+        i, j = ids.setdefault(a, len(ids)), ids.setdefault(b, len(ids))
+        while len(ady) <= max(i, j): ady.append([])
+        L = float(np.hypot(*(pb - pa)))
+        ady[i].append((j, L)); ady[j].append((i, L)); NA.append(i); NB.append(j)
+    pos = np.zeros((len(ids), 2))
+    pos[NA] = A; pos[NB] = B
     lineas = [LineString([a, b]) for a, b in zip(A, B)]
     # Solo calles (sin andenes, servicio ni peatonales): para saber si un plano viene corrido; un parque con senderos
     # no cuenta como "cerca de calle"
     calles = STRtree([l for l, c in zip(lineas, castigo) if c == 0])
-    return {'A': A, 'B': B, 'via': np.array(via), 'castigo': castigo, 'arbol': STRtree(lineas), 'calles': calles}
+    return {'A': A, 'B': B, 'via': np.array(via), 'castigo': castigo, 'arbol': STRtree(lineas), 'calles': calles,
+            'NA': NA, 'NB': NB, 'ady': ady, 'pos': pos, 'edif': edificios()}
+
+def edificios():
+    """Árbol con los edificios de OSM (polígonos en metros)."""
+    if not os.path.exists(CACHE_EDIF):
+        q = '[out:json][timeout:280];way["building"](%s);out geom;' % BBOX
+        req = urllib.request.Request('https://overpass-api.de/api/interpreter', urllib.parse.urlencode({'data': q}).encode(),
+                                     headers={'User-Agent': 'microrutas-interventoria'})
+        open(CACHE_EDIF, 'wb').write(urllib.request.urlopen(req, timeout=300).read())
+    pols = []
+    for w in json.load(open(CACHE_EDIF, encoding='utf-8'))['elements']:
+        g = w.get('geometry') or []
+        if len(g) < 4: continue
+        x, y = a_m([p['lat'] for p in g], [p['lon'] for p in g])
+        pol = Polygon(zip(x, y))
+        if pol.is_valid and pol.area > 0: pols.append(pol)
+    return {'pols': pols, 'arbol': STRtree(pols)}
+
+def metros_en_edificios(V, pts):
+    """Cuántos metros de la línea caen dentro de edificios."""
+    if len(pts) < 2: return 0.0
+    l = LineString(pts)
+    return sum(l.intersection(V['edif']['pols'][k]).length for k in V['edif']['arbol'].query(l, predicate='intersects'))
 
 def muestrear(pts):
     """Puntos cada PASO_M a lo largo de la línea (con sus extremos)."""
@@ -86,18 +126,21 @@ def candidatos(V, p, dirr):
     return [(e[k], q[k], V['via'][idx[k]], idx[k]) for k in orden if ok[k]]
 
 def ajustar_linea(V, pts, lejos=LEJOS_M):
-    """[(x, y)] -> (trazo ajustado en metros, cuántos puntos quedaron sobre calle, total de puntos)."""
+    """[(x, y)] -> (corridas [(sobre_calle, puntos, elegidos o None)], puntos sobre calle, total de puntos)."""
     P = muestrear(pts)
     n = len(P)
-    if n < 2: return P, 0, n
+    if n < 2: return [(False, P, None)], 0, n
     dirs = np.zeros_like(P)
     dirs[1:-1] = P[2:] - P[:-2]; dirs[0] = P[1] - P[0]; dirs[-1] = P[-1] - P[-2]
     nrm = np.hypot(*dirs.T); nrm[nrm == 0] = 1; dirs = dirs / nrm[:, None]
     cand = [candidatos(V, P[i], dirs[i]) for i in range(n)]
-    out, sobre = [], 0
+    corridas, sobre = [], 0
+    def libre(q):
+        if corridas and not corridas[-1][0]: corridas[-1] = (False, np.vstack([corridas[-1][1], q]), None)
+        else: corridas.append((False, np.asarray(q), None))
     i = 0
     while i < n:
-        if not cand[i]: out.append(P[i]); i += 1; continue
+        if not cand[i]: libre(P[i:i + 1]); i += 1; continue
         # Tramo seguido con calle cerca: Viterbi
         j = i
         while j < n and cand[j]: j += 1
@@ -120,31 +163,49 @@ def ajustar_linea(V, pts, lejos=LEJOS_M):
         q = [c[1] for c in elegidos]
         # En lo rural el plano va lejos de la vía y la calle "más probable" puede ser otra: si el tramo quedó en promedio
         # a más de LEJOS_M, se deja como en el plano
-        if np.median(np.hypot(*(np.array(q) - P[i:j]).T)) <= lejos: out += por_esquinas(V, elegidos); sobre += j - i
-        else: out += list(P[i:j])
+        if np.median(np.hypot(*(np.array(q) - P[i:j]).T)) <= lejos: corridas.append((True, None, elegidos)); sobre += j - i
+        else: libre(P[i:j])
         i = j
-    return np.array(out), sobre, n
+    return corridas, sobre, n
 
-def esquina(V, sa, sb):
-    """Cruce de las rectas de dos tramos de calle, si queda pegado a los dos (la esquina donde se encuentran); o None."""
-    a1, b1, a2, b2 = V['A'][sa], V['B'][sa], V['A'][sb], V['B'][sb]
-    d1, d2 = b1 - a1, b2 - a2
-    den = d1[0] * d2[1] - d1[1] * d2[0]
-    if abs(den) < 1e-6 * np.hypot(*d1) * np.hypot(*d2): return None  # paralelos
-    t = ((a2[0] - a1[0]) * d2[1] - (a2[1] - a1[1]) * d2[0]) / den
-    x = a1 + t * d1
-    cerca = lambda a, d: np.hypot(*(x - (a + np.clip(((x - a) @ d) / (d @ d), 0, 1) * d)))
-    return x if cerca(a1, d1) < 8 and cerca(a2, d2) < 8 else None
+def camino_nodos(V, ini, fin, limite):
+    """Dijkstra por la red. ini y fin: {nodo: metros hasta él desde el punto}. -> [nodos] o None si no llega antes de limite."""
+    dist, prev, cola = dict(ini), {}, [(d, u) for u, d in ini.items()]
+    heapq.heapify(cola)
+    mejor, meta = limite, None
+    while cola:
+        d, u = heapq.heappop(cola)
+        if d > dist.get(u, 1e18) or d >= mejor: continue
+        if u in fin and d + fin[u] < mejor: mejor, meta = d + fin[u], u
+        for v, L in V['ady'][u]:
+            if d + L < dist.get(v, 1e18) and d + L < mejor: dist[v] = d + L; prev[v] = u; heapq.heappush(cola, (d + L, v))
+    if meta is None: return None
+    nodos = [meta]
+    while nodos[-1] in prev: nodos.append(prev[nodos[-1]])
+    return nodos[::-1]
 
-def por_esquinas(V, elegidos):
-    """Puntos ajustados; al pasar de una calle a otra la línea va por la esquina (si no, corta la manzana en diagonal)."""
-    out = [elegidos[0][1]]
-    for (_, q1, v1, s1), (_, q2, v2, s2) in zip(elegidos, elegidos[1:]):
-        if s1 != s2 and np.hypot(*(q2 - q1)) > 2:
-            x = esquina(V, s1, s2)
-            if x is not None and np.hypot(*(x - q1)) < 40 and np.hypot(*(x - q2)) < 40: out.append(x)
-        out.append(q2)
-    return out
+def por_la_red(V, q1, s1, q2, s2):
+    """Puntos para ir de q1 (sobre el tramo s1) a q2 (sobre s2) por las calles; None si solo se llega dando mucha vuelta."""
+    if s1 == s2: return []
+    recta = float(np.hypot(*(q2 - q1)))
+    limite = min(RED_MAX_M, max(recta * RED_FACTOR, recta + RED_EXTRA_M))
+    ini = {V['NA'][s1]: float(np.hypot(*(V['A'][s1] - q1))), V['NB'][s1]: float(np.hypot(*(V['B'][s1] - q1)))}
+    fin = {V['NA'][s2]: float(np.hypot(*(V['A'][s2] - q2))), V['NB'][s2]: float(np.hypot(*(V['B'][s2] - q2)))}
+    r = camino_nodos(V, ini, fin, limite)
+    return None if r is None else [V['pos'][u] for u in r]
+
+def trazar(V, corridas):
+    """Corridas -> línea: une lo que va por calles siguiendo la red; lo demás sigue como en el plano."""
+    act, ult = [], None
+    for sobre, pts, eleg in corridas:
+        if not sobre:
+            act += list(pts); ult = None
+            continue
+        for _, q, _, s in eleg:
+            if ult is not None and ult[1] != s: act += por_la_red(V, ult[0], ult[1], q, s) or []
+            act.append(q)
+            ult = (q, s)
+    return act
 
 def sin_picos(p, largo=25.0):
     """Quita los picos de ida y vuelta cortos (A -> B -> A) que deja el ajuste al tocar una calle transversal."""
@@ -199,11 +260,13 @@ def corrimiento(V, lineas):
     malla = [np.array((dx, dy)) for dx in range(-MAX_CORRIDO_M, MAX_CORRIDO_M + 1, 20) for dy in range(-MAX_CORRIDO_M, MAX_CORRIDO_M + 1, 20)]
     res = sorted((puntaje(s), tuple(s)) for s in malla)
     mejor = np.array(res[0][1])
-    otro = next((p for p, s in res if np.hypot(*(np.array(s) - mejor)) > 60), None)
+    # En una cuadrícula de calles una cuadra corrida también cuadra: entre los casi iguales, el que menos mueve
+    casi = [s for p, s in res if p <= res[0][0] * 1.15 + .5]
+    mejor = np.array(min(casi, key=lambda s: np.hypot(*s)))
     fino = min((puntaje(mejor + (a, b)), tuple(mejor + (a, b))) for a in range(-16, 17, 4) for b in range(-16, 17, 4))
     s = np.array(fino[1], float)
     d1 = np.median(distancias(V, Q + s))
-    if d1 > 10 or d1 > d0 * 0.35 or (otro is not None and otro < 1.5 * fino[0]): return None
+    if d1 > 10 or d1 > d0 * 0.6: return None
     return s
 
 def mover(latlngs, s):
@@ -226,15 +289,20 @@ def ajustar_ruta(V, it, lejos=LEJOS_M):
         for k in ('i', 'f'):
             if it.get(k): it[k] = mover(it[k], s)
         it['cr'] = round(float(np.hypot(*s)))
-    g, sobre, total = [], 0, 0
+    res, sobre, total = [], 0, 0
     for l in lineas:
-        q, s, n = ajustar_linea(V, l, lejos)
-        sobre += s; total += n
-        q = simplificar(sin_picos(simplificar(q, 0.5)), TOL_M)
+        c, s, n = ajustar_linea(V, l, lejos)
+        res.append(c); sobre += s; total += n
+    it['aj'] = round(100 * sobre / total) if total else 0
+    g, pisa = [], 0.0
+    for c in res:
+        q = simplificar(sin_picos(simplificar(np.array(trazar(V, c)), 0.5)), TOL_M)
+        pisa += metros_en_edificios(V, q)
         lat, lng = a_ll(q[:, 0], q[:, 1])
         if len(q) > 1: g.append(codificar(zip(np.round(lat, 6), np.round(lng, 6))))
     it['g'] = g
-    it['aj'] = round(100 * sobre / total) if total else 0
+    it.pop('pe', None)
+    if pisa >= PISA_M: it['pe'] = round(pisa)
     for k in ('i', 'f'):
         if not it.get(k): continue
         nuevos = []
@@ -247,8 +315,8 @@ def ajustar_ruta(V, it, lejos=LEJOS_M):
         it[k] = nuevos
     return it
 
-def leer_capa(capa):
-    t = open(os.path.join(SALIDA, 'capa_%s.js' % capa), encoding='utf-8').read()
+def leer_capa(capa, archivo=None):
+    t = open(archivo or os.path.join(SALIDA, 'capa_%s.js' % capa), encoding='utf-8').read()
     return json.loads(t[t.index(',') + 1:t.rindex(')')])
 
 def escribir_capa(capa, datos):
@@ -265,8 +333,9 @@ def escribir_capa(capa, datos):
 if __name__ == '__main__':
     V = vias()
     lejos = next((float(a.split('=')[1]) for a in sys.argv[1:] if a.startswith('--lejos=')), LEJOS_M)
+    desde = next((a.split('=', 1)[1] for a in sys.argv[1:] if a.startswith('--desde=')), None)
     for capa in [a for a in sys.argv[1:] if not a.startswith('--')]:
-        datos = leer_capa(capa)
+        datos = leer_capa(capa, desde)
         t0 = time.time()
         for k, it in enumerate(datos['items']):
             ajustar_ruta(V, it, lejos)
