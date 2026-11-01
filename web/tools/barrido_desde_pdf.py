@@ -1,6 +1,6 @@
 """Microrrutas de barrido desde el plano PDF de Emvarias (vectorial, exportado de CAD) a una capa del mapa rápido.
 
-    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>" <jornada> [--agregar]
+    python tools/barrido_desde_pdf.py <plano.pdf> <capa> "<descripción>" <jornada> [--agregar] [--sin-calles]
     p. ej. python tools/barrido_desde_pdf.py Z7am_bloque_dom_fes_redis_V4_2022.pdf barrido_dom "Zona 7Am · Domingos y festivos · V4 mayo 2022" Mañana
            python tools/barrido_desde_pdf.py z7noc_redis_V8_2018.pdf barrido_noche "Zona 7 Noche · Lunes a sábado · V8 octubre 2018" Noche
            python tools/barrido_desde_pdf.py z7am_macro_LaS_redis_V9_2026.pdf barrido_manana "Zona 7 Am · Lunes a sábado · V9 julio 2026" Mañana
@@ -16,14 +16,15 @@ varios pedazos, los pedazos sin nombre cerca se unen a la ruta de su mismo color
 Los nombres son Z7R191B_DOM (domingos), Z7R417NOC (noche), Z2R202LaS o un número de 7 dígitos (0700121: zona 07,
 ruta 001; queda Z7R001LAS, como en LV). La jornada (Mañana, Tarde o Noche) va en cada ruta (j) para
 filtrarlas en el mapa.
-Escribe public/data/rapido/capa_<capa>.js y lo agrega a indice.js. Necesita: pip install pymupdf numpy
+Al final cada ruta se pega al eje de las calles de OpenStreetMap (ajustar_a_calles.py); --sin-calles lo omite.
+Escribe public/data/rapido/capa_<capa>.js y lo agrega a indice.js. Necesita: pip install pymupdf numpy shapely
 """
 import json, os, random, re, sys, urllib.parse, urllib.request
 import numpy as np
 import pymupdf
 
 AGREGAR = '--agregar' in sys.argv
-PDF, CAPA, DESC, JORNADA = [a for a in sys.argv[1:] if a != '--agregar'][:4]
+PDF, CAPA, DESC, JORNADA = [a for a in sys.argv[1:] if not a.startswith('--')][:4]
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
 LAT0, LNG0 = 6.25, -75.57
@@ -199,6 +200,12 @@ for t in sorted(rutas):
     for k in ('i', 'f'):
         if r.get(k): it[k] = [a_ll_pdf(p) for p in r[k]]
     items.append(it)
+# Trazo pegado al eje de las calles de OSM (ajustar_a_calles.py): el plano de CAD ubicado por los nombres de las calles
+# queda hasta a ~30 m y cruza manzanas. --sin-calles lo deja como sale del plano
+if '--sin-calles' not in sys.argv:
+    import ajustar_a_calles
+    V = ajustar_a_calles.vias()
+    for it in items: ajustar_a_calles.ajustar_ruta(V, it, 35)
 ruta_js = os.path.join(SALIDA, 'capa_%s.js' % CAPA)
 if AGREGAR and os.path.exists(ruta_js):
     antes = open(ruta_js, encoding='utf-8').read()

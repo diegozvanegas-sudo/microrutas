@@ -1,6 +1,9 @@
 """Pega el trazo de las microrrutas al eje de las calles de OpenStreetMap (capas del mapa rápido).
 
-    python tools/ajustar_a_calles.py <capa> [<capa> ...]      p. ej. python tools/ajustar_a_calles.py rutas_ryt rutas_lv
+    python tools/ajustar_a_calles.py [--lejos=M] <capa> [<capa> ...]      p. ej. python tools/ajustar_a_calles.py rutas_ryt rutas_lv
+    python tools/ajustar_a_calles.py --lejos=35 barrido_dom barrido_manana barrido_tarde barrido_noche
+--lejos: hasta cuántos metros se acepta el ajuste de un tramo (LEJOS_M). Los planos de barrido son de CAD ubicados por
+los nombres de las calles (errores de hasta ~30 m) y son del centro, donde la calle más cercana sigue siendo la suya.
 
 Los planos dibujan cada pasada a un lado de la vía (y a veces corrida unos metros): en el mapa salen líneas paralelas que
 con el trazo grueso se vuelven manchas. Cada ruta se recorre cada PASO_M metros y cada punto se lleva al tramo de calle
@@ -24,11 +27,12 @@ AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
 CACHE = os.path.join(AQUI, '.cache_osm_vias.json')
 BBOX = '6.150,-75.710,6.360,-75.455'  # Medellín y alrededores (las rutas de LV y RyT)
-TIPOS = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|pedestrian|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link'
+TIPOS = 'motorway|trunk|primary|secondary|tertiary|unclassified|residential|living_street|service|pedestrian|footway|road|motorway_link|trunk_link|primary_link|secondary_link|tertiary_link'
 PASO_M, RADIO_M, CANDIDATOS = 5.0, 60.0, 10
 GIRO_M, CAMBIO_M = 14.0, 8.0  # castigos (en metros) del ajuste: calle en otra dirección y saltar de una calle a otra
 # Castigo por tipo de vía: en zona rural el plano va a 40-50 m de la vía y no debe quedarse en un camino de servicio
-CASTIGO_VIA = {'service': 12.0, 'pedestrian': 6.0, 'living_street': 2.0}
+# Andenes y pasajes peatonales (footway): el barrido del centro pasa por ellos, pero las calles van primero
+CASTIGO_VIA = {'service': 12.0, 'pedestrian': 6.0, 'footway': 15.0, 'living_street': 2.0}
 TOL_M = 2.5
 LEJOS_M = 20.0
 CORRIDO_M, MAX_CORRIDO_M = 25.0, 400  # plano corrido: mediana a la calle desde la que se busca y hasta cuánto se mueve
@@ -53,8 +57,12 @@ def vias():
         for k in range(len(g) - 1):
             A.append((x[k], y[k])); B.append((x[k + 1], y[k + 1])); via.append(w['id']); castigo.append(CASTIGO_VIA.get(w['tags'].get('highway'), 0.0))
     A, B = np.array(A), np.array(B)
-    arbol = STRtree([LineString([a, b]) for a, b in zip(A, B)])
-    return {'A': A, 'B': B, 'via': np.array(via), 'castigo': np.array(castigo), 'arbol': arbol}
+    castigo = np.array(castigo)
+    lineas = [LineString([a, b]) for a, b in zip(A, B)]
+    # Solo calles (sin andenes, servicio ni peatonales): para saber si un plano viene corrido; un parque con senderos
+    # no cuenta como "cerca de calle"
+    calles = STRtree([l for l, c in zip(lineas, castigo) if c == 0])
+    return {'A': A, 'B': B, 'via': np.array(via), 'castigo': castigo, 'arbol': STRtree(lineas), 'calles': calles}
 
 def muestrear(pts):
     """Puntos cada PASO_M a lo largo de la línea (con sus extremos)."""
@@ -75,9 +83,9 @@ def candidatos(V, p, dirr):
     e = d + GIRO_M * seno + V['castigo'][idx]
     ok = d <= RADIO_M
     orden = np.argsort(e)[:CANDIDATOS]
-    return [(e[k], q[k], V['via'][idx[k]]) for k in orden if ok[k]]
+    return [(e[k], q[k], V['via'][idx[k]], idx[k]) for k in orden if ok[k]]
 
-def ajustar_linea(V, pts):
+def ajustar_linea(V, pts, lejos=LEJOS_M):
     """[(x, y)] -> (trazo ajustado en metros, cuántos puntos quedaron sobre calle, total de puntos)."""
     P = muestrear(pts)
     n = len(P)
@@ -108,13 +116,45 @@ def ajustar_linea(V, pts):
         for k in range(len(atras) - 1, 0, -1):
             s = int(atras[k][s]); camino.append(s)
         camino.reverse()
-        q = [cand[k][s][1] for k, s in zip(range(i, j), camino)]
+        elegidos = [cand[k][s] for k, s in zip(range(i, j), camino)]
+        q = [c[1] for c in elegidos]
         # En lo rural el plano va lejos de la vía y la calle "más probable" puede ser otra: si el tramo quedó en promedio
         # a más de LEJOS_M, se deja como en el plano
-        if np.median(np.hypot(*(np.array(q) - P[i:j]).T)) <= LEJOS_M: out += q; sobre += j - i
+        if np.median(np.hypot(*(np.array(q) - P[i:j]).T)) <= lejos: out += por_esquinas(V, elegidos); sobre += j - i
         else: out += list(P[i:j])
         i = j
     return np.array(out), sobre, n
+
+def esquina(V, sa, sb):
+    """Cruce de las rectas de dos tramos de calle, si queda pegado a los dos (la esquina donde se encuentran); o None."""
+    a1, b1, a2, b2 = V['A'][sa], V['B'][sa], V['A'][sb], V['B'][sb]
+    d1, d2 = b1 - a1, b2 - a2
+    den = d1[0] * d2[1] - d1[1] * d2[0]
+    if abs(den) < 1e-6 * np.hypot(*d1) * np.hypot(*d2): return None  # paralelos
+    t = ((a2[0] - a1[0]) * d2[1] - (a2[1] - a1[1]) * d2[0]) / den
+    x = a1 + t * d1
+    cerca = lambda a, d: np.hypot(*(x - (a + np.clip(((x - a) @ d) / (d @ d), 0, 1) * d)))
+    return x if cerca(a1, d1) < 8 and cerca(a2, d2) < 8 else None
+
+def por_esquinas(V, elegidos):
+    """Puntos ajustados; al pasar de una calle a otra la línea va por la esquina (si no, corta la manzana en diagonal)."""
+    out = [elegidos[0][1]]
+    for (_, q1, v1, s1), (_, q2, v2, s2) in zip(elegidos, elegidos[1:]):
+        if s1 != s2 and np.hypot(*(q2 - q1)) > 2:
+            x = esquina(V, s1, s2)
+            if x is not None and np.hypot(*(x - q1)) < 40 and np.hypot(*(x - q2)) < 40: out.append(x)
+        out.append(q2)
+    return out
+
+def sin_picos(p, largo=25.0):
+    """Quita los picos de ida y vuelta cortos (A -> B -> A) que deja el ajuste al tocar una calle transversal."""
+    p = list(p)
+    k = 1
+    while 0 < k < len(p) - 1:
+        if np.hypot(*(p[k + 1] - p[k - 1])) < 3 and np.hypot(*(p[k] - p[k - 1])) < largo:
+            del p[k:k + 2]; k = max(1, k - 1)
+        else: k += 1
+    return np.array(p)
 
 def simplificar(p, tol):
     if len(p) < 3: return p
@@ -142,8 +182,8 @@ def codificar(latlng):
         out += [x - px, y - py]; px, py = x, y
     return out
 
-def distancias(V, Q):
-    _, d = V['arbol'].query_nearest(shapely.points(Q), return_distance=True, all_matches=False)
+def distancias(V, Q, arbol='calles'):
+    _, d = V[arbol].query_nearest(shapely.points(Q), return_distance=True, all_matches=False)
     return d
 
 def corrimiento(V, lineas):
@@ -171,7 +211,7 @@ def mover(latlngs, s):
     lat, lng = a_ll(np.asarray(x) + s[0], np.asarray(y) + s[1])
     return [[round(float(a), 6), round(float(b), 6)] for a, b in zip(lat, lng)]
 
-def ajustar_ruta(V, it):
+def ajustar_ruta(V, it, lejos=LEJOS_M):
     """Cambia it['g'] (e inicio y fin) por el trazo sobre calles. Si el plano venía corrido, primero lo mueve y deja
     en it['cr'] cuántos metros."""
     lineas = []
@@ -188,9 +228,9 @@ def ajustar_ruta(V, it):
         it['cr'] = round(float(np.hypot(*s)))
     g, sobre, total = [], 0, 0
     for l in lineas:
-        q, s, n = ajustar_linea(V, l)
+        q, s, n = ajustar_linea(V, l, lejos)
         sobre += s; total += n
-        q = simplificar(q, TOL_M)
+        q = simplificar(sin_picos(simplificar(q, 0.5)), TOL_M)
         lat, lng = a_ll(q[:, 0], q[:, 1])
         if len(q) > 1: g.append(codificar(zip(np.round(lat, 6), np.round(lng, 6))))
     it['g'] = g
@@ -224,11 +264,12 @@ def escribir_capa(capa, datos):
 
 if __name__ == '__main__':
     V = vias()
-    for capa in sys.argv[1:]:
+    lejos = next((float(a.split('=')[1]) for a in sys.argv[1:] if a.startswith('--lejos=')), LEJOS_M)
+    for capa in [a for a in sys.argv[1:] if not a.startswith('--')]:
         datos = leer_capa(capa)
         t0 = time.time()
         for k, it in enumerate(datos['items']):
-            ajustar_ruta(V, it)
+            ajustar_ruta(V, it, lejos)
             if k % 200 == 199: print('  %s: %d de %d' % (capa, k + 1, len(datos['items'])), flush=True)
         aj = np.array([it['aj'] for it in datos['items']])
         kb = escribir_capa(capa, datos)
