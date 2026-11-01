@@ -6,7 +6,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia, sumarDias, deIso } from '../diario/comun.js';
-import { SECCIONES_DESPACHO, textoDespacho } from './comun.js';
+import { SECCIONES_DESPACHO, ALIADOS, filaVolqueta, resumenVolquetas, textoDespacho } from './comun.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var fecha = hoy(), datos = {}, tGuardar = null, listo = false;
@@ -27,6 +27,60 @@ function pintarSecciones() {
                 '<button type="button" class="chip" data-frase="' + s[0] + '" data-t="' + t + '">Sin novedad</button></label>';
         }).join('') + '</div></section>';
     }).join('');
+}
+// ---------- Tabla de volquetas por turno ----------
+function tablaTurno(t) {
+    var tablas = datos.tabla_volquetas = datos.tabla_volquetas || {};
+    return tablas[t] = tablas[t] || { programadas: '', filas: [] };
+}
+function celda(campo, valor, tipo, ancho) {
+    return '<td><input data-v="' + campo + '" type="' + (tipo || 'text') + '" value="' + esc(valor || '') + '" aria-label="' + campo + '"' + (ancho ? ' style="min-width:' + ancho + 'px"' : '') + '></td>';
+}
+function textoResumen(t) {
+    var r = resumenVolquetas(tablaTurno(t));
+    return { desp: r.despachadas, cumpl: r.cumplimiento === null ? '—' : String(r.cumplimiento).replace('.', ',') + ' %', ok: r.cumplimiento === null ? '' : r.cumplimiento >= 100 ? 'ok' : 'falta', auto: r.programadas };
+}
+function pintarVolquetas() {
+    $('volquetas').innerHTML = '<h2>🚛 Despacho de volquetas</h2>' + [['t1', 'Turno 1'], ['t2', 'Turno 2']].map(function (x) {
+        var t = tablaTurno(x[0]), r = textoResumen(x[0]);
+        return '<div class="tabla-volq" data-t="' + x[0] + '"><div class="volq-cab"><b>' + x[1] + '</b><button type="button" class="secundario pequeno" data-mas-fila>+ Fila</button></div>' +
+            (t.filas.length ? '<div class="volq-scroll"><table><thead><tr><th>Zona</th><th>Servicio</th><th>Control</th><th>Hora inicio</th><th>Hora fin</th><th>Conductor</th><th>Supervisor</th><th>Aliado</th><th>Novedad</th><th></th></tr></thead><tbody>' +
+                t.filas.map(function (f, i) {
+                    return '<tr data-i="' + i + '">' + celda('zona', f.zona, 'text', 56) + celda('servicio', f.servicio, 'text', 170) + celda('control', f.control, 'text', 70) +
+                        celda('inicio', f.inicio, 'time', 96) + celda('fin', f.fin, 'time', 96) + celda('conductor', f.conductor, 'text', 150) + celda('supervisor', f.supervisor, 'text', 150) +
+                        '<td><input data-v="aliado" list="aliados" value="' + esc(f.aliado) + '" aria-label="aliado" style="min-width:100px"></td>' + celda('novedad', f.novedad, 'text', 170) +
+                        '<td><button type="button" class="quitar" data-quitar-fila aria-label="Quitar fila">×</button></td></tr>';
+                }).join('') + '</tbody></table></div>' +
+                '<div class="volq-totales"><label>Rutas programadas <input data-prog inputmode="numeric" value="' + esc(t.programadas) + '" placeholder="' + r.auto + '"></label>' +
+                    '<span>Rutas despachadas <b data-desp>' + r.desp + '</b></span>' +
+                    '<span>Cumplimiento <b class="cumpl ' + r.ok + '" data-cumpl>' + r.cumpl + '</b></span></div>'
+                : '<div class="sub">Sin filas.</div>') + '</div>';
+    }).join('') + '<datalist id="aliados">' + ALIADOS.map(function (a) { return '<option value="' + a + '">'; }).join('') + '</datalist>';
+}
+function iniciarVolquetas() {
+    $('volquetas').addEventListener('input', function (ev) {
+        var el = ev.target, caja = el.closest('[data-t]');
+        if (!caja) return;
+        var t = tablaTurno(caja.dataset.t);
+        if (el.dataset.v) t.filas[+el.closest('tr').dataset.i][el.dataset.v] = el.value;
+        else if (el.hasAttribute('data-prog')) t.programadas = el.value;
+        else return;
+        var r = textoResumen(caja.dataset.t), cumpl = caja.querySelector('[data-cumpl]');
+        caja.querySelector('[data-desp]').textContent = r.desp;
+        cumpl.textContent = r.cumpl; cumpl.className = 'cumpl ' + r.ok;
+        caja.querySelector('[data-prog]').placeholder = r.auto;
+        cambio();
+    });
+    $('volquetas').addEventListener('click', function (ev) {
+        var caja = ev.target.closest('[data-t]');
+        if (!caja) return;
+        var t = tablaTurno(caja.dataset.t);
+        if (ev.target.closest('[data-mas-fila]')) t.filas.push(filaVolqueta());
+        else if (ev.target.closest('[data-quitar-fila]')) t.filas.splice(+ev.target.closest('tr').dataset.i, 1);
+        else return;
+        pintarVolquetas();
+        cambio();
+    });
 }
 function pintarReporte() {
     var texto = textoDespacho(datos, fechaLarga());
@@ -57,18 +111,19 @@ async function cargarDia() {
     try { local = JSON.parse(localStorage.getItem(clave())); sinEnviar = !!localStorage.getItem(clave() + '_sin_enviar'); } catch (e) {}
     datos = local || {};
     aviso(sinEnviar ? '📴 Guardado en este equipo' : '');
-    pintarSecciones(); pintarReporte();
+    pintarSecciones(); pintarVolquetas(); pintarReporte();
     if (!configurado || !listo) return;
     var pedido = fecha;
     var res = await supabase.from('reportes_despacho').select('datos').eq('fecha', fecha).eq('usuario', listo.id).maybeSingle();
     if (pedido !== fecha || res.error) return;
     // Lo escrito sin señal en este equipo manda sobre lo de la base, y se envía
     if (sinEnviar) return enviar();
-    if (res.data) { datos = res.data.datos || {}; pintarSecciones(); pintarReporte(); }
+    if (res.data) { datos = res.data.datos || {}; pintarSecciones(); pintarVolquetas(); pintarReporte(); }
 }
 
 async function arrancar() {
     iniciarEncabezado();
+    iniciarVolquetas();
     $('secciones').addEventListener('input', function (ev) {
         var t = ev.target;
         if (!t.dataset.sec) return;

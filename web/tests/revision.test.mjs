@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones } from '../src/revision/comun.js';
+import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
     operarios: [{ nombre: 'Juan', items: { h_rastrillo: 'no', epp_botas: 'si' }, novedad: '', enlace: 'https://x.co/1' }, { nombre: '', items: { epp_guantes: 'no' }, novedad: 'Llegó tarde', enlace: 'javascript:alert(1)' }] };
@@ -65,6 +65,17 @@ test('lista: filtra por servicio, zona, estado y texto sin tildes', () => {
 test('lista: la más reciente primero', () => {
     const r = ordenarRevisiones([{ id: 1, fecha: '2026-10-30' }, { id: 2, fecha: '2026-11-01', creado: 'a' }, { id: 3, fecha: '2026-11-01', creado: 'b' }]);
     assert.deepEqual(r.map(x => x.id), [3, 2, 1]);
+});
+test('volquetas: cumplimiento y texto', () => {
+    const f = (zona, control, inicio, fin) => ({ zona, servicio: 'Voluminosos clandestinos', control, inicio, fin, conductor: 'Mauricio', supervisor: 'Jorge', aliado: 'FUDEA', novedad: '' });
+    const t = { programadas: '', filas: [f('1', '61', '16:38', '19:36'), f('2', '604', '14:09', '19:32')] };
+    assert.deepEqual(resumenVolquetas(t), { programadas: 2, despachadas: 2, cumplimiento: 100 });
+    assert.deepEqual(resumenVolquetas({ programadas: '3', filas: [t.filas[0], f('3', '605', '', '')] }), { programadas: 3, despachadas: 1, cumplimiento: 33.3 });
+    assert.deepEqual(resumenVolquetas({ filas: [{ servicio: 'Voluminosos clandestinos' }] }), { programadas: 0, despachadas: 0, cumplimiento: null }, 'la fila vacía no cuenta');
+    assert.ok(textoVolquetas(t).startsWith('Rutas programadas: 2\nRutas despachadas: 2\nCumplimiento: 100 %\n\n- Zona 1 · Voluminosos clandestinos · Control 61 · 16:38 a 19:36 · Mauricio · Supervisor Jorge · FUDEA'));
+    const rep = textoDespacho({ volquetas: { t2: 'Sin retrasos.' }, tabla_volquetas: { t2: t } });
+    assert.ok(rep.includes('1. Despacho de volquetas\n\nTurno 2:\n\nSin retrasos.\n\nRutas programadas: 2'));
+    assert.equal(textoVolquetas({ filas: [] }), '');
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');

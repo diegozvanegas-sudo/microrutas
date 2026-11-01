@@ -171,12 +171,40 @@ export var SECCIONES_DESPACHO = [
     ['motocarros', 'Despacho de motocarros', 'El despacho de motocarros se realizó sin novedades.'],
     ['standby', 'Verificación del personal Stand By', 'Se verificó la presentación oportuna del personal Stand By programado.']
 ];
+// Tabla de volquetas de un turno: {programadas, filas: [{zona, servicio, control, inicio, fin, conductor, supervisor, aliado, novedad}]}
+export var SERVICIO_VOLQUETA = 'Voluminosos clandestinos';
+export var ALIADOS = ['FUDEA', 'FUNTRAEV', 'UdeA'];
+export function filaVolqueta() { return { zona: '', servicio: SERVICIO_VOLQUETA, control: '', inicio: '', fin: '', conductor: '', supervisor: '', aliado: '', novedad: '' }; }
+function filasConDatos(t) {
+    return ((t || {}).filas || []).filter(function (f) { return [f.zona, f.control, f.inicio, f.fin, f.conductor, f.supervisor, f.novedad].some(function (v) { return String(v || '').trim(); }); });
+}
+// Despachada: la que salió (tiene hora de inicio). Programadas: lo escrito o, si no, cuántas filas hay
+export function resumenVolquetas(t) {
+    var filas = filasConDatos(t), escritas = parseInt((t || {}).programadas, 10);
+    var programadas = escritas >= 0 ? escritas : filas.length;
+    var despachadas = filas.filter(function (f) { return String(f.inicio || '').trim(); }).length;
+    return { programadas: programadas, despachadas: despachadas, cumplimiento: programadas ? Math.round(1000 * despachadas / programadas) / 10 : null };
+}
+export function textoVolquetas(t) {
+    var filas = filasConDatos(t);
+    if (!filas.length) return '';
+    var r = resumenVolquetas(t);
+    return 'Rutas programadas: ' + r.programadas + '\nRutas despachadas: ' + r.despachadas + (r.cumplimiento === null ? '' : '\nCumplimiento: ' + String(r.cumplimiento).replace('.', ',') + ' %') + '\n\n' +
+        filas.map(function (f) {
+            var zona = String(f.zona || '').trim();
+            return '- ' + [zona ? 'Zona ' + zona : '', f.servicio, f.control && 'Control ' + f.control, f.inicio && (f.inicio + (f.fin ? ' a ' + f.fin : '')), f.conductor, f.supervisor && 'Supervisor ' + f.supervisor, f.aliado, f.novedad && 'Novedad: ' + f.novedad]
+                .map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' · ');
+        }).join('\n');
+}
 // Las secciones y turnos sin escribir no salen en el reporte
 export function textoDespacho(datos, fechaTexto) {
     var n = 0, secciones = [];
     SECCIONES_DESPACHO.forEach(function (s) {
         var d = (datos || {})[s[0]] || {};
-        var turnos = [['Turno 1', d.t1], ['Turno 2', d.t2]].filter(function (t) { return String(t[1] || '').trim(); });
+        var tabla = s[0] === 'volquetas' ? (datos || {}).tabla_volquetas || {} : {};
+        var turnos = [['Turno 1', 't1'], ['Turno 2', 't2']].map(function (t) {
+            return [t[0], [String(d[t[1]] || '').trim(), textoVolquetas(tabla[t[1]])].filter(Boolean).join('\n\n')];
+        }).filter(function (t) { return t[1]; });
         if (!turnos.length) return;
         secciones.push(++n + '. ' + s[1] + '\n\n' + turnos.map(function (t) { return t[0] + ':\n\n' + t[1].trim(); }).join('\n\n'));
     });
