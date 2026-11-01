@@ -549,7 +549,13 @@
                 if (BORDE_RUTA[k]) capa.halo = L.polyline(capa.getLatLngs(), { color: BORDE_RUTA[k], weight: BORDE_RUTA[k] === '#fff' ? 7 : 8, opacity: opacidadBorde(k), interactive: false });
                 capa.datos = p; capa.capa = k;
                 capa.bindTooltip(esc(p.n) + (p.j ? ' · ' + textoJornada(p.j) : ''), { sticky: true });
-                capa.on('click', function () { verBarrido([capa]); });
+                // El dedo cubre mucho más que la línea: se acepta el toque cerca de ella y se elige la ruta más cercana
+                capa._clickTolerance = function () { return this.options.weight / 2 + (L.Browser.mobile ? 16 : 6); };
+                capa.on('click', function (e) {
+                    if (modoPin) return ponerPin(e.latlng);
+                    verBarrido([rutaCercana(e.layerPoint) || capa], false, e.latlng);
+                });
+                capa.on('contextmenu', function (e) { ponerPin(e.latlng); });
                 g.rutas.push(capa);
                 if (!pasaFiltro(p)) return;
                 if (capa.halo) g.addLayer(capa.halo);
@@ -612,13 +618,27 @@
             });
         });
     }
-    // Con una ruta elegida las demás se atenúan: en el centro hay muchas rutas pegadas y solo engrosarla no basta
+    // De las rutas visibles al alcance del toque, la de línea más cercana (el mapa solo da la última que se pintó)
+    function rutaCercana(p) {
+        var mejor = null, dist = Infinity;
+        Object.keys(CAPAS_RUTA).forEach(function (k) {
+            if (!capasExtra[k] || !map.hasLayer(capasExtra[k])) return;
+            capasExtra[k].eachLayer(function (c) {
+                if (!c.datos || !c._containsPoint(p)) return;
+                var d = c.closestLayerPoint(p).distance;
+                if (d < dist) { dist = d; mejor = c; }
+            });
+        });
+        return mejor;
+    }
+    // Con una ruta elegida las demás se atenúan, sin desaparecer: en el centro hay muchas rutas pegadas y solo engrosarla
+    // no basta, pero hay que seguir viéndolas para poder tocar otra
     function atenuarBarrido(on) {
         Object.keys(CAPAS_RUTA).forEach(function (k) {
             if (!capasExtra[k]) return;
             capasExtra[k].eachLayer(function (c) {
-                if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], c.datos.c ? { color: c.datos.c } : {}, { opacity: on ? .3 : ESTILOS_CAPA[k].opacity }));
-                else c.setStyle({ opacity: on ? .15 : opacidadBorde(k) });
+                if (c.datos) c.setStyle(L.extend({}, ESTILOS_CAPA[k], c.datos.c ? { color: c.datos.c } : {}, { opacity: on ? .55 : ESTILOS_CAPA[k].opacity }));
+                else c.setStyle({ opacity: on ? .3 : opacidadBorde(k) });
             });
         });
     }
@@ -627,8 +647,9 @@
         barridoSel = []; marcasBarrido.clearLayers();
         filtrarRutas(); // la que se vio por búsqueda y no pasa el filtro vuelve a ocultarse
     }
-    // Resalta la(s) ruta(s), pone 🟢 inicio y 🏁 fin (los del plano) y abre la ficha
-    function verBarrido(capas, encuadrarla) {
+    // Resalta la(s) ruta(s), pone 🟢 inicio y 🏁 fin (los del plano) y abre la ficha.
+    // Con el punto tocado (toque): el mapa se queda donde está. Sin él (búsqueda): se encuadra si encuadrarla.
+    function verBarrido(capas, encuadrarla, tocado) {
         quitarBarridoSel();
         barridoSel = capas;
         atenuarBarrido(true);
@@ -661,7 +682,7 @@
                 '<button type="button" class="boton secundario ancho" data-barrido-quitar>✕ Quitar selección</button>' +
             '</div></div>';
         if (movil.matches) plegarBarra(true);
-        abrirPanel(html, inicio ? L.latLng(inicio) : b.getCenter());
+        abrirPanel(html, tocado || (inicio ? L.latLng(inicio) : b.getCenter()), !!tocado);
         if (encuadrarla) encuadrar(b, true);
     }
     document.addEventListener('click', function (ev) {
@@ -830,7 +851,7 @@
     });
     document.querySelector('#ficha [data-ampliar]').onclick = alternarAmpliar;
     pintarAmpliar();
-    function abrirPanel(html, ll) {
+    function abrirPanel(html, ll, sinMover) {
         if (!movil.matches) {
             L.popup(medidasPopup()).setLatLng(ll).setContent(html).openOn(map);
             return;
@@ -839,6 +860,7 @@
         $('ficha').scrollTop = 0;
         $('ficha').classList.add('abierta');
         document.body.classList.add('con-ficha');
+        if (sinMover) return;
         // Si el punto quedó debajo del panel, se sube el mapa para verlo
         setTimeout(function () {
             var y = map.latLngToContainerPoint(ll).y, alto = map.getSize().y - $('ficha').offsetHeight;
@@ -998,12 +1020,16 @@
     if (movil.addEventListener) movil.addEventListener('change', ubicarChips); else movil.addListener(ubicarChips);
     function plegarBarra(on) {
         if (on === plegada && document.body.classList.contains('barra-plegada') === on) return;
+        var arriba = map.getContainer().getBoundingClientRect().top;
         plegada = on;
         guardar('rapido_barra_plegada', on);
         document.body.classList.toggle('barra-plegada', on);
         $('btn-plegar').setAttribute('aria-expanded', String(!on));
         pintarChips(); // también cambia el aviso de arriba (con la hoja abierta no dice "toque Capas")
-        map.invalidateSize(); // el mapa cambió de alto
+        map.invalidateSize({ pan: false }); // el mapa cambió de alto
+        // Lo que se ve queda en el mismo sitio de la pantalla aunque el borde de arriba del mapa se haya movido
+        var corrido = map.getContainer().getBoundingClientRect().top - arriba;
+        if (corrido) map.panBy([0, corrido], { animate: false });
     }
     function pintarPlegar() {
         var resumen = activas.length === 1 ? (activas[0] === 'sin' ? 'S/C' : 'C' + activas[0]) : activas.length ? activas.length + ' C' : 'Capas';
