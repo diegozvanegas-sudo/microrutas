@@ -127,3 +127,7 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 .cumpl { padding: 2px 10px; border-radius: 999px; }
 .cumpl.ok { background: var(--ok-bg); color: var(--ok); }
 .cumpl.falta { background: var(--pend-bg); color: var(--pend); }
+
+.extras-reporte { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 10px; margin-bottom: 10px; }
+.extras-reporte label { font-size: 13px; font-weight: 650; color: var(--muted); }
+.extras-reporte textarea { margin-top: 4px; color: var(--ink); font-weight: 400; font-size: 14px; }

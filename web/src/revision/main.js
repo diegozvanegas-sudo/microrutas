@@ -7,7 +7,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
-import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
+import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
 var $ = function (id) { return document.getElementById(id); };
@@ -26,7 +26,7 @@ function toast(msg) {
 }
 function idNuevo() { return crypto.randomUUID(); }
 function formVacio(tipo, ruta, zona) {
-    return { id: idNuevo(), fecha: fecha, turno: turnoPorHora(new Date().getHours()), tipo: tipo || 'lv', ruta: ruta || '', zona: zona || zonaDeCodigo(ruta), control: '',
+    return { id: idNuevo(), fecha: fecha, turno: leer('revision_turno_' + hoy(), '') || turnoPorHora(new Date().getHours()), tipo: tipo || 'lv', ruta: ruta || '', zona: zona || zonaDeCodigo(ruta), control: '',
              items: {}, operarios: [operarioVacio()], novedad: '', enlace: '' };
 }
 
@@ -291,7 +291,12 @@ function pintarReporte() {
     $('r-final').checked = reporteFinal;
     var elegidas = turnoReporte ? lista.filter(function (r) { return r.turno === turnoReporte; }) : lista;
     var titulo = turnoReporte || (turnos.length === 1 ? turnos[0] : '');
-    var texto = textoReporte(elegidas, { turno: titulo, final: reporteFinal });
+    // Lo escrito a mano queda en este equipo, por día y turno
+    var porZona = $('r-formato').value === 'zona', extra = leer('revision_extra_' + fecha + '_' + titulo, {});
+    $('r-extras').hidden = porZona;
+    ['vias', 'rcd', 'otras'].forEach(function (k) { if (document.activeElement !== $('r-' + k)) $('r-' + k).value = extra[k] || ''; });
+    var op = { turno: titulo, final: reporteFinal, vias: extra.vias, rcd: extra.rcd, otras: extra.otras };
+    var texto = porZona ? textoReporte(elegidas, op) : textoActividades(elegidas, op);
     $('vista-previa').textContent = texto || 'Guarde una revisión y aquí queda el reporte para el grupo.';
     $('btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
     $('btn-copiar').disabled = !texto;
@@ -315,6 +320,7 @@ function arrancarEventos() {
         var t = ev.target;
         if (t.dataset.campo) {
             form[t.dataset.campo] = t.value;
+            if (t.dataset.campo === 'turno') escribir('revision_turno_' + hoy(), t.value);
             if (t.dataset.campo === 'ruta' && zonaDeCodigo(t.value)) { form.zona = zonaDeCodigo(t.value); $('form').querySelector('[data-campo="zona"]').value = form.zona; }
         } else if (t.dataset.opCampo) form.operarios[+t.closest('[data-op]').dataset.op][t.dataset.opCampo] = t.value;
         guardarBorrador();
@@ -388,6 +394,14 @@ function arrancarEventos() {
     $('dia-fecha').onchange = function () { if (this.value) { fecha = this.value; pintarLista(); } };
     $('r-turno').onchange = function () { turnoReporte = this.value; pintarReporte(); };
     $('r-final').onchange = function () { reporteFinal = this.checked; pintarReporte(); };
+    $('r-formato').onchange = function () { escribir('revision_formato', this.value); pintarReporte(); };
+    $('r-extras').addEventListener('input', function (ev) {
+        var clave = 'revision_extra_' + fecha + '_' + (turnoReporte || delDia().map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; }).reduce(function (u, t, i) { return i ? '' : t; }, ''));
+        var extra = leer(clave, {});
+        extra[ev.target.id.slice(2)] = ev.target.value;
+        escribir(clave, extra);
+        pintarReporte();
+    });
     $('btn-copiar').onclick = copiar;
     $('btn-recargar').onclick = cargar;
     window.addEventListener('online', sincronizar);
@@ -402,6 +416,7 @@ async function arrancar() {
     form = formVacio(tipo, ruta || '', q.get('zona') || '');
     var tam = leer('revisiones_por_pagina', 0);
     if (TAMANOS.indexOf(tam) !== -1) porPagina = tam;
+    if (leer('revision_formato', '') === 'zona') $('r-formato').value = 'zona';
     arrancarEventos();
     pintarForm();
     pintarLista();

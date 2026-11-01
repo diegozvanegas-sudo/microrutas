@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
+import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
     operarios: [{ nombre: 'Juan', items: { h_rastrillo: 'no', epp_botas: 'si' }, novedad: '', enlace: 'https://x.co/1' }, { nombre: '', items: { epp_guantes: 'no' }, novedad: 'Llegó tarde', enlace: 'javascript:alert(1)' }] };
@@ -18,7 +18,7 @@ test('enlace: solo web', () => {
     assert.equal(enlaceSeguro('https://a.co/x y'), '');
 });
 test('turno según la hora', () => {
-    assert.deepEqual([3, 8, 13, 17, 21].map(turnoPorHora), ['Noche', 'Mañana', 'Intermedio', 'Tarde', 'Noche']);
+    assert.deepEqual([3, 5, 8, 10, 16, 17, 21].map(turnoPorHora), ['Noche', 'Mañana', 'Diurno', 'Intermedio', 'Intermedio', 'Noche', 'Noche']);
 });
 test('novedades: por ruta y por operario, y el rastrillo con bolsa', () => {
     assert.deepEqual(novedadesDe(lv), ['Con papeleo', 'Juan: Rastrillo con bolsa', 'Juan, evidencia: https://x.co/1', 'Operario 2: Sin guantes, Llegó tarde']);
@@ -76,6 +76,19 @@ test('volquetas: cumplimiento y texto', () => {
     const rep = textoDespacho({ volquetas: { t2: 'Sin retrasos.' }, tabla_volquetas: { t2: t } });
     assert.ok(rep.includes('1. Despacho de volquetas\n\nTurno 2:\n\nSin retrasos.\n\nRutas programadas: 2'));
     assert.equal(textoVolquetas({ filas: [] }), '');
+});
+test('reporte por actividades: numerado, con cantidades en letras y lo escrito a mano', () => {
+    const rv = (ruta, zona, tipo = 'lv', control = '') => ({ tipo, ruta, zona, control, items: {}, operarios: [], novedad: '', enlace: '' });
+    const t = textoActividades([rv('Z7R1', '7'), rv('Z7R2', '7'), rv('Z7R1', '7'), rv('Z4R1', '4'), rv('0718620', '7', 'ryt', '434')], { turno: 'Intermedio', final: true, vias: 'Recorrido por Avenida 80.', rcd: 'Novedades en la 80.' });
+    assert.equal(t, 'REPORTE FINAL DE ACTIVIDADES – TURNO INTERMEDIO\n\nDurante el turno intermedio se desarrollaron las siguientes actividades de inspección y verificación:\n\n' +
+        '1. Verificación de rutas de barrido – Zona 4: Se realizó la inspección de una (1) ruta de barrido: Z4R1.\n' +
+        '2. Verificación de rutas de barrido – Zona 7: Se realizó la inspección de dos (2) rutas de barrido: Z7R1, Z7R2.\n' +
+        '3. Verificación de vías principales: Recorrido por Avenida 80.\n4. Reporte de novedades RCD y voluminosos: Novedades en la 80.\n' +
+        '5. Verificación de vehículos y rutas recolectoras: Se verificó una (1) ruta recolectora. Zona 7: 0718620 (Control 434).');
+    assert.ok(textoActividades([rv('A', '1')], { turno: 'Noche' }).includes('Durante lo que va del turno noche se desarrollaron'));
+    assert.ok(textoActividades([rv('A', '1')], {}).includes('Durante lo que va de la jornada'));
+    assert.ok(textoActividades([{ ...rv('A', '1'), items: { r_papeleo: 'no' } }], {}).includes('Novedades encontradas: A - Con papeleo.'));
+    assert.equal(textoActividades([], {}), '');
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');

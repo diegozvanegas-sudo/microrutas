@@ -2,7 +2,7 @@
 // Sin nada de la página, para probarlo con npm test.
 
 export var TIPOS = { lv: 'Limpieza vial', ryt: 'Recolección y transporte', plan: 'Plan de choque' };
-export var TURNOS = ['Mañana', 'Intermedio', 'Tarde', 'Noche'];
+export var TURNOS = ['Mañana', 'Diurno', 'Intermedio', 'Tarde', 'Noche'];
 
 // [id, lo que se revisa, cómo se dice en la novedad si no cumple]
 var EPP = [
@@ -58,7 +58,9 @@ export function zonaDeCodigo(codigo) { var m = /^Z(\d+)/i.exec(String(codigo || 
 // Solo enlaces web: lo demás (javascript:, etc.) no se abre
 export function enlaceSeguro(u) { u = String(u || '').trim(); return /^https?:\/\/\S+$/i.test(u) ? u : ''; }
 export function operarioVacio() { return { nombre: '', items: {}, novedad: '', enlace: '' }; }
-export function turnoPorHora(hora) { return hora < 5 || hora >= 20 ? 'Noche' : hora < 12 ? 'Mañana' : hora < 16 ? 'Intermedio' : 'Tarde'; }
+// Los turnos se cruzan (Mañana 5-14, Diurno 7-17, Intermedio 10-17): sugiere el último que empezó. Quien está en otro lo
+// elige una vez y queda ese durante el día (main.js). Tarde se elige a mano
+export function turnoPorHora(hora) { return hora < 5 || hora >= 17 ? 'Noche' : hora < 7 ? 'Mañana' : hora < 10 ? 'Diurno' : 'Intermedio'; }
 
 // Lo que no cumple de una revisión, ya en palabras: ["Juan: Rastrillo con bolsa", "Con papeleo", …]
 export function novedadesDe(r) {
@@ -160,6 +162,48 @@ export function textoReporte(revisiones, op) {
     partes.push(lineas.length ? '*NOVEDADES* 🚨\n' + lineas.join('\n') + '\n\nLas novedades encontradas se reportan en los grupos correspondientes.'
         : 'Sin novedades al momento del recorrido.');
     return partes.join('\n\n');
+}
+
+// Reporte por actividades, numerado, como el del turno: cada zona con sus rutas de barrido, las recolectoras, y lo que
+// no sale del checklist (vías principales, RCD y voluminosos, otras) escrito a mano
+var NUMEROS = ['cero', 'una', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince', 'dieciséis', 'diecisiete', 'dieciocho', 'diecinueve', 'veinte'];
+function cantidad(n) { return NUMEROS[n] ? NUMEROS[n] + ' (' + n + ')' : String(n); }
+function unicos(lista) { return lista.filter(function (x, i, a) { return a.indexOf(x) === i; }); }
+function ordenZonas(a, b) { return (a === '') - (b === '') || Number(a) - Number(b) || a.localeCompare(b); }
+export function textoActividades(revisiones, op) {
+    op = op || {};
+    var limpio = function (t) { return String(t || '').trim(); };
+    var items = [], de = function (tipo) { return revisiones.filter(function (r) { return r.tipo === tipo; }); };
+    var zonasDe = function (lista) { return unicos(lista.map(function (r) { return limpio(r.zona); })).sort(ordenZonas); };
+    var lv = de('lv'), ryt = de('ryt'), plan = de('plan');
+    zonasDe(lv).forEach(function (z) {
+        var rutas = unicos(lv.filter(function (r) { return limpio(r.zona) === z; }).map(function (r) { return r.ruta; }));
+        items.push('Verificación de rutas de barrido' + (z ? ' – Zona ' + z : '') + ': Se realizó la inspección de ' + cantidad(rutas.length) + (rutas.length === 1 ? ' ruta' : ' rutas') + ' de barrido: ' + rutas.join(', ') + '.');
+    });
+    if (limpio(op.vias)) items.push('Verificación de vías principales: ' + limpio(op.vias));
+    if (limpio(op.rcd)) items.push('Reporte de novedades RCD y voluminosos: ' + limpio(op.rcd));
+    if (plan.length) {
+        var sectores = unicos(plan.map(function (r) { return r.ruta; }));
+        items.push('Verificación de planes de choque: Se realizó la verificación de ' + cantidad(sectores.length).replace(/^una /, 'un ') + (sectores.length === 1 ? ' plan' : ' planes') + ' de choque: ' + sectores.join(', ') + '.');
+    }
+    if (ryt.length) {
+        var porZona = zonasDe(ryt).map(function (z) {
+            var rutas = unicos(ryt.filter(function (r) { return limpio(r.zona) === z; }).map(nombreRevision));
+            return (z ? 'Zona ' + z + ': ' : '') + rutas.join(', ');
+        });
+        var n = unicos(ryt.map(nombreRevision)).length;
+        items.push('Verificación de vehículos y rutas recolectoras: Se ' + (n === 1 ? 'verificó ' : 'verificaron ') + cantidad(n) + (n === 1 ? ' ruta recolectora' : ' rutas recolectoras') + '. ' + porZona.join('. ') + '.');
+    }
+    if (limpio(op.otras)) items.push('Otras actividades: ' + limpio(op.otras));
+    var nov = [];
+    revisiones.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push(r.ruta + ' - ' + x); }); });
+    if (nov.length) items.push('Novedades encontradas: ' + nov.join('; ') + '. Se reportan en los grupos correspondientes.');
+    if (!items.length) return '';
+    var turno = limpio(op.turno);
+    return 'REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES' + (turno ? ' – TURNO ' + turno.toUpperCase() : '') + '\n\n' +
+        (op.final ? 'Durante ' : 'Durante lo que va d') + (op.final ? (turno ? 'el turno ' + turno.toLowerCase() : 'la jornada') : (turno ? 'el turno ' + turno.toLowerCase() : 'e la jornada')) +
+        ' se desarrollaron las siguientes actividades de inspección y verificación:\n\n' +
+        items.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n');
 }
 
 // ---------- Despacho ----------
