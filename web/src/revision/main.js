@@ -293,8 +293,8 @@ function pintarReporte() {
     var elegidas = turnoReporte ? lista.filter(function (r) { return r.turno === turnoReporte; }) : lista;
     var titulo = turnoReporte || (turnos.length === 1 ? turnos[0] : '');
     // Lo escrito a mano queda en este equipo, por día y turno
-    // Domingos y festivos salen con su formato, salvo que ese día se haya elegido otro
-    $('r-formato').value = leer('revision_formato_' + fecha, '') || (esFestivo(fecha) ? 'domingo' : leer('revision_formato', '') || 'actividades');
+    // Domingos y festivos: el parcial por zona y el final por actividades, salvo que ese día se haya elegido otro
+    $('r-formato').value = leer('revision_formato_' + fecha, '') || (esFestivo(fecha) ? (reporteFinal ? 'actividades' : 'domingo') : leer('revision_formato', '') || 'actividades');
     var formato = $('r-formato').value, porZona = formato === 'zona', extra = leer('revision_extra_' + fecha + '_' + titulo, {});
     $('r-extras').hidden = porZona;
     ['vias', 'rcd', 'otras'].forEach(function (k) { if (document.activeElement !== $('r-' + k)) $('r-' + k).value = extra[k] || ''; });

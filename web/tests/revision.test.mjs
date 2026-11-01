@@ -94,11 +94,11 @@ test('domingos y festivos: por zona, con listas y vías principales', () => {
     const rv = (ruta, zona, tipo = 'lv') => ({ tipo, ruta, zona, items: {}, operarios: [], novedad: '', enlace: '' });
     const t = textoDomingo([rv('Z7R212DOM', '7'), rv('Parque Lleras', '5'), rv('Ciudad del Río', '5'), rv('0703319', '7', 'ryt'), rv('0703419', '7', 'ryt')],
         { fecha: '2026-11-01', turno: 'Tarde', vias: 'Av Oriental, Av la Playa\nEl Palo', otras: 'Zona 5: Se realiza verificación de la Av el Poblado (ciclovía)\nEvento en Plaza Mayor' });
-    assert.equal(t, 'REPORTE PARCIAL ACTIVIDADES INTERVENTORÍA 01 DE NOVIEMBRE TURNO TARDE\n\nDurante la jornada se han realizado las siguientes verificaciones:\n\n' +
-        'Zona 5\n\nSe realiza verificación de la Av el Poblado (ciclovía)\n\nSe verifican 2 rutas de LV:\n- Parque Lleras\n- Ciudad del Río\n\n' +
-        'Zona 7\n\nSe verifica 1 ruta de LV:\n- Z7R212DOM\n\nSe verifican 2 rutas de RyT:\n- 0703319\n- 0703419\n\n' +
+    assert.equal(t, '*REPORTE PARCIAL ACTIVIDADES INTERVENTORÍA 01 DE NOVIEMBRE TURNO TARDE*\n\nDurante la jornada se han realizado las siguientes verificaciones:\n\n' +
+        '*Zona 5*\n\nSe realiza verificación de la Av el Poblado (ciclovía)\n\nSe verifican 2 rutas de LV:\n- Parque Lleras\n- Ciudad del Río\n\n' +
+        '*Zona 7*\n\nSe verifica 1 ruta de LV:\n- Z7R212DOM\n\nSe verifican 2 rutas de RyT:\n- 0703319\n- 0703419\n\n' +
         'Se realizó recorrido por vías principales tales como:\n- Av Oriental\n- Av la Playa\n- El Palo\n\nEvento en Plaza Mayor\n\nSin novedades al momento del recorrido.');
-    assert.ok(textoDomingo([rv('A', '1')], { final: true }).startsWith('REPORTE FINAL ACTIVIDADES INTERVENTORÍA\n\nDurante la jornada se realizaron'));
+    assert.ok(textoDomingo([rv('A', '1')], { final: true }).startsWith('*REPORTE FINAL ACTIVIDADES INTERVENTORÍA*\n\nDurante la jornada se realizaron'));
     assert.ok(textoDomingo([{ ...rv('A', '1'), items: { r_papeleo: 'no' } }], {}).includes('Novedades:\n- A: Con papeleo\n\nLas novedades encontradas durante la jornada fueron reportadas'));
     assert.equal(textoDomingo([], {}), '');
 });
