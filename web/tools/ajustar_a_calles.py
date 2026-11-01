@@ -17,7 +17,8 @@ del plano se quita: lo que no sigue ninguna calle queda como venía, aunque pise
 Guarda en "aj" el porcentaje de la ruta que quedó sobre calle, en "cr" los metros que se movió y en "pe" los metros que
 pasan sobre edificios de OSM (si son al menos PISA_M). El trazo del plano no
 se guarda (el archivo pesaría el doble en el celular): se vuelve a sacar de los planos con rutas_desde_geopdf.py, que
-llama a este ajuste. Las calles y los edificios se descargan de OSM una vez y quedan en tools/.cache_osm_*.json (no se versionan).
+llama a este ajuste. Las calles se descargan de OSM una vez y quedan en tools/.cache_osm_vias.json; los edificios, si están, en
+tools/.cache_osm_edificios.json ({"elements": [ways con geometry]}). Ninguno se versiona.
 --desde=<capa.js>: parte de ese archivo (el trazo del plano, sin ajustar) en vez de la capa publicada.
 Necesita: pip install numpy shapely
 """
@@ -41,6 +42,7 @@ CASTIGO_VIA = {'service': 12.0, 'pedestrian': 6.0, 'footway': 15.0, 'living_stre
 TOL_M = 2.5
 LEJOS_M = 20.0
 CORRIDO_M, MAX_CORRIDO_M = 8.0, 400  # plano corrido: mediana a la calle desde la que se busca y hasta cuánto se mueve
+DATUM_M, CERCA_M, LEJOS_CORRIDO_M = (388.0, -308.0), 48, 25.0  # corrimiento(): error conocido de los planos viejos (~495 m), ajuste pequeño, y desde dónde se busca otro
 RED_MAX_M, RED_FACTOR, RED_EXTRA_M = 300.0, 3.0, 60.0  # camino por la red entre dos puntos: largo máximo y frente a la línea recta
 PISA_M = 10.0  # metros sobre edificios desde los que se avisa (menos es la diferencia normal entre el eje de la calle y el techo)
 LAT0, LNG0 = 6.25, -75.57
@@ -84,11 +86,7 @@ def vias():
 
 def edificios():
     """Árbol con los edificios de OSM (polígonos en metros)."""
-    if not os.path.exists(CACHE_EDIF):
-        q = '[out:json][timeout:280];way["building"](%s);out geom;' % BBOX
-        req = urllib.request.Request('https://overpass-api.de/api/interpreter', urllib.parse.urlencode({'data': q}).encode(),
-                                     headers={'User-Agent': 'microrutas-interventoria'})
-        open(CACHE_EDIF, 'wb').write(urllib.request.urlopen(req, timeout=300).read())
+    if not os.path.exists(CACHE_EDIF): return None  # sin edificios se ajusta igual; solo falta el aviso de la ficha
     pols = []
     for w in json.load(open(CACHE_EDIF, encoding='utf-8'))['elements']:
         g = w.get('geometry') or []
@@ -100,7 +98,7 @@ def edificios():
 
 def metros_en_edificios(V, pts):
     """Cuántos metros de la línea caen dentro de edificios."""
-    if len(pts) < 2: return 0.0
+    if len(pts) < 2 or V['edif'] is None: return 0.0
     l = LineString(pts)
     return sum(l.intersection(V['edif']['pols'][k]).length for k in V['edif']['arbol'].query(l, predicate='intersects'))
 
@@ -248,25 +246,31 @@ def distancias(V, Q, arbol='calles'):
     return d
 
 def corrimiento(V, lineas):
-    """Planos con la georreferencia corrida (la ruta cae en el monte y las calles con su forma están a 200 m): se busca
-    el desplazamiento (sin girar ni deformar) que la deja sobre calles. Se acepta solo si queda claramente mejor y no hay
-    otro desplazamiento casi igual de bueno (en una cuadrícula de calles una cuadra corrida también cuadra).
-    Devuelve (dx, dy) en metros, o None si no hace falta o no es seguro."""
+    """Planos con la georreferencia corrida: se busca el desplazamiento (sin girar ni deformar) que la deja sobre calles.
+    En una cuadrícula de calles una cuadra corrida también cuadra, así que se prueba en orden: el error conocido de los
+    planos viejos (DATUM_M), un ajuste pequeño (hasta CERCA_M) y, solo si la ruta cae muy lejos de las calles (LEJOS_CORRIDO_M),
+    cualquier otro que no tenga uno casi igual de bueno. Devuelve (dx, dy) en metros, o None si no hace falta o no es seguro."""
     Q = np.concatenate([muestrear(l)[::4] for l in lineas if len(l) > 1])  # un punto cada ~20 m
     if len(Q) < 10: return None
     d0 = np.median(distancias(V, Q))
     if d0 <= CORRIDO_M: return None
     puntaje = lambda s: np.mean(np.minimum(distancias(V, Q + s), 40))
+    def afinar(c):
+        return np.array(min((puntaje(c + (a, b)), tuple(c + (a, b))) for a in range(-16, 17, 4) for b in range(-16, 17, 4))[1], float)
+    def sirve(s, tope=0.6):
+        d1 = np.median(distancias(V, Q + s))
+        return d1 <= 10 and d1 <= d0 * tope
+    s = afinar(np.array(DATUM_M))
+    if sirve(s): return s
+    s = min((np.array((dx, dy), float) for dx in range(-CERCA_M, CERCA_M + 1, 4) for dy in range(-CERCA_M, CERCA_M + 1, 4)), key=puntaje)
+    if sirve(s): return s
+    if d0 <= LEJOS_CORRIDO_M: return None
     malla = [np.array((dx, dy)) for dx in range(-MAX_CORRIDO_M, MAX_CORRIDO_M + 1, 20) for dy in range(-MAX_CORRIDO_M, MAX_CORRIDO_M + 1, 20)]
-    res = sorted((puntaje(s), tuple(s)) for s in malla)
+    res = sorted((puntaje(c), tuple(c)) for c in malla)
     mejor = np.array(res[0][1])
-    # En una cuadrícula de calles una cuadra corrida también cuadra: entre los casi iguales, el que menos mueve
-    casi = [s for p, s in res if p <= res[0][0] * 1.15 + .5]
-    mejor = np.array(min(casi, key=lambda s: np.hypot(*s)))
-    fino = min((puntaje(mejor + (a, b)), tuple(mejor + (a, b))) for a in range(-16, 17, 4) for b in range(-16, 17, 4))
-    s = np.array(fino[1], float)
-    d1 = np.median(distancias(V, Q + s))
-    if d1 > 10 or d1 > d0 * 0.6: return None
+    otro = next((p for p, c in res if np.hypot(*(np.array(c) - mejor)) > 60), None)
+    s = afinar(mejor)
+    if not sirve(s, 0.35) or (otro is not None and otro < 1.5 * puntaje(s)): return None
     return s
 
 def mover(latlngs, s):
