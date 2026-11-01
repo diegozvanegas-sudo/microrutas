@@ -1,0 +1,26 @@
+/* pdf.html y buscar.html; la base es la de diario/estilos.css */
+.pequeno { padding: 5px 10px; font-size: 13px; }
+.quitar { background: transparent; color: var(--muted); font-size: 22px; line-height: 1; padding: 8px; }
+.aviso-error { color: var(--pend); background: var(--pend-bg); padding: 8px 10px; border-radius: 10px; font-size: 14px; }
+.pdf-fila { display: flex; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); flex-wrap: wrap; }
+.pdf-fila:first-child { border-top: 0; }
+.pdf-orden { display: flex; gap: 4px; }
+.pdf-info { flex: 1 1 220px; min-width: 0; overflow-wrap: anywhere; }
+.pdf-pag { flex: 0 1 220px; font-size: 13px; font-weight: 650; color: var(--muted); }
+.pdf-pag input { margin-top: 3px; font-size: 14px; padding: 6px 8px; color: var(--ink); font-weight: 400; }
+.pdf-opciones { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; margin-top: 10px; }
+.pdf-opciones label { font-size: 13px; font-weight: 650; color: var(--muted); }
+.pdf-opciones select, .pdf-opciones input { margin-top: 4px; color: var(--ink); font-weight: 400; }
+.subir-pdf { display: inline-block; cursor: pointer; }
+.subir-pdf input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+.res-final { font-size: 16px; font-weight: 700; }
+.form-buscar { display: flex; gap: 8px; margin-bottom: 10px; }
+.form-buscar input { flex: 1; }
+.grupos-buscar { display: grid; grid-template-columns: repeat(auto-fit, minmax(380px, 1fr)); gap: 0 14px; align-items: start; }
+.res { display: block; padding: 9px 0; border-top: 1px solid var(--line); color: inherit; text-decoration: none; }
+.res:first-of-type { border-top: 0; }
+.res:hover .res-tit { color: var(--brand); text-decoration: underline; }
+.res-tit { font-weight: 700; overflow-wrap: anywhere; }
+.res-marca { font-size: 11px; font-weight: 700; color: var(--muted); background: #eef2f4; border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.res-det { display: block; overflow-wrap: anywhere; }
+@media (max-width: 500px) { .grupos-buscar { grid-template-columns: 1fr; } }

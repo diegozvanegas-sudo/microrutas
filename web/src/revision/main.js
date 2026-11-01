@@ -424,6 +424,7 @@ async function arrancar() {
     form = formVacio(tipo, ruta || '', q.get('zona') || '');
     var tam = leer('revisiones_por_pagina', 0);
     if (TAMANOS.indexOf(tam) !== -1) porPagina = tam;
+    if (q.get('buscar')) $('f-texto').value = q.get('buscar');
     arrancarEventos();
     pintarForm();
     pintarLista();

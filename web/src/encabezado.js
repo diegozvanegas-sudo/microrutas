@@ -16,6 +16,18 @@ var HERRAMIENTAS = [
     ['nota', '🖊️ Texto a imagen', 'Escribir un texto y guardarlo como imagen en el celular'],
     ['ocr', '🔤 Imágenes a texto', 'Sacar el texto de una o muchas imágenes o pantallazos']
 ];
+// Páginas propias: van en el menú Más de todas las secciones
+var PAGINAS = [
+    ['buscar.html', '🔎 Buscar en todo', 'Una sola búsqueda en visitas, revisiones, PQR y pendientes'],
+    ['pdf.html', '📎 Unir y comprimir PDF', 'Unir, ordenar y comprimir PDF en el equipo']
+];
+function agregarPaginas() {
+    var lista = document.querySelector('.menu-mas .menu-lista');
+    if (!lista) return;
+    lista.insertAdjacentHTML('afterbegin', PAGINAS.map(function (h) {
+        return '<a class="item-menu" href="' + h[0] + '" title="' + h[2] + '">' + h[1] + '</a>';
+    }).join('') + '<hr>');
+}
 function agregarHerramientas() {
     var lista = document.querySelector('.menu-mas .menu-lista');
     if (!lista || document.getElementById('btn-fotos')) return; // en Subsanaciones ya están
@@ -27,6 +39,7 @@ function agregarHerramientas() {
 
 export function iniciarEncabezado() {
     agregarHerramientas();
+    agregarPaginas();
     var menus = Array.prototype.slice.call(document.querySelectorAll('.menu-mas, .nav-menu'));
     menus.forEach(function (menu) {
         menu.addEventListener('click', function (ev) {

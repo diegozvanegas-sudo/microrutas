@@ -627,6 +627,8 @@ async function arrancar() {
     });
     $('btn-eliminar').onclick = eliminar;
     $('buscar').addEventListener('input', function () { pagina = 1; pintarLista(); });
+    // Desde Buscar en todo: pqr.html?buscar=441181
+    $('buscar').value = new URLSearchParams(location.search).get('buscar') || '';
     $('pag-tam').onchange = function () {
         porPagina = +this.value; pagina = 1;
         try { localStorage.setItem(PAG, porPagina); } catch (e) {}
