@@ -206,6 +206,41 @@ export function textoActividades(revisiones, op) {
         items.map(function (t, i) { return (i + 1) + '. ' + t; }).join('\n');
 }
 
+// Reporte de domingos y festivos, parcial o final: por zona, con las rutas en lista, y las vías principales recorridas.
+// En "otras", un renglón que empieza por "Zona 5:" va dentro de esa zona; los demás, al final
+var MESES_REPORTE = ['ENERO', 'FEBRERO', 'MARZO', 'ABRIL', 'MAYO', 'JUNIO', 'JULIO', 'AGOSTO', 'SEPTIEMBRE', 'OCTUBRE', 'NOVIEMBRE', 'DICIEMBRE'];
+function renglones(t) { return String(t || '').split(/[\n,;]+/).map(function (x) { return x.trim(); }).filter(Boolean); }
+export function textoDomingo(revisiones, op) {
+    op = op || {};
+    var enZona = {}, sueltas = [];
+    String(op.otras || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean).forEach(function (l) {
+        var m = /^zona\s*(\d+)\s*[:-]\s*(.+)$/i.exec(l);
+        if (m) (enZona[m[1]] = enZona[m[1]] || []).push(m[2]); else sueltas.push(l);
+    });
+    var zonas = unicos(revisiones.map(function (r) { return String(r.zona || '').trim(); }).concat(Object.keys(enZona))).sort(ordenZonas);
+    var lista = function (zona, tipo, una, varias, nombre) {
+        var n = unicos(revisiones.filter(function (r) { return r.tipo === tipo && String(r.zona || '').trim() === zona; }).map(nombre));
+        return n.length ? (n.length === 1 ? 'Se verifica 1 ' + una : 'Se verifican ' + n.length + ' ' + varias) + ':\n' + n.map(function (x) { return '- ' + x; }).join('\n') : '';
+    };
+    var ruta = function (r) { return r.ruta; };
+    var partes = zonas.map(function (z) {
+        return [z ? 'Zona ' + z : 'Sin zona'].concat(enZona[z] || [], lista(z, 'lv', 'ruta de LV', 'rutas de LV', ruta), lista(z, 'ryt', 'ruta de RyT', 'rutas de RyT', nombreRevision),
+            lista(z, 'plan', 'plan de choque', 'planes de choque', ruta)).filter(Boolean).join('\n\n');
+    });
+    var vias = renglones(op.vias);
+    if (vias.length) partes.push('Se realizó recorrido por vías principales tales como:\n' + vias.map(function (v) { return '- ' + v; }).join('\n'));
+    if (String(op.rcd || '').trim()) partes.push('RCD y voluminosos: ' + op.rcd.trim());
+    if (sueltas.length) partes.push(sueltas.join('\n'));
+    if (!partes.length) return '';
+    var d = String(op.fecha || '').split('-');
+    var fecha = d.length === 3 ? ' ' + d[2] + ' DE ' + MESES_REPORTE[+d[1] - 1] : '';
+    var nov = [];
+    revisiones.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push('- ' + r.ruta + ': ' + x); }); });
+    return 'REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' ACTIVIDADES INTERVENTORÍA' + fecha + (op.turno ? ' TURNO ' + op.turno.toUpperCase() : '') + '\n\n' +
+        'Durante la jornada se ' + (op.final ? 'realizaron' : 'han realizado') + ' las siguientes verificaciones:\n\n' + partes.join('\n\n') + '\n\n' +
+        (nov.length ? 'Novedades:\n' + nov.join('\n') + '\n\nLas novedades encontradas durante la jornada fueron reportadas en grupos para sus respectivas correcciones.' : 'Sin novedades al momento del recorrido.');
+}
+
 // ---------- Despacho ----------
 // [id, título, frase para cuando todo salió bien]
 export var SECCIONES_DESPACHO = [

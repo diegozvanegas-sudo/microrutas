@@ -7,7 +7,8 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
-import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
+import { esFestivo } from '../horas/distribucion.js';
+import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
 var $ = function (id) { return document.getElementById(id); };
@@ -292,11 +293,14 @@ function pintarReporte() {
     var elegidas = turnoReporte ? lista.filter(function (r) { return r.turno === turnoReporte; }) : lista;
     var titulo = turnoReporte || (turnos.length === 1 ? turnos[0] : '');
     // Lo escrito a mano queda en este equipo, por día y turno
-    var porZona = $('r-formato').value === 'zona', extra = leer('revision_extra_' + fecha + '_' + titulo, {});
+    // Domingos y festivos salen con su formato, salvo que ese día se haya elegido otro
+    $('r-formato').value = leer('revision_formato_' + fecha, '') || (esFestivo(fecha) ? 'domingo' : leer('revision_formato', '') || 'actividades');
+    var formato = $('r-formato').value, porZona = formato === 'zona', extra = leer('revision_extra_' + fecha + '_' + titulo, {});
     $('r-extras').hidden = porZona;
     ['vias', 'rcd', 'otras'].forEach(function (k) { if (document.activeElement !== $('r-' + k)) $('r-' + k).value = extra[k] || ''; });
     var op = { turno: titulo, final: reporteFinal, vias: extra.vias, rcd: extra.rcd, otras: extra.otras };
-    var texto = porZona ? textoReporte(elegidas, op) : textoActividades(elegidas, op);
+    op.fecha = fecha;
+    var texto = porZona ? textoReporte(elegidas, op) : formato === 'domingo' ? textoDomingo(elegidas, op) : textoActividades(elegidas, op);
     $('vista-previa').textContent = texto || 'Guarde una revisión y aquí queda el reporte para el grupo.';
     $('btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
     $('btn-copiar').disabled = !texto;
@@ -394,7 +398,11 @@ function arrancarEventos() {
     $('dia-fecha').onchange = function () { if (this.value) { fecha = this.value; pintarLista(); } };
     $('r-turno').onchange = function () { turnoReporte = this.value; pintarReporte(); };
     $('r-final').onchange = function () { reporteFinal = this.checked; pintarReporte(); };
-    $('r-formato').onchange = function () { escribir('revision_formato', this.value); pintarReporte(); };
+    $('r-formato').onchange = function () {
+        escribir('revision_formato_' + fecha, this.value);
+        if (this.value !== 'domingo') escribir('revision_formato', this.value);
+        pintarReporte();
+    };
     $('r-extras').addEventListener('input', function (ev) {
         var clave = 'revision_extra_' + fecha + '_' + (turnoReporte || delDia().map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; }).reduce(function (u, t, i) { return i ? '' : t; }, ''));
         var extra = leer(clave, {});
@@ -416,7 +424,6 @@ async function arrancar() {
     form = formVacio(tipo, ruta || '', q.get('zona') || '');
     var tam = leer('revisiones_por_pagina', 0);
     if (TAMANOS.indexOf(tam) !== -1) porPagina = tam;
-    if (leer('revision_formato', '') === 'zona') $('r-formato').value = 'zona';
     arrancarEventos();
     pintarForm();
     pintarLista();
