@@ -103,3 +103,11 @@ details.hechos > summary { cursor: pointer; color: var(--muted); font-weight: 60
 #dlg-ingreso .pie { margin-top: 16px; display: flex; }
 #dlg-ingreso .pie button { flex: 1; padding: 11px 14px; }
 #dlg-ingreso .error { background: var(--pend-bg); color: var(--pend); }
+
+/* Informe en pantalla ancha: a la izquierda se escribe y a la derecha, siempre a la vista, el mensaje para el grupo */
+@media (min-width: 1000px) {
+    main.informe { max-width: 1320px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 34%); gap: 0 20px; align-items: start; }
+    main.informe .dia, main.informe .nota-privada { grid-column: 1 / -1; }
+    main.informe .col-lado { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+    main.informe .vista-previa { max-height: 46vh; overflow-y: auto; }
+}

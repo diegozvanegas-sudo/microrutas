@@ -52,7 +52,7 @@
         </div>
     </details>
 </header>
-<main>
+<main class="informe">
     <div class="dia">
         <button type="button" class="flecha" id="dia-antes" aria-label="Día anterior">‹</button>
         <div class="centro">
@@ -62,6 +62,7 @@
         <button type="button" class="flecha" id="dia-despues" aria-label="Día siguiente">›</button>
     </div>
 
+    <div class="col-trabajo">
     <section class="tarjeta">
         <h2>✅ Actividades <span class="guardado" id="guardado"></span></h2>
         <div id="estado" class="estado-carga">Cargando…</div>
@@ -79,7 +80,9 @@
             <button type="button" class="primario" id="btn-agregar">Agregar</button>
         </div>
     </section>
+    </div>
 
+    <div class="col-lado">
     <section class="tarjeta">
         <h2>📲 Para el grupo</h2>
         <pre class="vista-previa" id="vista-previa"></pre>
@@ -94,6 +97,7 @@
         <h2>🗂 Informes anteriores</h2>
         <div class="historial" id="historial"><span class="sub">Aún no hay informes guardados.</span></div>
     </section>
+    </div>
     <p class="nota-privada">🔒 Cada informe lo ve solo quien lo escribió (y el administrador). Se guarda solo al escribir.</p>
 </main>
 <div id="toast" role="status" aria-live="polite"></div>
