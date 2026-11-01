@@ -466,3 +466,5 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 /* Cuántas visitas hay en la lista con los filtros puestos */
 .conteo-lista { padding: 10px 14px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
 .conteo-lista b { color: var(--ink); font-size: 15px; }
+.paginador { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.paginador .sub { text-align: center; }

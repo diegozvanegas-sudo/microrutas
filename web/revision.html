@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Revisión</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">✅</span>
+        <div class="nombre"><h1>Revisión</h1><div class="lema">Checklist de LV, RyT y plan de choque, por ruta y por operario</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" aria-current="page" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="dos-columnas">
+    <div class="dia">
+        <button type="button" class="flecha" id="dia-antes" aria-label="Día anterior">‹</button>
+        <div class="centro">
+            <b id="dia-nombre">Hoy</b>
+            <input type="date" id="dia-fecha" aria-label="Fecha">
+        </div>
+        <button type="button" class="flecha" id="dia-despues" aria-label="Día siguiente">›</button>
+    </div>
+
+    <div class="col-trabajo">
+    <section class="tarjeta">
+        <div class="tipos" id="tipos">
+            <button type="button" class="chip" data-tipo="lv">🧹 LV</button>
+            <button type="button" class="chip" data-tipo="ryt">🚛 RyT</button>
+            <button type="button" class="chip" data-tipo="plan">⚡ Plan de choque</button>
+        </div>
+        <datalist id="rutas-lista"></datalist>
+        <div id="form"></div>
+        <div class="pie-form">
+            <button type="button" class="secundario" id="btn-cancelar" hidden>Cancelar edición</button>
+            <button type="button" class="primario" id="btn-guardar">Guardar revisión</button>
+        </div>
+    </section>
+    </div>
+
+    <div class="col-lado">
+    <section class="tarjeta">
+        <h2>📲 Reporte para el grupo</h2>
+        <div class="opciones-reporte">
+            <select id="r-turno" aria-label="Turno del reporte"></select>
+            <label><input type="checkbox" id="r-final">Reporte final</label>
+        </div>
+        <pre class="vista-previa" id="vista-previa"></pre>
+        <div class="acciones fin">
+            <button type="button" class="secundario" id="btn-copiar">📋 Copiar</button>
+            <a class="boton primario" id="btn-whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+    </section>
+    <section class="tarjeta">
+        <h2>🗂 Revisado este día</h2>
+        <div class="aviso-cola" id="sin-enviar" hidden></div>
+        <div id="estado" class="sub"></div>
+        <div id="lista"></div>
+    </section>
+    </div>
+    <p class="nota-privada">🔒 Cada revisión la ve solo quien la registró (y el administrador).</p>
+</main>
+<div id="toast" role="status" aria-live="polite"></div>
+<script type="module" src="/src/revision/main.js"></script>
+</body>
+</html>

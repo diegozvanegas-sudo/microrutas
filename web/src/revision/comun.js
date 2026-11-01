@@ -1,0 +1,159 @@
+// Revisión de LV, RyT y plan de choque, y reporte de Despacho: checklists y textos para WhatsApp.
+// Sin nada de la página, para probarlo con npm test.
+
+export var TIPOS = { lv: 'Limpieza vial', ryt: 'Recolección y transporte', plan: 'Plan de choque' };
+export var TURNOS = ['Mañana', 'Intermedio', 'Tarde', 'Noche'];
+
+// [id, lo que se revisa, cómo se dice en la novedad si no cumple]
+var EPP = [
+    ['epp_uniforme', 'Uniforme completo', 'Uniforme incompleto'],
+    ['epp_botas', 'Botas', 'Sin botas'],
+    ['epp_guantes', 'Guantes', 'Sin guantes'],
+    ['epp_reflectivo', 'Prendas reflectivas', 'Sin prendas reflectivas']
+];
+var HERRAMIENTAS_BARRIDO = [
+    ['h_escoba', 'Escoba', 'Sin escoba'],
+    ['h_recogedor', 'Recogedor', 'Sin recogedor'],
+    ['h_carro', 'Carro de trabajo', 'Sin carro de trabajo'],
+    ['h_bolsas', 'Bolsas', 'Sin bolsas'],
+    ['h_rastrillo', 'Rastrillo sin bolsa', 'Rastrillo con bolsa'],
+    ['h_estado', 'Herramientas en buen estado', 'Herramientas en mal estado']
+];
+var HERRAMIENTA_ESTADO = [['h_estado', 'Herramientas en buen estado', 'Herramientas en mal estado']];
+
+export var CHECKLIST = {
+    lv: {
+        ruta: [
+            ['r_ruta', 'Va por la ruta asignada', 'Fuera de la ruta asignada'],
+            ['r_mapa', 'Tiene el mapa de la ruta', 'Sin mapa de la ruta'],
+            ['r_sentido', 'Barre en sentido contrario al flujo vehicular', 'No barre en sentido contrario al flujo vehicular'],
+            ['r_papeleo', 'Sin papeleo', 'Con papeleo'],
+            ['r_cordoneo', 'Cordoneo al día', 'Falta cordoneo']
+        ],
+        operario: [['EPP', EPP], ['Herramientas', HERRAMIENTAS_BARRIDO]]
+    },
+    ryt: {
+        ruta: [
+            ['r_ruta', 'Va por la ruta asignada', 'Fuera de la ruta asignada'],
+            ['r_vehiculo', 'Vehículo en buen estado', 'Vehículo con novedad'],
+            ['r_completa', 'Recolección completa, sin residuos en la vía', 'Quedan residuos en la vía'],
+            ['r_derrames', 'Sin derrames', 'Con derrames']
+        ],
+        operario: [['EPP', EPP], ['Herramientas', HERRAMIENTA_ESTADO]]
+    },
+    plan: {
+        ruta: [
+            ['r_personal', 'Personal programado presente', 'Falta personal programado'],
+            ['r_vehiculo', 'Vehículo o apoyo disponible', 'Sin vehículo o apoyo'],
+            ['r_avance', 'Avance según lo planeado', 'Avance atrasado'],
+            ['r_recuperado', 'Sector recuperado', 'Sector sin recuperar']
+        ],
+        operario: [['EPP', EPP], ['Herramientas', HERRAMIENTAS_BARRIDO]]
+    }
+};
+
+function itemsOperario(tipo) { return CHECKLIST[tipo].operario.reduce(function (t, g) { return t.concat(g[1]); }, []); }
+
+export function zonaDeCodigo(codigo) { var m = /^Z(\d+)/i.exec(String(codigo || '').trim()); return m ? m[1] : ''; }
+// Solo enlaces web: lo demás (javascript:, etc.) no se abre
+export function enlaceSeguro(u) { u = String(u || '').trim(); return /^https?:\/\/\S+$/i.test(u) ? u : ''; }
+export function operarioVacio() { return { nombre: '', items: {}, novedad: '', enlace: '' }; }
+export function turnoPorHora(hora) { return hora < 5 || hora >= 20 ? 'Noche' : hora < 12 ? 'Mañana' : hora < 16 ? 'Intermedio' : 'Tarde'; }
+
+// Lo que no cumple de una revisión, ya en palabras: ["Juan: Rastrillo con bolsa", "Con papeleo", …]
+export function novedadesDe(r) {
+    var out = CHECKLIST[r.tipo].ruta.filter(function (i) { return (r.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
+    if (String(r.novedad || '').trim()) out.push(r.novedad.trim());
+    if (enlaceSeguro(r.enlace)) out.push('Evidencia: ' + enlaceSeguro(r.enlace));
+    (r.operarios || []).forEach(function (o, k) {
+        var quien = String(o.nombre || '').trim() || 'Operario ' + (k + 1);
+        var mal = itemsOperario(r.tipo).filter(function (i) { return (o.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
+        if (String(o.novedad || '').trim()) mal.push(o.novedad.trim());
+        if (mal.length) out.push(quien + ': ' + mal.join(', '));
+        if (enlaceSeguro(o.enlace)) out.push(quien + ', evidencia: ' + enlaceSeguro(o.enlace));
+    });
+    return out;
+}
+// Cuántos puntos faltan por marcar: la revisión se puede guardar, pero se avisa
+export function sinMarcar(r) {
+    var n = CHECKLIST[r.tipo].ruta.filter(function (i) { return !(r.items || {})[i[0]]; }).length;
+    (r.operarios || []).forEach(function (o) { n += itemsOperario(r.tipo).filter(function (i) { return !(o.items || {})[i[0]]; }).length; });
+    return n;
+}
+export function nombreRevision(r) { return r.ruta + (r.control ? ' (Control ' + r.control + ')' : ''); }
+
+// ok si lo marcado cumple; "no" si algo no cumple; vacío si no se marcó nada
+function resumenGrupo(valores) {
+    if (valores.indexOf('no') !== -1) return 'no';
+    return valores.indexOf('si') !== -1 ? 'ok' : '';
+}
+function saludo(hora) { return hora < 12 ? 'Buen día' : hora < 18 ? 'Buena tarde' : 'Buena noche'; }
+var SERVICIO = { lv: 'ruta de Limpieza Vial', ryt: 'ruta de Recolección y Transporte', plan: 'Plan de choque' };
+// El mensaje de una sola revisión, como se manda al grupo al terminar de verificar
+export function textoRevision(r, hora) {
+    var lineas = [];
+    CHECKLIST[r.tipo].operario.forEach(function (g) {
+        var v = [];
+        (r.operarios || []).forEach(function (o) { g[1].forEach(function (i) { var x = (o.items || {})[i[0]]; if (x) v.push(x); }); });
+        var res = resumenGrupo(v);
+        if (res) lineas.push(g[0] + ': ' + res);
+    });
+    if (r.tipo === 'lv' && (r.items || {}).r_mapa && r.items.r_mapa !== 'na') lineas.push('Mapa: ' + (r.items.r_mapa === 'si' ? 'ok' : 'no'));
+    var nov = novedadesDe(r).filter(function (n) { return n !== 'Sin mapa de la ruta'; });
+    return saludo(hora) + '\n\nSe realiza verificación de ' + SERVICIO[r.tipo] + (r.zona ? ' Zona ' + r.zona : '') + '\n\n' +
+        (r.tipo === 'plan' ? 'Sector: ' : 'Ruta: ') + nombreRevision(r) + '\n\n' +
+        (lineas.length ? lineas.join('\n') + '\n\n' : '') +
+        (nov.length ? nov.join('\n') : 'Se observa buena prestación del servicio, sector controlado');
+}
+
+var ENCABEZADOS = {
+    lv: '✅ Se realiza verificación de las siguientes rutas de limpieza vial en operación:',
+    ryt: '✅ Se realiza verificación de las siguientes rutas de recolección y transporte en operación:',
+    plan: '✅ Se realiza verificación de los siguientes planes de choque:'
+};
+// Mismo formato de los reportes del grupo: por zona y, dentro de cada una, por servicio; al final las novedades
+export function textoReporte(revisiones, op) {
+    op = op || {};
+    if (!revisiones.length) return '';
+    var titulo = '*REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES' + (op.turno ? ' - TURNO ' + op.turno.toUpperCase() : '') + '*';
+    var zonas = {};
+    revisiones.forEach(function (r) { var z = String(r.zona || '').trim(); (zonas[z] = zonas[z] || []).push(r); });
+    var orden = Object.keys(zonas).sort(function (a, b) { return (a === '') - (b === '') || Number(a) - Number(b) || a.localeCompare(b); });
+    var partes = [titulo];
+    orden.forEach(function (z) {
+        var sec = [z ? '*ZONA ' + z + '*' : '*SIN ZONA*'];
+        Object.keys(ENCABEZADOS).forEach(function (t) {
+            var nombres = zonas[z].filter(function (r) { return r.tipo === t; }).map(nombreRevision).filter(function (n, i, a) { return a.indexOf(n) === i; });
+            if (nombres.length) sec.push(ENCABEZADOS[t] + '\n' + nombres.map(function (n) { return '• ' + n; }).join('\n'));
+        });
+        partes.push(sec.join('\n\n'));
+    });
+    var lineas = [];
+    revisiones.forEach(function (r) { novedadesDe(r).forEach(function (n) { lineas.push('• ' + r.ruta + ' - ' + n); }); });
+    partes.push(lineas.length ? '*NOVEDADES* 🚨\n' + lineas.join('\n') + '\n\nLas novedades encontradas se reportan en los grupos correspondientes.'
+        : 'Sin novedades al momento del recorrido.');
+    return partes.join('\n\n');
+}
+
+// ---------- Despacho ----------
+// [id, título, frase para cuando todo salió bien]
+export var SECCIONES_DESPACHO = [
+    ['asignacion', 'Seguimiento a la asignación vehicular', 'El proceso de asignación vehicular se desarrolló con normalidad.'],
+    ['retrasos', 'Seguimiento a retrasos de ruta', 'No se registraron retrasos en la salida de las rutas.'],
+    ['volquetas', 'Despacho de volquetas', 'El despacho de volquetas se realizó sin novedades.'],
+    ['motocarros', 'Despacho de motocarros', 'El despacho de motocarros se realizó sin novedades.'],
+    ['standby', 'Verificación del personal Stand By', 'Se verificó la presentación oportuna del personal Stand By programado.']
+];
+// Las secciones y turnos sin escribir no salen en el reporte
+export function textoDespacho(datos, fechaTexto) {
+    var n = 0, secciones = [];
+    SECCIONES_DESPACHO.forEach(function (s) {
+        var d = (datos || {})[s[0]] || {};
+        var turnos = [['Turno 1', d.t1], ['Turno 2', d.t2]].filter(function (t) { return String(t[1] || '').trim(); });
+        if (!turnos.length) return;
+        secciones.push(++n + '. ' + s[1] + '\n\n' + turnos.map(function (t) { return t[0] + ':\n\n' + t[1].trim(); }).join('\n\n'));
+    });
+    if (!secciones.length) return '';
+    return '*REPORTE DE ACTIVIDADES DE DESPACHO*\n\n' + (fechaTexto ? 'Fecha: ' + fechaTexto + '\n\n' : '') +
+        'A continuación, se presenta el consolidado de las novedades y actividades operativas desarrolladas durante la jornada.\n\n' + secciones.join('\n\n');
+}

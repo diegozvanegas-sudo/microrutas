@@ -732,6 +732,12 @@
             '<div class="acciones">' +
                 (inicio ? '<a class="boton primario" href="' + esc(urlComoLlegar(L.latLng(inicio))) + '" target="_blank" rel="noopener">🧭 Ir al inicio</a>' +
                     '<a class="boton secundario" href="' + esc(urlCalle(L.latLng(inicio))) + '" target="_blank" rel="noopener">🚶 Street View</a>' : '') +
+                '<button type="button" class="boton secundario" data-copiar-ruta="' + esc(capas.map(function (c) { return c.datos.n; }).filter(function (n, i, a) { return a.indexOf(n) === i; }).join(', ')) + '">📋 Copiar ruta</button>' +
+                // Lleva a la revisión con la ruta ya puesta (la misma ruta puede estar en LV y en RyT: un botón por cada una)
+                capas.map(function (c) {
+                    var tipo = c.capa === 'rutas_ryt' ? 'ryt' : 'lv';
+                    return '<a class="boton primario" href="revision.html?tipo=' + tipo + '&ruta=' + encodeURIComponent(c.datos.n) + '">✅ Registrar revisión' + (capas.length > 1 ? ' ' + (tipo === 'ryt' ? 'RyT' : 'LV') : '') + '</a>';
+                }).filter(function (h, i, a) { return a.indexOf(h) === i; }).join('') +
                 '<button type="button" class="boton secundario ancho" data-barrido-quitar>✕ Quitar selección</button>' +
             '</div></div>';
         if (movil.matches) plegarBarra(true);
@@ -740,6 +746,12 @@
     }
     document.addEventListener('click', function (ev) {
         if (ev.target.closest && ev.target.closest('[data-barrido-quitar]')) { quitarBarridoSel(); cerrarFicha(); map.closePopup(); }
+        var cr = ev.target.closest && ev.target.closest('[data-copiar-ruta]');
+        if (cr) {
+            var codigo = cr.dataset.copiarRuta, listo = function () { toast('Ruta copiada: ' + codigo); };
+            if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(codigo).then(listo, function () { if (copiarViejo(codigo)) listo(); });
+            else if (copiarViejo(codigo)) listo();
+        }
     });
     function terminar(nombre) { (esperando[nombre] || []).forEach(function (fn) { fn(); }); delete esperando[nombre]; }
     function cargarArchivo(nombre, listo) {

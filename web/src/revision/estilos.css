@@ -1,0 +1,48 @@
+/* Revisión de LV, RyT y plan de choque (revision.html) y Despacho (despacho.html); la base es la de diario/estilos.css */
+.pequeno { padding: 5px 10px; font-size: 13px; }
+.dia .centro { flex: 1; text-align: center; }
+.tipos { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+.tipos .chip { font-size: 14px; font-weight: 650; padding: 8px 14px; }
+.campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 8px; }
+.campos .ancho { grid-column: 1 / -1; }
+#form label, .turnos label, .opciones-reporte label { display: block; font-size: 13px; font-weight: 650; color: var(--muted); }
+#form label input, #form label select, #form label textarea, .turnos textarea { margin-top: 4px; color: var(--ink); font-weight: 400; }
+#form h3 { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 14px 0 6px; font-size: 15px; }
+.bloque { margin-top: 10px; }
+.fila-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 7px 0; border-top: 1px solid var(--line); font-size: 14px; }
+.fila-item > span { flex: 1 1 180px; }
+.marca-item { display: flex; gap: 4px; }
+.marca-item button { background: #fff; border: 1px solid var(--line); color: var(--muted); padding: 7px 10px; font-size: 13px; }
+.marca-item .m-si[aria-pressed="true"] { background: var(--ok-bg); border-color: var(--ok); color: var(--ok); }
+.marca-item .m-no[aria-pressed="true"] { background: var(--pend-bg); border-color: var(--pend); color: var(--pend); }
+.marca-item .m-na[aria-pressed="true"] { background: #e8edf0; border-color: var(--muted); color: var(--ink); }
+.operario { border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 14px 0; background: #fafcfb; }
+.op-cab { display: flex; gap: 8px; align-items: flex-end; margin-bottom: 8px; }
+.op-cab label { flex: 1; }
+.quitar { background: transparent; color: var(--muted); font-size: 22px; line-height: 1; padding: 8px; }
+.grupo-item { margin-top: 10px; font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.pie-form { display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px; }
+.pie-form .primario { padding: 11px 20px; }
+.aviso-cola { background: var(--aviso-bg); color: var(--aviso); padding: 8px 10px; border-radius: 10px; font-size: 13px; margin-bottom: 10px; }
+.rev { padding: 10px 0; border-top: 1px solid var(--line); }
+.rev:first-child { border-top: 0; }
+.rev-tit b { font-size: 15px; }
+.tag-local { background: var(--aviso-bg); color: var(--aviso); font-size: 12px; font-weight: 650; padding: 1px 8px; border-radius: 999px; white-space: nowrap; }
+.novedades { margin: 6px 0 0; padding-left: 18px; color: var(--pend); font-size: 14px; }
+.sin-nov { color: var(--ok); font-size: 13px; margin-top: 4px; }
+.opciones-reporte { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.opciones-reporte select { width: auto; }
+.opciones-reporte input[type="checkbox"] { width: auto; margin-right: 6px; }
+.turnos { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.turnos .chip { margin-top: 6px; }
+.guardado { color: var(--muted); font-size: 13px; font-weight: 400; }
+#secciones .tarjeta h2 { font-size: 16px; }
+@media (max-width: 700px) {
+    .turnos { grid-template-columns: 1fr; }
+}
+/* Pantalla ancha: a la izquierda se trabaja y a la derecha, a la vista, lo revisado y el reporte */
+@media (min-width: 1000px) {
+    main.dos-columnas { max-width: 1320px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(360px, 36%); gap: 0 20px; align-items: start; }
+    main.dos-columnas .dia, main.dos-columnas .nota-privada { grid-column: 1 / -1; }
+    main.dos-columnas .col-lado { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; }
+}
