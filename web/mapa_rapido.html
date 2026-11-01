@@ -149,6 +149,11 @@
                       box-shadow: 0 -6px 24px rgba(0, 0, 0, .25); padding: 6px 14px calc(16px + env(safe-area-inset-bottom)); max-height: 72vh; overflow-y: auto;
                       transform: translateY(105%); transition: transform .22s ease; }
         body:not(.barra-plegada) #hoja-capas { transform: none; }
+        /* Se desliza por la barrita o el título: arriba (72vh), abajo (deja ver el mapa) o, más abajo, se cierra */
+        #hoja-capas.baja { max-height: 34vh; }
+        #hoja-capas.arrastrando { transition: none; }
+        #hoja-capas .asa { width: 48px; height: 6px; margin: 4px auto 12px; box-shadow: 0 0 0 14px transparent; }
+        #hoja-capas .asa, #hoja-capas .hoja-cab { touch-action: none; cursor: grab; }
         #hoja-capas .chips { display: block; overflow: visible; padding: 0; }
         #hoja-capas .grupo { display: block; border-top: 1px solid var(--line); }
         #hoja-capas .grupo:first-child { border-top: 0; }
@@ -997,6 +1002,40 @@
     $('btn-plegar').onclick = function () { plegarBarra(!plegada); };
     $('btn-capas').onclick = function () { plegarBarra(false); };
     $('hoja-listo').onclick = function () { plegarBarra(true); };
+    // Hoja de capas del celular: se arrastra por la barrita o el título. Arriba = alta; a media pantalla = baja (se ve el
+    // mapa y se puede seguir tocando capas para revisar que quedaron puestas); casi abajo = se cierra. Tocar la barrita
+    // cambia entre alta y baja.
+    var hoja = $('hoja-capas');
+    hoja.classList.toggle('baja', !!leer('rapido_hoja_baja', false));
+    hoja.addEventListener('pointerdown', function (ev) {
+        if (ev.button !== 0 || !ev.target.closest('.asa, .hoja-cab') || ev.target.closest('button')) return;
+        var y0 = ev.clientY, h0 = hoja.offsetHeight, movio = false;
+        try { hoja.setPointerCapture(ev.pointerId); } catch (e) {}
+        function mover(e) {
+            var dy = e.clientY - y0;
+            if (!movio && Math.abs(dy) < 5) return;
+            movio = true;
+            hoja.classList.add('arrastrando');
+            hoja.style.maxHeight = Math.max(60, Math.min(window.innerHeight * .85, h0 - dy)) + 'px';
+        }
+        function soltar(e) {
+            try { hoja.releasePointerCapture(e.pointerId); } catch (er) {}
+            hoja.removeEventListener('pointermove', mover);
+            hoja.removeEventListener('pointerup', soltar);
+            hoja.removeEventListener('pointercancel', soltar);
+            hoja.classList.remove('arrastrando');
+            var h = hoja.offsetHeight / window.innerHeight, baja;
+            hoja.style.maxHeight = '';
+            if (!movio) baja = !hoja.classList.contains('baja');
+            else if (h < .2) { plegarBarra(true); return; }
+            else baja = h < .5;
+            hoja.classList.toggle('baja', baja);
+            guardar('rapido_hoja_baja', baja);
+        }
+        hoja.addEventListener('pointermove', mover);
+        hoja.addEventListener('pointerup', soltar);
+        hoja.addEventListener('pointercancel', soltar);
+    });
 
     // Secciones de la hoja de capas (celular): cada una se contrae tocando su título, que dice lo que tiene puesto.
     // En el computador el título no se ve y los botones siguen en la barra (antes: el separador o la etiqueta "antes").

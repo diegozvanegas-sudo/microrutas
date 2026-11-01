@@ -178,9 +178,16 @@ export function iniciar(api, CFG) {
         return !u || (u === '-' ? !r.USUARIO : r.USUARIO === u);
     }
 
+    // Varios lotes o microrrutas en el buscador ("481, 429 397" o pegados uno por renglón): lista en mayúsculas, o null
+    function listaBuscada() {
+        var t = $('f-texto').value.split(/[\s,;]+/).filter(Boolean);
+        return t.length > 1 && t.every(function (x) { return /^\d+$/.test(x) || /^Z\d+CC\d+$/i.test(x); }) ? t.map(function (x) { return x.toUpperCase(); }) : null;
+    }
+    function esDeLista(r, lista) { return lista.indexOf(String(r.LOTE || '').trim()) !== -1 || lista.indexOf(String(r.MICRORRUTA || '').trim().toUpperCase()) !== -1; }
     // sinEstado: con todos los filtros menos el de estado (los vencimientos miran solo las pendientes)
     function filtrados(sinEstado) {
         var texto = norm($('f-texto').value), est = sinEstado ? '' : $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
+        var lista = listaBuscada();
         return registros.filter(function (r) {
             if (!filtroUsuario(r)) return false;
             if (tipo && r.TIPO !== tipo) return false;
@@ -189,6 +196,7 @@ export function iniciar(api, CFG) {
             if (dia && aInput(r['FECHA DE LA VISITA']) !== dia) return false;
             if (est === 'DESCUENTO' ? !paraDescuento(r) : est && r.ESTADO !== est) return false;
             if (!texto) return true;
+            if (lista) return esDeLista(r, lista);
             return ['ID', 'MICRORRUTA', 'LOTE', 'INTERVENTOR', 'OBSERVACIONES NOVEDADES', 'OBSERVACIÓN SUBSANACIÓN']
                 .some(function (c) { return norm(r[c]).indexOf(texto) !== -1; });
         });
@@ -220,10 +228,18 @@ export function iniciar(api, CFG) {
         var lista = filtrados().sort(porRegistro);
         // Las más viejas primero cuando se piden las de descuento
         if (est === 'DESCUENTO') lista.sort(function (a, b) { return dias(b['FECHA DE LA VISITA']) - dias(a['FECHA DE LA VISITA']); });
+        // Varios lotes buscados: cuáles no tienen visita (con los demás filtros puestos)
+        var buscados = listaBuscada(), faltan = buscados ? buscados.filter(function (x) { return !lista.some(function (r) { return esDeLista(r, [x]); }); }) : [];
+        var avisoFaltan = faltan.length ? '<div class="faltan-lista">Sin visitas' + (lista.length ? '' : ' con estos filtros') + ': ' + faltan.map(esc).join(', ') + '</div>' : '';
         if (!lista.length) {
-            $('tabla').innerHTML = '<div class="vacio">' + (registros.length ? 'Ningún registro coincide con los filtros.' : 'Aún no hay visitas. Use "+ Nueva visita".') + '</div>';
+            $('tabla').innerHTML = avisoFaltan + '<div class="vacio">' + (registros.length ? 'Ningún registro coincide con los filtros.' : 'Aún no hay visitas. Use "+ Nueva visita".') + '</div>';
             return;
         }
+        // Con algo escrito en el buscador: subsanar de una vez todas las pendientes de la lista
+        var pend = $('f-texto').value.trim() ? lista.filter(function (r) { return r.ESTADO === 'PENDIENTE'; }) : [];
+        var masivo = pend.length ? '<div class="subsanar-lista"><button type="button" class="subsanar" data-subsanar-todos>✓ Subsanar ' +
+            (pend.length === 1 ? 'la pendiente' : 'las ' + pend.length + ' pendientes') + ' de esta lista</button>' +
+            '<span class="sub">Pasa a SI los ítems en NO y pone la fecha de hoy</span></div>' : '';
         // Cuántas hay en la lista (con los filtros puestos) y de qué estado
         var porEstado = {};
         lista.forEach(function (r) { porEstado[r.ESTADO] = (porEstado[r.ESTADO] || 0) + 1; });
@@ -232,7 +248,7 @@ export function iniciar(api, CFG) {
             [['SIN NOVEDAD', 'sin novedad', 'sin novedad'], ['PENDIENTE', 'pendiente', 'pendientes'], ['SUBSANADO', 'subsanada', 'subsanadas'], ['CERRADO', 'cerrada', 'cerradas']]
                 .filter(function (t) { return porEstado[t[0]]; })
                 .map(function (t) { return ' · ' + porEstado[t[0]] + ' ' + (porEstado[t[0]] === 1 ? t[1] : t[2]); }).join('') + '</div>';
-        $('tabla').innerHTML = conteo + '<div class="movil">' + lista.map(tarjetaMovil).join('') + '</div>' +
+        $('tabla').innerHTML = conteo + avisoFaltan + masivo + '<div class="movil">' + lista.map(tarjetaMovil).join('') + '</div>' +
             '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Fecha de ejecución</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             lista.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
@@ -251,7 +267,8 @@ export function iniciar(api, CFG) {
                         (r.ESTADO === 'SUBSANADO' && r['FECHA SUBSANACIÓN'] ? '<div class="sub">' + esc(r['FECHA SUBSANACIÓN']) + '</div>' : '') + '</td>' +
                     '<td data-label="Observaciones">' + esc(r['OBSERVACIONES NOVEDADES'] || '') +
                         (r['OBSERVACIÓN SUBSANACIÓN'] ? '<div class="sub">Subsanación: ' + esc(r['OBSERVACIÓN SUBSANACIÓN']) + '</div>' : '') + '</td>' +
-                    '<td class="acciones"><button type="button" class="secundario pequeno" data-ver="' + esc(r.ID) + '" aria-expanded="' + !!abiertos[r.ID] + '">' +
+                    '<td class="acciones">' + (r.ESTADO === 'PENDIENTE' ? '<button type="button" class="subsanar pequeno" data-subsanar-ya="' + esc(r.ID) + '" title="Pasar a SI los ítems en NO, con la fecha de hoy">✓ Subsanar</button> ' : '') +
+                        '<button type="button" class="secundario pequeno" data-ver="' + esc(r.ID) + '" aria-expanded="' + !!abiertos[r.ID] + '">' +
                         (abiertos[r.ID] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button> ' +
                         '<button type="button" class="secundario pequeno" data-editar="' + esc(r.ID) + '">Editar</button></td>' +
                     '</tr>' +
@@ -287,7 +304,8 @@ export function iniciar(api, CFG) {
             dato('Última modificación', r['MODIFICADO POR'] ? esc(r['MODIFICADO POR']) + ' · ' + esc(r['ÚLTIMA MODIFICACIÓN']) : '') +
             dato('Observación subsanación', esc(r['OBSERVACIÓN SUBSANACIÓN']), true) +
             dato('Evidencia', /^https?:\/\//i.test(r.EVIDENCIA || '') ? '<a href="' + esc(r.EVIDENCIA) + '" target="_blank" rel="noopener">Abrir fotos</a>' : esc(r.EVIDENCIA), true) +
-            '</dl>' + (r.ESTADO === 'PENDIENTE' ? '<button type="button" class="subsanar' + (conEditar ? '' : ' pequeno') + '" data-subsanar="' + esc(r.ID) + '">✓ Marcar subsanado</button>' : '') +
+            '</dl>' + (r.ESTADO === 'PENDIENTE' ? (conEditar ? '<button type="button" class="subsanar" data-subsanar-ya="' + esc(r.ID) + '">✓ Subsanar ya</button> ' : '') +
+                '<button type="button" class="' + (conEditar ? 'secundario' : 'subsanar pequeno') + '" data-subsanar="' + esc(r.ID) + '">' + (conEditar ? '📎 Subsanar con evidencia' : '✓ Marcar subsanado') + '</button>' : '') +
             (conEditar ? '<div class="fila-btn"><button type="button" class="primario editar" data-editar="' + esc(r.ID) + '">Editar</button>' +
                 '<button type="button" class="peligro" data-eliminar="' + esc(r.ID) + '">🗑 Eliminar</button></div>' : '') +
             (enNo.length ? '<button type="button" class="wa' + (conEditar ? ' wa-btn' : ' pequeno') + '" data-wa="' + esc(r.ID) + '">Resumen WhatsApp</button>' : '') +
@@ -581,6 +599,52 @@ export function iniciar(api, CFG) {
         actualizarEstadoForm();
         var obs = form.querySelector('[data-campo="OBSERVACIÓN SUBSANACIÓN"]');
         setTimeout(function () { obs.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 100);
+    }
+    // Subsanar sin abrir el formulario: los ítems en NO pasan a SI y la fecha de subsanación es hoy (la base pone el
+    // estado SUBSANADO y quién lo subsanó). Devuelve el registro guardado.
+    function subsanarYa(r) {
+        var cambio = { 'FECHA SUBSANACIÓN': aTexto(hoy()) };
+        itemsEnNo(r).forEach(function (it) { cambio[it] = 'SI'; });
+        return enviar('actualizar', { id: r.ID, registro: cambio }).then(function (d) {
+            var nuevo = canonico(d.registro), i = registros.findIndex(function (x) { return x.ID === nuevo.ID; });
+            if (i !== -1) registros[i] = nuevo;
+            return nuevo;
+        });
+    }
+    function nombreVisita(r) { return r.LOTE ? 'Lote ' + r.LOTE : r.MICRORRUTA || r.ID; }
+    function subsanarUna(r, boton) {
+        var enNo = itemsEnNo(r);
+        confirmar('¿Subsanar ' + nombreVisita(r) + '?', 'Pasan a SI: ' + (enNo.join(', ') || 'ningún ítem') + '.\nFecha de subsanación: hoy, ' + aTexto(hoy()) + '.', '✓ Subsanar', 'Cancelar')
+            .then(function (si) {
+                if (!si) return;
+                if (boton) boton.disabled = true;
+                return subsanarYa(r).then(function (nuevo) { guardarCache(); pintar(); toast(nombreVisita(nuevo) + ' · ' + nuevo.ESTADO); })
+                    .catch(function (err) { toast('No se subsanó: ' + err.message); if (boton) boton.disabled = false; });
+            });
+    }
+    // Todas las pendientes de la lista filtrada, una tras otra; al final dice cuáles no se pudieron
+    function subsanarLista(boton) {
+        var pend = filtrados().filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
+        if (!pend.length) return;
+        confirmar('¿Subsanar ' + pend.length + (pend.length === 1 ? ' visita pendiente?' : ' visitas pendientes?'),
+            pend.map(nombreVisita).join(', ') + '\n\nA cada una se le pasan a SI los ítems en NO, con fecha de subsanación de hoy (' + aTexto(hoy()) + ').',
+            '✓ Subsanar ' + pend.length, 'Cancelar')
+            .then(function (si) {
+                if (!si) return;
+                boton.disabled = true;
+                var bien = 0, mal = [];
+                return pend.reduce(function (p, r, i) {
+                    return p.then(function () {
+                        boton.textContent = 'Subsanando ' + (i + 1) + ' de ' + pend.length + '…';
+                        return subsanarYa(r).then(function () { bien++; }, function (err) { mal.push(nombreVisita(r) + ' (' + err.message + ')'); });
+                    });
+                }, Promise.resolve()).then(function () {
+                    guardarCache();
+                    pintar();
+                    if (mal.length) aviso('<b>' + bien + ' subsanadas.</b> No se pudieron: ' + mal.map(esc).join(', '));
+                    else toast(bien + (bien === 1 ? ' visita subsanada' : ' visitas subsanadas'));
+                });
+            });
     }
     function ocupado(si) { ['btn-guardar', 'btn-eliminar', 'btn-cancelar'].forEach(function (id) { $(id).disabled = si; }); }
 
@@ -1375,7 +1439,9 @@ export function iniciar(api, CFG) {
         seguirUbicacion();
         pintadaEn = posicion;
         var vencidos = [];
-        cont.innerHTML = pintarRutaCompleta() + rutas.map(function (ruta, ri) {
+        // "+ Otra pre-ruta" arriba, encima de la ruta completa, para no tener que bajar hasta el final
+        cont.innerHTML = '<div class="ruta-arriba"><button type="button" class="primario otra" data-ruta="nueva">+ Otra pre-ruta</button></div>' +
+            pintarRutaCompleta() + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
                 var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso; x.sinfotos = p.sinfotos;
                 x.du = fijada && fijada.id === String(x.id) ? 0 : posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
@@ -1476,7 +1542,7 @@ export function iniciar(api, CFG) {
                             '<button type="button" class="secundario pequeno" data-ruta="quitar-parada" data-ri="' + ri + '" data-id="' + esc(x.id) + '" title="Quitar de la pre-ruta" aria-label="Quitar de la pre-ruta">✕</button>' +
                         '</div></li>';
                 }).join('') + '</ol></div>';
-        }).join('') + '<button type="button" class="secundario pequeno otra" data-ruta="nueva">+ Otra pre-ruta</button>';
+        }).join('');
         avisarVencidos(vencidos);
     }
 
@@ -1780,6 +1846,15 @@ export function iniciar(api, CFG) {
     $('btn-nuevo').onclick = function () { abrir(null); };
     $('btn-recargar').onclick = cargar;
     $('f-texto').oninput = pintar;
+    // Lista de lotes pegada (uno por renglón, como sale del Excel o de WhatsApp): el campo es de una línea y el navegador
+    // pegaría los números juntos; se separan con comas
+    $('f-texto').addEventListener('paste', function (ev) {
+        var t = (ev.clipboardData || window.clipboardData).getData('text');
+        if (!/[\r\n]/.test(t.trim())) return;
+        ev.preventDefault();
+        this.value = t.trim().split(/\s*[\r\n]+\s*/).filter(Boolean).join(', ');
+        pintar();
+    });
     $('f-estado').onchange = pintar;
     $('f-zona').onchange = pintar;
     $('f-tipo').onchange = pintar;
@@ -1795,6 +1870,10 @@ export function iniciar(api, CFG) {
         if (b) return abrir(registros.find(function (r) { return r.ID === b.dataset.editar; }));
         var s = ev.target.closest('[data-subsanar]');
         if (s) return subsanar(registros.find(function (r) { return r.ID === s.dataset.subsanar; }));
+        var sy = ev.target.closest('[data-subsanar-ya]');
+        if (sy) return subsanarUna(registros.find(function (r) { return r.ID === sy.dataset.subsanarYa; }), sy);
+        var st = ev.target.closest('[data-subsanar-todos]');
+        if (st) return subsanarLista(st);
         var w = ev.target.closest('[data-wa]');
         if (w) return mostrarWhatsapp(registros.find(function (r) { return r.ID === w.dataset.wa; }));
         var el = ev.target.closest('[data-eliminar]');
