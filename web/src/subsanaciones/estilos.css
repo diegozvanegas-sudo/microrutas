@@ -255,8 +255,8 @@ fieldset { min-width: 0; }
 .ruta { margin-bottom: 12px; display: grid; gap: 10px; justify-items: start; }
 .ruta > * { width: 100%; }
 .ruta > .otra { width: auto; }
-/* "+ Otra pre-ruta" arriba de la ruta completa: botón verde lleno, a la derecha */
-.ruta-arriba { display: flex; justify-content: flex-end; }
+/* "+ Otra pre-ruta" arriba de la ruta completa: botón verde lleno, a la izquierda */
+.ruta-arriba { display: flex; justify-content: flex-start; }
 .ruta-arriba .otra { padding: 10px 18px; font-size: 15px; border-radius: 10px; box-shadow: 0 2px 6px rgba(21, 128, 61, .25); }
 .ruta-vacia { text-align: left; background: #fff; border: 2px dashed #9fd3bd; color: var(--ink); padding: 14px 16px; border-radius: 12px; font-weight: 400; }
 .ruta-vacia .sub { display: block; margin-top: 2px; }
