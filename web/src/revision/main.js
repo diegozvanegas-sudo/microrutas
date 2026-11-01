@@ -1,18 +1,21 @@
-// revision.html: checklist de LV, RyT y plan de choque, por ruta y por operario, y el reporte para el grupo.
+// revision.html: lista de revisiones de LV, RyT y plan de choque (como Subsanaciones) con su checklist por ruta y por
+// operario en una ventana, y el reporte para el grupo.
 // Se guarda en Supabase (public.revisiones, 0016_revisiones.sql). Sin señal queda en el celular y se envía al volver.
 import '../diario/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { esc, hoy, nombreDia, sumarDias } from '../diario/comun.js';
-import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoRevision } from './comun.js';
+import { esc, hoy, nombreDia } from '../diario/comun.js';
+import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
 var $ = function (id) { return document.getElementById(id); };
 var revisiones = [], cola = {}, fecha = hoy(), form = null, reporteFinal = false, turnoReporte = '';
 var CAPAS_NOMBRES = { lv: ['rutas_lv', 'barrido_dom', 'barrido_manana', 'barrido_tarde', 'barrido_noche'], ryt: ['rutas_ryt'], plan: [] };
-var nombres = {}, pedidas = {};
+var nombres = {}, pedidas = {}, usuarios = {}, abiertos = {}, filtroEstado = '';
+var TAMANOS = [5, 10, 15, 20, 25, 30], porPagina = 10, pagina = 1, firmaFiltros = '';
+var FILTROS = ['f-texto', 'f-tipo', 'f-zona', 'f-turno', 'f-dia', 'f-usuario'];
 
 function leer(clave, porDefecto) { try { return JSON.parse(localStorage.getItem(clave)) || porDefecto; } catch (e) { return porDefecto; } }
 function escribir(clave, valor) { try { localStorage.setItem(clave, JSON.stringify(valor)); return true; } catch (e) { return false; } }
@@ -65,6 +68,7 @@ function pintarForm() {
         '<div class="campos">' +
             '<label class="ancho">' + (esPlan ? 'Sector' : 'Ruta') + '<input data-campo="ruta" list="rutas-lista" autocomplete="off" value="' + esc(form.ruta) + '" placeholder="' + (esPlan ? 'Ej.: CR 45 Palos Verdes' : 'Ej.: Z2R208LAS') + '"></label>' +
             '<label>Zona<input data-campo="zona" inputmode="numeric" value="' + esc(form.zona) + '"></label>' +
+            '<label>Fecha<input type="date" data-campo="fecha" value="' + esc(form.fecha) + '"></label>' +
             '<label>Turno<select data-campo="turno">' + TURNOS.map(function (t) { return '<option' + (t === form.turno ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label>' +
             (form.tipo === 'ryt' ? '<label>Control o vehículo<input data-campo="control" value="' + esc(form.control) + '" placeholder="Ej.: 595"></label>' : '') +
         '</div>' +
@@ -87,9 +91,16 @@ function pintarForm() {
         '<button type="button" class="secundario" data-mas-op>+ Otro ' + quien.toLowerCase() + '</button>';
     pintarSugerencias();
     pedirNombres(form.tipo);
-    $('btn-cancelar').hidden = !revisiones.concat(valoresCola()).some(function (r) { return r.id === form.id; });
+    $('dlg-titulo').textContent = esGuardada(form.id) ? 'Editar revisión' : 'Nueva revisión';
 }
+function esGuardada(id) { return !!cola[id] || revisiones.some(function (r) { return r.id === id; }); }
 function guardarBorrador() { escribir(BORRADOR, form); }
+function abrirForm(datos) {
+    form = datos;
+    pintarForm();
+    $('dlg').showModal();
+    $('dlg').scrollTop = 0;
+}
 function marcarTodo(ambito) {
     var c = CHECKLIST[form.tipo];
     if (ambito === 'ruta') c.ruta.forEach(function (i) { if (!form.items[i[0]]) form.items[i[0]] = 'si'; });
@@ -111,7 +122,7 @@ async function enviar(r) {
 async function guardar() {
     form.ruta = form.ruta.trim();
     if (!form.ruta) { toast('Escriba la ' + (form.tipo === 'plan' ? 'zona o el sector.' : 'ruta.')); return $('form').querySelector('[data-campo="ruta"]').focus(); }
-    form.fecha = fecha;
+    if (!form.fecha) form.fecha = hoy();
     var r = JSON.parse(JSON.stringify(form)), faltan = sinMarcar(r);
     $('btn-guardar').disabled = true;
     // Queda en el celular antes de intentar: si la señal se cae a mitad, no se pierde
@@ -123,9 +134,18 @@ async function guardar() {
     var tipo = form.tipo, turno = form.turno;
     form = formVacio(tipo); form.turno = turno;
     guardarBorrador();
-    pintarForm(); pintarLista();
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    $('dlg').close();
+    fecha = r.fecha;
+    pintarLista();
+    if (hecho || aLocal) verMensaje(r);
     if (hecho || aLocal) toast((hecho ? 'Revisión guardada.' : '📴 Guardada en este celular; se enviará al volver la señal.') + (faltan ? ' Quedaron ' + faltan + ' puntos sin marcar.' : ''));
+}
+// El mensaje de una revisión, listo para el grupo: sale al guardar y con el botón Mensaje de la lista
+function verMensaje(r) {
+    var t = textoRevision(r, new Date().getHours());
+    $('msg-texto').textContent = t;
+    $('msg-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(t);
+    $('dlg-msg').showModal();
 }
 async function sincronizar() {
     var pendientes = valoresCola();
@@ -143,10 +163,15 @@ async function sincronizar() {
 async function cargar() {
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env). Lo que guarde queda en este equipo.'; return pintarLista(); }
     $('estado').textContent = 'Cargando…';
-    // Hasta 60 días atrás: para el reporte del día y consultar lo reciente
-    var res = await supabase.from('revisiones').select('*').gte('fecha', sumarDias(hoy(), -60)).order('creado');
-    if (res.error) { $('estado').textContent = 'Sin conexión: se muestra lo guardado en este celular.'; return pintarLista(); }
-    revisiones = res.data; escribir(CACHE, revisiones);
+    // Supabase entrega hasta 1.000 filas por consulta: se piden todas por partes
+    var filas = [];
+    for (var desde = 0; ; desde += 1000) {
+        var res = await supabase.from('revisiones').select('*').order('creado').range(desde, desde + 999);
+        if (res.error) { $('estado').textContent = 'Sin conexión: se muestra lo guardado en este celular.'; return pintarLista(); }
+        filas = filas.concat(res.data);
+        if (res.data.length < 1000) break;
+    }
+    revisiones = filas; escribir(CACHE, revisiones);
     $('estado').textContent = '';
     pintarLista();
     sincronizar();
@@ -168,23 +193,96 @@ function delDia() {
     valoresCola().concat(revisiones).forEach(function (r) { if (r.fecha === fecha && !ids[r.id]) { ids[r.id] = 1; out.push(r); } });
     return out;
 }
+function todas() {
+    var ids = {}, out = [];
+    valoresCola().concat(revisiones).forEach(function (r) { if (!ids[r.id]) { ids[r.id] = 1; out.push(r); } });
+    return out;
+}
+function filtrosPuestos() {
+    return { texto: $('f-texto').value, tipo: $('f-tipo').value, zona: $('f-zona').value, turno: $('f-turno').value, dia: $('f-dia').value, usuario: $('f-usuario').value, estado: filtroEstado };
+}
+function llenarSelect(id, titulo, valores) {
+    var el = $(id), actual = el.value;
+    el.innerHTML = '<option value="">' + titulo + ': todos</option>' + valores.map(function (v) { return '<option value="' + esc(v[0]) + '">' + esc(v[1]) + '</option>'; }).join('');
+    el.value = valores.some(function (v) { return v[0] === actual; }) ? actual : '';
+}
+function llenarFiltros(lista) {
+    var unicos = function (fn) { return lista.map(fn).filter(function (v, i, a) { return v && a.indexOf(v) === i; }); };
+    llenarSelect('f-zona', 'Zona', unicos(function (r) { return String(r.zona || ''); }).sort(function (a, b) { return Number(a) - Number(b) || a.localeCompare(b); }).map(function (z) { return [z, 'Zona ' + z]; }));
+    llenarSelect('f-turno', 'Turno', TURNOS.filter(function (t) { return lista.some(function (r) { return r.turno === t; }); }).map(function (t) { return [t, t]; }));
+    llenarSelect('f-dia', 'Día', unicos(function (r) { return r.fecha; }).sort().reverse().map(function (d) { return [d, nombreDia(d)]; }));
+    var ids = Object.keys(usuarios);
+    $('f-usuario').hidden = !ids.length;
+    if (ids.length) llenarSelect('f-usuario', 'Usuario', ids.map(function (i) { return [i, usuarios[i]]; }));
+}
+function pintarResumen(base) {
+    var con = base.filter(tieneNovedad).length;
+    $('resumen').innerHTML = [['', base.length, 'Revisiones'], ['novedad', con, 'Con novedad'], ['ok', base.length - con, 'Sin novedad']].map(function (t) {
+        return '<div class="tarjeta' + (filtroEstado === t[0] ? ' activa' : '') + '" data-estado="' + t[0] + '" role="button" tabindex="0"><div class="num">' + t[1] + '</div><div class="tit">' + t[2] + '</div></div>';
+    }).join('');
+}
+function paginador(total) {
+    var paginas = Math.ceil(total / porPagina);
+    if (paginas < 2) return '';
+    return '<div class="paginador"><button type="button" class="secundario pequeno" data-pagina="' + (pagina - 1) + '"' + (pagina === 1 ? ' disabled' : '') + '>‹ Anterior</button>' +
+        '<span class="sub">' + ((pagina - 1) * porPagina + 1) + '–' + Math.min(pagina * porPagina, total) + ' de ' + total + ' · Página ' + pagina + ' de ' + paginas + '</span>' +
+        '<button type="button" class="secundario pequeno" data-pagina="' + (pagina + 1) + '"' + (pagina === paginas ? ' disabled' : '') + '>Siguiente ›</button></div>';
+}
+var RESPUESTA = { si: 'Cumple', no: 'No cumple', na: 'N/A', '': 'Sin marcar' };
+function puntos(lista) {
+    return lista.map(function (p) { return '<div class="punto"><span>' + esc(p[0]) + '</span><span class="' + (p[1] || 'sin-marcar') + '">' + RESPUESTA[p[1]] + '</span></div>'; }).join('');
+}
+function enlaceHtml(u) { u = enlaceSeguro(u); return u ? '<div class="bloque"><a href="' + esc(u) + '" target="_blank" rel="noopener">🔗 Ver evidencia</a></div>' : ''; }
+function detalle(r) {
+    return '<div class="detalle-grid"><div class="detalle-bloque"><h4>De la ruta</h4>' + puntos(detalleRuta(r)) +
+            (r.novedad ? '<div class="bloque">' + esc(r.novedad) + '</div>' : '') + enlaceHtml(r.enlace) + '</div>' +
+        (r.operarios || []).map(function (o, k) {
+            return '<div class="detalle-bloque"><h4>' + esc(o.nombre || (r.tipo === 'ryt' ? 'Tripulante ' : 'Operario ') + (k + 1)) + '</h4>' +
+                detalleOperario(r.tipo, o).map(function (g) { return '<div class="grupo-item">' + esc(g[0]) + '</div>' + puntos(g[1]); }).join('') +
+                (o.novedad ? '<div class="bloque">' + esc(o.novedad) + '</div>' : '') + enlaceHtml(o.enlace) + '</div>';
+        }).join('') + '</div>';
+}
 function pintarLista() {
+    var total = todas();
+    llenarFiltros(total);
     $('dia-nombre').textContent = nombreDia(fecha);
     $('dia-fecha').value = fecha;
-    var lista = delDia();
     $('sin-enviar').hidden = !valoresCola().length;
     $('sin-enviar').textContent = '📴 ' + valoresCola().length + ' sin enviar: se envían solas al volver la señal.';
-    $('lista').innerHTML = lista.length ? lista.map(function (r) {
-        var nov = novedadesDe(r), falta = sinMarcar(r);
-        return '<div class="rev"><div class="rev-tit"><b>' + esc(nombreRevision(r)) + '</b> <span class="sub">' + esc([TIPOS[r.tipo], r.zona ? 'Zona ' + r.zona : '', r.turno].filter(Boolean).join(' · ')) + '</span>' +
-                (cola[r.id] ? ' <span class="tag-local">📴 Sin enviar</span>' : '') + '</div>' +
-            '<div class="sub">' + (r.operarios || []).length + ((r.operarios || []).length === 1 ? ' persona' : ' personas') + (falta ? ' · ' + falta + ' sin marcar' : '') + '</div>' +
-            (nov.length ? '<ul class="novedades">' + nov.map(function (n) { var u = enlaceSeguro(n.replace(/^.*evidencia: /i, '')); return '<li>' + (u ? '<a href="' + esc(u) + '" target="_blank" rel="noopener">Ver evidencia</a>' : esc(n)) + '</li>'; }).join('') + '</ul>' : '<div class="sin-nov">Sin novedades</div>') +
-            '<div class="acciones"><button type="button" class="secundario pequeno" data-mensaje="' + esc(r.id) + '">📋 Copiar mensaje</button>' +
-                '<button type="button" class="secundario pequeno" data-editar="' + esc(r.id) + '">Editar</button>' +
-                '<button type="button" class="peligro pequeno" data-eliminar="' + esc(r.id) + '">Eliminar</button></div></div>';
-    }).join('') : '<div class="sub">Aún no hay revisiones este día.</div>';
+    var f = filtrosPuestos();
+    pintarResumen(filtrarRevisiones(total, f, true));
+    $('btn-limpiar').hidden = !FILTROS.some(function (id) { return $(id).value; }) && !filtroEstado;
+    var lista = ordenarRevisiones(filtrarRevisiones(total, f));
     pintarReporte();
+    if (!lista.length) {
+        $('tabla').innerHTML = '<div class="vacio-lista">' + (total.length ? 'Ninguna revisión coincide con los filtros.' : 'Aún no hay revisiones. Use "+ Nueva revisión".') + '</div>';
+        return;
+    }
+    var firma = FILTROS.map(function (id) { return $(id).value; }).join('|') + filtroEstado;
+    if (firma !== firmaFiltros) { firmaFiltros = firma; pagina = 1; }
+    pagina = Math.min(pagina, Math.ceil(lista.length / porPagina));
+    var trozo = lista.slice((pagina - 1) * porPagina, pagina * porPagina), con = lista.filter(tieneNovedad).length;
+    $('tabla').innerHTML =
+        '<div class="conteo-lista"><span><b>' + lista.length + (lista.length === 1 ? ' revisión' : ' revisiones') + '</b>' + (lista.length !== total.length ? ' de ' + total.length : '') +
+            ' · ' + con + ' con novedad · ' + (lista.length - con) + ' sin novedad</span>' +
+            '<label class="por-pagina">Mostrar <select data-por-pagina aria-label="Revisiones por página">' + TAMANOS.map(function (n) { return '<option' + (n === porPagina ? ' selected' : '') + '>' + n + '</option>'; }).join('') + '</select></label></div>' +
+        paginador(lista.length) +
+        '<table><thead><tr><th>Ruta</th><th>Servicio</th><th>Fecha y turno</th><th>Personas</th><th>Estado</th><th>Novedades</th><th></th></tr></thead><tbody>' +
+        trozo.map(function (r) {
+            var nov = novedadesDe(r).filter(function (n) { return !/^evidencia: |, evidencia: /i.test(n); }), falta = sinMarcar(r), n = (r.operarios || []).length;
+            return '<tr class="fila-rev" data-fila="' + esc(r.id) + '">' +
+                '<td><span class="tit-ruta">' + esc(nombreRevision(r)) + '</span><div class="sub">' + (r.zona ? 'Zona ' + esc(r.zona) : 'Sin zona') + '</div></td>' +
+                '<td>' + esc(TIPOS[r.tipo]) + '</td>' +
+                '<td>' + esc(nombreDia(r.fecha)) + '<div class="sub">' + esc(r.turno) + (usuarios[r.usuario] ? ' · 👤 ' + esc(usuarios[r.usuario]) : '') + '</div></td>' +
+                '<td>' + n + (n === 1 ? ' persona' : ' personas') + (falta ? '<div class="sub">' + falta + ' sin marcar</div>' : '') + '</td>' +
+                '<td><span class="badge ' + (nov.length ? 'novedad">CON NOVEDAD' : 'ok">SIN NOVEDAD') + '</span>' + (cola[r.id] ? '<div><span class="badge local">📴 Sin enviar</span></div>' : '') + '</td>' +
+                '<td>' + (nov.length ? nov.map(function (x) { return '<span class="chip-no">' + esc(x) + '</span>'; }).join('') : '<span class="sub">Ninguna</span>') + '</td>' +
+                '<td class="acciones"><button type="button" class="secundario pequeno" data-ver="' + esc(r.id) + '" aria-expanded="' + !!abiertos[r.id] + '">' + (abiertos[r.id] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button>' +
+                    '<button type="button" class="secundario pequeno" data-mensaje="' + esc(r.id) + '">📋 Mensaje</button>' +
+                    '<button type="button" class="secundario pequeno" data-editar="' + esc(r.id) + '">Editar</button>' +
+                    '<button type="button" class="peligro pequeno" data-eliminar="' + esc(r.id) + '">Eliminar</button></td></tr>' +
+                '<tr class="fila-detalle"' + (abiertos[r.id] ? '' : ' hidden') + '><td colspan="7">' + detalle(r) + '</td></tr>';
+        }).join('') + '</tbody></table>' + paginador(lista.length);
 }
 function pintarReporte() {
     var lista = delDia(), turnos = lista.map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; });
@@ -240,28 +338,54 @@ function arrancarEventos() {
         window.scrollTo(0, y);
     });
     $('btn-guardar').onclick = guardar;
-    $('btn-cancelar').onclick = function () { form = formVacio(form.tipo); guardarBorrador(); pintarForm(); };
-    $('lista').onclick = function (ev) {
+    $('msg-cerrar').onclick = function () { $('dlg-msg').close(); };
+    $('msg-copiar').onclick = function () {
+        navigator.clipboard.writeText($('msg-texto').textContent).then(function () { toast('Mensaje copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
+    };
+    // Cancelar descarta lo escrito; cerrar con la × lo deja para seguir después
+    $('btn-cancelar').onclick = function () { form = formVacio(form.tipo); guardarBorrador(); $('dlg').close(); };
+    $('dlg-cerrar').onclick = function () { $('dlg').close(); };
+    $('btn-nueva').onclick = function () {
+        var b = leer(BORRADOR, null);
+        abrirForm(b && CHECKLIST[b.tipo] && !esGuardada(b.id) ? b : formVacio(form.tipo));
+    };
+    FILTROS.forEach(function (id) { $(id).addEventListener(id === 'f-texto' ? 'input' : 'change', pintarLista); });
+    $('btn-limpiar').onclick = function () { FILTROS.forEach(function (id) { $(id).value = ''; }); filtroEstado = ''; pintarLista(); };
+    $('resumen').onclick = function (ev) {
+        var t = ev.target.closest('[data-estado]');
+        if (t) { filtroEstado = t.dataset.estado; pintarLista(); }
+    };
+    $('tabla').addEventListener('change', function (ev) {
+        if (!ev.target.matches('[data-por-pagina]')) return;
+        var primera = (pagina - 1) * porPagina;
+        porPagina = +ev.target.value;
+        pagina = Math.floor(primera / porPagina) + 1;
+        escribir('revisiones_por_pagina', porPagina);
+        pintarLista();
+    });
+    $('tabla').onclick = function (ev) {
+        var pg = ev.target.closest('[data-pagina]');
+        if (pg) { pagina = +pg.dataset.pagina; pintarLista(); return $('tabla').scrollIntoView({ block: 'start' }); }
+        var buscar = function (id) { return cola[id] || revisiones.find(function (x) { return x.id === id; }); };
         var me = ev.target.closest('[data-mensaje]');
-        if (me) {
-            var rm = cola[me.dataset.mensaje] || revisiones.find(function (x) { return x.id === me.dataset.mensaje; });
-            return navigator.clipboard.writeText(textoRevision(rm, new Date().getHours())).then(function () { toast('Mensaje copiado.'); }, function () { toast('No se pudo copiar.'); });
-        }
+        if (me) return verMensaje(buscar(me.dataset.mensaje));
         var e = ev.target.closest('[data-editar]');
         if (e) {
-            var r = cola[e.dataset.editar] || revisiones.find(function (x) { return x.id === e.dataset.editar; });
-            form = JSON.parse(JSON.stringify(r));
-            if (!form.operarios.length) form.operarios = [operarioVacio()];
-            pintarForm(); guardarBorrador();
-            return window.scrollTo({ top: 0, behavior: 'smooth' });
+            var copia = JSON.parse(JSON.stringify(buscar(e.dataset.editar)));
+            if (!copia.operarios.length) copia.operarios = [operarioVacio()];
+            return abrirForm(copia);
         }
         var d = ev.target.closest('[data-eliminar]');
-        if (d) eliminar(d.dataset.eliminar);
+        if (d) return eliminar(d.dataset.eliminar);
+        // Tocar la fila abre o cierra el detalle (salvo enlaces y controles)
+        var fila = ev.target.closest('tr.fila-rev');
+        if (!fila || ev.target.closest('a, input, select') || String(window.getSelection()).trim()) return;
+        var id = fila.dataset.fila, abierto = abiertos[id] = !abiertos[id], ver = fila.querySelector('[data-ver]');
+        fila.nextElementSibling.hidden = !abierto;
+        ver.textContent = abierto ? 'Ocultar ▴' : 'Ver detalles ▾';
+        ver.setAttribute('aria-expanded', abierto);
     };
-    var irA = function (f) { fecha = f; pintarLista(); };
-    $('dia-antes').onclick = function () { irA(sumarDias(fecha, -1)); };
-    $('dia-despues').onclick = function () { irA(sumarDias(fecha, 1)); };
-    $('dia-fecha').onchange = function () { if (this.value) irA(this.value); };
+    $('dia-fecha').onchange = function () { if (this.value) { fecha = this.value; pintarLista(); } };
     $('r-turno').onchange = function () { turnoReporte = this.value; pintarReporte(); };
     $('r-final').onchange = function () { reporteFinal = this.checked; pintarReporte(); };
     $('btn-copiar').onclick = copiar;
@@ -275,18 +399,27 @@ async function arrancar() {
     revisiones = leer(CACHE, []);
     // Desde la ficha de la ruta en el mapa: revision.html?tipo=lv&ruta=Z2R208LAS. Si no, sigue lo que se estaba escribiendo
     var q = new URLSearchParams(location.search), ruta = q.get('ruta'), tipo = CHECKLIST[q.get('tipo')] ? q.get('tipo') : 'lv';
-    form = ruta ? formVacio(tipo, ruta, q.get('zona') || '') : leer(BORRADOR, null) || formVacio(tipo);
-    if (!CHECKLIST[form.tipo]) form = formVacio('lv');
+    form = formVacio(tipo, ruta || '', q.get('zona') || '');
+    var tam = leer('revisiones_por_pagina', 0);
+    if (TAMANOS.indexOf(tam) !== -1) porPagina = tam;
     arrancarEventos();
     pintarForm();
     pintarLista();
+    if (ruta) $('dlg').showModal();
     if (!configurado) return cargar();
     var usuario = await asegurarSesion(supabase);
     var salir = $('btn-salir');
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
-    aplicarPermisos(supabase, usuario);
+    // El administrador ve las de todos: quién registró cada una, y puede filtrar por usuario
+    aplicarPermisos(supabase, usuario).then(async function (p) {
+        if (!p.admin) return;
+        var res = await supabase.from('perfiles').select('id, nombre').order('nombre');
+        if (res.error) return;
+        res.data.forEach(function (u) { usuarios[u.id] = u.nombre || u.id; });
+        pintarLista();
+    });
     cargar();
 }
 

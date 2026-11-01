@@ -42,6 +42,7 @@
             </div>
         </details>
     </nav>
+    <button type="button" class="primario" id="btn-nueva">+ Nueva revisión</button>
     <details class="menu-mas">
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
         <div class="menu-lista">
@@ -54,36 +55,26 @@
         </div>
     </details>
 </header>
-<main class="dos-columnas">
-    <div class="dia">
-        <button type="button" class="flecha" id="dia-antes" aria-label="Día anterior">‹</button>
-        <div class="centro">
-            <b id="dia-nombre">Hoy</b>
-            <input type="date" id="dia-fecha" aria-label="Fecha">
-        </div>
-        <button type="button" class="flecha" id="dia-despues" aria-label="Día siguiente">›</button>
+<main class="lista-revisiones">
+    <div class="resumen" id="resumen"></div>
+    <div class="filtros">
+        <input type="search" id="f-texto" placeholder="Buscar por ruta, control, zona, operario o novedad…" aria-label="Buscar">
+        <select id="f-tipo" aria-label="Servicio"><option value="">Servicio: todos</option><option value="lv">LV</option><option value="ryt">RyT</option><option value="plan">Plan de choque</option></select>
+        <select id="f-zona" aria-label="Zona"></select>
+        <select id="f-turno" aria-label="Turno"></select>
+        <select id="f-dia" aria-label="Día"></select>
+        <select id="f-usuario" aria-label="Usuario" hidden></select>
+        <button type="button" class="peligro-suave" id="btn-limpiar" hidden>✕ Limpiar filtros</button>
     </div>
+    <div class="aviso-cola" id="sin-enviar" hidden></div>
+    <div id="estado" class="sub"></div>
+    <div class="panel"><div id="tabla"></div></div>
 
-    <div class="col-trabajo">
-    <section class="tarjeta">
-        <div class="tipos" id="tipos">
-            <button type="button" class="chip" data-tipo="lv">🧹 LV</button>
-            <button type="button" class="chip" data-tipo="ryt">🚛 RyT</button>
-            <button type="button" class="chip" data-tipo="plan">⚡ Plan de choque</button>
-        </div>
-        <datalist id="rutas-lista"></datalist>
-        <div id="form"></div>
-        <div class="pie-form">
-            <button type="button" class="secundario" id="btn-cancelar" hidden>Cancelar edición</button>
-            <button type="button" class="primario" id="btn-guardar">Guardar revisión</button>
-        </div>
-    </section>
-    </div>
-
-    <div class="col-lado">
-    <section class="tarjeta">
+    <section class="tarjeta reporte">
         <h2>📲 Reporte para el grupo</h2>
         <div class="opciones-reporte">
+            <input type="date" id="dia-fecha" aria-label="Día del reporte">
+            <b id="dia-nombre"></b>
             <select id="r-turno" aria-label="Turno del reporte"></select>
             <label><input type="checkbox" id="r-final">Reporte final</label>
         </div>
@@ -93,15 +84,36 @@
             <a class="boton primario" id="btn-whatsapp" target="_blank" rel="noopener">WhatsApp</a>
         </div>
     </section>
-    <section class="tarjeta">
-        <h2>🗂 Revisado este día</h2>
-        <div class="aviso-cola" id="sin-enviar" hidden></div>
-        <div id="estado" class="sub"></div>
-        <div id="lista"></div>
-    </section>
-    </div>
     <p class="nota-privada">🔒 Cada revisión la ve solo quien la registró (y el administrador).</p>
 </main>
+
+<dialog id="dlg" aria-labelledby="dlg-titulo">
+    <div class="dlg-cuerpo">
+        <div class="dlg-cab"><h2 id="dlg-titulo">Nueva revisión</h2><button type="button" class="quitar" id="dlg-cerrar" aria-label="Cerrar">×</button></div>
+        <div class="tipos" id="tipos">
+            <button type="button" class="chip" data-tipo="lv">🧹 LV</button>
+            <button type="button" class="chip" data-tipo="ryt">🚛 RyT</button>
+            <button type="button" class="chip" data-tipo="plan">⚡ Plan de choque</button>
+        </div>
+        <datalist id="rutas-lista"></datalist>
+        <div id="form"></div>
+        <div class="pie-form">
+            <button type="button" class="secundario" id="btn-cancelar">Cancelar</button>
+            <button type="button" class="primario" id="btn-guardar">Guardar revisión</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="dlg-msg" aria-labelledby="msg-titulo">
+    <div class="dlg-cuerpo">
+        <div class="dlg-cab"><h2 id="msg-titulo">📲 Mensaje de la revisión</h2><button type="button" class="quitar" id="msg-cerrar" aria-label="Cerrar">×</button></div>
+        <pre class="vista-previa" id="msg-texto"></pre>
+        <div class="acciones fin">
+            <button type="button" class="secundario" id="msg-copiar">📋 Copiar</button>
+            <a class="boton primario" id="msg-whatsapp" target="_blank" rel="noopener">WhatsApp</a>
+        </div>
+    </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/revision/main.js"></script>
 </body>

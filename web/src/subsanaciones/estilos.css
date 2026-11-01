@@ -464,7 +464,9 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .venc-reglas th, .venc-reglas td { white-space: normal; text-align: left; vertical-align: top; }
 .venc-reglas ul { margin: 6px 0 0; padding-left: 20px; display: grid; gap: 3px; }
 /* Cuántas visitas hay en la lista con los filtros puestos */
-.conteo-lista { padding: 10px 14px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.conteo-lista { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; padding: 10px 14px; font-size: 14px; color: var(--muted); border-bottom: 1px solid var(--line); }
+.por-pagina { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; white-space: nowrap; }
+.por-pagina select { width: auto; padding: 4px 8px; }
 .conteo-lista b { color: var(--ink); font-size: 15px; }
-.paginador { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 10px 14px; border-top: 1px solid var(--line); }
+.paginador { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 14px; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); margin-bottom: -1px; }
 .paginador .sub { text-align: center; }

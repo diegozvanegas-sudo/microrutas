@@ -212,8 +212,15 @@ export function iniciar(api, CFG) {
     // Mismos colores por cuadrilla que el mapa rápido; pre-ruta sin cuadrilla en gris
     var COLORES_CUAD = ['#16a34a', '#2563eb', '#dc2626', '#9333ea', '#ea580c', '#0891b2', '#be123c', '#4d7c0f', '#ca8a04', '#0f766e'];
     function colorCuadrilla(c) { var n = Number(c); return c && Number.isFinite(n) ? COLORES_CUAD[Math.abs(n) % COLORES_CUAD.length] : '#64748b'; }
-    // Lista por páginas: con muchas visitas la página no se vuelve pesada. Al cambiar un filtro vuelve a la primera
-    var POR_PAGINA = 25, paginaLista = 1, firmaFiltros = '';
+    // Lista por páginas: con muchas visitas la página no se vuelve pesada. Al cambiar un filtro vuelve a la primera.
+    // Cuántas por página lo elige el usuario y queda guardado en este equipo
+    var TAMANOS = [5, 10, 15, 20, 25, 30], POR_PAGINA = 10, paginaLista = 1, firmaFiltros = '';
+    try { if (TAMANOS.indexOf(+localStorage.getItem('subsanaciones_por_pagina')) !== -1) POR_PAGINA = +localStorage.getItem('subsanaciones_por_pagina'); } catch (e) {}
+    function selectorTamano() {
+        return '<label class="por-pagina">Mostrar <select data-por-pagina aria-label="Visitas por página">' + TAMANOS.map(function (n) {
+            return '<option' + (n === POR_PAGINA ? ' selected' : '') + '>' + n + '</option>';
+        }).join('') + '</select></label>';
+    }
     function paginador(total) {
         var paginas = Math.ceil(total / POR_PAGINA);
         if (paginas < 2) return '';
@@ -253,17 +260,17 @@ export function iniciar(api, CFG) {
         // Cuántas hay en la lista (con los filtros puestos) y de qué estado
         var porEstado = {};
         lista.forEach(function (r) { porEstado[r.ESTADO] = (porEstado[r.ESTADO] || 0) + 1; });
-        var conteo = '<div class="conteo-lista"><b>' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + '</b>' +
+        var conteo = '<div class="conteo-lista"><span><b>' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + '</b>' +
             (lista.length !== registros.length ? ' de ' + registros.length : '') +
             [['SIN NOVEDAD', 'sin novedad', 'sin novedad'], ['PENDIENTE', 'pendiente', 'pendientes'], ['SUBSANADO', 'subsanada', 'subsanadas'], ['CERRADO', 'cerrada', 'cerradas']]
                 .filter(function (t) { return porEstado[t[0]]; })
-                .map(function (t) { return ' · ' + porEstado[t[0]] + ' ' + (porEstado[t[0]] === 1 ? t[1] : t[2]); }).join('') + '</div>';
+                .map(function (t) { return ' · ' + porEstado[t[0]] + ' ' + (porEstado[t[0]] === 1 ? t[1] : t[2]); }).join('') + '</span>' + selectorTamano() + '</div>';
         var firma = FILTROS.map(function (id) { return $(id).value; }).join('|');
         if (firma !== firmaFiltros) { firmaFiltros = firma; paginaLista = 1; }
         // Si se quedó sin filas (se eliminó o subsanó lo último de la página), a la última que haya
         paginaLista = Math.min(paginaLista, Math.ceil(lista.length / POR_PAGINA));
         var total = lista.length, pagina = lista.slice((paginaLista - 1) * POR_PAGINA, paginaLista * POR_PAGINA);
-        $('tabla').innerHTML = conteo + avisoFaltan + masivo + '<div class="movil">' + pagina.map(tarjetaMovil).join('') + '</div>' +
+        $('tabla').innerHTML = conteo + avisoFaltan + masivo + paginador(total) + '<div class="movil">' + pagina.map(tarjetaMovil).join('') + '</div>' +
             '<table class="escritorio"><thead><tr><th>Lote / Microrruta</th><th>Fecha de ejecución</th><th>Visita</th><th>Ítems en NO</th><th>Estado</th><th>Observaciones</th><th></th></tr></thead><tbody>' +
             pagina.map(function (r) {
                 var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
@@ -1909,6 +1916,15 @@ export function iniciar(api, CFG) {
             v.setAttribute('aria-expanded', abierto);
         }
     };
+    $('tabla').addEventListener('change', function (ev) {
+        if (!ev.target.matches('[data-por-pagina]')) return;
+        // Sigue viendo las mismas visitas: va a la página donde queda la primera que estaba viendo
+        var primera = (paginaLista - 1) * POR_PAGINA;
+        POR_PAGINA = +ev.target.value;
+        paginaLista = Math.floor(primera / POR_PAGINA) + 1;
+        try { localStorage.setItem('subsanaciones_por_pagina', POR_PAGINA); } catch (e) {}
+        pintar();
+    });
     // Recuerda qué fichas del celular quedaron abiertas al filtrar o guardar
     $('tabla').addEventListener('toggle', function (ev) {
         if (ev.target.dataset && ev.target.dataset.id) abiertos[ev.target.dataset.id] = ev.target.open;

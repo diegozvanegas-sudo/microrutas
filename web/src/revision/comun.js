@@ -80,6 +80,33 @@ export function sinMarcar(r) {
     (r.operarios || []).forEach(function (o) { n += itemsOperario(r.tipo).filter(function (i) { return !(o.items || {})[i[0]]; }).length; });
     return n;
 }
+// La evidencia sola no es novedad
+export function tieneNovedad(r) { return novedadesDe(r).some(function (n) { return !/^evidencia: |, evidencia: /i.test(n); }); }
+function sinTildes(t) { return String(t == null ? '' : t).toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, ''); }
+// Filtros de la lista. sinEstado: con todos menos el de estado (las tarjetas cuentan así)
+export function filtrarRevisiones(lista, f, sinEstado) {
+    var q = sinTildes(f.texto).trim();
+    return lista.filter(function (r) {
+        if (f.tipo && r.tipo !== f.tipo) return false;
+        if (f.zona && String(r.zona) !== f.zona) return false;
+        if (f.turno && r.turno !== f.turno) return false;
+        if (f.dia && r.fecha !== f.dia) return false;
+        if (f.usuario && r.usuario !== f.usuario) return false;
+        if (!sinEstado && f.estado === 'novedad' && !tieneNovedad(r)) return false;
+        if (!sinEstado && f.estado === 'ok' && tieneNovedad(r)) return false;
+        if (!q) return true;
+        return sinTildes([r.ruta, r.control, r.zona && 'zona ' + r.zona, TIPOS[r.tipo], r.turno, r.novedad, (r.operarios || []).map(function (o) { return o.nombre + ' ' + o.novedad; }).join(' ')].join(' ')).indexOf(q) !== -1;
+    });
+}
+// Más reciente primero
+export function ordenarRevisiones(lista) {
+    return lista.slice().sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)) || String(b.creado || b.actualizado || '').localeCompare(String(a.creado || a.actualizado || '')); });
+}
+// Puntos del checklist con su respuesta, para el detalle: [[título, [[punto, si|no|na|''], …]], …]
+export function detalleOperario(tipo, o) {
+    return CHECKLIST[tipo].operario.map(function (g) { return [g[0], g[1].map(function (i) { return [i[1], (o.items || {})[i[0]] || '']; })]; });
+}
+export function detalleRuta(r) { return CHECKLIST[r.tipo].ruta.map(function (i) { return [i[1], (r.items || {})[i[0]] || '']; }); }
 export function nombreRevision(r) { return r.ruta + (r.control ? ' (Control ' + r.control + ')' : ''); }
 
 // ok si lo marcado cumple; "no" si algo no cumple; vacío si no se marcó nada

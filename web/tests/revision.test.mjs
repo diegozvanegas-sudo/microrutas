@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoRevision, textoDespacho } from '../src/revision/comun.js';
+import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
     operarios: [{ nombre: 'Juan', items: { h_rastrillo: 'no', epp_botas: 'si' }, novedad: '', enlace: 'https://x.co/1' }, { nombre: '', items: { epp_guantes: 'no' }, novedad: 'Llegó tarde', enlace: 'javascript:alert(1)' }] };
@@ -48,6 +48,23 @@ test('mensaje de una revisión: como se manda al grupo', () => {
     assert.equal(textoRevision(r, 14), 'Buena tarde\n\nSe realiza verificación de ruta de Limpieza Vial Zona 4\n\nRuta: Anillo y coliseos\n\nEPP: ok\nHerramientas: ok\nMapa: ok\n\nEl operario se encontraba en un restaurante');
     assert.ok(textoRevision({ ...r, novedad: '' }, 20).endsWith('Se observa buena prestación del servicio, sector controlado'));
     assert.ok(textoRevision({ ...r, operarios: [{ items: { h_rastrillo: 'no' } }] }, 9).includes('Herramientas: no'));
+});
+test('lista: filtra por servicio, zona, estado y texto sin tildes', () => {
+    const conEvidencia = { tipo: 'plan', ruta: 'Carrera 45', zona: '1', fecha: '2026-11-01', turno: 'Noche', items: {}, novedad: '', enlace: 'https://x.co/1', operarios: [{ nombre: 'José', items: {}, novedad: '', enlace: '' }] };
+    const todas = [lv, ryt, conEvidencia];
+    assert.equal(tieneNovedad(lv), true);
+    assert.equal(tieneNovedad(conEvidencia), false, 'la evidencia sola no es novedad');
+    assert.deepEqual(filtrarRevisiones(todas, { tipo: 'ryt' }), [ryt]);
+    assert.deepEqual(filtrarRevisiones(todas, { zona: '2' }), [lv]);
+    assert.deepEqual(filtrarRevisiones(todas, { estado: 'novedad' }), [lv]);
+    assert.equal(filtrarRevisiones(todas, { estado: 'novedad' }, true).length, 3);
+    assert.deepEqual(filtrarRevisiones(todas, { texto: 'jose' }), [conEvidencia]);
+    assert.deepEqual(filtrarRevisiones(todas, { texto: 'control' }), []);
+    assert.deepEqual(filtrarRevisiones(todas, { texto: '434' }), [ryt]);
+});
+test('lista: la más reciente primero', () => {
+    const r = ordenarRevisiones([{ id: 1, fecha: '2026-10-30' }, { id: 2, fecha: '2026-11-01', creado: 'a' }, { id: 3, fecha: '2026-11-01', creado: 'b' }]);
+    assert.deepEqual(r.map(x => x.id), [3, 2, 1]);
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');
