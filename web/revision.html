@@ -61,11 +61,13 @@
         <div class="guia-cab">
             <label>Mi turno <select id="guia-turno"></select></label>
             <div class="guia-barra"><span id="guia-barra"></span></div>
+            <a class="boton secundario pequeno" href="#reporte">📲 Ver reporte</a>
         </div>
         <div id="guia-items"></div>
     </details>
     <div class="resumen" id="resumen"></div>
-    <div class="filtros">
+    <div class="filtros" id="filtros">
+        <button type="button" class="secundario" id="btn-filtros" aria-expanded="false">⚙ Filtros</button>
         <input type="search" id="f-texto" placeholder="Buscar por ruta, control, zona, operario o novedad…" aria-label="Buscar">
         <select id="f-tipo" aria-label="Servicio"><option value="">Servicio: todos</option><option value="lv">LV</option><option value="ryt">RyT</option><option value="plan">Plan de choque</option></select>
         <select id="f-zona" aria-label="Zona"></select>
@@ -78,7 +80,7 @@
     <div id="estado" class="sub"></div>
     <div class="panel"><div id="tabla"></div></div>
 
-    <section class="tarjeta reporte">
+    <section class="tarjeta reporte" id="reporte">
         <h2>📲 Reporte para el grupo</h2>
         <div class="opciones-reporte">
             <input type="date" id="dia-fecha" aria-label="Día del reporte">

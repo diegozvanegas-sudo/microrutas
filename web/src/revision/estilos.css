@@ -153,3 +153,29 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 .guia-pendiente { grid-column: 1 / -1; margin-top: 8px; padding: 10px 12px; background: var(--aviso-bg); color: var(--aviso); border-radius: 10px; font-size: 14px; }
 .check-despacho { display: flex !important; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; }
 .check-despacho input { width: 20px; height: 20px; margin: 0 !important; flex: none; }
+
+/* Celular: el trabajo de campo primero; los filtros se abren solo si hacen falta */
+#btn-filtros { display: none; }
+#reporte { scroll-margin-top: 8px; }
+.guia-cab label { white-space: nowrap; }
+@media (max-width: 760px) {
+    .filtros { align-items: center; gap: 8px; }
+    .filtros input { flex: 1 1 0; min-width: 0; }
+    #btn-filtros { display: block; order: 2; flex: none; min-height: 38px; font-size: 14px; }
+    .filtros select, #btn-limpiar { display: none; order: 3; }
+    .filtros.abiertos select { display: block; flex: 1 1 40%; }
+    .filtros.abiertos #btn-limpiar:not([hidden]) { display: block; flex: 1 1 100%; }
+    .resumen { margin-bottom: 10px; }
+    .resumen .tarjeta { padding: 6px 10px; }
+    .resumen .tit { font-size: 12px; }
+    .vacio-lista { padding: 14px; font-size: 14px; }
+    .guia-cab select { flex: 1 1 0; }
+    .guia-cab label { flex: 1 1 100%; }
+    .guia-cab label select { width: 100%; }
+    .guia-cab .boton { flex: none; }
+    .guia-fila { padding: 9px 0; }
+    .guia-fila .pequeno { min-height: 38px; }
+    .marca-item { flex: 1 1 100%; }
+    .marca-item button { flex: 1; min-height: 42px; }
+    #btn-nueva { padding: 8px 10px; }
+}

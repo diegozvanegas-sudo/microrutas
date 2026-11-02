@@ -443,6 +443,9 @@ function arrancarEventos() {
         abrirForm(b && CHECKLIST[b.tipo] && !esGuardada(b.id) ? b : formVacio(form.tipo));
     };
     FILTROS.forEach(function (id) { $(id).addEventListener(id === 'f-texto' ? 'input' : 'change', pintarLista); });
+    $('btn-filtros').onclick = function () {
+        this.setAttribute('aria-expanded', $('filtros').classList.toggle('abiertos'));
+    };
     $('btn-limpiar').onclick = function () { FILTROS.forEach(function (id) { $(id).value = ''; }); filtroEstado = ''; pintarLista(); };
     $('resumen').onclick = function (ev) {
         var t = ev.target.closest('[data-estado]');
