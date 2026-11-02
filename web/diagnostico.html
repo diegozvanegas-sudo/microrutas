@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <title>Diagnóstico</title>
+    <style>
+        body { font-family: "Segoe UI", Arial, sans-serif; margin: 0; padding: 16px; color: #1f2937; background: #f3f6f5; font-size: 15px; }
+        h1 { font-size: 20px; margin: 0 0 6px; }
+        p { color: #64748b; margin: 0 0 12px; }
+        table { width: 100%; border-collapse: collapse; background: #fff; border-radius: 12px; overflow: hidden; }
+        td { padding: 9px 10px; border-bottom: 1px solid #dce4e8; vertical-align: top; overflow-wrap: anywhere; }
+        td:first-child { width: 28px; }
+        button, a.b { font: inherit; font-weight: 650; border: 0; border-radius: 8px; padding: 10px 14px; background: #edf8f3; color: #167a55; text-decoration: none; display: inline-block; margin: 12px 8px 0 0; }
+        button.p { background: #167a55; color: #fff; }
+        textarea { position: absolute; left: -9999px; }
+    </style>
+</head>
+<body>
+    <h1>Diagnóstico de este equipo</h1>
+    <p>Dice qué deja guardar este navegador. No muestra claves ni datos. Mire el resultado, recargue una vez y mándelo.</p>
+    <table><tbody id="resultado"></tbody></table>
+    <textarea id="texto" aria-hidden="true" tabindex="-1"></textarea>
+    <button type="button" class="p" id="recargar">↻ Recargar</button>
+    <button type="button" id="copiar">📋 Copiar resultado</button>
+    <a class="b" href="subsanaciones.html">Volver a la app</a>
+    <script type="module" src="/src/herramientas/diagnostico.js"></script>
+</body>
+</html>

@@ -14,6 +14,7 @@ function crearVentana() {
             '<label style="margin-top:10px">CONTRASEÑA <input type="password" name="clave" autocomplete="current-password" required></label>' +
             '<div class="aviso error" data-error hidden style="margin:12px 0 0"></div>' +
             '<div class="pie"><button type="submit" class="primario">Ingresar</button></div>' +
+            '<p class="sub" style="margin:12px 0 0;text-align:center"><a href="diagnostico.html">¿Le pide ingresar cada vez? Revisar este equipo</a></p>' +
         '</form>';
     // Sin sesión no hay nada que hacer en la página: no se puede cerrar con Esc
     d.addEventListener('cancel', function (ev) { ev.preventDefault(); });
