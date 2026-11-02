@@ -8,6 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
 import { esFestivo } from '../horas/distribucion.js';
+import { respaldoGuardar, respaldoBorrar, respaldoTodo, fallaLocalStorage } from '../almacen.js';
 import { GUIA, avanceGuia, lineasGuia } from './guia.js';
 import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
@@ -20,19 +21,30 @@ var usuarioId = null;
 var TAMANOS = [5, 10, 15, 20, 25, 30], porPagina = 10, pagina = 1, firmaFiltros = '';
 var FILTROS = ['f-texto', 'f-tipo', 'f-zona', 'f-turno', 'f-dia', 'f-usuario'];
 
-// Si el equipo no deja guardar (almacenamiento lleno o bloqueado), lo elegido sigue valiendo mientras la página esté abierta
-var memoria = {}, avisoGuardar = false;
+// Lo de esta página se guarda en localStorage y en el respaldo (IndexedDB): si uno falla en el celular, queda el otro.
+// memoria: lo último de cada clave, y lo que se recuperó del respaldo al abrir
+var memoria = {}, PREFIJO = 'revision:', avisoGuardar = false;
 function leer(clave, porDefecto) {
     if (clave in memoria) return memoria[clave] || porDefecto;
     try { return JSON.parse(localStorage.getItem(clave)) || porDefecto; } catch (e) { return porDefecto; }
 }
 function escribir(clave, valor) {
     memoria[clave] = valor;
-    try { localStorage.setItem(clave, JSON.stringify(valor)); return true; }
-    catch (e) {
-        if (!avisoGuardar) { avisoGuardar = true; toast('⚠ Este equipo no deja guardar datos: copie el reporte antes de cerrar la página.'); }
-        return false;
-    }
+    var local = true;
+    try { localStorage.setItem(clave, JSON.stringify(valor)); } catch (e) { local = false; }
+    respaldoGuardar(PREFIJO + clave, JSON.parse(JSON.stringify(valor))).catch(function () {
+        if (!local && !avisoGuardar) { avisoGuardar = true; toast('⚠ Este equipo no deja guardar datos: copie el reporte antes de cerrar la página.'); }
+    });
+    return true;
+}
+// El respaldo se lee al abrir; lo que ya esté en localStorage y sea distinto no se pisa si el respaldo no lo tiene
+async function recuperarRespaldo() {
+    try { Object.assign(memoria, await respaldoTodo(PREFIJO)); } catch (e) { console.warn('Sin respaldo', e); }
+}
+function pintarEstadoAlmacen() {
+    var f = fallaLocalStorage();
+    $('estado-almacen').hidden = !f;
+    if (f) $('estado-almacen').textContent = 'ℹ El almacenamiento normal de este equipo falla (' + f + '). Se está usando el de respaldo.';
 }
 function toast(msg) {
     var t = $('toast');
@@ -512,6 +524,8 @@ function arrancarEventos() {
 
 async function arrancar() {
     iniciarEncabezado();
+    await recuperarRespaldo();
+    pintarEstadoAlmacen();
     cola = leer(COLA, {});
     revisiones = leer(CACHE, []);
     // Desde la ficha de la ruta en el mapa: revision.html?tipo=lv&ruta=Z2R208LAS. Si no, sigue lo que se estaba escribiendo
@@ -530,7 +544,8 @@ async function arrancar() {
     var salir = $('btn-salir');
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
-    salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
+    // La copia del equipo también se borra del respaldo; lo que aún no se ha enviado se queda
+    salir.onclick = async function () { try { localStorage.removeItem(CACHE); await respaldoBorrar(PREFIJO + CACHE); } catch (e) {} cerrarSesion(supabase); };
     // El administrador ve las de todos: quién registró cada una, y puede filtrar por usuario
     aplicarPermisos(supabase, usuario).then(async function (p) {
         if (!p.admin) return;
