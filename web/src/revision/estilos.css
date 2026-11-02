@@ -158,7 +158,34 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 /* Celular: mismas opciones que en el computador, con botones cómodos para el dedo */
 #reporte { scroll-margin-top: 8px; }
 .guia-cab label { white-space: nowrap; }
+.fila-rev .solo-cel { display: none; }
 @media (max-width: 760px) {
+    /* Cada revisión en una línea: ruta, día y turno, estado y flecha. Al tocarla se ve lo demás con todos sus botones */
+    .fila-rev .solo-cel { display: inline; }
+    .fila-rev .solo-pc { display: none; }
+    .panel .fila-rev { display: grid; grid-template-columns: minmax(0, 1fr) auto auto auto; align-items: center; column-gap: 8px; padding: 2px 6px 2px 0; }
+    .panel .fila-rev > td { padding: 6px 0; }
+    .panel .fila-rev > .c-ruta { order: 1; padding-left: 12px; }
+    .panel .fila-rev > .c-fecha { order: 2; white-space: nowrap; font-size: 13px; }
+    .panel .fila-rev > .c-estado { order: 3; display: flex; align-items: center; gap: 4px; white-space: nowrap; }
+    .fila-rev .c-fecha .sub { display: inline; }
+    .fila-rev .c-fecha .sub::before { content: ' · '; }
+    .fila-rev .c-cola { display: inline; }
+    .fila-rev .tit-ruta { font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .fila-rev .c-ruta .sub { display: none; }
+    .panel .fila-rev > .c-extra { display: none; order: 5; grid-column: 1 / -1; padding: 2px 0 2px 12px; }
+    /* Cerrada: de los botones solo queda la flecha */
+    .panel .fila-rev:not(.abierta) > td.acciones { display: contents; }
+    .fila-rev:not(.abierta) td.acciones button:not([data-ver]) { display: none; }
+    .fila-rev:not(.abierta) td.acciones [data-ver] { order: 4; margin: 0; width: 34px; min-height: 38px; padding: 0; font-size: 0; background: none; color: var(--muted); }
+    .fila-rev:not(.abierta) td.acciones [data-ver]::after { content: '▾'; font-size: 16px; }
+    .panel .fila-rev.abierta > .c-extra { display: block; }
+    .fila-rev.abierta .tit-ruta { white-space: normal; }
+    .fila-rev.abierta .c-ruta .sub { display: block; }
+    .panel .fila-rev.abierta > td.acciones { order: 6; grid-column: 1 / -1; padding: 6px 0 6px 12px; }
+    .fila-rev.abierta td.acciones button { min-height: 38px; }
+    .panel .fila-detalle > td { padding: 8px 12px; }
+
     .resumen { margin-bottom: 10px; }
     .resumen .tarjeta { padding: 6px 10px; }
     .resumen .tit { font-size: 12px; }

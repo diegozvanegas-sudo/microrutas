@@ -318,6 +318,11 @@ function pintarGuia() {
         return '<div class="guia-fila' + (i.hecho ? ' hecha' : '') + '">' + cab + (i.ayuda ? '<div class="sub guia-ayuda">' + esc(i.ayuda) + '</div>' : '') + '</div>';
     }).join('') + (GUIA[c].pendiente ? '<div class="guia-pendiente"><b>👀 Estar pendiente toda la noche</b>' + GUIA[c].pendiente.map(function (t) { return '<div>' + esc(t) + '</div>'; }).join('') + '</div>' : '');
 }
+// En la línea del celular: Hoy, Ayer, Mañana, o el día y el mes
+function diaCorto(iso) {
+    var nombre = nombreDia(iso);
+    return nombre.length <= 6 ? nombre : iso.slice(8, 10) + '/' + iso.slice(5, 7);
+}
 function pintarLista() {
     var total = todas();
     pintarGuia();
@@ -347,13 +352,14 @@ function pintarLista() {
         '<table><thead><tr><th>Ruta</th><th>Servicio</th><th>Fecha y turno</th><th>Personas</th><th>Estado</th><th>Novedades</th><th></th></tr></thead><tbody>' +
         trozo.map(function (r) {
             var nov = novedadesDe(r).filter(function (n) { return !/^evidencia: |, evidencia: /i.test(n); }), falta = sinMarcar(r), n = (r.operarios || []).length;
-            return '<tr class="fila-rev" data-fila="' + esc(r.id) + '">' +
-                '<td><span class="tit-ruta">' + esc(nombreRevision(r)) + '</span><div class="sub">' + (r.zona ? 'Zona ' + esc(r.zona) : 'Sin zona') + '</div></td>' +
-                '<td>' + esc(TIPOS[r.tipo]) + '</td>' +
-                '<td>' + esc(nombreDia(r.fecha)) + '<div class="sub">' + esc(r.turno) + (usuarios[r.usuario] ? ' · 👤 ' + esc(usuarios[r.usuario]) : '') + '</div></td>' +
-                '<td>' + n + (n === 1 ? ' persona' : ' personas') + (falta ? '<div class="sub">' + falta + ' sin marcar</div>' : '') + '</td>' +
-                '<td><span class="badge ' + (nov.length ? 'novedad">CON NOVEDAD' : 'ok">SIN NOVEDAD') + '</span>' + (cola[r.id] ? '<div><span class="badge local">📴 Sin enviar</span></div>' : '') + '</td>' +
-                '<td>' + (nov.length ? nov.map(function (x) { return '<span class="chip-no">' + esc(x) + '</span>'; }).join('') : '<span class="sub">Ninguna</span>') + '</td>' +
+            var quien = usuarios[r.usuario] ? '👤 ' + esc(usuarios[r.usuario]) : '';
+            return '<tr class="fila-rev' + (abiertos[r.id] ? ' abierta' : '') + '" data-fila="' + esc(r.id) + '">' +
+                '<td class="c-ruta"><span class="tit-ruta">' + esc(nombreRevision(r)) + '</span><div class="sub">' + (r.zona ? 'Zona ' + esc(r.zona) : 'Sin zona') + '</div></td>' +
+                '<td class="c-extra">' + esc(TIPOS[r.tipo]) + '</td>' +
+                '<td class="c-fecha"><span class="solo-pc">' + esc(nombreDia(r.fecha)) + '</span><span class="solo-cel">' + esc(diaCorto(r.fecha)) + '</span><div class="sub">' + esc(r.turno) + (quien ? '<span class="solo-pc"> · ' + quien + '</span>' : '') + '</div></td>' +
+                '<td class="c-extra">' + n + (n === 1 ? ' persona' : ' personas') + (quien ? '<span class="solo-cel"> · ' + quien + '</span>' : '') + (falta ? '<div class="sub">' + falta + ' sin marcar</div>' : '') + '</td>' +
+                '<td class="c-estado"><span class="badge ' + (nov.length ? 'novedad"><span class="solo-pc">CON </span>NOVEDAD' : 'ok"><span class="solo-pc">SIN NOVEDAD</span><span class="solo-cel">OK</span>') + '</span>' + (cola[r.id] ? '<div class="c-cola"><span class="badge local">📴<span class="solo-pc"> Sin enviar</span></span></div>' : '') + '</td>' +
+                '<td class="c-extra">' + (nov.length ? nov.map(function (x) { return '<span class="chip-no">' + esc(x) + '</span>'; }).join('') : '<span class="sub">Ninguna</span>') + '</td>' +
                 '<td class="acciones"><button type="button" class="secundario pequeno" data-ver="' + esc(r.id) + '" aria-expanded="' + !!abiertos[r.id] + '">' + (abiertos[r.id] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button>' +
                     '<button type="button" class="secundario pequeno" data-mensaje="' + esc(r.id) + '">📋 Mensaje</button>' +
                     '<button type="button" class="secundario pequeno" data-editar="' + esc(r.id) + '">Editar</button>' +
@@ -514,6 +520,7 @@ function arrancarEventos() {
         var fila = ev.target.closest('tr.fila-rev');
         if (!fila || ev.target.closest('a, input, select') || String(window.getSelection()).trim()) return;
         var id = fila.dataset.fila, abierto = abiertos[id] = !abiertos[id], ver = fila.querySelector('[data-ver]');
+        fila.classList.toggle('abierta', abierto);
         fila.nextElementSibling.hidden = !abierto;
         ver.textContent = abierto ? 'Ocultar ▴' : 'Ver detalles ▾';
         ver.setAttribute('aria-expanded', abierto);
