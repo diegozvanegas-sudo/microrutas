@@ -89,13 +89,22 @@ export function lineasGuia(clave, marcas, lunesFestivo) {
     return out;
 }
 
+function claveRuta(r) { return String(r.ruta || '').trim().toUpperCase() + '|' + String(r.control || '').trim().toUpperCase(); }
 // Rutas distintas revisadas de ese servicio y zona (o en despacho): la misma ruta dos veces cuenta una
 export function contar(revisiones, tipo, zona) {
     var vistas = {};
     revisiones.forEach(function (r) {
-        if (tipo === 'despacho' ? enDespacho(r) : r.tipo === tipo && !enDespacho(r) && String(r.zona || '').trim() === zona) vistas[String(r.ruta || '').trim().toUpperCase() + '|' + String(r.control || '').trim()] = 1;
+        if (tipo === 'despacho' ? enDespacho(r) : r.tipo === tipo && !enDespacho(r) && String(r.zona || '').trim() === zona) vistas[claveRuta(r)] = 1;
     });
     return Object.keys(vistas).length;
+}
+// La otra revisión de esa ruta en ese día, si ya hay una. Otro vehículo, o en despacho y luego en la vía, cuenta aparte
+// (igual que en la guía). El plan de choque no entra: es un sector, y se puede volver a ver cómo avanza
+export function revisionRepetida(lista, r) {
+    if (r.tipo === 'plan' || !String(r.ruta || '').trim()) return null;
+    return lista.find(function (x) {
+        return x.id !== r.id && x.fecha === r.fecha && x.tipo === r.tipo && enDespacho(x) === enDespacho(r) && claveRuta(x) === claveRuta(r);
+    }) || null;
 }
 export function avanceGuia(clave, revisiones, marcas, lunesFestivo) {
     var items = GUIA[clave].items.filter(function (i) { return !i.siLunes || lunesFestivo; }).map(function (i) {

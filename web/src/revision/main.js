@@ -9,7 +9,7 @@ import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
 import { esFestivo } from '../horas/distribucion.js';
 import { respaldoGuardar, respaldoBorrar, respaldoTodo, fallaLocalStorage } from '../almacen.js';
-import { GUIA, avanceGuia, lineasGuia } from './guia.js';
+import { GUIA, avanceGuia, lineasGuia, revisionRepetida } from './guia.js';
 import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
@@ -94,6 +94,7 @@ function pintarForm() {
     $('form').innerHTML =
         '<div class="campos">' +
             '<label class="ancho">' + (esPlan ? 'Sector' : 'Ruta') + '<input data-campo="ruta" list="rutas-lista" autocomplete="off" value="' + esc(form.ruta) + '" placeholder="' + (esPlan ? 'Ej.: CR 45 Palos Verdes' : 'Ej.: Z2R208LAS') + '"></label>' +
+            '<div class="aviso-cola ancho" id="aviso-repetida" role="alert" hidden></div>' +
             '<label>Zona<input data-campo="zona" inputmode="numeric" value="' + esc(form.zona) + '"></label>' +
             '<label>Fecha<input type="date" data-campo="fecha" value="' + esc(form.fecha) + '"></label>' +
             '<label>Turno<select data-campo="turno">' + TURNOS.map(function (t) { return '<option' + (t === form.turno ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label>' +
@@ -119,7 +120,18 @@ function pintarForm() {
         '<button type="button" class="secundario" data-mas-op>+ Otro ' + quien.toLowerCase() + '</button>';
     pintarSugerencias();
     pedirNombres(form.tipo);
+    pintarRepetida();
     $('dlg-titulo').textContent = esGuardada(form.id) ? 'Editar revisión' : 'Nueva revisión';
+}
+// Se avisa apenas se escribe la ruta, para no llenar el checklist en vano
+function textoRepetida(x) {
+    return nombreRevision(x) + ' ya tiene revisión (' + nombreDia(x.fecha) + (x.turno ? ', ' + x.turno : '') + '). No se puede revisar dos veces el mismo día: use Editar o Eliminar en la lista.';
+}
+function pintarRepetida() {
+    var x = revisionRepetida(todas(), form), el = $('aviso-repetida');
+    el.hidden = !x;
+    el.textContent = x ? textoRepetida(x) : '';
+    $('btn-guardar').disabled = !!x;
 }
 function esGuardada(id) { return !!cola[id] || revisiones.some(function (r) { return r.id === id; }); }
 function guardarBorrador() { escribir(BORRADOR, form); }
@@ -151,6 +163,8 @@ async function guardar() {
     form.ruta = form.ruta.trim();
     if (!form.ruta) { toast('Escriba la ' + (form.tipo === 'plan' ? 'zona o el sector.' : 'ruta.')); return $('form').querySelector('[data-campo="ruta"]').focus(); }
     if (!form.fecha) form.fecha = hoy();
+    var repetida = revisionRepetida(todas(), form);
+    if (repetida) return toast(textoRepetida(repetida));
     var r = JSON.parse(JSON.stringify(form)), faltan = sinMarcar(r);
     $('btn-guardar').disabled = true;
     // Queda en el celular antes de intentar: si la señal se cae a mitad, no se pierde
@@ -403,12 +417,14 @@ function arrancarEventos() {
             form[t.dataset.campo] = t.value;
             if (t.dataset.campo === 'turno') escribir('revision_turno_' + hoy(), t.value);
             if (t.dataset.campo === 'ruta' && zonaDeCodigo(t.value)) { form.zona = zonaDeCodigo(t.value); $('form').querySelector('[data-campo="zona"]').value = form.zona; }
+            pintarRepetida();
         } else if (t.dataset.opCampo) form.operarios[+t.closest('[data-op]').dataset.op][t.dataset.opCampo] = t.value;
         guardarBorrador();
     });
     $('form').addEventListener('change', function (ev) {
         if (!ev.target.hasAttribute('data-en-despacho')) return;
         if (ev.target.checked) form.items.en_despacho = 'si'; else delete form.items.en_despacho;
+        pintarRepetida();
         guardarBorrador();
     });
     $('form').addEventListener('click', function (ev) {

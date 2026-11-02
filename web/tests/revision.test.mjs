@@ -2,13 +2,31 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GUIA, contar, avanceGuia, lineasGuia } from '../src/revision/guia.js';
+import { GUIA, contar, avanceGuia, lineasGuia, revisionRepetida } from '../src/revision/guia.js';
 import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
     operarios: [{ nombre: 'Juan', items: { h_rastrillo: 'no', epp_botas: 'si' }, novedad: '', enlace: 'https://x.co/1' }, { nombre: '', items: { epp_guantes: 'no' }, novedad: 'Llegó tarde', enlace: 'javascript:alert(1)' }] };
 const ryt = { tipo: 'ryt', ruta: '0718620', zona: '7', control: '434', items: {}, operarios: [], novedad: '', enlace: '' };
 
+test('repetida: la misma ruta el mismo día no se revisa dos veces', () => {
+    const hecha = { id: 'a', fecha: '2026-11-01', tipo: 'lv', ruta: 'Z7R414NOC', control: '', items: {} };
+    const nueva = (c) => Object.assign({ id: 'b', fecha: '2026-11-01', tipo: 'lv', ruta: 'Z7R414NOC', control: '', items: {} }, c);
+    assert.equal(revisionRepetida([hecha], nueva()), hecha);
+    assert.equal(revisionRepetida([hecha], nueva({ ruta: ' z7r414noc ' })), hecha, 'sin importar mayúsculas ni espacios');
+    assert.equal(revisionRepetida([hecha], nueva({ id: 'a' })), null, 'editarla no es repetirla');
+    assert.equal(revisionRepetida([hecha], nueva({ fecha: '2026-11-02' })), null, 'otro día');
+    assert.equal(revisionRepetida([hecha], nueva({ ruta: 'Z7R408NOC' })), null, 'otra ruta');
+    assert.equal(revisionRepetida([hecha], nueva({ tipo: 'ryt' })), null, 'otro servicio');
+    assert.equal(revisionRepetida([], nueva()), null);
+    const ryt = { id: 'c', fecha: '2026-11-01', tipo: 'ryt', ruta: '0718620', control: '434', items: {} };
+    const otraRyt = (c) => Object.assign({ id: 'd', fecha: '2026-11-01', tipo: 'ryt', ruta: '0718620', control: '434', items: {} }, c);
+    assert.equal(revisionRepetida([ryt], otraRyt()), ryt);
+    assert.equal(revisionRepetida([ryt], otraRyt({ control: '595' })), null, 'otro vehículo');
+    assert.equal(revisionRepetida([ryt], otraRyt({ items: { en_despacho: 'si' } })), null, 'en despacho y en la vía van aparte');
+    const plan = { id: 'e', fecha: '2026-11-01', tipo: 'plan', ruta: 'CR 45', control: '', items: {} };
+    assert.equal(revisionRepetida([plan], Object.assign({}, plan, { id: 'f' })), null, 'el plan de choque se puede repetir');
+});
 test('zona: sale del código de la ruta', () => {
     assert.equal(zonaDeCodigo('z7R203DOM'), '7');
     assert.equal(zonaDeCodigo('0718620'), '');
