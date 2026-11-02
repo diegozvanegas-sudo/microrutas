@@ -135,8 +135,8 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 /* Guía dominical */
 .guia summary { cursor: pointer; font-size: 16px; }
 .guia-cab { display: flex; align-items: center; gap: 12px 16px; flex-wrap: wrap; margin: 10px 0; }
-.guia-cab label { font-size: 13px; font-weight: 650; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
-.guia-cab select { width: auto; font-size: 14px; padding: 6px 8px; color: var(--ink); font-weight: 400; }
+.guia-cab label { font-size: 13px; font-weight: 650; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; }
+.guia-cab select { width: auto; min-width: 0; max-width: 100%; flex: 0 1 auto; font-size: 14px; padding: 6px 8px; color: var(--ink); font-weight: 400; }
 .guia-barra { flex: 1 1 160px; height: 8px; background: #e8efec; border-radius: 99px; overflow: hidden; }
 .guia-barra span { display: block; height: 100%; width: 0; background: var(--ok); }
 #guia-items { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 0 20px; }
@@ -149,3 +149,7 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 .guia-ayuda { flex: 1 1 100%; padding-left: 28px; }
 .guia-ojo { font-size: 11px; font-weight: 700; color: var(--aviso); background: var(--aviso-bg); border-radius: 999px; padding: 1px 7px; }
 @media (max-width: 500px) { #guia-items { grid-template-columns: 1fr; } }
+
+.guia-pendiente { grid-column: 1 / -1; margin-top: 8px; padding: 10px 12px; background: var(--aviso-bg); color: var(--aviso); border-radius: 10px; font-size: 14px; }
+.check-despacho { display: flex !important; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; }
+.check-despacho input { width: 20px; height: 20px; margin: 0 !important; flex: none; }

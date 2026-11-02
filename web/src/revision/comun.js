@@ -244,15 +244,21 @@ export function textoDomingo(revisiones, op) {
 // Reporte con detalle, como el de la noche: despacho, cada zona con sus rutas, lo adicional y las vías principales
 function lineas(t) { return String(t || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
 function ultimoY(lista) { return lista.length < 2 ? lista.join('') : lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1]; }
-export function textoDetalle(revisiones, op) {
+export function textoDetalle(todas, op) {
     op = op || {};
     var partes = [], punto = function (x) { return '* ' + x; };
+    // Lo revisado en despacho (items.en_despacho) va en esa sección, no en su zona
+    var enBase = function (r) { return r.tipo === 'ryt' && (r.items || {}).en_despacho === 'si'; };
+    var revisiones = todas.filter(function (r) { return !enBase(r); });
+    var despacho = unicos(todas.filter(enBase).map(function (r) {
+        return [r.control && 'Control ' + r.control, String(r.zona || '').trim() && !/^Z\d/i.test(r.ruta) && 'Z' + String(r.zona).trim(), r.ruta].filter(Boolean).join(' ');
+    })).concat(op.alcoholemia ? [op.alcoholemia] : [], lineas(op.despacho));
     var nombres = function (z, tipo) {
         return unicos(revisiones.filter(function (r) { return r.tipo === tipo && String(r.zona || '').trim() === z; }).map(function (r) {
             return tipo === 'ryt' && r.control ? 'Control ' + r.control + ' ' + r.ruta : r.ruta;
         }));
     };
-    if (lineas(op.despacho).length) partes.push('*Despacho:*\n' + lineas(op.despacho).map(punto).join('\n'));
+    if (despacho.length) partes.push('*Despacho:*\n' + despacho.map(punto).join('\n'));
     var zonas = unicos(revisiones.map(function (r) { return String(r.zona || '').trim(); })).sort(ordenZonas);
     zonas.forEach(function (z) {
         var titulo = z ? 'Zona ' + z : 'Sin zona', lv = nombres(z, 'lv'), ryt = nombres(z, 'ryt'), plan = nombres(z, 'plan'), hay = [lv, ryt, plan].filter(function (x) { return x.length; }).length;
@@ -273,9 +279,9 @@ export function textoDetalle(revisiones, op) {
     if (vias.length) partes.push('*Vías principales*:\n' + vias.join(', '));
     if (!partes.length) return '';
     var nov = [];
-    revisiones.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push(punto(r.ruta + ': ' + x)); }); });
+    todas.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push(punto(r.ruta + ': ' + x)); }); });
     if (nov.length) partes.push('*Novedades*\n' + nov.join('\n'));
-    var conZona = zonas.filter(Boolean), alcance = (lineas(op.despacho).length ? ['Despacho'] : []).concat(conZona.length ? [(conZona.length === 1 ? 'Zona ' : 'Zonas ') + ultimoY(conZona)] : []).join(', ');
+    var conZona = zonas.filter(Boolean), alcance = (despacho.length ? ['Despacho'] : []).concat(conZona.length ? [(conZona.length === 1 ? 'Zona ' : 'Zonas ') + ultimoY(conZona)] : []).join(', ');
     var sub = [String(op.turno || '').toUpperCase(), alcance].filter(Boolean).join(' _ ');
     return '*REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES*\n' + (sub ? sub + '\n' : '') + '\nDurante la jornada se ' + (op.final ? 'realizaron' : 'han realizado') + ' las siguientes actividades:\n\n' +
         partes.join('\n\n') + '\n\n' + (nov.length || lineas(op.otras).length ? 'Todas las novedades fueron reportadas para su corrección oportuna.' : 'Sin novedades al momento del recorrido.');

@@ -36,18 +36,33 @@ export var GUIA = {
         mano('pn_provenza', 'Punto Naranja Provenza (14:00 a 22:00)'),
         VIAS, mano('eventos', 'Eventos especiales del día, oriente PM'), INSTRUMENTOS, RECUERDA
     ] },
-    noche: { nombre: 'Noche · Centro', horario: '20:00 – 4:00', turno: 'Noche', items: [
-        mano('despacho', '3 rutas R&T en despacho y despacho total del turno 3 validado'),
-        lv(7, 10), lv(5, 3), lv(4, 2), ryt(7, 2), ryt(4, 1),
+    noche: { nombre: 'Noche · Despacho, Zonas 4, 5 y 7', horario: '20:00 – 4:00', turno: 'Noche', items: [
+        mano('alcoholemia', 'Pruebas de alcoholemia en despacho: FUNTRAEV y FUDEA', 'Si hay un positivo: hacer el informe, y deben reemplazar a la persona para cumplir la ruta.'),
+        mano('alco_neg', 'Resultado de alcoholemia: todas negativas', 'Márquelo solo si no hubo ningún positivo.'),
+        { id: 'despachados', texto: 'Carros en despacho, base de Bello (3 o 4)', tipo: 'despacho', zona: '', meta: 3 },
+        mano('despacho', 'Despacho total del turno 3 validado'),
+        lv(5, 3, ' (Parque El Poblado, Calle 10 y Parque Lleras)'),
+        mano('vias5', 'Prestación del servicio y vías principales de la Zona 5'),
+        lv(4, 2, ' (en la 70, si están)'), ryt(4, 1, ' (el recolector que vea)'),
+        mano('vias4', 'Recorrido por las vías principales de la Zona 4'),
+        lv(7, 10, ' (10 a 12)'), ryt(7, 2, ' (vehículos recolectores en el centro)'),
         mano('pp_provenza', '5 operarios de aprovechamiento en Provenza (el lunes siguiente es festivo)', '', true),
         mano('eventos', 'Eventos especiales de la noche'), INSTRUMENTOS, RECUERDA
+    ], pendiente: [
+        'Siniestro fatal: confirmar si hay un vehículo de Emvarias relacionado.',
+        'Cualquier incidente con un operario.',
+        'Aguacero muy fuerte: solo si se presenta, atender la contingencia.'
     ] }
 };
 
-// Rutas distintas revisadas de ese servicio y zona: la misma ruta dos veces cuenta una
+// Una ruta de RyT revisada en despacho: va aparte y no cuenta como recolector en la vía
+export function enDespacho(r) { return r.tipo === 'ryt' && (r.items || {}).en_despacho === 'si'; }
+// Rutas distintas revisadas de ese servicio y zona (o en despacho): la misma ruta dos veces cuenta una
 export function contar(revisiones, tipo, zona) {
     var vistas = {};
-    revisiones.forEach(function (r) { if (r.tipo === tipo && String(r.zona || '').trim() === zona) vistas[String(r.ruta || '').trim().toUpperCase()] = 1; });
+    revisiones.forEach(function (r) {
+        if (tipo === 'despacho' ? enDespacho(r) : r.tipo === tipo && !enDespacho(r) && String(r.zona || '').trim() === zona) vistas[String(r.ruta || '').trim().toUpperCase() + '|' + String(r.control || '').trim()] = 1;
+    });
     return Object.keys(vistas).length;
 }
 export function avanceGuia(clave, revisiones, marcas, lunesFestivo) {

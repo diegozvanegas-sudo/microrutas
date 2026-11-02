@@ -109,7 +109,7 @@ test('guía dominical: las cantidades del documento', () => {
     assert.equal(metas('am2'), 'lv1:5 lv3:5 lv5:5 ryt1:1 ryt3:1 ryt5:1');
     assert.equal(metas('intermedio'), 'lv7:10 ryt7:2 lv4:3 ryt9:1');
     assert.equal(metas('pm'), 'lv7:10 lv5:3 ryt7:2');
-    assert.equal(metas('noche'), 'lv7:10 lv5:3 lv4:2 ryt7:2 ryt4:1');
+    assert.equal(metas('noche'), 'despachados:3 lv5:3 lv4:2 ryt4:1 lv7:10 ryt7:2');
 });
 test('guía dominical: cuenta rutas distintas y respeta lo marcado', () => {
     const r = (ruta, zona, tipo = 'lv') => ({ tipo, ruta, zona });
@@ -144,6 +144,17 @@ test('reporte con detalle: como el de la noche', () => {
         'Todas las novedades fueron reportadas para su corrección oportuna.');
     assert.ok(textoDetalle([rv('A', '1')], {}).endsWith('Sin novedades al momento del recorrido.'));
     assert.equal(textoDetalle([], {}), '');
+});
+test('noche: lo de despacho cuenta y sale aparte', () => {
+    const rv = (ruta, zona, tipo = 'lv', control = '', base) => ({ tipo, ruta, zona, control, items: base ? { en_despacho: 'si' } : {}, operarios: [], novedad: '', enlace: '' });
+    const lista = [rv('R0119220', '1', 'ryt', '669', true), rv('R0118919', '1', 'ryt', '673', true), rv('0703', '7', 'ryt', '565'), rv('Z7R411', '7')];
+    assert.equal(contar(lista, 'despacho', ''), 2);
+    assert.equal(contar(lista, 'ryt', '1'), 0, 'lo de despacho no cuenta como recolector en la vía');
+    assert.equal(contar(lista, 'ryt', '7'), 1);
+    assert.ok(avanceGuia('noche', lista, {}).items.find(i => i.id === 'despachados').lleva === 2);
+    const t = textoDetalle(lista, { turno: 'Noche', final: true, alcoholemia: 'Se realiza acompañamiento en pruebas de alcoholemia - negativas' });
+    assert.ok(t.includes('NOCHE _ Despacho, Zona 7\n'));
+    assert.ok(t.includes('*Despacho:*\n* Control 669 Z1 R0119220\n* Control 673 Z1 R0118919\n* Se realiza acompañamiento en pruebas de alcoholemia - negativas\n\n*Zona 7*\n*LV*\n* Z7R411\n\n*RyT*\n* Control 565 0703'));
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');

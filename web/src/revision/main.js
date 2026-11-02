@@ -75,6 +75,7 @@ function pintarForm() {
             '<label>Turno<select data-campo="turno">' + TURNOS.map(function (t) { return '<option' + (t === form.turno ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label>' +
             (form.tipo === 'ryt' ? '<label>Control o vehículo<input data-campo="control" value="' + esc(form.control) + '" placeholder="Ej.: 595"></label>' : '') +
         '</div>' +
+        (form.tipo === 'ryt' ? '<label class="check-despacho"><input type="checkbox" data-en-despacho' + (form.items.en_despacho === 'si' ? ' checked' : '') + '> Verificada en despacho (base de operación)</label>' : '') +
         '<h3>De la ruta <button type="button" class="secundario pequeno" data-todo="ruta">✓ Todo cumple</button></h3>' +
         c.ruta.map(function (i) { return filaItem('ruta', i, form.items); }).join('') +
         '<label class="bloque">Novedad de la ruta<textarea data-campo="novedad" rows="2">' + esc(form.novedad) + '</textarea></label>' +
@@ -274,7 +275,7 @@ function pintarGuia() {
             : '<label class="guia-check"><input type="checkbox" data-guia-marca="' + i.id + '"' + (i.hecho ? ' checked' : '') + '><span class="guia-txt">' + esc(i.texto) +
 '</span></label>';
         return '<div class="guia-fila' + (i.hecho ? ' hecha' : '') + '">' + cab + (i.ayuda ? '<div class="sub guia-ayuda">' + esc(i.ayuda) + '</div>' : '') + '</div>';
-    }).join('');
+    }).join('') + (GUIA[c].pendiente ? '<div class="guia-pendiente"><b>👀 Estar pendiente toda la noche</b>' + GUIA[c].pendiente.map(function (t) { return '<div>' + esc(t) + '</div>'; }).join('') + '</div>' : '');
 }
 function pintarLista() {
     var total = todas();
@@ -335,6 +336,8 @@ function pintarReporte() {
     ['despacho', 'vias', 'rcd', 'otras'].forEach(function (k) { if (document.activeElement !== $('r-' + k)) $('r-' + k).value = extra[k] || ''; });
     var op = { turno: titulo, final: reporteFinal, despacho: extra.despacho, vias: extra.vias, rcd: extra.rcd, otras: extra.otras };
     op.fecha = fecha;
+    // Lo marcado en la guía de la noche entra al reporte
+    if (claveGuia() === 'noche' && marcasGuia('noche').alcoholemia) op.alcoholemia = 'Se realiza acompañamiento en pruebas de alcoholemia' + (marcasGuia('noche').alco_neg ? ' - negativas' : '');
     var texto = porZona ? textoReporte(elegidas, op) : formato === 'domingo' ? textoDomingo(elegidas, op) : formato === 'detalle' ? textoDetalle(elegidas, op) : textoActividades(elegidas, op);
     $('vista-previa').textContent = texto || 'Guarde una revisión y aquí queda el reporte para el grupo.';
     $('btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
@@ -364,6 +367,11 @@ function arrancarEventos() {
         } else if (t.dataset.opCampo) form.operarios[+t.closest('[data-op]').dataset.op][t.dataset.opCampo] = t.value;
         guardarBorrador();
     });
+    $('form').addEventListener('change', function (ev) {
+        if (!ev.target.hasAttribute('data-en-despacho')) return;
+        if (ev.target.checked) form.items.en_despacho = 'si'; else delete form.items.en_despacho;
+        guardarBorrador();
+    });
     $('form').addEventListener('click', function (ev) {
         var m = ev.target.closest('[data-item]');
         if (m) {
@@ -389,6 +397,7 @@ function arrancarEventos() {
         // Las revisiones nuevas de hoy salen con ese turno
         if (this.value) escribir('revision_turno_' + hoy(), GUIA[this.value].turno);
         pintarGuia();
+        pintarReporte();
     };
     $('guia-items').addEventListener('change', function (ev) {
         if (!ev.target.dataset.guiaMarca) return;
@@ -396,11 +405,13 @@ function arrancarEventos() {
         if (ev.target.checked) m[ev.target.dataset.guiaMarca] = 1; else delete m[ev.target.dataset.guiaMarca];
         escribir('revision_guia_' + fecha + '_' + c, m);
         pintarGuia();
+        pintarReporte();
     });
     $('guia-items').addEventListener('click', function (ev) {
         var b = ev.target.closest('[data-guia-nueva]');
         if (!b) return;
-        var f = formVacio(b.dataset.guiaNueva, '', b.dataset.zona);
+        var deBase = b.dataset.guiaNueva === 'despacho', f = formVacio(deBase ? 'ryt' : b.dataset.guiaNueva, '', b.dataset.zona);
+        if (deBase) f.items.en_despacho = 'si';
         f.fecha = fecha;
         f.turno = GUIA[claveGuia()].turno;
         abrirForm(f);
