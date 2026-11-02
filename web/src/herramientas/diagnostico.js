@@ -59,6 +59,7 @@ async function arrancar() {
         document.cookie = MARCA + '=1; path=/; max-age=60; SameSite=Lax';
         fila('Cookies', document.cookie.indexOf(MARCA) !== -1, navigator.cookieEnabled ? 'Habilitadas' : 'Deshabilitadas');
     } catch (e) { fila('Cookies', false, e && e.name); }
+    fila('Sesión en cookies', document.cookie.indexOf('mr_') !== -1, document.cookie.indexOf('mr_') !== -1 ? 'Hay una sesión guardada' : 'No hay');
     try {
         if (navigator.storage && navigator.storage.estimate) {
             var est = await navigator.storage.estimate();

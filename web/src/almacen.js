@@ -56,21 +56,57 @@ export function fallaLocalStorage() {
     }
 }
 
-// Almacén de la sesión de Supabase: en los dos sitios, y se lee de donde esté. Si ninguno sirve, queda solo en memoria
+// Si localStorage está lleno, se liberan las copias que se vuelven a bajar de la base: sin espacio no se guarda nada más
+var COPIAS = ['subsanaciones_cache', 'pqr_cache', 'revisiones_cache'];
+export function liberarEspacio() {
+    try {
+        localStorage.setItem('__prueba', '1');
+        localStorage.removeItem('__prueba');
+    } catch (e) {
+        if (!/quota/i.test(String(e && e.name))) return;
+        COPIAS.forEach(function (k) { try { localStorage.removeItem(k); } catch (e2) {} });
+    }
+}
+
+// Tercer sitio para la sesión: cookies, solo de esta aplicación, en trozos (cada cookie admite unos 4 KB).
+// Es el último recurso de los celulares donde localStorage e IndexedDB no conservan nada entre recargas.
+var RUTA = location.pathname.replace(/[^/]*$/, ''), TROZO = 3000, MAX_TROZOS = 8, DIAS = 30;
+function nombreCookie(clave, i) { return 'mr_' + clave.replace(/[^a-z0-9]/gi, '_') + '_' + i; }
+function ponerCookie(nombre, valor, segundos) {
+    document.cookie = nombre + '=' + valor + '; path=' + RUTA + '; max-age=' + segundos + '; SameSite=Strict' + (location.protocol === 'https:' ? '; Secure' : '');
+}
+function borrarCookies(clave) { for (var i = 0; i < MAX_TROZOS; i++) ponerCookie(nombreCookie(clave, i), '', 0); }
+function guardarCookies(clave, valor) {
+    var texto = encodeURIComponent(valor), trozos = Math.ceil(texto.length / TROZO);
+    borrarCookies(clave);
+    if (trozos > MAX_TROZOS) return;
+    for (var i = 0; i < trozos; i++) ponerCookie(nombreCookie(clave, i), texto.slice(i * TROZO, (i + 1) * TROZO), DIAS * 86400);
+}
+function leerCookies(clave) {
+    var todas = {}, texto = '';
+    document.cookie.split('; ').forEach(function (c) { var p = c.indexOf('='); todas[c.slice(0, p)] = c.slice(p + 1); });
+    for (var i = 0; i < MAX_TROZOS && todas[nombreCookie(clave, i)]; i++) texto += todas[nombreCookie(clave, i)];
+    try { return texto ? decodeURIComponent(texto) : null; } catch (e) { return null; }
+}
+
+// Almacén de la sesión de Supabase: se guarda en los tres sitios y se lee del primero que la tenga
 var enMemoria = {};
 export var almacenSesion = {
     getItem: async function (clave) {
         if (clave in enMemoria) return enMemoria[clave];
         try { var v = await respaldoLeer('sesion:' + clave); if (v != null) return v; } catch (e) {}
-        try { return localStorage.getItem(clave); } catch (e) { return null; }
+        try { var l = localStorage.getItem(clave); if (l != null) return l; } catch (e) {}
+        try { return leerCookies(clave); } catch (e) { return null; }
     },
     setItem: async function (clave, valor) {
         enMemoria[clave] = valor;
+        try { guardarCookies(clave, valor); } catch (e) {}
         try { localStorage.setItem(clave, valor); } catch (e) {}
         try { await respaldoGuardar('sesion:' + clave, valor); } catch (e) {}
     },
     removeItem: async function (clave) {
         delete enMemoria[clave];
+        try { borrarCookies(clave); } catch (e) {}
         try { localStorage.removeItem(clave); } catch (e) {}
         try { await respaldoBorrar('sesion:' + clave); } catch (e) {}
     }
