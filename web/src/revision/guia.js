@@ -57,6 +57,38 @@ export var GUIA = {
 
 // Una ruta de RyT revisada en despacho: va aparte y no cuenta como recolector en la vía
 export function enDespacho(r) { return r.tipo === 'ryt' && (r.items || {}).en_despacho === 'si'; }
+// Cómo sale en el reporte lo que se marca a mano: [sección, texto]. Sección: 'despacho', el número de una zona o '' (adicional).
+// Instrumentos, evidencias y el resultado de alcoholemia no llevan renglón propio.
+var INFORME = {
+    despacho: ['despacho', 'Se valida el despacho total del turno'],
+    pn_tn: ['', 'Se verifica el Punto Naranja Terminal del Norte'],
+    pn_flores: ['', 'Se verifica el Punto Naranja Placita de Flórez'],
+    pn_provenza: ['', 'Se verifica el Punto Naranja Provenza'],
+    p2p: ['', 'Se realiza el reporte en el grupo puerta a puerta'],
+    notificar: ['', 'Se notifican al grupo las rutas R&T en vías principales'],
+    ciclovia: ['', 'Se verifica la ciclovía de la Avenida El Poblado'],
+    pp_provenza: ['', 'Se verifican los 5 operarios de aprovechamiento en Provenza'],
+    vias: ['', 'Se verifican las vías principales durante las rutas de limpieza vial'],
+    vias5: ['5', 'Se verifica la prestación del servicio y las vías principales de la zona'],
+    vias4: ['4', 'Se realiza recorrido por las vías principales de la zona'],
+    eventos: ['', 'Se atienden los eventos especiales']
+};
+// Lo marcado, listo para el reporte: { despacho: [...], otras: [...] }. En otras, lo de una zona va como "Zona 5: ..."
+export function lineasGuia(clave, marcas, lunesFestivo) {
+    var out = { despacho: [], otras: [] };
+    marcas = marcas || {};
+    if (!GUIA[clave]) return out;
+    GUIA[clave].items.forEach(function (i) {
+        if (i.tipo || !marcas[i.id] || (i.siLunes && !lunesFestivo)) return;
+        if (i.id === 'alcoholemia') return out.despacho.push('Se realiza acompañamiento en pruebas de alcoholemia en FUNTRAEV y FUDEA' + (marcas.alco_neg ? ' - negativas' : ''));
+        var inf = INFORME[i.id];
+        if (!inf) return;
+        if (inf[0] === 'despacho') out.despacho.push(inf[1]);
+        else out.otras.push((inf[0] ? 'Zona ' + inf[0] + ': ' : '') + inf[1]);
+    });
+    return out;
+}
+
 // Rutas distintas revisadas de ese servicio y zona (o en despacho): la misma ruta dos veces cuenta una
 export function contar(revisiones, tipo, zona) {
     var vistas = {};

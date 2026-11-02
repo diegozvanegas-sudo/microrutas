@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { GUIA, contar, avanceGuia } from '../src/revision/guia.js';
+import { GUIA, contar, avanceGuia, lineasGuia } from '../src/revision/guia.js';
 import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
@@ -155,6 +155,29 @@ test('noche: lo de despacho cuenta y sale aparte', () => {
     const t = textoDetalle(lista, { turno: 'Noche', final: true, alcoholemia: 'Se realiza acompañamiento en pruebas de alcoholemia - negativas' });
     assert.ok(t.includes('NOCHE _ Despacho, Zona 7\n'));
     assert.ok(t.includes('*Despacho:*\n* Control 669 Z1 R0119220\n* Control 673 Z1 R0118919\n* Se realiza acompañamiento en pruebas de alcoholemia - negativas\n\n*Zona 7*\n*LV*\n* Z7R411\n\n*RyT*\n* Control 565 0703'));
+});
+test('guía: lo marcado se vuelve renglones del reporte', () => {
+    const r = lineasGuia('noche', { alcoholemia: 1, alco_neg: 1, despacho: 1, vias5: 1, eventos: 1, instrumentos: 1, recuerda: 1, pp_provenza: 1 }, false);
+    assert.deepEqual(r.despacho, ['Se realiza acompañamiento en pruebas de alcoholemia en FUNTRAEV y FUDEA - negativas', 'Se valida el despacho total del turno']);
+    assert.deepEqual(r.otras, ['Zona 5: Se verifica la prestación del servicio y las vías principales de la zona', 'Se atienden los eventos especiales']);
+    assert.ok(lineasGuia('noche', { pp_provenza: 1 }, true).otras[0].includes('Provenza'));
+    assert.deepEqual(lineasGuia('noche', {}, true), { despacho: [], otras: [] });
+    assert.deepEqual(lineasGuia('nada', { vias: 1 }), { despacho: [], otras: [] });
+});
+test('reportes: lo marcado sale en cada formato', () => {
+    const rv = (ruta, zona) => ({ tipo: 'lv', ruta, zona, control: '', items: {}, operarios: [], novedad: '', enlace: '' });
+    const op = { turno: 'Noche', otras: 'Zona 5: Se verifica la prestación\nSe atienden los eventos especiales', conAdicional: false };
+    const det = textoDetalle([rv('Z5R03', '5')], { ...op, despacho: 'Se valida el despacho total del turno' });
+    assert.ok(det.includes('*Despacho:*\n* Se valida el despacho total del turno'));
+    assert.ok(det.includes('*Zona 5*\n* Se verifica la prestación\n* Z5R03'));
+    assert.ok(det.includes('*Adicional*\n* Se atienden los eventos especiales'));
+    assert.ok(det.endsWith('Sin novedades al momento del recorrido.'), 'marcar una tarea no es una novedad');
+    const dom = textoDomingo([rv('Z5R03', '5')], op);
+    assert.ok(dom.includes('*Zona 5*\n\nSe verifica la prestación') && dom.includes('Se atienden los eventos especiales'));
+    const act = textoActividades([rv('Z5R03', '5')], op);
+    assert.ok(act.includes('\n2. Zona 5: Se verifica la prestación\n3. Otras actividades: Se atienden los eventos especiales'));
+    assert.ok(textoReporte([], op).includes('✅ Se atienden los eventos especiales'), 'solo con lo marcado también sale');
+    assert.ok(textoDetalle([], { otras: 'Zona 4: Recorrido' }).includes('*Zona 4*\n* Recorrido'));
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');

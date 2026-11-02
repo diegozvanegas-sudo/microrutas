@@ -143,7 +143,8 @@ var ENCABEZADOS = {
 // Mismo formato de los reportes del grupo: por zona y, dentro de cada una, por servicio; al final las novedades
 export function textoReporte(revisiones, op) {
     op = op || {};
-    if (!revisiones.length) return '';
+    var otras = String(op.otras || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean);
+    if (!revisiones.length && !otras.length) return '';
     var titulo = '*REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES' + (op.turno ? ' - TURNO ' + op.turno.toUpperCase() : '') + '*';
     var zonas = {};
     revisiones.forEach(function (r) { var z = String(r.zona || '').trim(); (zonas[z] = zonas[z] || []).push(r); });
@@ -157,6 +158,7 @@ export function textoReporte(revisiones, op) {
         });
         partes.push(sec.join('\n\n'));
     });
+    if (otras.length) partes.push(otras.map(function (x) { return '✅ ' + x; }).join('\n'));
     var lineas = [];
     revisiones.forEach(function (r) { novedadesDe(r).forEach(function (n) { lineas.push('• ' + r.ruta + ' - ' + n); }); });
     partes.push(lineas.length ? '*NOVEDADES* 🚨\n' + lineas.join('\n') + '\n\nLas novedades encontradas se reportan en los grupos correspondientes.'
@@ -194,7 +196,10 @@ export function textoActividades(revisiones, op) {
         var n = unicos(ryt.map(nombreRevision)).length;
         items.push('Verificación de vehículos y rutas recolectoras: Se ' + (n === 1 ? 'verificó ' : 'verificaron ') + cantidad(n) + (n === 1 ? ' ruta recolectora' : ' rutas recolectoras') + '. ' + porZona.join('. ') + '.');
     }
-    if (limpio(op.otras)) items.push('Otras actividades: ' + limpio(op.otras));
+    // Un punto por renglón; lo que ya dice de dónde es ("Zona 5: ...", "Despacho: ...") va tal cual
+    limpio(op.otras).split('\n').map(limpio).filter(Boolean).forEach(function (l) {
+        items.push(/^(zona\s*\d+|despacho)\s*:/i.test(l) ? l : 'Otras actividades: ' + l);
+    });
     var nov = [];
     revisiones.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push(r.ruta + ' - ' + x); }); });
     if (nov.length) items.push('Novedades encontradas: ' + nov.join('; ') + '. Se reportan en los grupos correspondientes.');
@@ -259,22 +264,27 @@ export function textoDetalle(todas, op) {
         }));
     };
     if (despacho.length) partes.push('*Despacho:*\n' + despacho.map(punto).join('\n'));
-    var zonas = unicos(revisiones.map(function (r) { return String(r.zona || '').trim(); })).sort(ordenZonas);
+    var enZona = {}, adicional = [];
+    lineas(op.otras).forEach(function (l) {
+        var m = /^zona\s*(\d+)\s*[:-]\s*(.+)$/i.exec(l);
+        if (m) (enZona[m[1]] = enZona[m[1]] || []).push(m[2]); else adicional.push(l);
+    });
+    var zonas = unicos(revisiones.map(function (r) { return String(r.zona || '').trim(); }).concat(Object.keys(enZona))).sort(ordenZonas);
     zonas.forEach(function (z) {
-        var titulo = z ? 'Zona ' + z : 'Sin zona', lv = nombres(z, 'lv'), ryt = nombres(z, 'ryt'), plan = nombres(z, 'plan'), hay = [lv, ryt, plan].filter(function (x) { return x.length; }).length;
-        if (hay === 1) {
+        var propios = (enZona[z] || []).map(punto), titulo = z ? 'Zona ' + z : 'Sin zona', lv = nombres(z, 'lv'), ryt = nombres(z, 'ryt'), plan = nombres(z, 'plan'), hay = [lv, ryt, plan].filter(function (x) { return x.length; }).length;
+        if (hay <= 1) {
             var etiqueta = ryt.length ? ' RyT' : plan.length ? ' Plan de choque' : '';
-            partes.push('*' + titulo + etiqueta + '*\n' + lv.concat(ryt, plan).map(punto).join('\n'));
+            partes.push('*' + titulo + etiqueta + '*\n' + propios.concat(lv.concat(ryt, plan).map(punto)).join('\n'));
             return;
         }
-        var sec = [];
+        var sec = propios.length ? [propios.join('\n')] : [];
         if (lv.length) sec.push('*LV*\n' + lv.map(punto).join('\n'));
         if (ryt.length) sec.push('*RyT*\n' + ryt.map(punto).join('\n'));
         if (plan.length) sec.push('*Plan de choque*\n' + plan.map(punto).join('\n'));
         partes.push('*' + titulo + '*\n' + sec.join('\n\n'));
     });
     if (String(op.rcd || '').trim()) partes.push('*RCD y voluminosos:*\n' + lineas(op.rcd).map(punto).join('\n'));
-    if (lineas(op.otras).length) partes.push('*Adicional*\n' + lineas(op.otras).map(punto).join('\n'));
+    if (adicional.length) partes.push('*Adicional*\n' + adicional.map(punto).join('\n'));
     var vias = renglones(op.vias);
     if (vias.length) partes.push('*Vías principales*:\n' + vias.join(', '));
     if (!partes.length) return '';
@@ -284,7 +294,7 @@ export function textoDetalle(todas, op) {
     var conZona = zonas.filter(Boolean), alcance = (despacho.length ? ['Despacho'] : []).concat(conZona.length ? [(conZona.length === 1 ? 'Zona ' : 'Zonas ') + ultimoY(conZona)] : []).join(', ');
     var sub = [String(op.turno || '').toUpperCase(), alcance].filter(Boolean).join(' _ ');
     return '*REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES*\n' + (sub ? sub + '\n' : '') + '\nDurante la jornada se ' + (op.final ? 'realizaron' : 'han realizado') + ' las siguientes actividades:\n\n' +
-        partes.join('\n\n') + '\n\n' + (nov.length || lineas(op.otras).length ? 'Todas las novedades fueron reportadas para su corrección oportuna.' : 'Sin novedades al momento del recorrido.');
+        partes.join('\n\n') + '\n\n' + (nov.length || (op.conAdicional !== undefined ? op.conAdicional : adicional.length) ? 'Todas las novedades fueron reportadas para su corrección oportuna.' : 'Sin novedades al momento del recorrido.');
 }
 
 // ---------- Despacho ----------

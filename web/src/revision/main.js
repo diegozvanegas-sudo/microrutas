@@ -8,7 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
 import { esFestivo } from '../horas/distribucion.js';
-import { GUIA, avanceGuia } from './guia.js';
+import { GUIA, avanceGuia, lineasGuia } from './guia.js';
 import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
@@ -251,6 +251,11 @@ function claveGuia() {
     var c = leer('revision_guia_turno_' + fecha, '') || leer('revision_guia_turno', '');
     return GUIA[c] ? c : '';
 }
+// ¿El día siguiente es un lunes festivo? (cuenta para la noche del domingo)
+function lunesFestivoSiguiente() {
+    var manana = new Date(fecha + 'T12:00:00Z'); manana.setUTCDate(manana.getUTCDate() + 1);
+    return manana.getUTCDay() === 1 && esFestivo(manana.toISOString().slice(0, 10));
+}
 function marcasGuia(c) { return leer('revision_guia_' + fecha + '_' + c, {}); }
 function pintarGuia() {
     var ver = esFestivo(fecha);
@@ -263,9 +268,7 @@ function pintarGuia() {
     if (!c) { $('guia-cuenta').textContent = ''; $('guia-barra').style.width = 0; $('guia-items').innerHTML = '<div class="sub">Elija su turno para ver lo que toca hoy.</div>'; return; }
     // Solo las revisiones propias de ese día: la guía es de cada inspector, y el administrador ve las de todos
     var mias = delDia().filter(function (r) { return !usuarioId || !r.usuario || r.usuario === usuarioId; });
-    // ¿El día siguiente es un lunes festivo? (cuenta para la noche del domingo)
-    var manana = new Date(fecha + 'T12:00:00Z'); manana.setUTCDate(manana.getUTCDate() + 1);
-    var a = avanceGuia(c, mias, marcasGuia(c), manana.getUTCDay() === 1 && esFestivo(manana.toISOString().slice(0, 10)));
+    var a = avanceGuia(c, mias, marcasGuia(c), lunesFestivoSiguiente());
     $('guia-cuenta').textContent = '· ' + a.hechos + ' de ' + a.total + (a.hechos === a.total ? ' ✓ Completo' : '');
     $('guia-barra').style.width = Math.round(100 * a.hechos / a.total) + '%';
     $('guia-items').innerHTML = a.items.map(function (i) {
@@ -320,13 +323,19 @@ function pintarLista() {
                 '<tr class="fila-detalle"' + (abiertos[r.id] ? '' : ' hidden') + '><td colspan="7">' + detalle(r) + '</td></tr>';
         }).join('') + '</tbody></table>' + paginador(lista.length);
 }
+// El turno que dice el reporte: el elegido, el único del día o, si aún no hay revisiones, el de la guía
+function tituloReporte(turnos) {
+    if (turnoReporte) return turnoReporte;
+    if (turnos.length) return turnos.length === 1 ? turnos[0] : '';
+    return esFestivo(fecha) && claveGuia() ? GUIA[claveGuia()].turno : '';
+}
 function pintarReporte() {
     var lista = delDia(), turnos = lista.map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; });
     if (turnoReporte && turnos.indexOf(turnoReporte) === -1) turnoReporte = '';
     $('r-turno').innerHTML = '<option value="">Todos los turnos</option>' + TURNOS.filter(function (t) { return turnos.indexOf(t) !== -1; }).map(function (t) { return '<option' + (t === turnoReporte ? ' selected' : '') + '>' + t + '</option>'; }).join('');
     $('r-final').checked = reporteFinal;
     var elegidas = turnoReporte ? lista.filter(function (r) { return r.turno === turnoReporte; }) : lista;
-    var titulo = turnoReporte || (turnos.length === 1 ? turnos[0] : '');
+    var titulo = tituloReporte(turnos);
     // Lo escrito a mano queda en este equipo, por día y turno
     // Domingos y festivos: el parcial por zona y el final por actividades, salvo que ese día se haya elegido otro
     $('r-formato').value = leer('revision_formato_' + fecha, '') || (esFestivo(fecha) ? (reporteFinal ? (titulo === 'Noche' ? 'detalle' : 'actividades') : 'domingo') : leer('revision_formato', '') || 'actividades');
@@ -334,10 +343,16 @@ function pintarReporte() {
     $('r-extras').hidden = porZona;
     $('r-campo-despacho').hidden = formato !== 'detalle';
     ['despacho', 'vias', 'rcd', 'otras'].forEach(function (k) { if (document.activeElement !== $('r-' + k)) $('r-' + k).value = extra[k] || ''; });
-    var op = { turno: titulo, final: reporteFinal, despacho: extra.despacho, vias: extra.vias, rcd: extra.rcd, otras: extra.otras };
+    // Lo marcado en la guía entra al reporte, antes de lo escrito a mano (si el reporte es de otro turno, no)
+    var cGuia = esFestivo(fecha) ? claveGuia() : '', delTurno = cGuia && (!titulo || GUIA[cGuia].turno === titulo);
+    var guia = delTurno ? lineasGuia(cGuia, marcasGuia(cGuia), lunesFestivoSiguiente()) : { despacho: [], otras: [] };
+    var unir = function (lista, texto) { return lista.concat(texto ? [texto] : []).join('\n'); };
+    var otras = guia.otras;
+    if (extra.vias) otras = otras.filter(function (l) { return l !== 'Se verifican las vías principales durante las rutas de limpieza vial'; }); // ya están escritas una por una
+    var op = { turno: titulo, final: reporteFinal, vias: extra.vias, rcd: extra.rcd, conAdicional: !!String(extra.otras || '').trim(),
+        despacho: formato === 'detalle' ? unir(guia.despacho, extra.despacho) : extra.despacho,
+        otras: unir((formato === 'detalle' ? [] : guia.despacho.map(function (l) { return 'Despacho: ' + l; })).concat(otras), extra.otras) };
     op.fecha = fecha;
-    // Lo marcado en la guía de la noche entra al reporte
-    if (claveGuia() === 'noche' && marcasGuia('noche').alcoholemia) op.alcoholemia = 'Se realiza acompañamiento en pruebas de alcoholemia' + (marcasGuia('noche').alco_neg ? ' - negativas' : '');
     var texto = porZona ? textoReporte(elegidas, op) : formato === 'domingo' ? textoDomingo(elegidas, op) : formato === 'detalle' ? textoDetalle(elegidas, op) : textoActividades(elegidas, op);
     $('vista-previa').textContent = texto || 'Guarde una revisión y aquí queda el reporte para el grupo.';
     $('btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
@@ -472,7 +487,7 @@ function arrancarEventos() {
         pintarReporte();
     };
     $('r-extras').addEventListener('input', function (ev) {
-        var clave = 'revision_extra_' + fecha + '_' + (turnoReporte || delDia().map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; }).reduce(function (u, t, i) { return i ? '' : t; }, ''));
+        var clave = 'revision_extra_' + fecha + '_' + tituloReporte(delDia().map(function (r) { return r.turno; }).filter(function (t, i, a) { return t && a.indexOf(t) === i; }));
         var extra = leer(clave, {});
         extra[ev.target.id.slice(2)] = ev.target.value;
         escribir(clave, extra);
