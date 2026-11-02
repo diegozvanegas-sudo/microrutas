@@ -59,6 +59,7 @@ header > .primario { flex: none; white-space: nowrap; }
     header { padding: 10px 16px 0; gap: 8px; }
     header .logo { width: 36px; height: 36px; font-size: 19px; border-radius: 10px; }
     header h1 { font-size: 19px; }
+    .nav-app { flex-wrap: wrap; overflow: visible; }
     .nav-app a { font-size: 13px; padding: 8px 10px 9px; }
     .menu-mas > summary { padding: 9px 12px; }
     .menu-lista { min-width: 240px; }

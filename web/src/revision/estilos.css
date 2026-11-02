@@ -107,7 +107,8 @@ dialog::backdrop { background: rgba(15, 30, 25, .45); }
     td.acciones { display: block; white-space: normal; width: auto; text-align: left; padding-top: 6px; }
     td.acciones button { margin: 0 4px 4px 0; }
     .paginador .sub { font-size: 12px; }
-    dialog { width: 100%; max-width: 100%; max-height: 100dvh; margin: auto 0 0; border-radius: 14px 14px 0 0; }
+    dialog#dlg, dialog#dlg-msg { width: 100%; max-width: 100%; max-height: 100dvh; margin: auto 0 0; border-radius: 14px 14px 0 0; }
+    dialog#dlg-ingreso { margin: 16px auto auto; }
 }
 #dlg-msg { width: min(520px, calc(100% - 24px)); }
 #toast { z-index: 2147483647; }
@@ -154,24 +155,16 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
 .check-despacho { display: flex !important; align-items: center; gap: 8px; margin-top: 8px; cursor: pointer; }
 .check-despacho input { width: 20px; height: 20px; margin: 0 !important; flex: none; }
 
-/* Celular: el trabajo de campo primero; los filtros se abren solo si hacen falta */
-#btn-filtros { display: none; }
+/* Celular: mismas opciones que en el computador, con botones cómodos para el dedo */
 #reporte { scroll-margin-top: 8px; }
 .guia-cab label { white-space: nowrap; }
 @media (max-width: 760px) {
-    .filtros { align-items: center; gap: 8px; }
-    .filtros input { flex: 1 1 0; min-width: 0; }
-    #btn-filtros { display: block; order: 2; flex: none; min-height: 38px; font-size: 14px; }
-    .filtros select, #btn-limpiar { display: none; order: 3; }
-    .filtros.abiertos select { display: block; flex: 1 1 40%; }
-    .filtros.abiertos #btn-limpiar:not([hidden]) { display: block; flex: 1 1 100%; }
     .resumen { margin-bottom: 10px; }
     .resumen .tarjeta { padding: 6px 10px; }
     .resumen .tit { font-size: 12px; }
     .vacio-lista { padding: 14px; font-size: 14px; }
-    .guia-cab select { flex: 1 1 0; }
     .guia-cab label { flex: 1 1 100%; }
-    .guia-cab label select { width: 100%; }
+    .guia-cab label select { flex: 1 1 0; width: 100%; }
     .guia-cab .boton { flex: none; }
     .guia-fila { padding: 9px 0; }
     .guia-fila .pequeno { min-height: 38px; }

@@ -20,8 +20,20 @@ var usuarioId = null;
 var TAMANOS = [5, 10, 15, 20, 25, 30], porPagina = 10, pagina = 1, firmaFiltros = '';
 var FILTROS = ['f-texto', 'f-tipo', 'f-zona', 'f-turno', 'f-dia', 'f-usuario'];
 
-function leer(clave, porDefecto) { try { return JSON.parse(localStorage.getItem(clave)) || porDefecto; } catch (e) { return porDefecto; } }
-function escribir(clave, valor) { try { localStorage.setItem(clave, JSON.stringify(valor)); return true; } catch (e) { return false; } }
+// Si el equipo no deja guardar (almacenamiento lleno o bloqueado), lo elegido sigue valiendo mientras la página esté abierta
+var memoria = {}, avisoGuardar = false;
+function leer(clave, porDefecto) {
+    if (clave in memoria) return memoria[clave] || porDefecto;
+    try { return JSON.parse(localStorage.getItem(clave)) || porDefecto; } catch (e) { return porDefecto; }
+}
+function escribir(clave, valor) {
+    memoria[clave] = valor;
+    try { localStorage.setItem(clave, JSON.stringify(valor)); return true; }
+    catch (e) {
+        if (!avisoGuardar) { avisoGuardar = true; toast('⚠ Este equipo no deja guardar datos: copie el reporte antes de cerrar la página.'); }
+        return false;
+    }
+}
 function toast(msg) {
     var t = $('toast');
     t.textContent = msg; t.classList.add('ver');
@@ -443,9 +455,6 @@ function arrancarEventos() {
         abrirForm(b && CHECKLIST[b.tipo] && !esGuardada(b.id) ? b : formVacio(form.tipo));
     };
     FILTROS.forEach(function (id) { $(id).addEventListener(id === 'f-texto' ? 'input' : 'change', pintarLista); });
-    $('btn-filtros').onclick = function () {
-        this.setAttribute('aria-expanded', $('filtros').classList.toggle('abiertos'));
-    };
     $('btn-limpiar').onclick = function () { FILTROS.forEach(function (id) { $(id).value = ''; }); filtroEstado = ''; pintarLista(); };
     $('resumen').onclick = function (ev) {
         var t = ev.target.closest('[data-estado]');
