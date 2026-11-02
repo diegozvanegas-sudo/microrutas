@@ -8,6 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
 import { esFestivo } from '../horas/distribucion.js';
+import { GUIA, avanceGuia } from './guia.js';
 import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
@@ -15,6 +16,7 @@ var $ = function (id) { return document.getElementById(id); };
 var revisiones = [], cola = {}, fecha = hoy(), form = null, reporteFinal = false, turnoReporte = '';
 var CAPAS_NOMBRES = { lv: ['rutas_lv', 'barrido_dom', 'barrido_manana', 'barrido_tarde', 'barrido_noche'], ryt: ['rutas_ryt'], plan: [] };
 var nombres = {}, pedidas = {}, usuarios = {}, abiertos = {}, filtroEstado = '';
+var usuarioId = null;
 var TAMANOS = [5, 10, 15, 20, 25, 30], porPagina = 10, pagina = 1, firmaFiltros = '';
 var FILTROS = ['f-texto', 'f-tipo', 'f-zona', 'f-turno', 'f-dia', 'f-usuario'];
 
@@ -243,8 +245,38 @@ function detalle(r) {
                 (o.novedad ? '<div class="bloque">' + esc(o.novedad) + '</div>' : '') + enlaceHtml(o.enlace) + '</div>';
         }).join('') + '</div>';
 }
+// ---------- Guía dominical: lo que toca según el turno y cuánto lleva ----------
+function claveGuia() {
+    var c = leer('revision_guia_turno_' + fecha, '') || leer('revision_guia_turno', '');
+    return GUIA[c] ? c : '';
+}
+function marcasGuia(c) { return leer('revision_guia_' + fecha + '_' + c, {}); }
+function pintarGuia() {
+    var ver = esFestivo(fecha);
+    $('guia').hidden = !ver;
+    if (!ver) return;
+    var c = claveGuia();
+    $('guia-turno').innerHTML = '<option value="">Elija su turno…</option>' + Object.keys(GUIA).map(function (k) {
+        return '<option value="' + k + '"' + (k === c ? ' selected' : '') + '>' + esc(GUIA[k].nombre + ' (' + GUIA[k].horario + ')') + '</option>';
+    }).join('');
+    if (!c) { $('guia-cuenta').textContent = ''; $('guia-barra').style.width = 0; $('guia-items').innerHTML = '<div class="sub">Elija su turno para ver lo que toca hoy.</div>'; return; }
+    // Solo las revisiones propias de ese día: la guía es de cada inspector, y el administrador ve las de todos
+    var mias = delDia().filter(function (r) { return !usuarioId || !r.usuario || r.usuario === usuarioId; });
+    var a = avanceGuia(c, mias, marcasGuia(c));
+    $('guia-cuenta').textContent = '· ' + a.hechos + ' de ' + a.total + (a.hechos === a.total ? ' ✓ Completo' : '');
+    $('guia-barra').style.width = Math.round(100 * a.hechos / a.total) + '%';
+    $('guia-items').innerHTML = a.items.map(function (i) {
+        var cab = i.tipo
+            ? '<span class="guia-marca">' + (i.hecho ? '✅' : '⬜') + '</span><span class="guia-txt">' + esc(i.texto) + ' <b>' + i.lleva + ' de ' + i.meta + '</b></span>' +
+                (i.hecho ? '' : '<button type="button" class="secundario pequeno" data-guia-nueva="' + i.tipo + '" data-zona="' + i.zona + '">+ Registrar</button>')
+            : '<label class="guia-check"><input type="checkbox" data-guia-marca="' + i.id + '"' + (i.hecho ? ' checked' : '') + '><span class="guia-txt">' + esc(i.texto) +
+                (i.tabla ? ' <span class="guia-ojo" title="Está en la tabla de turnos de la guía, no en las actividades de este inspector">confirmar</span>' : '') + '</span></label>';
+        return '<div class="guia-fila' + (i.hecho ? ' hecha' : '') + '">' + cab + (i.ayuda ? '<div class="sub guia-ayuda">' + esc(i.ayuda) + '</div>' : '') + '</div>';
+    }).join('');
+}
 function pintarLista() {
     var total = todas();
+    pintarGuia();
     llenarFiltros(total);
     $('dia-nombre').textContent = nombreDia(fecha);
     $('dia-fecha').value = fecha;
@@ -348,6 +380,28 @@ function arrancarEventos() {
         window.scrollTo(0, y);
     });
     $('btn-guardar').onclick = guardar;
+    $('guia-turno').onchange = function () {
+        escribir('revision_guia_turno_' + fecha, this.value);
+        escribir('revision_guia_turno', this.value);
+        // Las revisiones nuevas de hoy salen con ese turno
+        if (this.value) escribir('revision_turno_' + hoy(), GUIA[this.value].turno);
+        pintarGuia();
+    };
+    $('guia-items').addEventListener('change', function (ev) {
+        if (!ev.target.dataset.guiaMarca) return;
+        var c = claveGuia(), m = marcasGuia(c);
+        if (ev.target.checked) m[ev.target.dataset.guiaMarca] = 1; else delete m[ev.target.dataset.guiaMarca];
+        escribir('revision_guia_' + fecha + '_' + c, m);
+        pintarGuia();
+    });
+    $('guia-items').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-guia-nueva]');
+        if (!b) return;
+        var f = formVacio(b.dataset.guiaNueva, '', b.dataset.zona);
+        f.fecha = fecha;
+        f.turno = GUIA[claveGuia()].turno;
+        abrirForm(f);
+    });
     $('msg-cerrar').onclick = function () { $('dlg-msg').close(); };
     $('msg-copiar').onclick = function () {
         navigator.clipboard.writeText($('msg-texto').textContent).then(function () { toast('Mensaje copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
@@ -431,6 +485,7 @@ async function arrancar() {
     if (ruta) $('dlg').showModal();
     if (!configurado) return cargar();
     var usuario = await asegurarSesion(supabase);
+    usuarioId = usuario.id;
     var salir = $('btn-salir');
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;

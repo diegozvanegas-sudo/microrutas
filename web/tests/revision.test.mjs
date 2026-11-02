@@ -2,6 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { GUIA, contar, avanceGuia } from '../src/revision/guia.js';
 import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoDomingo, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
@@ -101,6 +102,29 @@ test('domingos y festivos: por zona, con listas y vías principales', () => {
     assert.ok(textoDomingo([rv('A', '1')], { final: true }).startsWith('*REPORTE FINAL ACTIVIDADES INTERVENTORÍA*\n\nDurante la jornada se realizaron'));
     assert.ok(textoDomingo([{ ...rv('A', '1'), items: { r_papeleo: 'no' } }], {}).includes('Novedades:\n- A: Con papeleo\n\nLas novedades encontradas durante la jornada fueron reportadas'));
     assert.equal(textoDomingo([], {}), '');
+});
+test('guía dominical: las cantidades del documento', () => {
+    const metas = (c) => GUIA[c].items.filter(i => i.tipo).map(i => i.id + ':' + i.meta).join(' ');
+    assert.equal(metas('am1'), 'lv2:5 lv4:5 lv6:5 ryt2:1 ryt4:1 ryt6:1');
+    assert.equal(metas('am2'), 'lv1:5 lv3:5 lv5:5 ryt1:1 ryt3:1 ryt5:1');
+    assert.equal(metas('intermedio'), 'lv7:10 ryt7:2 lv4:3 ryt9:1');
+    assert.equal(metas('pm'), 'lv7:10 lv5:3 ryt7:2');
+    assert.equal(metas('noche'), 'lv7:10 lv5:3 lv4:2 ryt7:2 ryt4:1');
+});
+test('guía dominical: cuenta rutas distintas y respeta lo marcado', () => {
+    const r = (ruta, zona, tipo = 'lv') => ({ tipo, ruta, zona });
+    const rev = [r('Z5R1', '5'), r('z5r1 ', '5'), r('Z5R2', '5'), r('Z5R3', '5'), r('0703', '7', 'ryt'), r('Z7R1', '7')];
+    assert.equal(contar(rev, 'lv', '5'), 3, 'la misma ruta dos veces cuenta una');
+    const a = avanceGuia('pm', rev, { ciclovia: 1 });
+    const de = (id) => a.items.find(i => i.id === id);
+    assert.equal(de('lv5').hecho, true);
+    assert.equal(de('lv7').lleva, 1);
+    assert.equal(de('lv7').hecho, false);
+    assert.equal(de('ryt7').lleva, 1);
+    assert.equal(de('ciclovia').hecho, true);
+    assert.equal(de('eventos').hecho, false);
+    assert.equal(a.hechos, 2);
+    assert.equal(a.total, GUIA.pm.items.length);
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');

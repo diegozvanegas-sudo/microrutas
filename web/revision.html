@@ -56,6 +56,14 @@
     </details>
 </header>
 <main class="lista-revisiones">
+    <details class="tarjeta guia" id="guia" open hidden>
+        <summary><b>📋 Guía dominical y festivos</b> <span class="sub" id="guia-cuenta"></span></summary>
+        <div class="guia-cab">
+            <label>Mi turno <select id="guia-turno"></select></label>
+            <div class="guia-barra"><span id="guia-barra"></span></div>
+        </div>
+        <div id="guia-items"></div>
+    </details>
     <div class="resumen" id="resumen"></div>
     <div class="filtros">
         <input type="search" id="f-texto" placeholder="Buscar por ruta, control, zona, operario o novedad…" aria-label="Buscar">
