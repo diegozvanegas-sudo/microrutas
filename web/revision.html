@@ -84,10 +84,11 @@
             <input type="date" id="dia-fecha" aria-label="Día del reporte">
             <b id="dia-nombre"></b>
             <select id="r-turno" aria-label="Turno del reporte"></select>
-            <select id="r-formato" aria-label="Formato del reporte"><option value="actividades">Por actividades</option><option value="domingo">Domingos y festivos</option><option value="zona">Por zona</option></select>
+            <select id="r-formato" aria-label="Formato del reporte"><option value="actividades">Por actividades</option><option value="domingo">Domingos y festivos</option><option value="detalle">Con detalle (noche)</option><option value="zona">Por zona</option></select>
             <label><input type="checkbox" id="r-final">Reporte final</label>
         </div>
         <div class="extras-reporte" id="r-extras">
+            <label id="r-campo-despacho" hidden>Despacho (un renglón por cada uno)<textarea id="r-despacho" rows="2" placeholder="Control 669 Z1 R0119220&#10;Acompañamiento en pruebas de alcoholemia: negativas"></textarea></label>
             <label>Vías principales recorridas<textarea id="r-vias" rows="2" placeholder="Se efectuó recorrido de inspección por Avenida Oriental, San Juan…"></textarea></label>
             <label>RCD y voluminosos<textarea id="r-rcd" rows="2" placeholder="Se identificaron novedades sobre la Avenida 80, reportadas en los grupos…"></textarea></label>
             <label>Otras actividades<textarea id="r-otras" rows="2" placeholder="Un renglón por actividad. Para que salga en una zona: Zona 5: Se realiza verificación de la Av El Poblado (ciclovía)"></textarea></label>

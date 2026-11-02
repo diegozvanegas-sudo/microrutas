@@ -1,11 +1,13 @@
-// Guía dominical y festivos 2026 (v2): lo que le toca a cada inspector y cuánto lleva. Sin nada de la página, para probarlo.
-// Lo que se puede contar sale de las revisiones del día; lo demás se marca a mano. item.tabla: solo aparece en la tabla de
-// turnos de la guía, no en las actividades de ese inspector.
+// Guía dominical y festivos 2026 (v2) y su imagen de actividades por turno: lo que le toca a cada inspector y cuánto lleva.
+// Sin nada de la página, para probarlo. Lo que se puede contar sale de las revisiones del día; lo demás se marca a mano.
+// item.siLunes: solo cuando el lunes siguiente es festivo.
 function lv(zona, meta, extra) { return { id: 'lv' + zona, texto: 'Rutas LV Zona ' + zona + (extra || ''), tipo: 'lv', zona: String(zona), meta: meta }; }
-function ryt(zona, meta) { return { id: 'ryt' + zona, texto: 'Rutas R&T Zona ' + zona, tipo: 'ryt', zona: String(zona), meta: meta }; }
-function mano(id, texto, ayuda, tabla) { return { id: id, texto: texto, ayuda: ayuda || '', tabla: !!tabla }; }
+function ryt(zona, meta, extra) { return { id: 'ryt' + zona, texto: 'Rutas R&T Zona ' + zona + (extra || ''), tipo: 'ryt', zona: String(zona), meta: meta }; }
+function mano(id, texto, ayuda, siLunes) { return { id: id, texto: texto, ayuda: ayuda || '', siLunes: !!siLunes }; }
+var GPS = ' (con GPS)';
 var VIAS = mano('vias', 'Vías principales durante la inspección de rutas LV');
 var INSTRUMENTOS = mano('instrumentos', 'Instrumentos diligenciados al finalizar cada actividad');
+var RECUERDA = mano('recuerda', 'Evidencias registradas y novedades notificadas en los grupos');
 
 export var GUIA = {
     am1: { nombre: 'AM-1 · Occidente', horario: '5:00 – 13:00', turno: 'Mañana', items: [
@@ -13,32 +15,32 @@ export var GUIA = {
         lv(2, 5), lv(4, 5), lv(6, 5),
         mano('pn_tn', 'Punto Naranja Terminal del Norte (6:00 a 14:00): 2 operarios', 'Se entra por la paralela al parqueadero de la Terminal; la auto compactadora está junto al punto naranja.'),
         mano('p2p', 'Reporte en el grupo puerta a puerta'),
-        ryt(2, 1), ryt(4, 1), ryt(6, 1),
+        ryt(2, 1, GPS), ryt(4, 1, GPS), ryt(6, 1, GPS),
         mano('notificar', 'R&T en vías principales notificadas al grupo'),
-        VIAS, mano('eventos', 'Eventos especiales del día'), INSTRUMENTOS
+        VIAS, mano('eventos', 'Eventos especiales del día'), INSTRUMENTOS, RECUERDA
     ] },
     am2: { nombre: 'AM-2 · Oriente', horario: '5:00 – 13:00', turno: 'Mañana', items: [
-        lv(1, 5), lv(3, 5), lv(5, 5), ryt(1, 1), ryt(3, 1), ryt(5, 1),
+        lv(1, 5), lv(3, 5), lv(5, 5), ryt(1, 1, GPS), ryt(3, 1, GPS), ryt(5, 1, GPS),
         mano('notificar', 'R&T en vías principales notificadas al grupo'),
-        mano('pn_flores', 'Punto Naranja Placita de Flórez', '', true),
-        VIAS, mano('eventos', 'Eventos especiales del día'), INSTRUMENTOS
+        mano('pn_flores', 'Punto Naranja Placita de Flórez (6:00 a 14:00)'),
+        VIAS, mano('eventos', 'Eventos especiales del día'), INSTRUMENTOS, RECUERDA
     ] },
     intermedio: { nombre: 'Intermedio', horario: '8:00 – 16:00', turno: 'Intermedio', items: [
         lv(7, 10, ' AM'), ryt(7, 2), lv(4, 3, ' PM'), ryt(9, 1),
         mano('pn_tn', 'Punto Naranja Terminal del Norte (13:00 a 21:00): 1 operario'),
-        VIAS, mano('eventos', 'Eventos especiales del día, occidente PM'), INSTRUMENTOS
+        VIAS, mano('eventos', 'Eventos especiales del día, occidente PM'), INSTRUMENTOS, RECUERDA
     ] },
-    pm: { nombre: 'PM · Centro y Poblado', horario: '13:00 – 21:00', turno: 'Tarde', items: [
+    pm: { nombre: 'PM-1 · Centro tarde y Poblado', horario: '13:00 – 21:00', turno: 'Tarde', items: [
         lv(7, 10), lv(5, 3, ' PM (Provenza, Lleras y Ciudad del Río)'), ryt(7, 2),
         mano('ciclovia', 'Ciclovía Avenida El Poblado, desde las 14:00'),
-        mano('pn_provenza', 'Punto Naranja Provenza', '', true),
-        VIAS, mano('eventos', 'Eventos especiales del día, oriente PM'), INSTRUMENTOS
+        mano('pn_provenza', 'Punto Naranja Provenza (14:00 a 22:00)'),
+        VIAS, mano('eventos', 'Eventos especiales del día, oriente PM'), INSTRUMENTOS, RECUERDA
     ] },
-    noche: { nombre: 'Noche', horario: '20:00 – 4:00', turno: 'Noche', items: [
+    noche: { nombre: 'Noche · Centro', horario: '20:00 – 4:00', turno: 'Noche', items: [
         mano('despacho', '3 rutas R&T en despacho y despacho total del turno 3 validado'),
         lv(7, 10), lv(5, 3), lv(4, 2), ryt(7, 2), ryt(4, 1),
-        mano('pp_provenza', 'Puerta a puerta Provenza, si el lunes es festivo', '', true),
-        mano('eventos', 'Eventos especiales de la noche'), INSTRUMENTOS
+        mano('pp_provenza', '5 operarios de aprovechamiento en Provenza (el lunes siguiente es festivo)', '', true),
+        mano('eventos', 'Eventos especiales de la noche'), INSTRUMENTOS, RECUERDA
     ] }
 };
 
@@ -48,8 +50,8 @@ export function contar(revisiones, tipo, zona) {
     revisiones.forEach(function (r) { if (r.tipo === tipo && String(r.zona || '').trim() === zona) vistas[String(r.ruta || '').trim().toUpperCase()] = 1; });
     return Object.keys(vistas).length;
 }
-export function avanceGuia(clave, revisiones, marcas) {
-    var items = GUIA[clave].items.map(function (i) {
+export function avanceGuia(clave, revisiones, marcas, lunesFestivo) {
+    var items = GUIA[clave].items.filter(function (i) { return !i.siLunes || lunesFestivo; }).map(function (i) {
         if (!i.tipo) return Object.assign({}, i, { hecho: !!(marcas || {})[i.id] });
         var lleva = contar(revisiones, i.tipo, i.zona);
         return Object.assign({}, i, { lleva: lleva, hecho: lleva >= i.meta });

@@ -241,6 +241,46 @@ export function textoDomingo(revisiones, op) {
         (nov.length ? 'Novedades:\n' + nov.join('\n') + '\n\nLas novedades encontradas durante la jornada fueron reportadas en grupos para sus respectivas correcciones.' : 'Sin novedades al momento del recorrido.');
 }
 
+// Reporte con detalle, como el de la noche: despacho, cada zona con sus rutas, lo adicional y las vías principales
+function lineas(t) { return String(t || '').split('\n').map(function (x) { return x.trim(); }).filter(Boolean); }
+function ultimoY(lista) { return lista.length < 2 ? lista.join('') : lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1]; }
+export function textoDetalle(revisiones, op) {
+    op = op || {};
+    var partes = [], punto = function (x) { return '* ' + x; };
+    var nombres = function (z, tipo) {
+        return unicos(revisiones.filter(function (r) { return r.tipo === tipo && String(r.zona || '').trim() === z; }).map(function (r) {
+            return tipo === 'ryt' && r.control ? 'Control ' + r.control + ' ' + r.ruta : r.ruta;
+        }));
+    };
+    if (lineas(op.despacho).length) partes.push('*Despacho:*\n' + lineas(op.despacho).map(punto).join('\n'));
+    var zonas = unicos(revisiones.map(function (r) { return String(r.zona || '').trim(); })).sort(ordenZonas);
+    zonas.forEach(function (z) {
+        var titulo = z ? 'Zona ' + z : 'Sin zona', lv = nombres(z, 'lv'), ryt = nombres(z, 'ryt'), plan = nombres(z, 'plan'), hay = [lv, ryt, plan].filter(function (x) { return x.length; }).length;
+        if (hay === 1) {
+            var etiqueta = ryt.length ? ' RyT' : plan.length ? ' Plan de choque' : '';
+            partes.push('*' + titulo + etiqueta + '*\n' + lv.concat(ryt, plan).map(punto).join('\n'));
+            return;
+        }
+        var sec = [];
+        if (lv.length) sec.push('*LV*\n' + lv.map(punto).join('\n'));
+        if (ryt.length) sec.push('*RyT*\n' + ryt.map(punto).join('\n'));
+        if (plan.length) sec.push('*Plan de choque*\n' + plan.map(punto).join('\n'));
+        partes.push('*' + titulo + '*\n' + sec.join('\n\n'));
+    });
+    if (String(op.rcd || '').trim()) partes.push('*RCD y voluminosos:*\n' + lineas(op.rcd).map(punto).join('\n'));
+    if (lineas(op.otras).length) partes.push('*Adicional*\n' + lineas(op.otras).map(punto).join('\n'));
+    var vias = renglones(op.vias);
+    if (vias.length) partes.push('*Vías principales*:\n' + vias.join(', '));
+    if (!partes.length) return '';
+    var nov = [];
+    revisiones.forEach(function (r) { novedadesDe(r).forEach(function (x) { nov.push(punto(r.ruta + ': ' + x)); }); });
+    if (nov.length) partes.push('*Novedades*\n' + nov.join('\n'));
+    var conZona = zonas.filter(Boolean), alcance = (lineas(op.despacho).length ? ['Despacho'] : []).concat(conZona.length ? [(conZona.length === 1 ? 'Zona ' : 'Zonas ') + ultimoY(conZona)] : []).join(', ');
+    var sub = [String(op.turno || '').toUpperCase(), alcance].filter(Boolean).join(' _ ');
+    return '*REPORTE ' + (op.final ? 'FINAL' : 'PARCIAL') + ' DE ACTIVIDADES*\n' + (sub ? sub + '\n' : '') + '\nDurante la jornada se ' + (op.final ? 'realizaron' : 'han realizado') + ' las siguientes actividades:\n\n' +
+        partes.join('\n\n') + '\n\n' + (nov.length || lineas(op.otras).length ? 'Todas las novedades fueron reportadas para su corrección oportuna.' : 'Sin novedades al momento del recorrido.');
+}
+
 // ---------- Despacho ----------
 // [id, título, frase para cuando todo salió bien]
 export var SECCIONES_DESPACHO = [

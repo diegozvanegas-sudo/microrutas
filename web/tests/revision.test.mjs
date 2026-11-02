@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { GUIA, contar, avanceGuia } from '../src/revision/guia.js';
-import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoDomingo, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
+import { zonaDeCodigo, enlaceSeguro, turnoPorHora, novedadesDe, sinMarcar, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, textoDespacho, tieneNovedad, filtrarRevisiones, ordenarRevisiones, resumenVolquetas, textoVolquetas } from '../src/revision/comun.js';
 
 const lv = { tipo: 'lv', ruta: 'Z2R208LAS', zona: '2', items: { r_papeleo: 'no' }, novedad: '', enlace: '',
     operarios: [{ nombre: 'Juan', items: { h_rastrillo: 'no', epp_botas: 'si' }, novedad: '', enlace: 'https://x.co/1' }, { nombre: '', items: { epp_guantes: 'no' }, novedad: 'Llegó tarde', enlace: 'javascript:alert(1)' }] };
@@ -125,6 +125,25 @@ test('guía dominical: cuenta rutas distintas y respeta lo marcado', () => {
     assert.equal(de('eventos').hecho, false);
     assert.equal(a.hechos, 2);
     assert.equal(a.total, GUIA.pm.items.length);
+});
+test('guía: la imagen oficial, y lo del lunes festivo solo cuando aplica', () => {
+    const ids = (c, l) => avanceGuia(c, [], {}, l).items.map(i => i.id);
+    assert.ok(ids('am2').includes('pn_flores'));
+    assert.ok(ids('pm').includes('pn_provenza'));
+    assert.ok(!ids('noche', false).includes('pp_provenza'));
+    assert.ok(ids('noche', true).includes('pp_provenza'));
+    assert.ok(GUIA.am1.items.find(i => i.id === 'ryt2').texto.includes('con GPS'));
+});
+test('reporte con detalle: como el de la noche', () => {
+    const rv = (ruta, zona, tipo = 'lv', control = '') => ({ tipo, ruta, zona, control, items: {}, operarios: [], novedad: '', enlace: '' });
+    const t = textoDetalle([rv('Z5R03DOM NOC Provenza', '5'), rv('Z7R411DOM Bolívar 1', '7'), rv('Z4R183LaD', '4', 'ryt', '629'), rv('0703', '7', 'ryt', '565')],
+        { turno: 'Noche', final: true, despacho: 'Control 669 Z1\nAlcoholemia negativas', otras: 'Recorrido de la primera Dama', vias: 'San Juan, la Playa' });
+    assert.equal(t, '*REPORTE FINAL DE ACTIVIDADES*\nNOCHE _ Despacho, Zonas 4, 5 y 7\n\nDurante la jornada se realizaron las siguientes actividades:\n\n' +
+        '*Despacho:*\n* Control 669 Z1\n* Alcoholemia negativas\n\n*Zona 4 RyT*\n* Control 629 Z4R183LaD\n\n*Zona 5*\n* Z5R03DOM NOC Provenza\n\n' +
+        '*Zona 7*\n*LV*\n* Z7R411DOM Bolívar 1\n\n*RyT*\n* Control 565 0703\n\n*Adicional*\n* Recorrido de la primera Dama\n\n*Vías principales*:\nSan Juan, la Playa\n\n' +
+        'Todas las novedades fueron reportadas para su corrección oportuna.');
+    assert.ok(textoDetalle([rv('A', '1')], {}).endsWith('Sin novedades al momento del recorrido.'));
+    assert.equal(textoDetalle([], {}), '');
 });
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');
