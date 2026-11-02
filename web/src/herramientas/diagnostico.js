@@ -1,5 +1,5 @@
 // diagnostico.html: qué deja guardar este equipo. No necesita sesión ni muestra claves ni datos: solo si funciona, y cuánto ocupa.
-import { respaldoGuardar, respaldoLeer } from '../almacen.js';
+import { respaldoGuardar, respaldoLeer, leerFinSesion } from '../almacen.js';
 
 var MARCA = 'diagnostico_marca';
 var filas = [];
@@ -60,6 +60,8 @@ async function arrancar() {
         fila('Cookies', document.cookie.indexOf(MARCA) !== -1, navigator.cookieEnabled ? 'Habilitadas' : 'Deshabilitadas');
     } catch (e) { fila('Cookies', false, e && e.name); }
     fila('Sesión en cookies', document.cookie.indexOf('mr_') !== -1, document.cookie.indexOf('mr_') !== -1 ? 'Hay una sesión guardada' : 'No hay');
+    var fin = await leerFinSesion();
+    fila('Último cierre de sesión', null, fin ? fin.motivo + ' · ' + new Date(fin.cuando).toLocaleString('es-CO') : 'Ninguno anotado: si pide ingresar, el equipo borró lo guardado');
     try {
         if (navigator.storage && navigator.storage.estimate) {
             var est = await navigator.storage.estimate();

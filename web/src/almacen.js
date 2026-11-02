@@ -70,10 +70,10 @@ export function liberarEspacio() {
 
 // Tercer sitio para la sesión: cookies, solo de esta aplicación, en trozos (cada cookie admite unos 4 KB).
 // Es el último recurso de los celulares donde localStorage e IndexedDB no conservan nada entre recargas.
-var RUTA = location.pathname.replace(/[^/]*$/, ''), TROZO = 3000, MAX_TROZOS = 8, DIAS = 30;
+var TROZO = 3000, MAX_TROZOS = 8, DIAS = 30;
 function nombreCookie(clave, i) { return 'mr_' + clave.replace(/[^a-z0-9]/gi, '_') + '_' + i; }
 function ponerCookie(nombre, valor, segundos) {
-    document.cookie = nombre + '=' + valor + '; path=' + RUTA + '; max-age=' + segundos + '; SameSite=Strict' + (location.protocol === 'https:' ? '; Secure' : '');
+    document.cookie = nombre + '=' + valor + '; path=' + location.pathname.replace(/[^/]*$/, '') + '; max-age=' + segundos + '; SameSite=Strict' + (location.protocol === 'https:' ? '; Secure' : '');
 }
 function borrarCookies(clave) { for (var i = 0; i < MAX_TROZOS; i++) ponerCookie(nombreCookie(clave, i), '', 0); }
 function guardarCookies(clave, valor) {
@@ -89,14 +89,42 @@ function leerCookies(clave) {
     try { return texto ? decodeURIComponent(texto) : null; } catch (e) { return null; }
 }
 
-// Almacén de la sesión de Supabase: se guarda en los tres sitios y se lee del primero que la tenga
+// De varias copias de la sesión, la que vence más tarde. Cada renovación invalida el token anterior, y usar uno viejo
+// hace que el servidor cierre la sesión: por eso no sirve la primera copia que aparezca
+export function sesionMasReciente(copias) {
+    var mejor = null, tope = -1;
+    copias.forEach(function (v) {
+        if (v == null) return;
+        var vence = 0;
+        try { vence = (JSON.parse(v) || {}).expires_at || 0; } catch (e) {}
+        if (vence > tope) { tope = vence; mejor = v; }
+    });
+    return mejor;
+}
+
+// Por qué terminó la última sesión en este equipo, para la página de diagnóstico
+var FIN = 'sesion_fin', motivoCierre = 'El servidor ya no aceptó la sesión';
+export function cierrePedido() { motivoCierre = 'Se pulsó Salir'; }
+function anotarFin() {
+    var fin = { cuando: new Date().toISOString(), motivo: motivoCierre };
+    try { localStorage.setItem(FIN, JSON.stringify(fin)); } catch (e) {}
+    respaldoGuardar(FIN, fin).catch(function () {});
+}
+export async function leerFinSesion() {
+    try { var v = await respaldoLeer(FIN); if (v) return v; } catch (e) {}
+    try { return JSON.parse(localStorage.getItem(FIN)); } catch (e) { return null; }
+}
+
+// Almacén de la sesión de Supabase: se guarda en los tres sitios y se lee la copia más reciente de todas.
+// La de memoria entra como una más: otra pestaña pudo renovar la sesión mientras esta estaba dormida
 var enMemoria = {};
 export var almacenSesion = {
     getItem: async function (clave) {
-        if (clave in enMemoria) return enMemoria[clave];
-        try { var v = await respaldoLeer('sesion:' + clave); if (v != null) return v; } catch (e) {}
-        try { var l = localStorage.getItem(clave); if (l != null) return l; } catch (e) {}
-        try { return leerCookies(clave); } catch (e) { return null; }
+        var copias = [enMemoria[clave]];
+        try { copias.push(await respaldoLeer('sesion:' + clave)); } catch (e) {}
+        try { copias.push(localStorage.getItem(clave)); } catch (e) {}
+        try { copias.push(leerCookies(clave)); } catch (e) {}
+        return sesionMasReciente(copias);
     },
     setItem: async function (clave, valor) {
         enMemoria[clave] = valor;
@@ -105,6 +133,7 @@ export var almacenSesion = {
         try { await respaldoGuardar('sesion:' + clave, valor); } catch (e) {}
     },
     removeItem: async function (clave) {
+        if (/-auth-token$/.test(clave) && await almacenSesion.getItem(clave)) anotarFin();
         delete enMemoria[clave];
         try { borrarCookies(clave); } catch (e) {}
         try { localStorage.removeItem(clave); } catch (e) {}

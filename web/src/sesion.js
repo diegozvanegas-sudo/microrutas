@@ -1,5 +1,6 @@
 // Inicio de sesión con correo y contraseña (usuarios creados por el administrador en Supabase).
 // Componente propio: arma su ventana, no necesita nada en el HTML.
+import { almacenSesion, cierrePedido } from './almacen.js';
 
 var ventana = null;
 
@@ -51,8 +52,17 @@ function pedirIngreso(supabase) {
 
 // Devuelve el usuario con sesión; si no hay, muestra la ventana de ingreso y espera.
 export async function asegurarSesion(supabase) {
-    var s = (await supabase.auth.getSession()).data.session;
-    return s ? s.user : pedirIngreso(supabase);
+    var res = await supabase.auth.getSession(), s = res.data.session;
+    if (s) return s.user;
+    // Sin señal no se puede renovar una sesión vencida, pero sigue guardada (si el servidor la rechaza, ya la borró):
+    // se sigue trabajando con ella, y se renueva sola al volver la señal
+    if (res.error) {
+        try {
+            var guardada = JSON.parse(await almacenSesion.getItem(supabase.auth.storageKey));
+            if (guardada && guardada.user && guardada.user.id) return guardada.user;
+        } catch (e) {}
+    }
+    return pedirIngreso(supabase);
 }
 
 // Rol del usuario de la sesión (public.perfiles). Sin conexión o sin la tabla todavía: interventor.
@@ -80,6 +90,8 @@ export async function aplicarPermisos(supabase, usuario) {
 }
 
 export async function cerrarSesion(supabase) {
-    await supabase.auth.signOut();
+    cierrePedido();
+    // Solo en este equipo: si no, Salir en el computador también cierra la sesión del celular
+    await supabase.auth.signOut({ scope: 'local' });
     location.reload();
 }
