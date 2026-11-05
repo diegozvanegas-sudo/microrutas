@@ -373,4 +373,16 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
     $('aud-g-quincena').onchange = pintarGuardadas;
     $('aud-g-solo').onchange = pintarGuardadas;
     $('aud-ver-guardadas').onclick = function () { if (sb) cargarGuardadas(); };
+    // Menú Zonas verdes → 🔍 Auditar ZIP (subsanaciones.html#auditar): abre la ventana al llegar o, si ya se está en
+    // Subsanaciones, al tocarlo. Al cerrarla se quita el #auditar, para que el menú la vuelva a abrir
+    function porEnlace() {
+        if (location.hash !== '#auditar') return;
+        document.querySelectorAll('details.nav-menu[open]').forEach(function (d) { d.open = false; });
+        abrir();
+    }
+    window.addEventListener('hashchange', porEnlace);
+    $('dlg-auditoria').addEventListener('close', function () {
+        if (location.hash === '#auditar') history.replaceState(null, '', location.pathname + location.search);
+    });
+    porEnlace();
 }
