@@ -347,7 +347,8 @@ async function abrir() {
 
 export function iniciarAuditoria(cliente, usuarioSesion) {
     sb = cliente; usuario = usuarioSesion;
-    $('btn-auditoria').onclick = abrir;
+    // Se abre desde el menú Zonas verdes (#auditar); el botón es opcional
+    if ($('btn-auditoria')) $('btn-auditoria').onclick = abrir;
     $('aud-cerrar').onclick = function () { $('dlg-auditoria').close(); };
     $('dlg-auditoria').addEventListener('close', function () { clearTimeout(sondeo); });
     $('aud-quincena').onchange = function () { novedades = []; pintarResultados([], ''); $('aud-res-acciones').hidden = true; $('aud-avance').hidden = true; pintarQuincena(); seguir(); };
