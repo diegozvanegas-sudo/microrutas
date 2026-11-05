@@ -202,6 +202,10 @@ Archivos de origen (copiados del mapa anterior):
 Mapa rápido (`web/public/data/rapido/`), después de cambiar la capa o las correcciones, desde `web/`:
 `node tools/generar_mapa_rapido.mjs && node tools/detalle_sector.mjs`
 
+Servicios adicionales del contrato (sitios fuera de la programación, sin lote ni cuadrilla): `datos/origen/servicios_adicionales.js`.
+Salen en el mapa rápido como la capa «➕ Servicios adicionales», puntos fucsia con su ficha. Sin nombres de personas ni teléfonos.
+Un sitio sin punto (`p: null`) no sale hasta ponérselo. Después de cambiarlo, desde `web/`: `node tools/generar_servicios_adicionales.mjs`
+
 Búsqueda de direcciones del mapa rápido (`public/data/rapido/cruces.js`, cruces de calles y carreras de la zona de los lotes):
 se busca ahí primero, sin señal y al instante; Overpass en línea queda de respaldo. Para actualizarlo, baje
 <https://download.geofabrik.de/south-america/colombia-latest.osm.pbf> (~330 MB, no se guarda en el repositorio) y desde `web/`:

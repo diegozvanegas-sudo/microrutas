@@ -483,7 +483,7 @@
         grupos[c] = g;
         terminar('lotes_' + c);
     };
-    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: '☀️ Barrido dom/fest', barrido_manana: '☀️ Barrido mañana', barrido_tarde: '🌇 Barrido tarde', barrido_noche: '🌙 Barrido noche', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT' };
+    var capasExtra = {}, NOMBRES_CAPA = { comunas: 'Comunas', operativos: 'Operativos', rutas_sif: 'Rutas SIF', espartillos: 'Espartillos', zonas: 'Zonas EMV', puntos_criticos: 'Puntos críticos', barrido_dom: '☀️ Barrido dom/fest', barrido_manana: '☀️ Barrido mañana', barrido_tarde: '🌇 Barrido tarde', barrido_noche: '🌙 Barrido noche', rutas_lv: 'Rutas LV', rutas_ryt: 'Rutas RyT', servicios_adicionales: '➕ Servicios adicionales' };
     var ESTILOS_CAPA = {
         comunas: { color: '#e41a1c', weight: 2, fill: false },
         operativos: { color: 'rgba(35,35,35,.4)', weight: 1, fillColor: 'rgb(237,171,21)', fillOpacity: .4 },
@@ -492,6 +492,9 @@
         // Sombreado con el color de cada zona (p.c); va en su propio panel, debajo de los lotes, y no captura clics
         zonas: { weight: 2, opacity: .9, fillOpacity: .25, interactive: false, pane: 'zonas', renderer: L.canvas({ pane: 'zonas' }) },
         puntos_criticos: { radius: 7, color: '#fff', weight: 2, fillColor: '#0288d1', fillOpacity: 1, bubblingMouseEvents: false },
+        // Servicios adicionales del contrato (fuera de la programación, sin lote ni cuadrilla): fucsia con borde blanco grueso
+        // para no confundirlos con los lotes ni con los puntos críticos
+        servicios_adicionales: { radius: 10, color: '#fff', weight: 3, fillColor: '#d6007e', fillOpacity: 1, bubblingMouseEvents: false },
         // Microrrutas de barrido (plano de Emvarias, tools/barrido_desde_pdf.py): cada una con su color del plano
         barrido_dom: { weight: 4, opacity: .95, bubblingMouseEvents: false },
         // Barrido de lunes a sábado por jornada (planos generales de la Zona 7 y la Zona 9): mismo trazo; el borde dice la
@@ -536,6 +539,17 @@
         });
         return n;
     }
+    // Ficha de un sitio de servicios adicionales: uno o varios servicios en el mismo punto (datos/origen/servicios_adicionales.js)
+    function fichaServicio(p) {
+        var area = function (a) { var n = Number(a); return isFinite(n) ? n.toLocaleString('es-CO') + ' m²' : esc(a); };
+        return '<div><b>➕ Servicio' + (p.v.length > 1 ? 's' : '') + ' adicional' + (p.v.length > 1 ? 'es' : '') + '</b> <span style="color:#64748b">· fuera de la programación</span>' +
+            p.v.map(function (v) {
+                return '<div style="margin-top:6px"><b>' + esc(v.n) + '</b>' + (v.f ? '<br>Frecuencia: ' + esc(v.f) : '') + (v.d ? '<br>Dirección: ' + esc(v.d) : '') +
+                    (v.a ? '<br>Área: ' + area(v.a) : '') + (v.x ? '<br>Próxima intervención: <b>' + esc(v.x) + '</b>' : '') +
+                    (v.o ? '<br><span style="color:#334155">' + esc(v.o) + '</span>' : '') + '</div>';
+            }).join('') +
+            (p.u ? '<div style="margin-top:6px;color:#64748b;font-size:12px">Ubicación: ' + esc(p.u) + '</div>' : '') + '</div>';
+    }
     map.createPane('zonas').style.zIndex = 350;
     map.getPane('zonas').style.pointerEvents = 'none';
     window.cargarCapa = function (k, datos) {
@@ -565,6 +579,12 @@
                 g.rutas.push(capa);
                 if (!pasaFiltro(p)) return;
                 if (capa.halo) g.addLayer(capa.halo);
+                g.addLayer(capa);
+                return;
+            }
+            if (k === 'servicios_adicionales') {
+                capa.bindTooltip(esc(p.n), { direction: 'top' });
+                capa.bindPopup(fichaServicio(p), { maxHeight: 320 });
                 g.addLayer(capa);
                 return;
             }
