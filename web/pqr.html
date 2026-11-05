@@ -62,6 +62,7 @@
             <input type="search" id="buscar" placeholder="Buscar por ID, dirección, barrio o nombre" aria-label="Buscar PQR" autocomplete="off">
             <button type="button" class="secundario" id="btn-recorrido" aria-pressed="false" title="Ver los PQR de la lista en el mapa, en el orden para visitarlos">🗺️ Recorrido</button>
             <button type="button" class="secundario" id="btn-llamado" title="Armar un llamado de atención a la cuadrilla para enviarlo por WhatsApp">📣 Llamado de atención</button>
+            <button type="button" class="secundario" id="btn-excel" title="Ver cómo queda el Excel de seguimiento de PQR con lo filtrado y descargarlo">📗 Excel</button>
             <button type="button" class="primario" id="btn-nuevo">+ Nuevo PQR</button>
         </div>
         <div class="filtros" role="group" aria-label="Estado">
@@ -136,7 +137,9 @@
                         <option value="sinvisita">No hubo visita (solo el control de ejecución)</option>
                     </select>
                 </label>
-                <label class="campo" data-si="residuos incompleto calidad subsanado parcial">CUADRILLA <input id="v-cuadrilla" inputmode="numeric" placeholder="Ej.: 11"></label>
+                <!-- Zona y cuadrilla van al Excel de seguimiento de PQR: la zona se llena sola con la dirección (se puede corregir) -->
+                <label class="campo">ZONA <input id="v-zona" inputmode="numeric" placeholder="Se llena con la dirección"></label>
+                <label class="campo">CUADRILLA <input id="v-cuadrilla" inputmode="numeric" placeholder="Ej.: 11"></label>
                 <label class="campo" data-si="residuos incompleto calidad danos">SE CORRIGIÓ / SE PAGÓ EL <input id="v-corregido" type="date"></label>
                 <label class="campo ancho" data-si="privado">EL ÁREA ES
                     <input id="v-area" placeholder="un antejardín o zona de propiedad privada">
@@ -213,6 +216,29 @@
         <div class="pie">
             <button type="button" class="secundario" id="ll-copiar">📋 Copiar</button>
             <a class="boton primario" id="ll-whatsapp" target="_blank" rel="noopener">💬 Enviar por WhatsApp</a>
+        </div>
+    </div>
+</dialog>
+<!-- Vista previa del Excel de seguimiento de PQR (src/pqr/excel.js): la misma ventana de Subsanaciones -->
+<dialog id="dlg-excel">
+    <div class="cuerpo">
+        <h2>📗 Vista previa del Excel <span class="sub" id="excel-info"></span>
+            <button type="button" class="cerrar-dlg ampliar-dlg" id="excel-ampliar" aria-label="Pantalla completa" title="Pantalla completa">⤢</button>
+            <button type="button" class="cerrar-dlg" id="excel-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="excel-barra">
+            <div class="excel-hojas" id="excel-hojas" role="tablist" aria-label="Hojas del Excel"></div>
+            <div class="excel-zoom" role="group" aria-label="Zoom">
+                <button type="button" id="excel-menos" aria-label="Alejar" title="Alejar">−</button>
+                <button type="button" id="excel-nivel" title="Volver a 100 %">100 %</button>
+                <button type="button" id="excel-mas" aria-label="Acercar" title="Acercar">+</button>
+                <button type="button" id="excel-ajustar" title="Que se vean todas las columnas a lo ancho">↔ Ajustar</button>
+            </div>
+        </div>
+        <div class="excel-vista" id="excel-vista"></div>
+        <div class="pie">
+            <span class="sub">Con el filtro y la búsqueda de la lista. Así queda al abrirlo en Excel.</span>
+            <button type="button" class="secundario" id="excel-copiar" title="Copiar las filas para pegarlas en el Excel que ya se lleva">📋 Copiar filas</button>
+            <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
         </div>
     </div>
 </dialog>

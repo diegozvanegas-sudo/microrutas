@@ -52,6 +52,11 @@ npm run dev                # http://localhost:5173/subsanaciones.html
 npm run build              # deja todo en web/dist/ para publicar
 ```
 
+- **PQR** (`pqr.html`): la queja leída de la foto o pegada, lo que se encontró en la visita y la respuesta. El botón
+  📗 Excel muestra y descarga el seguimiento de PQR con el formato de la interventoría (INSPECTOR, ID, FECHA, ZONA, CUADRILLA,
+  FECHA RECEPCIÓN, FECHA ATENCIÓN, TIPO, DESCRIPCIÓN, ¿PROCEDE?, RESUELTA) con lo que tenga la lista; las filas se copian
+  para pegarlas en el Excel que ya se lleva (`src/pqr/excel.js`). La zona sale de la dirección y la fecha de atención es el
+  día en que se respondió o se trasladó.
 - **Usuarios**: cada interventor entra con correo y contraseña. El administrador los maneja en `usuarios.html`
   (menú ⋯ Más → 👥 Usuarios, solo se ve con rol admin): crear, editar, cambiar contraseña, desactivar y eliminar.
   También se pueden crear con `npm run usuario -- correo@ejemplo.com "contraseña"` (en la carpeta de arriba; necesita

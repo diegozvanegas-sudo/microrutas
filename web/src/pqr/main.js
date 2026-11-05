@@ -6,6 +6,8 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga } from './plantillas.js';
 import { textoLlamado, PUNTOS } from './llamados.js';
+import { hojaPqr, descargarPqr } from './excel.js';
+import { htmlHoja, filasParaCopiar } from '../subsanaciones/excel.js';
 
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
@@ -207,6 +209,9 @@ function abrir(p) {
     $('v-proxima').value = v.fechaProxima || '';
     $('v-contacto').value = v.contacto || 'si';
     $('v-area').value = v.area || '';
+    $('v-zona').value = v.zona || '';
+    delete $('v-zona').dataset.auto;
+    ubicada = null;   // se vuelve a ubicar la dirección: llena la zona si está vacía
     $('v-cuadrilla').value = v.cuadrilla || '';
     $('v-corregido').value = v.fechaCorregido || '';
     $('v-barrido').checked = v.barrido != null ? !!v.barrido : hablaDeBarrido(p.queja);
@@ -249,6 +254,8 @@ function datos() {
         telefono: $('f-telefono').value.trim(),
         contacto: $('v-contacto').value, cobro: $('v-cobro').checked, area: $('v-area').value.trim(), observacion: $('v-obs').value.trim(),
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
+        // Para el Excel de seguimiento: la zona EMV y el día en que se respondió o se trasladó (lo pone guardar)
+        zona: $('v-zona').value.trim(), fechaCierre: (actual && actual.visita && actual.visita.fechaCierre) || '',
     };
 }
 // ¿Ya hay otro PQR guardado con ese ID? En uno nuevo no se sigue: se avisa y se ofrece abrir el guardado.
@@ -345,6 +352,25 @@ function dentro(pol, ll) {
     });
     return adentro;
 }
+// Nombre de la zona EMV ("Zona 6") donde cae el punto, '' si queda fuera. g: los polígonos de la zona, cada uno con sus anillos
+function zonaEn(capa, c) {
+    return capa.filter(function (x) { return (x.g || []).some(function (pol) { return dentro(pol, c); }); }).map(function (x) { return x.n; })[0] || '';
+}
+// Zona de los PQR de la lista que no la tienen guardada (los registrados antes de llevarla): se ubica la dirección como en el
+// formulario (queda guardada en el equipo, la segunda vez es inmediato). -> { id del PQR: zona }
+async function zonasDe(lista, avisar) {
+    var out = {}, faltan = lista.filter(function (p) { return !(p.visita || {}).zona && p.direccion; });
+    if (!faltan.length) return out;
+    var capa = await cargarZonas();
+    for (var i = 0; i < faltan.length; i++) {
+        var p = faltan[i], d = window.leerDireccion && window.leerDireccion(p.direccion), c = null;
+        avisar('Ubicando ' + (i + 1) + ' de ' + faltan.length + ' para la zona…');
+        if (!d || d.incompleta) continue;
+        try { c = await window.ubicarDireccion(d, MEDELLIN); } catch (e) {}
+        if (c) out[p.id] = zonaEn(capa, c);
+    }
+    return out;
+}
 function ubicar(dir) {
     ubicada = dir;
     var caja = $('ubicacion'), d = dir && window.leerDireccion && window.leerDireccion(dir);
@@ -355,11 +381,13 @@ function ubicar(dir) {
         if (ubicada !== dir) return;   // ya cambiaron la dirección
         var c = r[0];
         if (!c) { caja.textContent = '📍 No se encontró ' + d.texto + ' en el mapa. Revise la vía y el cruce.'; return; }
-        // g: los polígonos de la zona, cada uno con sus anillos
-        var z = r[1].filter(function (x) { return (x.g || []).some(function (pol) { return dentro(pol, c); }); }).map(function (x) { return x.n; })[0];
+        var z = zonaEn(r[1], c);
         var ll = c.lat.toFixed(6) + ',' + c.lng.toFixed(6);
         caja.innerHTML = '📍 <b>' + esc(z || 'Fuera de las zonas EMV') + '</b> · ' + esc(d.texto) + ' · <span class="sub">ubicación ' + esc(c.aprox) + ' (' + ll + ')</span>';
         $('btn-mapa').href = 'mapa_rapido.html?ll=' + ll;
+        // La zona del formulario se llena sola (solo el número); lo que se escribió a mano se respeta
+        var zona = $('v-zona');
+        if (z && (!zona.value || zona.dataset.auto)) { zona.value = z.replace(/^zona\s*/i, ''); zona.dataset.auto = '1'; }
     }, function () {
         if (ubicada === dir) caja.textContent = '📍 No se pudo buscar la dirección (sin conexión). «Ver en el mapa» la busca allá.';
     });
@@ -511,6 +539,8 @@ async function guardar(estado) {
     if (!f.radicado && !f.direccion && !f.queja) return toast('Escriba o lea la queja antes de guardar.');
     if (revisarRepetido()) return toast('El ID ' + f.radicado + ' ya se encuentra guardado: abra ese PQR.');
     if (estado === 'respondido' && !f.respuesta) return toast('Falta la respuesta final: toque «Usar esta» en una propuesta.');
+    // El día en que se atendió (FECHA ATENCIÓN del Excel): la primera vez que se responde o se traslada
+    if ((estado === 'respondido' || estado === 'trasladado') && !f.visita.fechaCierre) f.visita.fechaCierre = hoy();
     ['btn-guardar', 'btn-respondido', 'btn-trasladado'].forEach(function (id) { $(id).disabled = true; });
     var res = actual ? await supabase.from('pqrs').update(f).eq('id', actual.id).select().single()
                      : await supabase.from('pqrs').insert(f).select().single();
@@ -564,6 +594,125 @@ function armarLlamado() {
 }
 function enlaceWhatsapp() { $('ll-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent($('ll-texto').value); }
 
+// ---------- Excel de seguimiento de PQR (src/pqr/excel.js) ----------
+// La misma ventana de Subsanaciones: primero la vista previa (iguales columnas, colores y anchos que el archivo); desde ahí
+// se copian las filas o se descarga. Lleva los PQR de la lista (con el filtro y la búsqueda).
+// INSPECTOR: el nombre de quien registró el PQR (public.perfiles, los lee quien tenga sesión); sin señal, el último que se recibió
+var NOMBRES = 'pqr_nombres', nombres = null, usuarioSesion = null;
+async function cargarNombres() {
+    if (nombres) return nombres;
+    var n = {}, res = await supabase.from('perfiles').select('id, nombre');
+    if (!res.error) {
+        res.data.forEach(function (u) { n[u.id] = u.nombre || ''; });
+        nombres = n;
+        try { localStorage.setItem(NOMBRES, JSON.stringify(n)); } catch (e) {}
+    } else {
+        try { n = JSON.parse(localStorage.getItem(NOMBRES)) || {}; } catch (e) {}
+        if (usuarioSesion && !n[usuarioSesion.id]) n[usuarioSesion.id] = (usuarioSesion.email || '').split('@')[0];
+    }
+    return n;
+}
+var hojasVista = [];
+function verHoja(i) {
+    $('excel-hojas').querySelectorAll('[data-hoja]').forEach(function (b) { b.setAttribute('aria-selected', +b.dataset.hoja === i); });
+    $('excel-vista').innerHTML = htmlHoja(hojasVista[i]);
+    $('excel-vista').scrollTo(0, 0);
+    aplicarZoom();
+}
+// Zoom de la vista previa (como el de Excel): − / + de 25 % a 200 %, tocar el % vuelve a 100, "Ajustar" muestra todas
+// las columnas a lo ancho; también Ctrl + rueda. Queda guardado en este equipo (el mismo de Subsanaciones).
+var zoomXl = 1;
+try { zoomXl = Math.min(2, Math.max(0.25, +localStorage.getItem('excel_zoom') || 1)); } catch (e) {}
+function aplicarZoom(z) {
+    if (z) zoomXl = Math.round(Math.min(2, Math.max(0.25, z)) * 100) / 100;
+    var t = $('excel-vista').querySelector('.xl');
+    if (t) t.style.zoom = zoomXl;
+    $('excel-nivel').textContent = Math.round(zoomXl * 100) + ' %';
+    try { localStorage.setItem('excel_zoom', zoomXl); } catch (e) {}
+}
+// ⤢ / ⤡: ventana a pantalla completa o normal; queda como se dejó
+function ampliarExcel(si) {
+    $('dlg-excel').classList.toggle('completo', si);
+    $('excel-ampliar').textContent = si ? '⤡' : '⤢';
+    $('excel-ampliar').title = $('excel-ampliar').ariaLabel = si ? 'Tamaño normal' : 'Pantalla completa';
+    try { localStorage.setItem('excel_completo', si ? '1' : ''); } catch (e) {}
+}
+// Sin ClipboardItem: se selecciona la tabla en la página y se copia (también lleva el formato)
+function copiarHtmlViejo(html) {
+    var d = document.createElement('div');
+    d.innerHTML = html; d.style.position = 'fixed'; d.style.left = '-9999px';
+    document.body.appendChild(d);
+    var r = document.createRange(); r.selectNodeContents(d);
+    var sel = window.getSelection(); sel.removeAllRanges(); sel.addRange(r);
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) {}
+    sel.removeAllRanges(); d.remove();
+    return ok;
+}
+async function abrirExcel() {
+    var lista = visibles(), b = $('btn-excel');
+    if (!lista.length) return toast('No hay PQR para exportar.');
+    b.disabled = true;
+    try {
+        var n = await cargarNombres();
+        var zonas = await zonasDe(lista, toast);
+        hojasVista = [hojaPqr(lista, n, zonas)];
+    } catch (e) {
+        return toast('No se pudo armar el Excel: ' + (e && e.message || e));
+    } finally {
+        b.disabled = false;
+    }
+    $('excel-info').textContent = '· ' + lista.length + ' PQR';
+    $('excel-hojas').innerHTML = hojasVista.map(function (h, i) {
+        return '<button type="button" role="tab" data-hoja="' + i + '">' + esc(h.nombre) + ' <small>' + h.filas.length + '</small></button>';
+    }).join('');
+    verHoja(0);
+    $('dlg-excel').showModal();
+}
+function iniciarExcel() {
+    $('btn-excel').onclick = abrirExcel;
+    $('excel-menos').onclick = function () { aplicarZoom(zoomXl - (zoomXl > 1 ? 0.25 : 0.1)); };
+    $('excel-mas').onclick = function () { aplicarZoom(zoomXl + (zoomXl >= 1 ? 0.25 : 0.1)); };
+    $('excel-nivel').onclick = function () { aplicarZoom(1); };
+    // Ancho de la hoja al 100 %: columna de números (34 px) + cada columna (ancho × 7 + 5 px, como htmlHoja) + bordes
+    $('excel-ajustar').onclick = function () {
+        var h = hojasVista[0];
+        if (!h) return;
+        var ancho = h.anchos.reduce(function (s, w) { return s + w * 7 + 6; }, 36);
+        aplicarZoom(($('excel-vista').clientWidth - 4) / ancho);
+    };
+    $('excel-vista').addEventListener('wheel', function (ev) {
+        if (!ev.ctrlKey) return;
+        ev.preventDefault();
+        aplicarZoom(zoomXl * (ev.deltaY < 0 ? 1.1 : 1 / 1.1));
+    }, { passive: false });
+    $('excel-hojas').onclick = function (ev) { var b = ev.target.closest('[data-hoja]'); if (b) verHoja(+b.dataset.hoja); };
+    $('excel-cerrar').onclick = function () { $('dlg-excel').close(); };
+    try { ampliarExcel(localStorage.getItem('excel_completo') === '1'); } catch (e) {}
+    $('excel-ampliar').onclick = function () { ampliarExcel(!$('dlg-excel').classList.contains('completo')); };
+    // 📋 Copiar filas: las de la hoja, con bordes y letra, para pegarlas tal cual en el Excel que ya se lleva
+    $('excel-copiar').onclick = function () {
+        var h = hojasVista[0];
+        if (!h || !h.filas.length) return toast('No hay filas para copiar.');
+        var c = filasParaCopiar(h), n = h.filas.length + (h.filas.length === 1 ? ' fila copiada' : ' filas copiadas');
+        var listo = function () { toast('✓ ' + n + ': péguelas en Excel con Ctrl+V.'); };
+        if (navigator.clipboard && window.ClipboardItem) {
+            navigator.clipboard.write([new ClipboardItem({
+                'text/html': new Blob([c.html], { type: 'text/html' }), 'text/plain': new Blob([c.texto], { type: 'text/plain' }),
+            })]).then(listo, function () { copiarHtmlViejo(c.html) ? listo() : toast('No se pudo copiar.'); });
+        } else if (copiarHtmlViejo(c.html)) listo();
+        else toast('No se pudo copiar.');
+    };
+    $('excel-descargar').onclick = function () {
+        var b = this;
+        if (!hojasVista[0]) return;
+        b.disabled = true;
+        descargarPqr(hojasVista[0], hoy())
+            .catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); })
+            .then(function () { b.disabled = false; });
+    };
+}
+
 // ---------- Inicio ----------
 async function arrancar() {
     iniciarEncabezado();
@@ -572,7 +721,10 @@ async function arrancar() {
     }).join('');
     $('resultados').onclick = function (ev) { var b = ev.target.closest('[data-r]'); if (b) { marcarResultado(b.dataset.r); actualizar(); } };
     var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1, 'tr-precoodes': 1, 'tr-grupo': 1 };
-    $('vista-pqr').addEventListener('input', function (ev) { if (ev.target.id === 'texto') leerTexto(); else if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
+    $('vista-pqr').addEventListener('input', function (ev) {
+        if (ev.target.id === 'v-zona') delete ev.target.dataset.auto;   // escrita a mano: ya no se cambia con la dirección
+        if (ev.target.id === 'texto') leerTexto(); else if (!SIN_ACTUALIZAR[ev.target.id]) actualizar();
+    });
     $('vista-pqr').addEventListener('change', function (ev) { if (!SIN_ACTUALIZAR[ev.target.id]) actualizar(); });
     // Va antes que el de vista-pqr (está más adentro): la cláusula queda elegida antes de rehacer las respuestas
     $('tarjeta-contrato').addEventListener('change', function (ev) {
@@ -599,6 +751,7 @@ async function arrancar() {
     };
     $('btn-nuevo').onclick = function () { abrir(null); };
     $('btn-llamado').onclick = abrirLlamado;
+    iniciarExcel();
     // Cambiar cuadrilla, tipo, quejas o puntos rehace el mensaje; lo escrito a mano en el mensaje se respeta hasta entonces
     $('dlg-llamado').addEventListener('change', function (ev) { if (ev.target.id !== 'll-texto') armarLlamado(); });
     $('ll-cuadrilla').addEventListener('input', armarLlamado);
@@ -681,6 +834,7 @@ async function arrancar() {
     });
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env).'; return; }
     var usuario = await asegurarSesion(supabase);
+    usuarioSesion = usuario;
     var salir = $('btn-salir');
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;

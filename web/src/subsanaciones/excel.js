@@ -76,18 +76,22 @@ function hojaExcel(libro, h) {
     ws.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: h.cab.length } };
 }
 
-// Descarga subsanaciones_aaaa-mm-dd.xlsx con la lista recibida
-export async function exportarExcel(lista, items, itemsOp) {
+// Descarga un archivo .xlsx con las hojas recibidas (el formato de armarHoja; también lo usa el Excel de PQR)
+export async function descargarHojas(hojas, nombreArchivo) {
     var { default: ExcelJS } = await import('exceljs');
     var libro = new ExcelJS.Workbook();
-    hojasExcel(lista, items, itemsOp).forEach(function (h) { hojaExcel(libro, h); });
+    hojas.forEach(function (h) { hojaExcel(libro, h); });
     var buf = await libro.xlsx.writeBuffer();
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
-    a.download = 'subsanaciones_' + hoy() + '.xlsx';
+    a.download = nombreArchivo;
     document.body.appendChild(a);
     a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+// Descarga subsanaciones_aaaa-mm-dd.xlsx con la lista recibida
+export function exportarExcel(lista, items, itemsOp) {
+    return descargarHojas(hojasExcel(lista, items, itemsOp), 'subsanaciones_' + hoy() + '.xlsx');
 }
 
 // Vista previa de una hoja como la muestra Excel: mismos anchos (1 de ancho ≈ 7 px), colores, bordes y letra 11
