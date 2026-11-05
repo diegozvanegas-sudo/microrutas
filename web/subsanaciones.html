@@ -93,6 +93,7 @@
         <button type="button" class="secundario" id="btn-cumpl" title="Lotes ejecutados por cuadrilla contra los que pide la frecuencia de cada lote">📈 Cumplimiento</button>
         <button type="button" class="secundario" id="btn-venc" title="Pendientes por cuadrilla: cuántas vencen pronto y cuántas ya pasaron el plazo (para descuento)">⏰ Vencimientos</button>
         <button type="button" class="secundario" id="btn-excel" title="Ver cómo queda el Excel de interventoría con lo filtrado y descargarlo">📗 Excel</button>
+        <button type="button" class="secundario" id="btn-auditoria" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría de zonas verdes">🔍 Auditar ZIP</button>
     </div>
     <div class="panel"><div id="tabla"><div class="cargando">Cargando…</div></div></div>
 </main>
@@ -211,6 +212,72 @@
             <button type="button" class="secundario" id="excel-copiar" title="Copiar las filas de esta hoja con sus colores para pegarlas en otro Excel">📋 Copiar filas</button>
             <button type="button" class="primario" id="excel-descargar">⬇ Descargar Excel</button>
         </div>
+    </div>
+</dialog>
+<!-- 🔍 Auditar ZIP (src/subsanaciones/auditoria.js): el motor del PC lee las fotos con el plan de Claude Code -->
+<dialog id="dlg-auditoria" aria-labelledby="aud-titulo">
+    <div class="cuerpo">
+        <h2 id="aud-titulo">🔍 Auditar ZIP de fotos
+            <button type="button" class="cerrar-dlg" id="aud-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div id="aud-motor" class="aud-motor" role="status">Buscando el motor de auditoría en este PC…</div>
+        <!-- Avance de todo el proceso: subir, leer las fotos y armar el reporte -->
+        <div class="aud-avance" id="aud-avance" hidden>
+            <div class="aud-avance-cab"><b id="aud-paso"></b> <span id="aud-avance-texto"></span><span class="aud-pct" id="aud-pct"></span></div>
+            <div class="aud-barra" id="aud-barra" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-labelledby="aud-avance-texto"><span></span></div>
+            <button type="button" class="peligro-suave pequeno" id="aud-cancelar" hidden>Cancelar la subida</button>
+        </div>
+        <div id="aud-trabajo" hidden>
+            <section class="aud-seccion">
+                <h3><span class="aud-num">1</span> Quincena</h3>
+                <div class="aud-fila">
+                    <select id="aud-quincena" aria-label="Quincena"></select>
+                    <button type="button" class="secundario" id="aud-btn-nueva">+ Nueva quincena</button>
+                </div>
+                <div class="aud-nueva" id="aud-nueva" hidden>
+                    <label>NOMBRE <input id="aud-nombre" placeholder="Q2 OCTUBRE 2026"></label>
+                    <label>INFORME DE LOTES EJECUTADOS <select id="aud-informe"></select></label>
+                    <div class="aud-fila">
+                        <label class="boton secundario pequeno">📤 Subir informe (.xlsx)<input type="file" id="aud-subir-informe" accept=".xlsx" hidden></label>
+                        <button type="button" class="primario pequeno" id="aud-crear">Crear quincena</button>
+                    </div>
+                </div>
+            </section>
+            <section class="aud-seccion" id="aud-paso-zip" hidden>
+                <h3><span class="aud-num">2</span> ZIP de fotos de la cuadrilla</h3>
+                <div class="aud-fila">
+                    <label class="boton primario">📤 Subir ZIP desde este equipo<input type="file" id="aud-subir-zip" accept=".zip,application/zip" hidden></label>
+                    <span class="sub">o uno que ya está en el PC:</span>
+                    <select id="aud-zip-lista" aria-label="ZIP que ya está en el PC"></select>
+                    <button type="button" class="secundario" id="aud-agregar">Agregar</button>
+                </div>
+                <div id="aud-fuentes" class="aud-fuentes"></div>
+            </section>
+            <section class="aud-seccion" id="aud-paso-res" hidden>
+                <h3><span class="aud-num">3</span> Novedades por microrruta <span class="sub" id="aud-res-titulo"></span></h3>
+                <div class="aud-fila">
+                    <button type="button" class="secundario" id="aud-ver">📋 Ver el reporte</button>
+                    <label class="aud-check"><input type="checkbox" id="aud-solo" checked> Solo con novedad</label>
+                    <span class="sub" id="aud-res-cuenta"></span>
+                </div>
+                <div class="aud-scroll" id="aud-tabla"></div>
+                <div class="aud-fila" id="aud-res-acciones" hidden>
+                    <button type="button" class="primario" id="aud-exportar">📗 Exportar Excel</button>
+                    <button type="button" class="secundario" id="aud-nube-btn">☁ Guardar para el celular</button>
+                    <span class="sub" id="aud-nube"></span>
+                </div>
+                <div class="aud-archivos" id="aud-archivos"></div>
+            </section>
+        </div>
+        <p class="aud-fila"><button type="button" class="enlace" id="aud-ver-guardadas">☁ Ver auditorías guardadas</button></p>
+        <section class="aud-seccion" id="aud-guardadas" hidden>
+            <h3>☁ Auditorías guardadas</h3>
+            <div class="aud-fila">
+                <select id="aud-g-quincena" aria-label="Quincena guardada" hidden></select>
+                <label class="aud-check"><input type="checkbox" id="aud-g-solo" checked> Solo con novedad</label>
+                <span class="sub" id="aud-g-cuenta"></span>
+            </div>
+            <div class="aud-scroll" id="aud-g-tabla"></div>
+        </section>
     </div>
 </dialog>
 <dialog id="dlg-hallazgos">

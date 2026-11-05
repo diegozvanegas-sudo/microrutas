@@ -39,6 +39,7 @@ microrutas/
             ├── recorrido.js  recorrido corto de la pre-ruta
             ├── whatsapp.js   textos para WhatsApp
             ├── excel.js      Excel con el formato de interventoría
+            ├── auditoria.js  🔍 Auditar ZIP con el motor del PC
             └── estilos.css
 ```
 
@@ -52,6 +53,13 @@ npm run dev                # http://localhost:5173/subsanaciones.html
 npm run build              # deja todo en web/dist/ para publicar
 ```
 
+- **🔍 Auditar ZIP** (Subsanaciones): sube el ZIP de fotos de una cuadrilla y la auditoría de zonas verdes la hace el
+  motor del PC (portal de Aplicaciones, `Abrir_aplicaciones.bat`, http://127.0.0.1:8770, API `/api/zonas-verdes`) con el
+  plan de Claude Code, sin pagar la API. Una barra muestra los tres pasos: subir el ZIP, leer las fotos (conteo de fotos)
+  y armar el reporte por microrruta. Después se exporta el Excel y los resultados se copian a `auditorias_zv`
+  (`0018_auditorias_zv.sql`) para verlos desde el celular, donde no hay motor. Las reglas siguen solo en el motor
+  (`src/subsanaciones/auditoria.js` solo le pide y muestra). El portal acepta llamadas solo de las páginas publicadas y
+  de `localhost:5173`; si Chrome pregunta por el acceso a la red local, hay que permitirlo.
 - **PQR** (`pqr.html`): la queja leída de la foto o pegada, lo que se encontró en la visita y la respuesta. El botón
   📗 Excel muestra y descarga el seguimiento de PQR con el formato de la interventoría (INSPECTOR, ID, FECHA, ZONA, CUADRILLA,
   FECHA RECEPCIÓN, FECHA ATENCIÓN, TIPO, DESCRIPCIÓN, ¿PROCEDE?, RESUELTA) con lo que tenga la lista; las filas se copian
