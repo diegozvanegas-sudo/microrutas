@@ -1808,6 +1808,21 @@ export function iniciar(api, CFG) {
         var p = parsearMensaje($('ruta-texto').value), lista = lotesRuta(p);
         if (!lista.length) return;
         var cuad = $('ruta-cuad').value.trim().replace(/^C/i, ''), fecha = $('ruta-fecha').value || hoy();
+        // Lote que ya tiene la visita de esa ejecución (o una de hoy): la pre-ruta lo quitaría apenas se pinta, sin decir
+        // nada. Se avisa cuál visita lo cubre; si son todos, el diálogo sigue abierto para cambiar la fecha o el lote.
+        var revisados = lista.map(function (id) {
+            return { id: id, v: visitaDe({ id: id, fecha: fechaDe && fechaDe[id] || fecha, creada: hoy() }, infoLote(id)) };
+        }).filter(function (x) { return x.v; });
+        var textoRevisados = revisados.map(function (x) {
+            var n = infoLote(x.id);
+            return 'Lote ' + (n.lote || n.mr || x.id) + ': visita del ' + (x.v['FECHA DE LA VISITA'] || '—') + ' (' + (x.v.ESTADO || 'sin estado') + ')' +
+                (x.v['FECHA DE EJECUCIÓN'] ? ', ejecución ' + x.v['FECHA DE EJECUCIÓN'] : '');
+        }).join('\n');
+        if (revisados.length === lista.length) {
+            return confirmar(revisados.length === 1 ? 'Ese lote ya está revisado' : 'Esos lotes ya están revisados',
+                textoRevisados + '\n\nPor eso no se agrega a la pre-ruta. Si la cuadrilla lo volvió a ejecutar, cambie la fecha de ejecución.', 'Entendido');
+        }
+        if (revisados.length) lista = lista.filter(function (id) { return !revisados.some(function (x) { return x.id === id; }); });
         // El lote que se vuelve a ingresar sale de cualquier otra tarjeta: queda solo en la nueva
         var destino = function (id) { return cuad || cuadDe(id); }, quitadas = [];
         rutas.forEach(function (r) {
@@ -1849,6 +1864,7 @@ export function iniciar(api, CFG) {
             : (nuevas.length > 1 ? 'Lotes repartidos por cuadrilla: ' + nombres
                 : existian.length ? 'Se sumaron a la cuadrilla ' + nuevas[0].cuad + ' y se reordenó la ruta' : 'Pre-ruta creada y ordenada') +
               ' · ejec. ' + aTexto(fecha).slice(0, 5) + '.');
+        if (revisados.length) confirmar('No se agregó ' + (revisados.length === 1 ? 'un lote ya revisado' : revisados.length + ' lotes ya revisados'), textoRevisados, 'Entendido');
         var tarjeta = $('ruta').querySelectorAll('.ruta-card:not(.ruta-completa)')[rutas.indexOf(nuevas[0])];
         if (tarjeta) tarjeta.scrollIntoView({ behavior: 'smooth', block: 'start' });
     }
