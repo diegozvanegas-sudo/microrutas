@@ -86,6 +86,11 @@
         <select id="f-zona" aria-label="Zona"><option value="">Zona: todas</option></select>
         <select id="f-cuadrilla" aria-label="Cuadrilla"><option value="">Cuadrilla: todas</option></select>
         <select id="f-dia" aria-label="Día de la visita"><option value="">Día: todos</option></select>
+        <!-- Con "Día: entre fechas": solo Desde = de ese día en adelante; solo Hasta = de ese día hacia atrás -->
+        <div class="rango-fechas" id="f-rango" hidden>
+            <label>Desde <input type="date" id="f-desde" aria-label="Desde el día"></label>
+            <label>Hasta <input type="date" id="f-hasta" aria-label="Hasta el día"></label>
+        </div>
         <!-- Solo para el administrador (los demás ven únicamente sus visitas) -->
         <select id="f-usuario" aria-label="Usuario que registró la visita" hidden><option value="">Usuario: todos</option></select>
         <button type="button" class="peligro-suave" id="btn-limpiar-filtros" hidden title="Volver a ver todas las visitas">✕ Quitar filtros</button>

@@ -152,7 +152,7 @@ export function iniciar(api, CFG) {
         var sel = $('f-dia'), actual = sel.value, h = hoy(), ayer = new Date(new Date(h).getTime() - 864e5).toISOString().slice(0, 10);
         var valores = registros.map(function (r) { return aInput(r['FECHA DE LA VISITA']); }).filter(Boolean)
             .filter(function (d, i, a) { return a.indexOf(d) === i; }).sort().reverse();
-        sel.innerHTML = '<option value="">Día: todos</option>' + valores.map(function (d) {
+        sel.innerHTML = '<option value="">Día: todos</option><option value="rango">📅 Entre fechas / antes de…</option>' + valores.map(function (d) {
             return '<option value="' + d + '">' + (d === h ? 'Hoy · ' : d === ayer ? 'Ayer · ' : '') + aTexto(d) + '</option>';
         }).join('');
         sel.value = actual;
@@ -187,13 +187,20 @@ export function iniciar(api, CFG) {
     // sinEstado: con todos los filtros menos el de estado (los vencimientos miran solo las pendientes)
     function filtrados(sinEstado) {
         var texto = norm($('f-texto').value), est = sinEstado ? '' : $('f-estado').value, zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value, dia = $('f-dia').value;
-        var lista = listaBuscada();
+        var lista = listaBuscada(), rango = dia === 'rango', desde = $('f-desde').value, hasta = $('f-hasta').value;
+        if (rango && desde && hasta && desde > hasta) { var t = desde; desde = hasta; hasta = t; }
         return registros.filter(function (r) {
             if (!filtroUsuario(r)) return false;
             if (tipo && r.TIPO !== tipo) return false;
             if (zona && String(r.ZONA).trim() !== zona) return false;
             if (cuad && String(r.CUADRILLA).trim() !== cuad) return false;
-            if (dia && aInput(r['FECHA DE LA VISITA']) !== dia) return false;
+            if (rango) {
+                // Fechas AAAA-MM-DD: se comparan como texto; los dos extremos cuentan
+                var f = aInput(r['FECHA DE LA VISITA']);
+                if ((desde || hasta) && !f) return false;
+                if (desde && f < desde) return false;
+                if (hasta && f > hasta) return false;
+            } else if (dia && aInput(r['FECHA DE LA VISITA']) !== dia) return false;
             if (est === 'DESCUENTO' ? !paraDescuento(r) : est && r.ESTADO !== est) return false;
             if (!texto) return true;
             if (lista) return esDeLista(r, lista);
@@ -388,7 +395,8 @@ export function iniciar(api, CFG) {
     };
     // Visitas de hoy (o del día de la visita filtrada) por cuadrilla: lo que se revisó y lo que quedó con novedad
     $('btn-dia').onclick = function () {
-        var elegido = $('f-dia').value, dia = aTexto(elegido || hoy()), lista = registros.filter(function (r) { return aTexto(aInput(r['FECHA DE LA VISITA'])) === dia; });
+        // Con rango de fechas el resumen sigue siendo de un solo día: el "Hasta" si lo hay, si no hoy
+        var elegido = $('f-dia').value === 'rango' ? $('f-hasta').value : $('f-dia').value, dia = aTexto(elegido || hoy()), lista = registros.filter(function (r) { return aTexto(aInput(r['FECHA DE LA VISITA'])) === dia; });
         // Con una cuadrilla filtrada, el resumen es solo de esa cuadrilla
         var cuadF = $('f-cuadrilla').value;
         if (cuadF) lista = lista.filter(function (r) { return String(r.CUADRILLA).trim() === cuadF; });
@@ -1872,9 +1880,11 @@ export function iniciar(api, CFG) {
 
     // ---------- Eventos generales ----------
     // Quitar filtros: todo vuelve a "todos" de un toque (el botón solo se ve si hay alguno puesto)
-    var FILTROS = ['f-texto', 'f-estado', 'f-tipo', 'f-zona', 'f-cuadrilla', 'f-dia', 'f-usuario'];
+    var FILTROS = ['f-texto', 'f-estado', 'f-tipo', 'f-zona', 'f-cuadrilla', 'f-dia', 'f-desde', 'f-hasta', 'f-usuario'];
     function pintarLimpiar() {
-        var n = FILTROS.filter(function (id) { return $(id).value; }).length;
+        $('f-rango').hidden = $('f-dia').value !== 'rango';
+        // El rango cuenta como un solo filtro (el "entre fechas" con sus dos días)
+        var n = FILTROS.filter(function (id) { return $(id).value && id !== 'f-desde' && id !== 'f-hasta'; }).length;
         $('btn-limpiar-filtros').hidden = !n;
         $('btn-limpiar-filtros').textContent = '✕ Quitar filtros' + (n > 1 ? ' (' + n + ')' : '');
     }
@@ -1895,7 +1905,12 @@ export function iniciar(api, CFG) {
     $('f-zona').onchange = pintar;
     $('f-tipo').onchange = pintar;
     $('f-cuadrilla').onchange = pintar;
-    $('f-dia').onchange = pintar;
+    $('f-dia').onchange = function () {
+        if (this.value === 'rango') { $('f-rango').hidden = false; if (!$('f-desde').value && !$('f-hasta').value) $('f-hasta').focus(); }
+        pintar();
+    };
+    $('f-desde').onchange = pintar;
+    $('f-hasta').onchange = pintar;
     $('f-usuario').onchange = pintar;
     $('resumen').onclick = function (ev) {
         var t = ev.target.closest('[data-estado]');

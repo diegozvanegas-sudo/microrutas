@@ -275,7 +275,12 @@
     function soltar() { fijada = null; try { localStorage.removeItem(FIJADA); } catch (e) {} pintarFijada(); }
     pintarFijada();
     function origen() { return fijada && fijada.p ? L.latLng(fijada.p) : miPos; }
-    function seguir() { map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }); }
+    // Se reinicia el seguimiento antes de pedirlo otra vez: en el celular el navegador corta el GPS al pasar a otra app
+    // (WhatsApp, cámara) y al volver no siempre lo retoma, por eso el punto azul dejaba de aparecer
+    function seguir() { map.stopLocate(); map.locate({ watch: true, setView: false, enableHighAccuracy: true, maximumAge: 0, timeout: 30000 }); }
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible') seguir(); });
+    // Si el GPS lleva más de un minuto sin dar lectura con la página abierta, se vuelve a pedir
+    setInterval(function () { if (document.visibilityState === 'visible' && Date.now() - miHora > 60000) seguir(); }, 30000);
     var Ubicar = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
@@ -284,7 +289,11 @@
             L.DomEvent.disableClickPropagation(div);
             div.firstChild.onclick = function (ev) {
                 ev.preventDefault();
-                if (origen()) return map.setView(origen(), Math.max(map.getZoom(), 17));
+                // Centra en el punto azul (GPS) si hay lectura reciente; si no, en la ubicación fijada mientras busca el GPS
+                var reciente = miPos && Date.now() - miHora < 120000;
+                if (reciente) return map.setView(miPos, Math.max(map.getZoom(), 17));
+                if (origen()) map.setView(origen(), Math.max(map.getZoom(), 17));
+                toast('Buscando su ubicación…');
                 centrar = true; avisoUbic = true; seguir();
             };
             return div;

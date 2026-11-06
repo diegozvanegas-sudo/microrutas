@@ -32,6 +32,10 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .filtros input, .filtros select { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; background: #fff; color: var(--ink); }
 .filtros input { flex: 1; min-width: 200px; }
 .filtros #btn-resumen { min-height: 38px; }
+.filtros .rango-fechas { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; grid-column: 1 / -1; }
+.filtros .rango-fechas[hidden] { display: none; }
+.filtros .rango-fechas label { display: flex; align-items: center; gap: 6px; flex: 1 1 150px; font-size: 14px; color: var(--ink); margin: 0; }
+.filtros .rango-fechas input { flex: 1; min-width: 0; }
 .filtros .peligro-suave { min-height: 38px; color: #b91c1c; background: #fee2e2; font-weight: 700; }
 .filtros .peligro-suave:hover { background: #fecaca; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }
