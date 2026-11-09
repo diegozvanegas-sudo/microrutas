@@ -69,3 +69,16 @@ mark { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 1px; 
     .docs, .vistas { display: none; }
     .rama details { break-inside: avoid; }
 }
+
+/* Guía de campo: ejemplos, pasos y listas de chequeo */
+.seccion .ej { display: block; margin-top: 4px; padding: 6px 10px; border-left: 3px solid #86c5a8; background: #f1f8f4; border-radius: 0 8px 8px 0; font-size: 14px; color: #1f3a2e; }
+.seccion ol.pasos { margin: 0; padding-left: 22px; display: grid; gap: 8px; }
+.seccion li.chequeo { list-style: none; margin-left: -20px; }
+.seccion li.chequeo label { display: flex; gap: 10px; align-items: flex-start; cursor: pointer; padding: 6px 8px; border-radius: 10px; }
+.seccion li.chequeo label:hover { background: #f8fafb; }
+.seccion li.chequeo input { width: 22px; height: 22px; margin: 1px 0 0; flex: none; accent-color: #16a34a; }
+.seccion li.chequeo.hecho > label > span { color: var(--muted); }
+.seccion li.chequeo.hecho > label > span > b { text-decoration: line-through; }
+.barra-chequeo { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: -4px 0 10px; font-size: 13px; color: var(--muted); }
+.barra-chequeo .reiniciar { min-height: 32px; padding: 4px 12px; font-size: 13px; border-radius: 999px; border: 1px solid var(--line); background: var(--surface); cursor: pointer; }
+@media print { .seccion li.chequeo input { width: 14px; height: 14px; } .barra-chequeo .reiniciar { display: none; } }

@@ -1,5 +1,5 @@
-// contrato.html: el contrato de corte de césped (public.contrato_secciones) y los convenios de LV y RyT con sus mapas
-// mentales (public.convenio_secciones). Solo para usuarios con sesión y permiso; la última copia queda en el celular
+// contrato.html: el contrato de corte de césped (public.contrato_secciones), la guía de revisión en campo y los convenios
+// de LV y RyT con sus mapas mentales (public.convenio_secciones). Solo para usuarios con sesión y permiso; la última copia queda en el celular
 // para consultarla sin señal. Cada documento se ve como resumen o como mapa mental.
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
@@ -11,7 +11,7 @@ var CACHE_CONVENIOS = 'convenios_cache';
 var CESPED = 'CESPED';
 // Orden y nombre corto de los documentos; los mapas (MAPA-…) van al final con su propio título
 var GRUPOS = [
-    { titulo: 'Zonas verdes', docs: [[CESPED, '🌿 Corte de césped']] },
+    { titulo: 'Zonas verdes', docs: [[CESPED, '🌿 Corte de césped'], ['GUIA-CAMPO', '🧭 Guía de campo']] },
     { titulo: 'Convenios LV y RyT', docs: [['PPSA', '📘 PPSA'], ['RYT-FUDEA', '🚛 RyT FUDEA'], ['LV-FUDEA', '🧹 LV FUDEA'], ['RYT-FUNTRAEV', '🚛 RyT FUNTRAEV'], ['LV-FUNTRAEV', '🧹 LV FUNTRAEV']] },
 ];
 var $ = function (id) { return document.getElementById(id); };
@@ -33,11 +33,25 @@ function resaltar(texto, q) {
     return out + esc(t.slice(i));
 }
 
-function item(it, tipo, q) {
+// Listas de chequeo de la guía de campo: lo marcado queda en este equipo (por documento, sección y punto)
+var CHEQUEO = 'guia_chequeo';
+function marcados() { try { return JSON.parse(localStorage.getItem(CHEQUEO)) || {}; } catch (e) { return {}; } }
+function guardarMarcados(m) { try { localStorage.setItem(CHEQUEO, JSON.stringify(m)); } catch (e) {} }
+function claveChequeo(seccion, i) { return actual + '|' + seccion + '|' + i; }
+
+// it.ej: ejemplo de campo (cómo se ve, qué escribir en la novedad)
+function ejemplo(it, q) { return it.ej ? '<span class="ej"><b>Ejemplo:</b> ' + resaltar(it.ej, q) + '</span>' : ''; }
+
+function item(it, tipo, q, seccion, i) {
     var ref = it.ref ? '<span class="ref">' + esc(it.ref) + '</span>' : '';
+    if (tipo === 'chequeo') {
+        var k = claveChequeo(seccion, i), si = !!marcados()[k];
+        return '<li class="chequeo' + (si ? ' hecho' : '') + '"><label><input type="checkbox" data-chequeo="' + esc(k) + '"' + (si ? ' checked' : '') + '><span>' +
+            (it.clave ? '<b>' + resaltar(it.clave, q) + ':</b> ' : '') + resaltar(it.t, q) + ref + ejemplo(it, q) + '</span></label></li>';
+    }
     if (tipo === 'cifras') return '<div class="cifra"><b>' + resaltar(it.clave, q) + '</b><p>' + resaltar(it.t, q) + '</p>' + ref + '</div>';
     if (tipo === 'tabla') return '<tr><th>' + resaltar(it.clave, q) + '</th><td>' + resaltar(it.t, q) + ref + '</td></tr>';
-    return '<li>' + (it.clave ? '<b>' + resaltar(it.clave, q) + ':</b> ' : '') + resaltar(it.t, q) + ref + '</li>';
+    return '<li>' + (it.clave ? '<b>' + resaltar(it.clave, q) + ':</b> ' : '') + resaltar(it.t, q) + ref + ejemplo(it, q) + '</li>';
 }
 
 function metaDe(codigo) {
@@ -78,7 +92,9 @@ function pintar() {
     $('v-mapa').setAttribute('aria-pressed', vista === 'mapa');
 
     var visibles = secciones.filter(function (s) { return s.tipo !== 'meta'; }).map(function (s) {
-        var items = q ? s.items.filter(function (it) { return plano([it.clave, it.t, it.ref, s.titulo].join(' ')).indexOf(q) >= 0; }) : s.items;
+        // i: posición del punto en la sección (para que lo marcado no cambie al buscar)
+        var items = s.items.map(function (it, i) { return Object.assign({ i: i }, it); });
+        if (q) items = items.filter(function (it) { return plano([it.clave, it.t, it.ref, it.ej, s.titulo].join(' ')).indexOf(q) >= 0; });
         return { s: s, items: items };
     }).filter(function (x) { return x.items.length; });
 
@@ -89,8 +105,12 @@ function pintar() {
     $('secciones').innerHTML = vista === 'mapa' ? mapa(meta, visibles, q) : visibles.map(function (x) {
         var s = x.s, cuerpo = s.tipo === 'cifras' ? '<div class="cifras">' + x.items.map(function (it) { return item(it, 'cifras', q); }).join('') + '</div>'
             : s.tipo === 'tabla' ? '<table class="plazos"><tbody>' + x.items.map(function (it) { return item(it, 'tabla', q); }).join('') + '</tbody></table>'
-            : '<ul>' + x.items.map(function (it) { return item(it, s.tipo, q); }).join('') + '</ul>';
-        return '<section class="seccion t-' + esc(s.tipo) + '" id="' + esc(s.id) + '"><h2>' + esc(s.icono) + ' ' + esc(s.titulo) + '</h2>' + cuerpo + '</section>';
+            : s.tipo === 'pasos' ? '<ol class="pasos">' + x.items.map(function (it) { return item(it, 'lista', q); }).join('') + '</ol>'
+            : '<ul>' + x.items.map(function (it) { return item(it, s.tipo, q, s.id, it.i); }).join('') + '</ul>';
+        var m = marcados(), hechos = s.tipo === 'chequeo' ? s.items.filter(function (it, i) { return m[claveChequeo(s.id, i)]; }).length : 0;
+        var barra = s.tipo === 'chequeo' ? '<div class="barra-chequeo"><span>' + hechos + ' de ' + s.items.length + ' revisados</span>' +
+            (hechos ? '<button type="button" class="reiniciar" data-reiniciar="' + esc(s.id) + '">Empezar de nuevo</button>' : '') + '</div>' : '';
+        return '<section class="seccion t-' + esc(s.tipo) + '" id="' + esc(s.id) + '"><h2>' + esc(s.icono) + ' ' + esc(s.titulo) + '</h2>' + barra + cuerpo + '</section>';
     }).join('');
     $('estado').hidden = !!visibles.length;
     if (!visibles.length) $('estado').textContent = q ? 'No hay nada con «' + $('buscar').value.trim() + '» en este documento.' : 'Este documento está vacío.';
@@ -149,6 +169,27 @@ async function arrancar() {
     $('docs').addEventListener('click', function (e) { var b = e.target.closest('button[data-doc]'); if (b) elegir(b.dataset.doc); });
     $('v-lista').onclick = function () { vista = 'lista'; pintar(); };
     $('v-mapa').onclick = function () { vista = 'mapa'; pintar(); };
+    // Lista de chequeo: marcar un punto o empezar la sección de nuevo (se guarda en este equipo)
+    $('secciones').addEventListener('change', function (e) {
+        var c = e.target.closest('[data-chequeo]');
+        if (!c) return;
+        var m = marcados();
+        if (c.checked) m[c.dataset.chequeo] = 1; else delete m[c.dataset.chequeo];
+        guardarMarcados(m);
+        var y = window.scrollY;
+        pintar();
+        window.scrollTo(0, y);
+    });
+    $('secciones').addEventListener('click', function (e) {
+        var b = e.target.closest('[data-reiniciar]');
+        if (!b) return;
+        var m = marcados(), pre = actual + '|' + b.dataset.reiniciar + '|';
+        Object.keys(m).forEach(function (k) { if (k.indexOf(pre) === 0) delete m[k]; });
+        guardarMarcados(m);
+        var y = window.scrollY;
+        pintar();
+        window.scrollTo(0, y);
+    });
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env).'; return; }
     var usuario = await asegurarSesion(supabase);
     var salir = $('btn-salir');

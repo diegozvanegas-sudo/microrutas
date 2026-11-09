@@ -12,7 +12,8 @@
     "probar:visitas": "node scripts/probar_visitas.mjs",
     "usuario": "node scripts/crear_usuario.mjs",
     "contrato": "node scripts/cargar_contrato.mjs",
-    "convenios": "node scripts/cargar_convenios.mjs"
+    "convenios": "node scripts/cargar_convenios.mjs",
+    "guia": "node scripts/cargar_guia.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",

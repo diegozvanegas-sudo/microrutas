@@ -84,6 +84,8 @@ export async function aplicarPermisos(supabase, usuario) {
     }
     var nav = document.getElementById('nav-contrato'), menu = document.getElementById('menu-usuarios'), wa = document.getElementById('menu-whatsapp');
     if (nav) nav.hidden = !p.contrato;
+    var guia = document.getElementById('nav-guia');
+    if (guia) guia.hidden = !p.contrato;
     if (menu) menu.hidden = !p.admin;
     if (wa) wa.hidden = !p.admin;
     return p;
