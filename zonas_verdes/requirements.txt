@@ -1,0 +1,4 @@
+pillow
+openpyxl
+# Solo para --claude-auth api:
+# anthropic
