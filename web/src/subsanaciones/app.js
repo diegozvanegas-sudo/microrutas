@@ -13,6 +13,7 @@ import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, CERCA as CERCA_LOTE } from './lotegps.js';
+import { coordenadasMarca, fechaMarca, recorteMarca } from './marcaagua.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
@@ -2608,16 +2609,27 @@ export function iniciar(api, CFG) {
         }).join('');
         $('fl-convertir').disabled = !lista.length || flOcupado;
     }
-    // Sin GPS en el archivo (p. ej. fotos de WhatsApp): coordenadas de la marca de agua con el lector de imágenes
+    // Sin GPS en el archivo (p. ej. fotos de WhatsApp): coordenadas y fecha de la marca de agua (marcaagua.js).
+    // Se lee solo la franja de abajo con la letra blanca resaltada; las que no salen se intentan con otro umbral
     async function leerMarcasFotoLote(lista) {
-        var sinGps = lista.filter(function (f) { return !f.gps && !f.marcaLeida; });
-        if (!sinGps.length || !window.leerCoordenadas) return;
-        var leidas = await leerImagenes(sinGps.map(function (f) { return f.archivo; }), function (i, t) { $('fl-resumen').textContent = 'Leyendo la marca de agua ' + (i + 1) + ' de ' + t + '…'; });
-        leidas.forEach(function (r, i) {
-            var c = r.texto && window.leerCoordenadas(r.texto);
-            sinGps[i].marcaLeida = true;
-            if (c) { sinGps[i].gps = { lat: c.lat, lon: c.lng }; sinGps[i].deMarca = true; }
-        });
+        var pendientes = lista.filter(function (f) { return !f.gps && !f.marcaLeida; }), total = pendientes.length;
+        for (var pasada = 0; pasada < 2 && pendientes.length; pasada++) {
+            var recortes = [];
+            for (var i = 0; i < pendientes.length; i++) {
+                $('fl-resumen').textContent = 'Preparando la marca de agua ' + (i + 1) + ' de ' + pendientes.length + '…';
+                try { recortes.push(await recorteMarca(pendientes[i].archivo, pasada ? 175 : 205)); } catch (e) { recortes.push(pendientes[i].archivo); }
+            }
+            var leidas = await leerImagenes(recortes, function (k, t) {
+                $('fl-resumen').textContent = (pasada ? 'Segunda lectura' : 'Leyendo la marca de agua') + ': ' + (k + 1) + ' de ' + t + (pasada ? '' : ' (de ' + total + ' sin GPS)') + '…';
+            });
+            leidas.forEach(function (r, k) {
+                var f = pendientes[k], c = coordenadasMarca(r.texto) || (window.leerCoordenadas && window.leerCoordenadas(r.texto)), fe = fechaMarca(r.texto);
+                if (c) { f.gps = { lat: c.lat, lon: c.lon != null ? c.lon : c.lng }; f.deMarca = true; }
+                if (fe && !f.fecha) f.fecha = fe;
+            });
+            pendientes = pendientes.filter(function (f) { return !f.gps; });
+        }
+        lista.forEach(function (f) { if (!f.gps) f.marcaLeida = true; });
     }
     // Lote de cada foto con GPS (las escritas a mano no se tocan) y nombre del PDF
     async function ubicarFotoLote(lista) {
