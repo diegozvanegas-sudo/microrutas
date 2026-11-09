@@ -6,7 +6,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, completarTripulantes, esConductor } from './cruce.js';
+import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, completarTripulantes, esConductor, fechasSinCumplimiento } from './cruce.js';
 import { distribuir, enHoras, MINIMO } from './distribucion.js';
 import { hojaVista, COLOR_REAL, COLOR_REPORTADA, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
 import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
@@ -15,7 +15,7 @@ import { htmlHoja } from '../subsanaciones/excel.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var archivos = { extras: null, cumplimiento: null };   // extras: { nombre, buffer }; cumplimiento: [{ nombre, buffer }] (uno o varios)
-var extras = null, filas = [], filtro = '', cargo = '';   // cargo: '' (todos), 'conductor' o 'tripulante'
+var extras = null, filas = [], filtro = '', cargo = '', sinDia = null;   // cargo: '' (todos), 'conductor' o 'tripulante'
 var horarios = null;   // de la base de datos, al tener sesión
 
 function toast(msg) {
@@ -95,6 +95,7 @@ async function procesar() {
         var malo = leidos.indexOf(null);
         if (malo !== -1) throw new Error('No encontré en ' + archivos.cumplimiento[malo].nombre + ' las columnas Fecha, HORA REAL y Dotación.');
         var cumplimiento = [].concat.apply([], leidos);
+        sinDia = fechasSinCumplimiento(extras.filas, cumplimiento);
         // Conductores y tripulantes, cada uno por su cédula. El tripulante sin hora propia toma la del conductor de su
         // ruta y control (queda para revisar)
         var tol = +$('tolerancia').value || 0;
@@ -114,6 +115,10 @@ var ESTADOS = {
     ok: ['✓ Coincide', 'ok'], mas: ['Reportó más tarde', 'mas'], menos: ['Reportó más temprano', 'menos'],
     sinhora: ['Sin hora real', 'sinhora'], nada: ['No aparece', 'nada'],
 };
+// '2026-10-27' -> '27/10/2026'
+function fechaVer(iso) { var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? m[3] + '/' + m[2] + '/' + m[1] : iso; }
+var SIN_CEDULA = { ruta: 'por la ruta: su cédula ni su nombre están en la dotación', control: 'por el control (camión), que llegó cerca de su H.F: su cédula, nombre y ruta no están ese día',
+    nombre: 'por el nombre: su cédula no está en la dotación (revise la cédula)' };
 function delCargo(f) { return !cargo || (cargo === 'conductor') === esConductor(f); }
 function visible(f) {
     if (!delCargo(f)) return false;
@@ -123,11 +128,15 @@ function pintar() {
     var r = resumen(filas.filter(delCargo)), nCond = filas.filter(esConductor).length, nTrip = filas.length - nCond;
     document.querySelectorAll('[data-cargo]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.cargo === cargo); });
     // Sin hora real: casi siempre es que el cumplimiento se bajó antes de que la plataforma la llenara
-    var sinHora = filas.filter(function (f) { return delCargo(f) && f.estado === 'sinhora'; }).length, noEstan = filas.filter(function (f) { return delCargo(f) && f.estado === 'nada'; }).length;
-    $('aviso-horas').hidden = !(sinHora || noEstan);
-    $('aviso-horas').innerHTML = (sinHora ? '⚠ <b>' + sinHora + '</b> ' + (sinHora === 1 ? 'está' : 'están') + ' en el cumplimiento pero esa fila <b>no trae HORA REAL</b> (la plataforma aún no la había llenado). ' +
+    var sinHora = filas.filter(function (f) { return delCargo(f) && f.estado === 'sinhora'; }).length, noEstan = filas.filter(function (f) { return delCargo(f) && f.estado === 'nada' && !(sinDia && sinDia.faltan.indexOf(f.fecha) >= 0); }).length;
+    // Si el cumplimiento no trae el día, eso se dice primero (y esas personas no se cuentan otra vez como «no aparecen»)
+    var otroDia = sinDia && sinDia.faltan.length;
+    $('aviso-horas').hidden = !(sinHora || noEstan || otroDia);
+    $('aviso-horas').innerHTML = (otroDia ? '⚠ <b>El cumplimiento cargado no trae el ' + sinDia.faltan.map(fechaVer).join(', ') + '</b>' +
+        (sinDia.trae.length ? ' (trae ' + sinDia.trae.map(fechaVer).join(', ') + ')' : '') + ': por eso esas personas salen «No aparece». Descargue el reporte de cumplimiento de ese día y súbalo en «2».<br>' : '') +
+        (sinHora ? '⚠ <b>' + sinHora + '</b> ' + (sinHora === 1 ? 'está' : 'están') + ' en el cumplimiento pero esa fila <b>no trae HORA REAL</b> (la plataforma aún no la había llenado). ' +
         'Descargue el reporte de cumplimiento más tarde y súbalo también en «2»: se cruzan juntos. ' : '') +
-        (noEstan ? (sinHora ? '<br>' : '⚠ ') + '<b>' + noEstan + '</b> no ' + (noEstan === 1 ? 'aparece' : 'aparecen') + ' ese día: su cédula no está en la dotación ni su ruta en el cumplimiento. Escriba la hora a mano si la tiene.' : '');
+        (noEstan ? (sinHora ? '<br>' : '⚠ ') + '<b>' + noEstan + '</b> no ' + (noEstan === 1 ? 'aparece' : 'aparecen') + ' ese día: ni su cédula, ni su nombre, ni su ruta, ni su control están en el cumplimiento. Escriba la hora a mano si la tiene.' : '');
     $('resumen').innerHTML = [
         ['', 'Todas', r.total], ['ok', '✓ Coinciden', r.ok], ['mas', '⬆ Reportaron más tarde', r.mas], ['menos', '⬇ Reportaron más temprano', r.menos],
         ['sinhora', 'Sin hora real', r.sinhora], ['nada', 'No aparecen', r.nada],
@@ -139,7 +148,7 @@ function pintar() {
     $('totales').innerHTML = nCond + (nCond === 1 ? ' conductor' : ' conductores') + ' · ' + nTrip + (nTrip === 1 ? ' tripulante' : ' tripulantes') + (cargo ? ' (se ven solo los ' + (cargo === 'conductor' ? 'conductores' : 'tripulantes') + ')' : '') + '.<br>' +
         'Horas extras reportadas <b>' + duracion(r.minReportados) + '</b> · según la hora real <b>' + duracion(r.minReales) + '</b>' +
         ' · diferencia <b class="' + (r.minReales < r.minReportados ? 'rojo' : '') + '">' + duracion(r.minReales - r.minReportados, true) + '</b>' +
-        '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) por ruta, revíselas' : '') + ')</span>';
+        '<span class="sub"> (solo las filas marcadas para escribir' + (r.porRuta ? '; ' + r.porRuta + ' encontrada(s) sin la cédula (por nombre, ruta o control), revíselas' : '') + ')</span>';
     var suma = { od: 0, on: 0, fd: 0, fn: 0, total: 0 };
     filas.filter(delCargo).forEach(function (f) { var d = reparto(f); if (d) Object.keys(suma).forEach(function (k) { suma[k] += d[k]; }); });
     $('totales').innerHTML += '<br>Distribución: ' + CLASES.map(function (c) { return '<span class="clase ' + c[0] + '">' + c[1] + ' <b>' + suma[c[0]] + '</b></span>'; }).join(' ') +
@@ -152,7 +161,9 @@ function pintar() {
         '<th class="centro"><label class="todas" title="Marcar o desmarcar todas las filas que se ven">Escribir<input type="checkbox" data-todas' + (todas ? ' checked' : '') + (marcables.length ? '' : ' disabled') + ' aria-label="Seleccionar todas"></label></th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
-            var notas = [f.como === 'ruta' ? 'por ruta, sin cédula en la dotación' : '', f.como === 'conductor' ? 'hora del conductor de la ruta (' + f.conductor + '): revísela' : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
+            var notas = [SIN_CEDULA[f.como] || '', f.como === 'conductor' ? 'hora del conductor de la ruta (' + f.conductor + '): revísela' : '',
+                f.como === 'companero' ? 'hora del compañero de la ruta (' + f.conductor + '): revísela' : '',
+                f.otrosDias && f.otrosDias.length ? 'aparece el ' + f.otrosDias.map(fechaVer).join(', ') + ', no el ' + fechaVer(f.fecha) : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
                 f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
                 horarios && !f.horario && /^\d+$/.test(f.ruta) ? 'la ruta no está en los horarios' : '']
                 .filter(Boolean);
@@ -164,7 +175,7 @@ function pintar() {
                 horaRevisada(f.hi, f.difHi, f.esperadas, revisada(f).hi) +
                 horaRevisada(f.hf, f.difHf, (f.esperadas || []).map(function (x) { return (x + TURNO) % 1440; }), revisada(f).hf) + '<td class="num">' + hhmm(f.extra) + '</td>' +
                 '<td><input type="time" value="' + hhmm(f.real) + '" aria-label="Hora real de ' + esc(f.nombre) + '">' +
-                    (f.real == null ? '<span class="por-que">' + (f.estado === 'nada' ? 'no aparece ese día' : 'sin HORA REAL en el cumplimiento') + '</span>' : f.como === 'conductor' ? '<span class="por-que">del conductor</span>' : '') + '</td>' +
+                    (f.real == null ? '<span class="por-que">' + (f.estado === 'nada' ? 'no aparece ese día' : 'sin HORA REAL en el cumplimiento') + '</span>' : f.como === 'conductor' ? '<span class="por-que">del conductor</span>' : f.como === 'companero' ? '<span class="por-que">del compañero</span>' : '') + '</td>' +
                 '<td class="num dif">' + duracion(f.diferencia, true) + '<span class="sub">' + est[0] + '</span></td>' +
                 '<td class="num">' + duracion(f.extraReportada) + ' → ' + (f.extraReal == null ? '–' : duracion(f.extraReal)) + '</td>' + celdaReparto(f) +
                 '<td class="centro"><input type="checkbox"' + (f.usar ? ' checked' : '') + (sePuedeEscribir(f) ? '' : ' disabled') +

@@ -81,3 +81,45 @@ test('tripulante sin hora propia toma la del conductor de su ruta y control', ()
     assert.equal(r[0], filas[0]);
     assert.ok(esConductor({ cargo: 'Conductor' }) && !esConductor({ cargo: 'TRIPULANTE' }));
 });
+
+import { fechasSinCumplimiento, estaPorNombre } from '../src/horas/cruce.js';
+test('horas: fechas en otros formatos', () => {
+    for (const t of ['26-10-2026', '26.10.26', '2026/10/26', '26 de octubre de 2026', '26-oct-2026', 'lunes, 26 de octubre del 2026'])
+        assert.equal(fechaIso(t), '2026-10-26', t);
+    assert.equal(fechaIso('nada'), '');
+});
+
+test('horas: se compara con todo (cédula, nombre, ruta, control) y se avisa si es otro día', () => {
+    const base = { hi: 480, hf: 960, extra: 1005 };
+    const extras = [
+        { ...base, fila: 2, fecha: '2026-10-26', cargo: 'CONDUCTOR', cedula: '12121299', nombre: 'ROJAS PRUEBA JUAN CARLOS', ruta: '912704', control: '677' },
+        { ...base, fila: 3, fecha: '2026-10-26', cargo: 'TRIPULANTE', cedula: '34343434', nombre: 'OTRO SIN NADA', ruta: '999999', control: '558' },
+        { ...base, fila: 4, fecha: '2026-10-26', cargo: 'CONDUCTOR', cedula: '56565656', nombre: 'LOPEZ ANIBAL', ruta: '418219', control: '556' },
+        { ...base, fila: 5, fecha: '2026-10-28', cargo: 'CONDUCTOR', cedula: '56565656', nombre: 'LOPEZ ANIBAL', ruta: '418219', control: '556' },
+    ];
+    const cumplimiento = [
+        // Cédula mal escrita en el reporte: se encuentra por el nombre
+        { fecha: '2026-10-26', real: 1000, codigo: '912704', control: '677', camion: '677 - X', dotacion: '12121212 ROJAS PRUEBA, JUAN CARLOS - 1 OTRO, PEPE' },
+        // Mismo camión, dos turnos: el que llegó cerca de la H.F (16:00), no el de las 10:00
+        { fecha: '2026-10-26', real: 600, codigo: '111201', control: '558', camion: '558 - Y', dotacion: '55555555 NADIE, UNO' },
+        { fecha: '2026-10-26', real: 1010, codigo: '408219', control: '558', camion: '558 - Y', dotacion: '66666666 NADIE, DOS' },
+        { fecha: '2026-10-27', real: 900, codigo: '418219', control: '556', camion: '556 - Z', dotacion: '56565656 LOPEZ, ANIBAL' },
+    ];
+    const [rojas, otro, lopez] = cruzar(extras, cumplimiento);
+    assert.deepEqual([rojas.como, rojas.real], ['nombre', 1000]);
+    assert.deepEqual([otro.como, otro.real, otro.rutaReal], ['control', 1010, '408219']);
+    // No está el 26, pero sí el 27: se avisa, sin usar esa hora
+    assert.deepEqual([lopez.estado, lopez.otrosDias], ['nada', ['2026-10-27']]);
+    assert.ok(estaPorNombre('LOPEZ ANIBAL', '56565656 LOPEZ GOMEZ, ANIBAL') && !estaPorNombre('GOMEZ LUIS', '9 LOPEZ, ANDRES - SIN CEDULA, PEDRO'));
+    assert.deepEqual(fechasSinCumplimiento(extras, cumplimiento), { faltan: ['2026-10-28'], trae: ['2026-10-26', '2026-10-27'] });
+    assert.equal(resumen([rojas, otro, lopez]).porRuta, 2);
+});
+
+test('conductor sin hora toma la del tripulante de su ruta si no hay conductor con hora', () => {
+    const base = { fecha: '2026-10-26', hi: 480, hf: 960, extra: 1005, ruta: '710407', control: '640' };
+    const r = completarTripulantes([
+        { ...base, cargo: 'CONDUCTOR', nombre: 'Conductor A', real: null, como: 'cedula', estado: 'sinhora' },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante B', real: 1004, como: 'nombre', estado: 'ok' },
+    ], 5);
+    assert.deepEqual([r[0].real, r[0].como, r[0].conductor], [1004, 'companero', 'Tripulante B']);
+});

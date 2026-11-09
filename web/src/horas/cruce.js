@@ -34,12 +34,17 @@ export function fechaIso(v) {
     if (v instanceof Date) return isNaN(v) ? '' : v.toISOString().slice(0, 10);
     if (typeof v === 'object') return fechaIso(v.result != null ? v.result : v.text);
     if (typeof v === 'number') return fechaIso(new Date(Math.round((v - 25569) * 864e5)));
-    var m = /(\d{1,2})\/(\d{1,2})\/(\d{4})/.exec(String(v));
-    if (m) return m[3] + '-' + ('0' + m[2]).slice(-2) + '-' + ('0' + m[1]).slice(-2);
-    m = /(\d{4})-(\d{2})-(\d{2})/.exec(String(v));
-    return m ? m[1] + '-' + m[2] + '-' + m[3] : '';
+    var t = String(v), m = /(\d{4})[-/.](\d{1,2})[-/.](\d{1,2})/.exec(t), dd = function (x) { return ('0' + x).slice(-2); };
+    if (m) return m[1] + '-' + dd(m[2]) + '-' + dd(m[3]);
+    // 26/10/2026, 26-10-2026, 26.10.26
+    m = /(\d{1,2})[-/.](\d{1,2})[-/.](\d{4}|\d{2})(?!\d)/.exec(t);
+    if (m) return (m[3].length === 2 ? '20' + m[3] : m[3]) + '-' + dd(m[2]) + '-' + dd(m[1]);
+    // 26 de octubre de 2026, 26-oct-2026, 26 oct. 2026
+    m = /(\d{1,2})[\s/.-]*(?:de\s+)?([a-zA-ZáéíóúÁÉÍÓÚ]{3,})\.?[\s/.-]*(?:del?\s+)?(\d{4})/.exec(t);
+    var mes = m ? MESES.indexOf(plano(m[2]).slice(0, 3).replace('set', 'sep')) : -1;
+    return mes >= 0 ? m[3] + '-' + dd(mes + 1) + '-' + dd(m[1]) : '';
 }
-
+var MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
 export function texto(v) {
     if (v == null) return '';
     if (typeof v === 'object' && !(v instanceof Date)) {
@@ -127,6 +132,30 @@ export function diferencia(hi, reportada, real) {
     return d > 720 ? d - 1440 : d < -720 ? d + 1440 : d;
 }
 
+// Personas de la dotación ("11111111 PEREZ RUIZ, ANA - 22222222 - GOMEZ DIAZ, LUIS") -> palabras de cada nombre
+function palabras(s) { return texto(s).split(/[^A-Za-zÀ-ÿ]+/).map(plano).filter(function (w) { return w.length >= 3; }); }
+export function nombresDotacion(dot) {
+    return texto(dot).split(/\s-\s|(?=\b\d{5,}\b)/).map(palabras).filter(function (p) { return p.length; });
+}
+// El nombre del reporte es una persona de la dotación: comparten al menos dos palabras y todas las del nombre más corto
+// ("LOPEZ ANIBAL" = "LOPEZ GOMEZ, ANIBAL"; el orden no importa)
+export function estaPorNombre(nombre, dot) {
+    var a = palabras(nombre);
+    if (a.length < 2) return false;
+    return nombresDotacion(dot).some(function (b) {
+        var comunes = a.filter(function (w) { return b.indexOf(w) >= 0; }).length;
+        return comunes >= 2 && comunes >= Math.min(a.length, b.length);
+    });
+}
+
+// Fechas del reporte de horas extras que no trae ningún cumplimiento cargado (casi siempre: se cargó el de otro día)
+export function fechasSinCumplimiento(extras, cumplimiento) {
+    var hay = {};
+    cumplimiento.forEach(function (c) { hay[c.fecha] = true; });
+    var faltan = extras.map(function (e) { return e.fecha; }).filter(function (f, i, a) { return a.indexOf(f) === i && !hay[f]; }).sort();
+    return { faltan: faltan, trae: Object.keys(hay).filter(Boolean).sort() };
+}
+
 // Cruce. extras: [{ fila, fecha, ruta, control, cedula, nombre, cargo, hi, hf, extra }] (horas en minutos);
 // cumplimiento: [{ fecha, real, codigo, camion, control, dotacion }]. tolerancia: minutos de diferencia que se dan por buenos.
 // Devuelve una fila por persona con { real, como: 'cedula'|'ruta'|'', estado, candidatos, diferencia, extraReportada, extraReal,
@@ -143,10 +172,31 @@ export function cruzar(extras, cumplimiento, tolerancia) {
             candidatos = delDia.filter(function (c) { return re.test(c.dotacion); });
             if (candidatos.length) como = 'cedula';
         }
-        // Sin la cédula en la dotación (a veces solo traen el nombre): la misma ruta ese día, para revisar
+        // Sin la cédula (mal escrita o sin ella en la dotación): el nombre en la dotación ese día
+        if (!candidatos.length && e.nombre) {
+            candidatos = delDia.filter(function (c) { return estaPorNombre(e.nombre, c.dotacion); });
+            if (candidatos.length) como = 'nombre';
+        }
+        // Ni cédula ni nombre: la misma ruta ese día y, si no, el mismo control (camión), para revisar
         if (!candidatos.length && e.ruta) {
             candidatos = delDia.filter(function (c) { return c.codigo === e.ruta; });
             if (candidatos.length) como = 'ruta';
+        }
+        if (!candidatos.length && e.control) {
+            // Un camión hace varios turnos el mismo día: solo el que llegó cerca del fin de este turno
+            // (entre 4 horas antes y 6 después de la H.F); sin H.I o H.F no se puede saber cuál es
+            candidatos = e.hi == null || e.hf == null ? [] : delDia.filter(function (c) {
+                var d = c.real == null ? null : desde(e.hi, c.real) - desde(e.hi, e.hf);
+                return c.control && c.control === ruta(e.control) && d != null && d >= -240 && d <= 360;
+            });
+            if (candidatos.length) como = 'control';
+        }
+        // No está ese día: ¿está otro día? (solo para avisar; esa hora no se usa)
+        var otrosDias = [];
+        if (!candidatos.length) {
+            otrosDias = cumplimiento.filter(function (c) {
+                return c.fecha !== e.fecha && (e.cedula.length >= 5 && new RegExp('(^|[^0-9])' + e.cedula + '([^0-9]|$)').test(c.dotacion) || !!e.nombre && estaPorNombre(e.nombre, c.dotacion));
+            }).map(function (c) { return c.fecha; }).filter(function (x, i, a) { return a.indexOf(x) === i; }).sort();
         }
         var conHora = candidatos.filter(function (c) { return c.real != null; });
         // Varias el mismo día: primero la de la misma ruta y luego la más tarde
@@ -159,7 +209,7 @@ export function cruzar(extras, cumplimiento, tolerancia) {
         var dif = diferencia(e.hi, e.extra, real);
         var estado = !candidatos.length ? 'nada' : real == null ? 'sinhora' : Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos';
         return Object.assign({}, e, {
-            real: real, como: como, estado: estado, candidatos: candidatos, varias: conHora.length > 1,
+            real: real, como: como, estado: estado, candidatos: candidatos, varias: conHora.length > 1, otrosDias: otrosDias,
             rutaReal: ref ? ref.codigoVer || ref.codigo : '', controlReal: ref ? ref.camion : '',
             // Ruta o control distintos a los del cumplimiento (si alguno de los dos no lo trae, no se marca)
             difRuta: !!ref && !!e.ruta && !!ref.codigo && ref.codigo !== e.ruta,
@@ -175,27 +225,28 @@ export function resumen(filas) {
     var r = { total: filas.length, ok: 0, mas: 0, menos: 0, sinhora: 0, nada: 0, porRuta: 0, minReportados: 0, minReales: 0 };
     filas.forEach(function (f) {
         r[f.estado]++;
-        if (f.como === 'ruta') r.porRuta++;
+        if (f.como === 'ruta' || f.como === 'control' || f.como === 'nombre') r.porRuta++;
         if (f.real != null && f.extraReportada != null && f.usar !== false) { r.minReportados += f.extraReportada; r.minReales += f.extraReal; }
     });
     return r;
 }
 
-// Tripulantes sin hora real propia (su cédula no trae HORA REAL o no está en la dotación): toman la del conductor de su
-// misma ruta ese día (y del mismo control si los dos lo traen), marcada como 'conductor' para revisarla antes de escribirla
+// Conductor o tripulante sin hora real propia (su fila no trae HORA REAL o no está en la dotación): toma la de un compañero de su
+// misma ruta ese día (y del mismo control si los dos lo traen), marcada como «conductor» o «companero» para revisarla
 export function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
 export function completarTripulantes(filas, tolerancia) {
     tolerancia = tolerancia == null ? 5 : tolerancia;
-    var conductores = filas.filter(function (f) { return esConductor(f) && f.real != null; });
+    // Compañeros con hora propia (por cédula o nombre); primero el conductor y, si no hay, otro tripulante
+    var conHora = filas.filter(function (f) { return f.real != null && (f.como === 'cedula' || f.como === 'nombre'); });
     return filas.map(function (f) {
-        if (esConductor(f) || f.real != null) return f;
-        var c = conductores.find(function (k) {
-            return k.fecha === f.fecha && k.ruta && k.ruta === f.ruta && (!k.control || !f.control || ruta(k.control) === ruta(f.control));
-        });
+        if (f.real != null) return f;
+        var c = conHora.filter(function (k) {
+            return k !== f && k.fecha === f.fecha && k.ruta && k.ruta === f.ruta && (!k.control || !f.control || ruta(k.control) === ruta(f.control));
+        }).sort(function (a, b) { return esConductor(b) - esConductor(a); })[0];
         if (!c) return f;
         var dif = diferencia(f.hi, f.extra, c.real);
         return Object.assign({}, f, {
-            real: c.real, como: 'conductor', conductor: c.nombre, diferencia: dif, extraReal: extra(f.hi, f.hf, c.real),
+            real: c.real, como: esConductor(c) ? 'conductor' : 'companero', conductor: c.nombre, diferencia: dif, extraReal: extra(f.hi, f.hf, c.real),
             estado: Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos'
         });
     });
