@@ -187,6 +187,7 @@
     .ficha-lote .ruta-estado.vencido { color: #b91c1c; background: #fee2e2; }
     .ficha-lote .ruta-estado.pronto { color: #92400e; background: #fef3c7; }
     .ficha-lote .ruta-estado.aldia { color: #15803d; background: #dcfce7; }
+    .ficha-lote .ruta-estado.visitado-q { color: #1e3a8a; background: #e0e7ff; }
     .halo-lote { animation: halo-lote 1.4s ease-in-out infinite; }
     @keyframes halo-lote { 50% { stroke-opacity: .25; } }
     @media (prefers-reduced-motion: reduce) { .halo-lote { animation: none; } }
@@ -408,7 +409,29 @@
     function estiloBase(c) {
         if (c.rutaEstado) return ESTILO_RUTA[c.rutaEstado];
         if (seleccion && seleccion.indexOf(idCapa(c)) !== -1) return ESTILO_SEL;
-        return vencidos ? ESTILO_VENCE[venceDe(c).estado] : L.extend({ dashArray: null }, estiloLote(c.lote.c, c.lote.u));
+        if (vencidos) return ESTILO_VENCE[venceDe(c).estado];
+        return visitadoQuincena(c) ? estiloVisitado(c.lote.c, c.lote.u) : L.extend({ dashArray: null }, estiloLote(c.lote.c, c.lote.u));
+    }
+    // ---------- Visitados en la quincena: relleno blanco con el borde de la cuadrilla ----------
+    // Quincena del calendario: del 1 al 15 y del 16 al último día del mes. Al empezar la siguiente, el lote vuelve a su color
+    // (se cuentan las visitas al lote ejecutado; las de operación no)
+    function inicioQuincena(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() <= 15 ? 1 : 16); }
+    function visitaQuincena(c) {
+        var f = ultimaVisita(idCapa(c)) || (c.lote.m && ultimaVisita(String(c.lote.m).toUpperCase()));
+        return f && f >= inicioQuincena(new Date()) ? f : null;
+    }
+    function visitadoQuincena(c) { return !!visitaQuincena(c); }
+    function estiloVisitado(cuad, aprox) {
+        var col = colorCuadrilla(cuad);
+        return aprox ? { color: '#111827', weight: 2.5, opacity: 1, dashArray: '5 4', fillColor: '#ffffff', fillOpacity: .7 }
+            : { color: col, weight: 2.5, opacity: 1, dashArray: null, fillColor: '#ffffff', fillOpacity: .75 };
+    }
+    function textoQuincena(c) {
+        var f = visitaQuincena(c);
+        if (!f) return '';
+        var hoy0 = new Date(), fin = hoy0.getDate() <= 15 ? 15 : new Date(hoy0.getFullYear(), hoy0.getMonth() + 1, 0).getDate();
+        return '<span class="ruta-estado visitado-q">✓ Visitado esta quincena · ' + f.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' }) +
+            ' (hasta el ' + fin + ')</span> ';
     }
     var ESTILO_SEL = { color: '#4c1d95', weight: 3, opacity: 1, fillColor: '#8b5cf6', fillOpacity: .75, dashArray: null };
 
@@ -477,7 +500,8 @@
             var capa = L.polygon(p.g.map(function (pol) { return pol.map(decodificar); }), L.extend({ bubblingMouseEvents: false }, estiloLote(p.c, p.u)));
             delete p.g;
             capa.lote = p;
-            if (vencidos) capa.setStyle(estiloBase(capa));
+            // Con vencidos o con visitas en la quincena el lote no lleva el color de la cuadrilla tal cual
+            if (vencidos || copia()) capa.setStyle(estiloBase(capa));
             capa.on('click', function (e) {
                 if (modoPin) return ponerPin(e.latlng);
                 if (seleccion) return alternarSel(capa);
@@ -1014,7 +1038,11 @@
         return copiaSubs;
     }
     // Al volver con "atrás" desde subsanaciones (p. ej. tras marcar subsanado) se relee la copia y se repintan los colores
-    window.addEventListener('pageshow', function (e) { copiaSubs = null; ultimas = null; if (e.persisted && estadoRuta) location.reload(); });
+    window.addEventListener('pageshow', function (e) {
+        copiaSubs = null; ultimas = null;
+        if (e.persisted && estadoRuta) return location.reload();
+        if (e.persisted) repintarLotes();
+    });
     function visitaGuardada(id) {
         var c = copia(), r = c && (c.registros || []).filter(function (x) { return x.ID === id; })[0];
         return r ? { r: r, items: (/^OPE-/.test(r.ID) ? c.itemsOperacion : c.items) || [], t: c.t } : null;
@@ -1039,7 +1067,7 @@
         var u = visitaDeCapa(capa), id = capa.rutaVisita || (u && u.ID), html = '';
         if (capa.rutaEstado) html += '<span class="ruta-estado ' + capa.rutaEstado + '">' + TEXTO_RUTA[capa.rutaEstado] + '</span>';
         // Visita anterior a la pre-ruta (o búsqueda normal): se dice cuándo fue y cómo quedó
-        html += textoVence(capa);
+        html += textoQuincena(capa) + textoVence(capa);
         if (u && !capa.rutaVisita) html += '<span class="ruta-estado ' + estadoDeVisita(u.ESTADO) + '">Última visita ' + esc(String(u['FECHA DE LA VISITA'] || '').slice(0, 5)) + ' · ' + esc(u.ESTADO || '') + '</span>';
         if (id) html += '<a class="ver-visita" data-visita="' + esc(id) + '" href="subsanaciones.html?ver=' + encodeURIComponent(id) + '">📄 Ver detalles ›</a>';
         return html ? '<div class="linea-estado">' + html + '</div>' : '';
