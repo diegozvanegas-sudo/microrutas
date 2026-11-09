@@ -131,7 +131,7 @@ function automatico(llenar, PREFIJO_) {
             var g = GM_getValue(CLAVE, null), ok = document.getElementById('emvPrivacyAccepted');
             if (!g || Date.now() - g.hora > VIGENCIA) { if (g) GM_deleteValue(CLAVE); return; }
             if (!document.getElementById('emvTipoSolicitud') || !document.getElementById('emvDepartamento') || document.getElementById('emvDepartamento').options.length < 5) return;
-            if (ok && !ok.checked) return;   // falta que la persona acepte el tratamiento de datos
+            if (ok && !ok.checked) return; // falta que la persona acepte el tratamiento de datos
             corriendo = true;
             GM_deleteValue(CLAVE);
             try { await llenar(JSON.parse(g.datos.slice(PREFIJO_.length))); } finally { corriendo = false; }
@@ -162,5 +162,5 @@ export function scriptTampermonkey() {
         '// @run-at       document-idle\n' +
         '// ==/UserScript==\n' +
         '// Generado por tools/generar_userscript.mjs desde src/radicar/marcador.js: no editar a mano.\n' +
-        '(' + automatico.toString() + ')(' + llenarCon.toString() + ', ' + JSON.stringify(PREFIJO) + ');\n';
+        '(' + automatico.toString().replace(/[ ]*\/\* global [^*]*\*\/\r?\n/, '') + ')(' + llenarCon.toString() + ', ' + JSON.stringify(PREFIJO) + ');\n';
 }
