@@ -74,12 +74,21 @@
 
     <form id="form-rad" class="rad-form" hidden autocomplete="off" onsubmit="return false">
         <div class="rad-intro">
-            <b>Cómo se radica:</b> el formulario de EMVARIAS tiene la verificación «No soy un robot», por eso la app no lo envía sola.
+            <b>Cómo se radica:</b> el formulario de EMVARIAS tiene la verificación «No soy un robot», por eso la app no lo envía sola; el marcador lo llena por usted.
             <ol>
-                <li>Llene aquí los datos (en el mismo orden que el de EMVARIAS).</li>
-                <li>Toque <b>🏛️ Abrir formulario de EMVARIAS</b>, acepte el tratamiento de datos y vaya pegando con los botones 📋 de cada campo.</li>
-                <li>Adjunte las fotos allá, marque el captcha y radique. Escriba aquí el número que le da EMVARIAS y guarde.</li>
+                <li>Llene aquí los datos.</li>
+                <li>Toque <b>🏛️ Abrir formulario de EMVARIAS</b> (copia los datos y abre la página).</li>
+                <li>Allá acepte el tratamiento de datos y toque el marcador <b>🪄 Llenar PQR EMVARIAS</b> de su barra de favoritos: se llenan todos los campos.</li>
+                <li>Revise, adjunte las fotos, marque el captcha y radique. Escriba aquí el número que le da EMVARIAS y guarde.</li>
             </ol>
+            <details class="rad-marcador">
+                <summary>🪄 Instalar el marcador (una sola vez por equipo)</summary>
+                <p><b>En el computador:</b> muestre la barra de favoritos (Ctrl + Shift + B) y <b>arrastre</b> este botón hasta ella:
+                    <a class="boton primario" id="lnk-marcador" href="#" title="Arrástrelo a la barra de favoritos">🪄 Llenar PQR EMVARIAS</a></p>
+                <p><b>En el celular (Chrome):</b> toque <button type="button" class="secundario pequeno" id="btn-copiar-marcador-codigo">Copiar el código del marcador</button>,
+                    guarde cualquier página en favoritos, edítela: nombre «Llenar PQR EMVARIAS» y en la dirección pegue el código. En la página de EMVARIAS, escriba «Llenar PQR» en la barra de direcciones y toque el favorito.</p>
+                <p class="sub">El marcador solo llena los campos: no acepta los términos, no marca el captcha ni envía. Si alguna lista no se puede elegir, se lo dice para que la elija a mano.</p>
+            </details>
         </div>
         <section class="panel rad-panel">
             <div class="rad-cab"><h2 id="f-titulo">Nueva PQR</h2><span class="sub" id="f-guardado"></span></div>
@@ -101,6 +110,7 @@
             <button type="button" class="secundario" id="btn-volver">Volver al listado</button>
             <button type="button" class="secundario" id="btn-copiar-contenido">📋 Copiar contenido</button>
             <button type="button" class="secundario" id="btn-copiar-todo">📋 Copiar todo</button>
+            <button type="button" class="secundario" id="btn-copiar-marcador" title="Copia los datos para que el marcador 🪄 los ponga en el formulario de EMVARIAS">🪄 Copiar para el marcador</button>
             <button type="button" class="secundario" id="btn-guardar">💾 Guardar</button>
             <a class="boton primario" id="btn-abrir" target="_blank" rel="noopener">🏛️ Abrir formulario de EMVARIAS</a>
         </div>

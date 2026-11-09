@@ -10,6 +10,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { URL_RADICAR, URL_CONSULTAR, OPCIONES, LETRAS, armarDireccion, leerDireccion, CONTENIDOS, faltantes } from './datos.js';
+import { datosMarcador, enlaceMarcador } from './marcador.js';
 
 var BORRADOR = 'radicar_borrador', HISTORIAL = 'radicar_historial', PERFILES = 'radicar_perfiles';
 var editandoId = null;
@@ -216,9 +217,15 @@ function eventos() {
         }
     });
     $('btn-copiar-todo').onclick = function () { copiar(textoTodo(datos()), 'todos los datos'); };
+    $('btn-copiar-marcador').onclick = function () { copiar(datosMarcador(datos()), 'los datos para el marcador 🪄'); };
+    $('lnk-marcador').href = enlaceMarcador();
+    $('lnk-marcador').onclick = function (ev) { ev.preventDefault(); toast('Arrástrelo a la barra de favoritos. Se usa estando en la página de EMVARIAS.'); };
+    $('btn-copiar-marcador-codigo').onclick = function () { copiar(enlaceMarcador(), 'el código del marcador'); };
     $('btn-copiar-contenido').onclick = function () { copiar(datos().contenido, 'contenido de la solicitud'); };
+    // Copia los datos para el marcador 🪄 (en el mismo toque, así el navegador lo permite) y abre el formulario
     $('btn-abrir').onclick = function () {
         var f = datos(), falta = faltantes(f);
+        try { navigator.clipboard.writeText(datosMarcador(f)); } catch (e) { /* si no deja, el marcador pide pegarlos */ }
         guardarEnHistorial(f);
         if (falta.length) toast('Ojo, falta: ' + falta.join(', ') + '. EMVARIAS lo va a pedir.');
     };
