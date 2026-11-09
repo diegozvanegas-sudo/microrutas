@@ -683,3 +683,8 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
     .prog-tabla .acc { white-space: normal; padding-top: 6px; }
     .prog-tabla-caja { max-height: none; border: 0; }
 }
+
+.fl-lote-todas { display: flex; flex-direction: column; gap: 4px; margin: 10px 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.fl-lote-todas input { min-height: 44px; font-size: 16px; font-weight: 700; color: var(--ink); border: 2px solid #9fd3bd; }
+.fl-lote-todas .sub { font-weight: 400; }
+#fl-marca-caja[hidden] { display: none; }

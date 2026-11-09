@@ -510,7 +510,12 @@
             <button type="button" class="secundario zip-elegir" id="fl-elegir-carpeta">📁 Carpeta</button>
             <button type="button" class="secundario zip-elegir" id="fl-elegir-zip">🗜️ .zip</button>
         </div>
-        <label class="fotos-check"><input type="checkbox" id="fl-marca" checked> Si una foto no trae GPS (p. ej. pasada por WhatsApp), leer las coordenadas de la marca de agua que tiene escrita</label>
+        <label class="fl-lote-todas">LOTE DE ESTAS FOTOS
+            <input type="text" id="fl-lote" placeholder="Escriba el lote o la microrruta: 118 o Z1CC0108" autocomplete="off" autocapitalize="characters">
+            <span class="sub" id="fl-lote-ver">Se pone a todas las fotos (antes o después de elegirlas). Cada una se puede cambiar abajo.</span>
+        </label>
+        <label class="fotos-check"><input type="checkbox" id="fl-auto"> Buscar el lote de cada foto por su GPS o su marca de agua (automático; puede equivocarse)</label>
+        <label class="fotos-check" id="fl-marca-caja" hidden><input type="checkbox" id="fl-marca" checked> Si una foto no trae GPS (p. ej. pasada por WhatsApp), leer las coordenadas de la marca de agua que tiene escrita</label>
         <div class="fotos-opciones">
             <label>DISEÑO
                 <select id="fl-diseno">
