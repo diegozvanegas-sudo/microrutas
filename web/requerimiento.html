@@ -1,0 +1,196 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Requerimientos</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📨</span>
+        <div class="nombre"><h1>Requerimientos</h1><div class="lema">Requerimientos de interventoría al contratista, en PDF para enviar por correo</div></div>
+    </div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden aria-current="page" title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-config" title="Membrete, firmantes, copias y correo del contratista">⚙️ Configuración</button>
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar plantillas</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="req">
+    <div id="estado" class="req-estado">Cargando…</div>
+
+    <!-- Requerimientos guardados en este equipo: abrir, duplicar, descargar, eliminar -->
+    <section class="panel req-panel" id="req-historial" hidden>
+        <div class="req-cab">
+            <h2>📚 Requerimientos guardados</h2>
+            <input type="search" id="h-buscar" placeholder="Buscar radicado, asunto o lote" aria-label="Buscar en los requerimientos guardados" autocomplete="off">
+            <button type="button" class="primario" id="btn-nuevo">+ Nuevo requerimiento</button>
+        </div>
+        <div class="req-tabla-caja"><table class="req-tabla" id="h-tabla"></table></div>
+        <p class="sub">Se guardan en este equipo (sin las fotos). Para enviarlos, descargue el PDF o use «Enviar por correo».</p>
+    </section>
+
+    <form id="form-req" class="req-form" hidden autocomplete="off" onsubmit="return false">
+        <section class="panel req-panel">
+            <div class="req-cab"><h2 id="f-titulo">Nuevo requerimiento</h2><span class="sub" id="f-guardado"></span></div>
+            <div class="req-campos">
+                <label class="ancho">TIPO DE FALENCIA (plantilla)
+                    <select id="f-plantilla"></select>
+                    <span class="sub">Al elegirla se llenan el asunto, la descripción, las obligaciones, los ANS y lo que se solicita. Todo se puede cambiar.</span>
+                </label>
+                <label>RADICADO <input type="text" id="f-radicado" placeholder="EVM-6400"></label>
+                <label>TIPO
+                    <select id="f-tipo"><option>Hallazgo</option><option>Queja</option><option>Solicitud de información</option><option>Comunicado informativo</option></select>
+                </label>
+                <label>FECHA DEL REQUERIMIENTO <input type="date" id="f-fecha"></label>
+                <label>FECHA DEL EVENTO (DESDE) <input type="date" id="f-evento-desde"></label>
+                <label>HASTA (OPCIONAL) <input type="date" id="f-evento-hasta"></label>
+                <fieldset class="ancho req-zonas"><legend>ZONA</legend><div id="f-zonas"></div></fieldset>
+                <label class="ancho">RUTA / CUADRILLAS / LOTES <input type="text" id="f-ruta" placeholder="Cuadrillas 1, 2 y 3 · Z1CC0016 (16)"></label>
+                <label class="ancho">ASUNTO <textarea id="f-asunto" rows="2"></textarea></label>
+            </div>
+        </section>
+
+        <section class="panel req-panel">
+            <h2>1. Descripción</h2>
+            <textarea id="f-descripcion" rows="12" aria-label="Descripción"></textarea>
+            <p class="sub">Reemplace lo que está entre [corchetes] con los datos del caso. El PDF avisa si queda alguno.</p>
+        </section>
+
+        <section class="panel req-panel">
+            <h2>2. Evidencias del seguimiento</h2>
+            <label class="ancho">EVIDENCIAS (una por renglón) <textarea id="f-evid-texto" rows="3" placeholder="Fotografías / Correos / Despacho&#10;Evidencia inspección"></textarea></label>
+            <input type="file" id="f-fotos" accept="image/*" multiple hidden>
+            <button type="button" class="secundario zip-elegir" id="f-fotos-elegir">🖼️ Agregar fotos</button>
+            <ol class="req-fotos" id="f-fotos-lista"></ol>
+            <p class="sub">Las fotos van dos por fila con su pie. No se guardan con el borrador: si cierra la página, vuelva a agregarlas.</p>
+        </section>
+
+        <section class="panel req-panel">
+            <h2>3. Consideraciones · obligaciones del contrato</h2>
+            <div id="f-obligaciones"></div>
+            <div class="req-agregar">
+                <select id="f-obl-catalogo" aria-label="Agregar una obligación de otra plantilla"></select>
+                <button type="button" class="secundario" id="f-obl-agregar">+ Agregar obligación</button>
+            </div>
+            <h3>ANS que se citan</h3>
+            <div class="req-ans" id="f-ans"></div>
+        </section>
+
+        <section class="panel req-panel">
+            <h2>4. Información solicitada</h2>
+            <div id="f-solicitudes"></div>
+            <button type="button" class="secundario" id="f-sol-agregar">+ Agregar fila</button>
+            <label class="req-plazo">PLAZO PARA RESPONDER (DÍAS HÁBILES) <input type="number" id="f-plazo" min="1" max="15" step="1"></label>
+        </section>
+
+        <div class="req-barra">
+            <span class="sub" id="f-avisos"></span>
+            <button type="button" class="secundario" id="btn-cancelar">Volver al listado</button>
+            <button type="button" class="secundario" id="btn-guardar">💾 Guardar</button>
+            <button type="button" class="secundario" id="btn-vista">👁 Vista previa</button>
+            <button type="button" class="secundario" id="btn-pdf">⬇ PDF</button>
+            <button type="button" class="primario" id="btn-correo">✉️ Enviar por correo</button>
+        </div>
+    </form>
+    <p class="nota-privada">🔒 Las plantillas salen del contrato y solo se ven con sesión y permiso. El membrete y las firmas no están en la aplicación: el membrete lo pone cada usuario en ⚙️ Configuración y cada persona firma el PDF.</p>
+</main>
+
+<dialog id="dlg-vista">
+    <div class="cuerpo">
+        <h2>👁 Vista previa</h2>
+        <iframe id="vista-pdf" title="Vista previa del PDF"></iframe>
+        <div class="pie">
+            <a class="boton secundario" id="vista-abrir" target="_blank" rel="noopener">Abrir en otra pestaña</a>
+            <button type="button" class="secundario" id="vista-cerrar">Cerrar</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="dlg-config">
+    <div class="cuerpo">
+        <h2>⚙️ Configuración de los requerimientos</h2>
+        <div class="sub">Queda guardada en este equipo. Los valores iniciales salen de las plantillas.</div>
+        <div class="req-campos">
+            <div class="ancho">
+                <b>Membrete</b> <span class="sub">(imagen de la hoja carta con los logos, JPG o PNG; va de fondo en cada página)</span>
+                <input type="file" id="c-membrete" accept="image/png,image/jpeg" hidden>
+                <div class="req-membrete">
+                    <img id="c-membrete-ver" alt="Membrete elegido" hidden>
+                    <div>
+                        <button type="button" class="secundario" id="c-membrete-elegir">🖼️ Elegir membrete</button>
+                        <button type="button" class="secundario" id="c-membrete-quitar" hidden>Quitar</button>
+                        <div class="sub" id="c-membrete-estado"></div>
+                    </div>
+                </div>
+            </div>
+            <label class="ancho">FIRMAN (una persona por renglón: NOMBRE | cargo) <textarea id="c-firmas" rows="6"></textarea></label>
+            <label class="ancho">CON COPIA A (una por renglón) <textarea id="c-copias" rows="3"></textarea></label>
+            <label class="ancho">CORREO DEL CONTRATISTA (PARA) <input type="text" id="c-para" placeholder="correo@contratista.com"></label>
+            <label class="ancho">CON COPIA (CC) <input type="text" id="c-cc" placeholder="correos separados por coma"></label>
+        </div>
+        <div class="pie">
+            <button type="button" class="secundario" id="c-restablecer">Restablecer</button>
+            <button type="button" class="secundario" id="c-cerrar">Cancelar</button>
+            <button type="button" class="primario" id="c-guardar">Guardar</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="peligro-fuerte" id="conf-si"></button>
+        </div>
+    </div>
+</dialog>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/requerimiento/main.js"></script>
+</body>
+</html>
