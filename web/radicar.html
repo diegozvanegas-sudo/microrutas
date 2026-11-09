@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Radicar PQR</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🏛️</span>
+        <div class="nombre"><h1>Radicar PQR</h1><div class="lema">Los datos listos para radicar en el formulario de EMVARIAS</div></div>
+    </div>
+    </div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" aria-current="page" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <a class="item-menu" id="lnk-consultar" target="_blank" rel="noopener" title="Consultar el estado de una PQR en EMVARIAS">🔎 Consultar una PQR en EMVARIAS</a>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="rad">
+    <div id="estado" class="rad-estado">Cargando…</div>
+    <section class="panel rad-panel" id="rad-historial" hidden>
+        <div class="rad-cab">
+            <h2>🏛️ PQR para EMVARIAS</h2>
+            <input type="search" id="h-buscar" placeholder="Buscar radicado, nombre, dirección o barrio" aria-label="Buscar PQR" autocomplete="off">
+            <button type="button" class="primario" id="btn-nueva">+ Nueva PQR</button>
+        </div>
+        <div class="req-tabla-caja"><table class="req-tabla" id="h-tabla"></table></div>
+        <p class="sub">Quedan en este equipo (tienen datos personales del ciudadano). Al cerrar sesión se borran los datos de solicitante guardados.</p>
+    </section>
+
+    <form id="form-rad" class="rad-form" hidden autocomplete="off" onsubmit="return false">
+        <div class="rad-intro">
+            <b>Cómo se radica:</b> el formulario de EMVARIAS tiene la verificación «No soy un robot», por eso la app no lo envía sola.
+            <ol>
+                <li>Llene aquí los datos (en el mismo orden que el de EMVARIAS).</li>
+                <li>Toque <b>🏛️ Abrir formulario de EMVARIAS</b>, acepte el tratamiento de datos y vaya pegando con los botones 📋 de cada campo.</li>
+                <li>Adjunte las fotos allá, marque el captcha y radique. Escriba aquí el número que le da EMVARIAS y guarde.</li>
+            </ol>
+        </div>
+        <section class="panel rad-panel">
+            <div class="rad-cab"><h2 id="f-titulo">Nueva PQR</h2><span class="sub" id="f-guardado"></span></div>
+            <div class="rad-perfil">
+                <select id="r-perfil" aria-label="Poner datos de un solicitante guardado"></select>
+                <button type="button" class="secundario" id="r-perfil-guardar" title="Guardar los datos del solicitante de esta PQR para la próxima">💾 Guardar solicitante</button>
+                <button type="button" class="secundario" id="r-perfil-quitar" hidden>Borrar guardados</button>
+            </div>
+        </section>
+        <div id="r-secciones"></div>
+        <section class="panel rad-panel">
+            <h2>7. Después de radicar</h2>
+            <div class="rad-radicado">
+                <label>NÚMERO DE RADICADO QUE DIO EMVARIAS <input type="text" id="r-radicado" placeholder="Escríbalo al terminar" autocomplete="off"></label>
+            </div>
+        </section>
+        <div class="rad-barra">
+            <span class="sub" id="f-avisos"></span>
+            <button type="button" class="secundario" id="btn-volver">Volver al listado</button>
+            <button type="button" class="secundario" id="btn-copiar-contenido">📋 Copiar contenido</button>
+            <button type="button" class="secundario" id="btn-copiar-todo">📋 Copiar todo</button>
+            <button type="button" class="secundario" id="btn-guardar">💾 Guardar</button>
+            <a class="boton primario" id="btn-abrir" target="_blank" rel="noopener">🏛️ Abrir formulario de EMVARIAS</a>
+        </div>
+    </form>
+</main>
+
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="peligro-fuerte" id="conf-si"></button>
+        </div>
+    </div>
+</dialog>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/radicar/main.js"></script>
+</body>
+</html>

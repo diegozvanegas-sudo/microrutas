@@ -1,0 +1,55 @@
+/* radicar.html (usa también los estilos generales de subsanaciones y los del listado de requerimientos) */
+main.rad { max-width: 1100px; margin: 0 auto; padding: 14px 16px 120px; }
+.rad-estado { margin: 12px 0; padding: 14px 16px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; }
+.rad-estado[hidden], .rad-form[hidden], .rad-panel[hidden], #rad-historial[hidden] { display: none; }
+.rad-intro { padding: 14px 16px; border-radius: 12px; background: #f1f8f4; border: 1px solid #cfe7da; margin-bottom: 14px; line-height: 1.5; }
+.rad-intro ol { margin: 6px 0 0; padding-left: 20px; }
+.rad-panel { padding: 16px 18px; margin-bottom: 14px; }
+.rad-panel h2 { margin: 0 0 12px; font-size: 17px; }
+.rad-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin-bottom: 12px; }
+.rad-cab h2 { margin: 0 auto 0 0; }
+.rad-cab input[type="search"] { flex: 1 1 220px; min-width: 0; min-height: 38px; }
+.rad-campos { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.rad-campos .ancho { grid-column: 1 / -1; }
+.rad-campo, .rad-dir { display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+.rad-campo[hidden], .rad-dir[hidden] { display: none; }
+.rad-campo .et, .rad-dir .et { font-size: 12px; font-weight: 700; color: var(--muted); }
+.rad-campo .ob, .rad-dir .ob { color: #b91c1c; }
+.rad-campo.apagado { opacity: .45; }
+.rad-control { display: flex; gap: 6px; align-items: stretch; min-width: 0; }
+.rad-control input, .rad-control select, .rad-control textarea { flex: 1; min-width: 0; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; padding: 7px 9px; font: inherit; color: var(--ink); background: #fff; }
+.rad-control textarea { line-height: 1.5; }
+.copiar-campo { flex: none; width: 42px; min-height: 40px; border: 1px solid var(--line); border-radius: 8px; background: #f8fafb; cursor: pointer; font-size: 16px; }
+.copiar-campo:hover { background: #e8f3ee; border-color: #9fd3bd; }
+.rad-casilla { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+.rad-casilla input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--brand); }
+.rad-partes { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 8px; }
+.rad-partes label { display: flex; flex-direction: column; gap: 3px; font-size: 11.5px; font-weight: 700; color: var(--muted); }
+.rad-partes input, .rad-partes select { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 8px; font: inherit; color: var(--ink); background: #fff; width: 100%; }
+.rad-vista { align-items: center; padding: 8px 10px; border: 1px dashed #9fd3bd; border-radius: 8px; background: #f8fcfa; }
+.rad-vista span { flex: 1; font-weight: 700; color: var(--ink); }
+.rad-vista span.sub { font-weight: 400; color: var(--muted); }
+.rad-plantillas { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-bottom: 10px; }
+.chip-rad { border: 1px solid var(--line); background: #fff; border-radius: 999px; padding: 4px 12px; min-height: 32px; font-size: 13px; cursor: pointer; }
+.chip-rad:hover { border-color: #9fd3bd; background: #f1f8f4; }
+.rad-pie-contenido { margin-top: 6px; }
+.rad-perfil { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.rad-perfil select { flex: 1 1 240px; min-width: 0; min-height: 38px; }
+.rad-radicado { display: flex; flex-wrap: wrap; gap: 8px; align-items: end; }
+.rad-radicado label { flex: 1 1 240px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.rad-radicado input { min-height: 40px; font-size: 16px; font-weight: 700; }
+.rad-barra { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: flex-end; gap: 8px;
+    padding: 10px 16px calc(10px + env(safe-area-inset-bottom)); background: #fff; border-top: 1px solid var(--line); box-shadow: 0 -6px 20px rgba(15, 45, 35, .08); }
+.rad-barra .sub { margin-right: auto; color: #9a3412; font-weight: 650; }
+.rad-barra .sub.ok { color: #15803d; }
+.rad-barra button, .rad-barra .boton { min-height: 40px; }
+.rad-est { display: inline-block; padding: 1px 9px; border-radius: 999px; font-size: 12px; font-weight: 700; }
+.rad-est.ok { background: #dcfce7; color: #166534; }
+.rad-est.pend { background: #fef3c7; color: #92400e; }
+@media (max-width: 640px) {
+    main.rad { padding: 10px 10px 190px; }
+    .rad-panel { padding: 14px; }
+    .rad-barra { justify-content: stretch; }
+    .rad-barra button, .rad-barra .boton { flex: 1 1 45%; text-align: center; }
+    .rad-barra .sub { flex-basis: 100%; }
+}

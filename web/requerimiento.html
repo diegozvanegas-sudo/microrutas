@@ -23,6 +23,7 @@
                 <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
                 <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
                 <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
                 <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
                 <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
                 <a href="requerimiento.html" id="nav-req" hidden aria-current="page" title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
@@ -168,6 +169,12 @@
                 </div>
             </div>
             <label class="ancho">FIRMAN (una persona por renglón: NOMBRE | cargo) <textarea id="c-firmas" rows="6"></textarea></label>
+            <div class="ancho">
+                <b>Imagen de la firma</b> <span class="sub">(opcional; queda solo en este equipo y va encima de la línea de esa persona)</span>
+                <div class="req-aviso-firma">Suba solo su propia firma, o la de alguien que lo haya autorizado para firmar en su nombre. Sin imagen, el PDF sale con la línea en blanco para firmar.</div>
+                <input type="file" id="c-firma-archivo" accept="image/png,image/jpeg" hidden>
+                <div class="req-firmas" id="c-firmas-img"></div>
+            </div>
             <label class="ancho">CON COPIA A (una por renglón) <textarea id="c-copias" rows="3"></textarea></label>
             <label class="ancho">CORREO DEL CONTRATISTA (PARA) <input type="text" id="c-para" placeholder="correo@contratista.com"></label>
             <label class="ancho">CON COPIA (CC) <input type="text" id="c-cc" placeholder="correos separados por coma"></label>
