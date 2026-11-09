@@ -634,3 +634,52 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .fl-ayuda .fl-todas { display: flex; gap: 8px; flex-wrap: wrap; }
 .fl-ayuda .fl-todas input { flex: 1 1 200px; min-width: 0; min-height: 38px; }
 .fl-ayuda button { min-height: 38px; }
+
+/* Programación: pestañas y listado */
+#dlg-prog { width: min(1100px, calc(100% - 24px)); }
+.prog-pestanas { display: flex; gap: 6px; margin-top: 12px; border-bottom: 1px solid var(--line); }
+.prog-pestanas[hidden] { display: none; }
+.prog-pestanas button { border: 0; background: none; padding: 9px 14px; font-weight: 650; color: var(--muted); border-bottom: 3px solid transparent; border-radius: 0; min-height: 40px; }
+.prog-pestanas button[aria-selected="true"] { color: var(--brand); border-bottom-color: var(--brand); }
+#prog-vista-lista[hidden], #prog-vista-dia[hidden] { display: none; }
+.prog-filtros { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.prog-filtros input { flex: 2 1 220px; min-width: 0; min-height: 38px; }
+.prog-filtros select { flex: 1 1 160px; min-width: 0; min-height: 38px; }
+.prog-acciones-lista { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 10px; }
+.prog-acciones-lista .sub { margin-right: auto; }
+.prog-acciones-lista .boton, .prog-acciones-lista button { min-height: 38px; }
+.prog-tabla-caja { margin-top: 10px; max-height: 52vh; overflow: auto; border: 1px solid var(--line); border-radius: 10px; }
+.prog-tabla { width: 100%; border-collapse: collapse; font-size: 13px; }
+.prog-tabla th { position: sticky; top: 0; z-index: 1; background: #f1f5f4; text-align: left; padding: 8px; white-space: nowrap; }
+.prog-tabla td { padding: 7px 8px; border-top: 1px solid var(--line); vertical-align: top; }
+.prog-tabla td.dir { max-width: 260px; color: var(--muted); }
+.prog-tabla td.num { text-align: right; white-space: nowrap; }
+.prog-tabla tr.cuad-sep td { background: #f8fafb; font-weight: 700; border-left: 4px solid var(--c, #64748b); }
+.prog-tabla .acc { white-space: nowrap; }
+.prog-tabla .acc button, .prog-tabla .acc a { min-height: 32px; min-width: 32px; padding: 3px 8px; margin: 0 2px 2px 0; font-size: 13px; }
+.prog-est { display: inline-block; padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+.prog-est.hecho { background: #dcfce7; color: #166534; }
+.prog-est.app { background: #e0e7ff; color: #3730a3; }
+.prog-est.atrasado { background: #fee2e2; color: #991b1b; }
+.prog-est.hoy { background: #fef3c7; color: #92400e; }
+.prog-est.pendiente { background: #f1f5f9; color: #334155; }
+.prog-est.sin { background: #f1f5f9; color: #64748b; }
+.prog-editado { font-size: 11px; color: #9a3412; }
+.prog-form { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 10px; margin-top: 12px; }
+.prog-form label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.prog-form label.ancho { grid-column: 1 / -1; }
+.prog-form label.fotos-check { flex-direction: row; align-items: center; font-size: 14px; color: var(--ink); }
+.prog-form input { min-height: 38px; }
+#dlg-prog-lote .pie .peligro-suave { margin-right: auto; }
+/* En celular la tabla pasa a tarjetas: cada lote en un bloque con sus acciones */
+@media (max-width: 640px) {
+    .prog-tabla thead { display: none; }
+    .prog-tabla, .prog-tabla tbody, .prog-tabla tr, .prog-tabla td { display: block; width: 100%; }
+    .prog-tabla tr { border-top: 1px solid var(--line); padding: 8px 4px; }
+    .prog-tabla td { border: 0; padding: 2px 6px; }
+    .prog-tabla td[data-et]::before { content: attr(data-et) ': '; font-weight: 700; color: var(--muted); }
+    .prog-tabla td.dir { max-width: none; }
+    .prog-tabla td.num { text-align: left; }
+    .prog-tabla .acc { white-space: normal; padding-top: 6px; }
+    .prog-tabla-caja { max-height: none; border: 0; }
+}

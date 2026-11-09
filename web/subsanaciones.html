@@ -24,6 +24,7 @@
                 <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
                 <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
                 <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
             </div>
         </details>
         <details class="nav-menu">
@@ -342,7 +343,8 @@
     <div class="cuerpo">
         <h2>📅 Programación del día</h2>
         <div class="sub">Suba el Excel de programación del mes (p. ej. 2026_11_Noviembre_Programacion_CW394406.xlsx). Se leen todas las filas,
-            también las ocultas por el filtro. Queda guardado en este equipo hasta que suba otro. Las visitas registradas en la app cuentan como hechas aunque el Excel no tenga la X.</div>
+            también las ocultas por el filtro. <b>Queda cargado en este equipo</b> (aunque cierre la ventana o la página) hasta que suba otro.
+            Las visitas registradas en la app cuentan como hechas aunque el Excel no tenga la X.</div>
         <input type="file" id="prog-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
         <button type="button" class="secundario zip-elegir" id="prog-elegir">📁 Elegir el Excel de programación</button>
         <div class="fotos-resumen" id="prog-estado" aria-live="polite"></div>
@@ -350,12 +352,63 @@
             <label>DÍA <input type="date" id="prog-fecha"></label>
             <label>CUADRILLA <select id="prog-cuad"><option value="">Todas</option></select></label>
         </div>
+        <div class="prog-pestanas" id="prog-pestanas" role="tablist" aria-label="Vista de la programación" hidden>
+            <button type="button" role="tab" data-prog-vista="dia" aria-selected="true">📅 Resumen del día</button>
+            <button type="button" role="tab" data-prog-vista="lista" aria-selected="false">📋 Listado</button>
+        </div>
         <div class="prog-dia" id="prog-dia"></div>
-        <div id="prog-cuadrillas"></div>
-        <div id="prog-especiales"></div>
+        <div id="prog-vista-dia">
+            <div id="prog-cuadrillas"></div>
+            <div id="prog-especiales"></div>
+        </div>
+        <!-- Listado: todos los lotes de la quincena con sus acciones (ver en el mapa, marcar hecho, editar, registrar visita, quitar) -->
+        <div id="prog-vista-lista" hidden>
+            <div class="prog-filtros">
+                <input type="search" id="pl-buscar" placeholder="Buscar microrruta, lote o dirección" aria-label="Buscar en el listado" autocomplete="off">
+                <select id="pl-estado" aria-label="Estado">
+                    <option value="">Estado: todos</option><option value="atrasado">Atrasados</option><option value="hoy">Le toca hoy</option>
+                    <option value="pendiente">Pendientes</option><option value="hecho">Hechos (X)</option><option value="app">Con visita en la app</option>
+                    <option value="falta">Sin hacer (atrasados + hoy + pendientes)</option><option value="sin">Sin día en el Excel</option><option value="editado">Editados aquí</option>
+                </select>
+                <select id="pl-semana" aria-label="Semana"><option value="">Semana: todas</option></select>
+            </div>
+            <div class="prog-acciones-lista">
+                <span class="sub" id="pl-cuenta"></span>
+                <a class="boton secundario" id="pl-mapa">🗺️ Ver en el mapa</a>
+                <button type="button" class="secundario" id="pl-excel">⬇ Excel</button>
+                <button type="button" class="primario" id="pl-nuevo">+ Agregar lote</button>
+            </div>
+            <div class="prog-tabla-caja"><table class="prog-tabla" id="pl-tabla"></table></div>
+            <div class="paginador" id="pl-paginas"></div>
+        </div>
         <div class="pie">
             <button type="button" class="secundario" id="prog-cerrar">Cerrar</button>
             <button type="button" class="wa" id="prog-texto" disabled>📋 Texto para WhatsApp</button>
+        </div>
+    </div>
+</dialog>
+<!-- Agregar o editar un lote de la programación (queda guardado en este equipo junto con la programación) -->
+<dialog id="dlg-prog-lote">
+    <div class="cuerpo">
+        <h2 id="pll-titulo">Lote de la programación</h2>
+        <div class="sub">Los cambios quedan en la programación guardada en este equipo; el Excel original no se modifica.</div>
+        <div class="prog-form">
+            <label>CUADRILLA <input type="text" id="pll-cuad" inputmode="numeric" autocomplete="off"></label>
+            <label>MICRORRUTA <input type="text" id="pll-mr" autocapitalize="characters" autocomplete="off" placeholder="Z1CC0100"></label>
+            <label>LOTE <input type="text" id="pll-lote" autocomplete="off" placeholder="110 o NA"></label>
+            <label>ÁREA M² <input type="number" id="pll-area" min="0" step="1"></label>
+            <label class="ancho">DIRECCIÓN <input type="text" id="pll-dir" autocomplete="off"></label>
+            <label>SEMANA <input type="number" id="pll-semana" min="1" max="5" step="1"></label>
+            <label>DÍA (1 = lunes … 6 = sábado) <input type="number" id="pll-dia" min="1" max="6" step="1"></label>
+            <label class="fotos-check ancho"><input type="checkbox" id="pll-hecho"> Hecho (como la X del Excel)</label>
+            <label>FECHA DE EJECUCIÓN <input type="date" id="pll-fecha"></label>
+            <label class="ancho">OBSERVACIÓN <input type="text" id="pll-obs" autocomplete="off"></label>
+        </div>
+        <div class="fotos-resumen" id="pll-aviso"></div>
+        <div class="pie">
+            <button type="button" class="peligro-suave" id="pll-quitar">🗑 Quitar de la programación</button>
+            <button type="button" class="secundario" id="pll-cancelar">Cancelar</button>
+            <button type="button" class="primario" id="pll-guardar">Guardar</button>
         </div>
     </div>
 </dialog>

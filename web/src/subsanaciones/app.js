@@ -15,7 +15,7 @@ import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, CERCA as CERCA_LOTE } from './lotegps.js';
 import { coordenadasMarca, fechaMarca, recorteMarca } from './marcaagua.js';
 import { leerTabla, diasDe } from './tabla.js';
-import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia } from './programacion.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2372,6 +2372,7 @@ export function iniciar(api, CFG) {
     function pintarProg() {
         var hay = !!(progDatos && progDatos.prog);
         $('prog-controles').hidden = !hay;
+        $('prog-pestanas').hidden = !hay;
         $('prog-texto').disabled = !hay;
         if (!hay) { $('prog-dia').innerHTML = $('prog-cuadrillas').innerHTML = $('prog-especiales').innerHTML = ''; return; }
         var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy();
@@ -2410,7 +2411,9 @@ export function iniciar(api, CFG) {
                 (c.atrasados.length ? '<details><summary>Atrasados (' + c.atrasados.length + ' de ' + c.debian + ' que ya debían estar)</summary>' +
                     c.atrasados.map(function (x) { return chipLote(x, enApp); }).join('') + '</details>' : '') +
                 (c.obs.length ? c.obs.slice(0, 4).map(function (x) { return '<div class="obs">⚠ ' + esc((x.lote || x.mr) + ': ' + x.obs) + '</div>'; }).join('') : '') +
-                (ids.length ? '<div class="acciones"><a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.join(',')) + '">🗺️ Lo de hoy en el mapa</a></div>' : '') +
+                '<div class="acciones">' + (ids.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.join(',')) + '">🗺️ Lo de hoy en el mapa</a>' : '') +
+                    (c.atrasados.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + c.atrasados.map(idMapaProg).join(',')) + '">🗺️ Atrasados en el mapa</a>' : '') +
+                    '<button type="button" class="secundario pequeno" data-prog-lista="' + esc(c.cuad) + '">📋 Ver sus lotes en el listado</button></div>' +
                 '</section>';
         }).join('');
         var esp = especialesDeSemana(prog, fecha);
@@ -2419,7 +2422,167 @@ export function iniciar(api, CFG) {
                 (e.ejecutado ? ' · ✓ ejecutado' + (e.ejecutado.length > 3 ? ' ' + aTexto(e.ejecutado) : '') : '') + (e.obs ? '<br><span class="sub">' + esc(e.obs) + '</span>' : '') + '</li>';
         }).join('') + '</ul>' + (prog.sif && prog.sif.cc ? '<div class="sub">Rutas SIF de corte: ' + prog.sif.cc.q1 + ' de ' + prog.sif.cc.total + ' con ejecución en Q1' +
             (prog.sif.esp ? ' · espartillos: ' + prog.sif.esp.q1 + ' de ' + prog.sif.esp.total : '') + '</div>' : '') : '';
+        if (progVista === 'lista') pintarListaProg();
     }
+    // ---------- Programación: listado de todos los lotes de la quincena (ver, marcar, editar, agregar, quitar) ----------
+    var progVista = 'dia', plPagina = 1, PL_POR = 30, plEditando = null;
+    function guardarProg() {
+        try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); }
+        catch (e) { toast('No se pudo guardar el cambio en este equipo (sin espacio).'); }
+    }
+    // Lotes visitados en la app en la quincena de la fecha (cuentan como hechos)
+    function enAppProg(prog, fecha) {
+        var vis = visitasPorQuincena(prog.mes), k = prog.mes + '|' + quincenaProg((semanaProg(prog.mes, fecha) || { semana: 1 }).semana), s = vis[k] || {};
+        return function (x) { return !x.hecho && !!(s['L' + x.lote] || s['M' + x.mr]); };
+    }
+    function verProgVista(v) {
+        progVista = v;
+        $('prog-pestanas').querySelectorAll('[data-prog-vista]').forEach(function (b) { b.setAttribute('aria-selected', b.dataset.progVista === v); });
+        $('prog-vista-dia').hidden = v !== 'dia';
+        $('prog-vista-lista').hidden = v !== 'lista';
+        pintarProg();
+    }
+    function filtradosProg() {
+        var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), enApp = enAppProg(prog, fecha);
+        var cuad = $('prog-cuad').value, est = $('pl-estado').value, sem = $('pl-semana').value, q = norm($('pl-buscar').value);
+        return lotesDeQuincena(prog, fecha).map(function (x) { return { x: x, est: estadoLote(x, prog, fecha, enApp) }; }).filter(function (f) {
+            if (cuad && f.x.cuad !== cuad) return false;
+            if (sem && String(f.x.semana) !== sem) return false;
+            if (est === 'falta' ? ['atrasado', 'hoy', 'pendiente'].indexOf(f.est) === -1 : est === 'editado' ? !f.x.editado : est && f.est !== est) return false;
+            return !q || norm([f.x.mr, f.x.lote, f.x.dir, f.x.obs].join(' ')).indexOf(q) !== -1;
+        });
+    }
+    function pintarListaProg() {
+        var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), lotes = lotesDeQuincena(prog, fecha);
+        // Semanas que trae la quincena
+        var sel = $('pl-semana'), actual = sel.value, semanas = lotes.map(function (x) { return x.semana; }).filter(function (s, i, a) { return s != null && a.indexOf(s) === i; }).sort();
+        sel.innerHTML = '<option value="">Semana: todas</option>' + semanas.map(function (s) { return '<option value="' + s + '">Semana ' + s + '</option>'; }).join('');
+        sel.value = actual;
+        var lista = filtradosProg(), paginas = Math.max(1, Math.ceil(lista.length / PL_POR));
+        if (plPagina > paginas) plPagina = paginas;
+        var ids = lista.map(function (f) { return idMapaProg(f.x); }).filter(function (v, i, a) { return v && a.indexOf(v) === i; });
+        $('pl-cuenta').textContent = lista.length + (lista.length === 1 ? ' lote' : ' lotes') + (lista.length !== lotes.length ? ' de ' + lotes.length : '');
+        $('pl-mapa').href = ids.length ? 'mapa_rapido.html?lote=' + ids.join(',') : '#';
+        $('pl-mapa').classList.toggle('deshabilitado', !ids.length);
+        $('pl-mapa').textContent = '🗺️ Ver ' + (ids.length === 1 ? 'el lote' : 'los ' + ids.length) + ' en el mapa';
+        var desde = (plPagina - 1) * PL_POR, visibles = lista.slice(desde, desde + PL_POR), ultimaCuad = null;
+        $('pl-tabla').innerHTML = '<thead><tr><th>Estado</th><th>Cuad.</th><th>Microrruta · lote</th><th>Dirección</th><th>Área m²</th><th>Programado</th><th>Ejecutado</th><th>Observación</th><th>Acciones</th></tr></thead><tbody>' +
+            (visibles.length ? visibles.map(function (f) {
+                var x = f.x, i = lotes.indexOf(x), sep = '';
+                // Separador por cuadrilla cuando no hay una sola elegida
+                if (!$('prog-cuad').value && x.cuad !== ultimaCuad) {
+                    ultimaCuad = x.cuad;
+                    sep = '<tr class="cuad-sep" style="--c:' + colorCuadrilla(x.cuad) + '"><td colspan="9">Cuadrilla ' + esc(x.cuad) + '</td></tr>';
+                }
+                var plan = x.semana && x.dia ? 'S' + x.semana + ' D' + x.dia + ' · ' + aTexto(fechaPlanProg(prog.mes, x.semana, x.dia)).slice(0, 5) : '—';
+                return sep + '<tr><td data-et="Estado"><span class="prog-est ' + f.est + '">' + esc(ESTADOS_LOTE[f.est]) + '</span>' + (x.editado ? '<div class="prog-editado">✎ editado aquí</div>' : '') + '</td>' +
+                    '<td data-et="Cuadrilla">' + esc(x.cuad) + '</td>' +
+                    '<td data-et="Lote"><a href="' + esc(urlMapa(x.mr, x.lote)) + '" title="Ver en el mapa">' + esc(x.mr + (x.lote && !/^N\/?A$/i.test(x.lote) ? ' · ' + x.lote : '')) + '</a></td>' +
+                    '<td class="dir" data-et="Dirección">' + esc(x.dir) + '</td>' +
+                    '<td class="num" data-et="Área">' + (x.area ? Math.round(x.area).toLocaleString('es-CO') : '') + '</td>' +
+                    '<td data-et="Programado">' + esc(plan) + '</td>' +
+                    '<td data-et="Ejecutado">' + (x.fecha ? esc(aTexto(x.fecha)) : '') + '</td>' +
+                    '<td data-et="Observación">' + esc(x.obs) + '</td>' +
+                    '<td class="acc">' +
+                        '<a class="boton secundario pequeno" href="' + esc(urlMapa(x.mr, x.lote)) + '" title="Ver en el mapa">🗺️</a>' +
+                        '<button type="button" class="secundario pequeno" data-pl="marcar" data-i="' + i + '" title="' + (x.hecho ? 'Quitar la marca de hecho' : 'Marcar como hecho hoy') + '">' + (x.hecho ? '↺' : '✓') + '</button>' +
+                        '<button type="button" class="secundario pequeno" data-pl="editar" data-i="' + i + '" title="Editar el lote">✎</button>' +
+                        '<button type="button" class="secundario pequeno" data-pl="visita" data-i="' + i + '" title="Registrar la visita de este lote">📋</button>' +
+                    '</td></tr>';
+            }).join('') : '<tr><td colspan="9" class="sub">No hay lotes con esos filtros.</td></tr>') + '</tbody>';
+        $('pl-paginas').innerHTML = paginas < 2 ? '' : '<button type="button" class="secundario pequeno" data-pl-pag="' + (plPagina - 1) + '"' + (plPagina === 1 ? ' disabled' : '') + '>‹ Anterior</button>' +
+            '<span class="sub">Página ' + plPagina + ' de ' + paginas + ' · ' + (desde + 1) + '–' + Math.min(desde + PL_POR, lista.length) + '</span>' +
+            '<button type="button" class="secundario pequeno" data-pl-pag="' + (plPagina + 1) + '"' + (plPagina === paginas ? ' disabled' : '') + '>Siguiente ›</button>';
+    }
+    function abrirLoteProg(x) {
+        plEditando = x || null;
+        x = x || { cuad: $('prog-cuad').value || '', mr: '', lote: '', area: '', dir: '', semana: '', dia: '', hecho: false, fecha: '', obs: '' };
+        $('pll-titulo').textContent = plEditando ? 'Editar ' + x.mr + (x.lote ? ' · ' + x.lote : '') : 'Agregar lote a la programación';
+        $('pll-cuad').value = x.cuad; $('pll-mr').value = x.mr; $('pll-lote').value = x.lote; $('pll-area').value = x.area || '';
+        $('pll-dir').value = x.dir; $('pll-semana').value = x.semana || ''; $('pll-dia').value = x.dia || '';
+        $('pll-hecho').checked = !!x.hecho; $('pll-fecha').value = x.fecha || ''; $('pll-obs').value = x.obs || '';
+        $('pll-quitar').hidden = !plEditando;
+        $('pll-aviso').textContent = '';
+        $('dlg-prog-lote').showModal();
+    }
+    // Desde la tarjeta de una cuadrilla: el listado con esa cuadrilla elegida
+    $('prog-cuadrillas').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-prog-lista]');
+        if (!b) return;
+        $('prog-cuad').value = b.dataset.progLista; plPagina = 1; verProgVista('lista');
+    });
+    $('prog-pestanas').onclick = function (ev) { var b = ev.target.closest('[data-prog-vista]'); if (b) verProgVista(b.dataset.progVista); };
+    ['pl-estado', 'pl-semana'].forEach(function (id) { $(id).onchange = function () { plPagina = 1; pintarListaProg(); }; });
+    $('pl-buscar').oninput = function () { plPagina = 1; pintarListaProg(); };
+    $('pl-paginas').onclick = function (ev) { var b = ev.target.closest('[data-pl-pag]'); if (b && !b.disabled) { plPagina = +b.dataset.plPag; pintarListaProg(); $('pl-tabla').scrollIntoView({ block: 'nearest' }); } };
+    $('pl-mapa').onclick = function (ev) { if (this.classList.contains('deshabilitado')) { ev.preventDefault(); toast('No hay lotes con esos filtros.'); } };
+    $('pl-nuevo').onclick = function () { abrirLoteProg(null); };
+    $('pl-tabla').onclick = function (ev) {
+        var b = ev.target.closest('[data-pl]');
+        if (!b) return;
+        var prog = progDatos.prog, x = lotesDeQuincena(prog, $('prog-fecha').value || hoy())[+b.dataset.i];
+        if (!x) return;
+        if (b.dataset.pl === 'marcar') {
+            x.hecho = !x.hecho;
+            x.fecha = x.hecho ? (x.fecha || hoy()) : '';
+            x.editado = true;
+            guardarProg(); pintarProg();
+            toast(x.mr + (x.hecho ? ' marcado como hecho.' : ': se quitó la marca.'));
+        } else if (b.dataset.pl === 'editar') abrirLoteProg(x);
+        else if (b.dataset.pl === 'visita') {
+            $('dlg-prog').close();
+            abrir({ MICRORRUTA: x.mr, LOTE: /^N\/?A$/i.test(x.lote) ? 'NA' : x.lote, CUADRILLA: x.cuad, ZONA: zonaDe(x.mr), 'FECHA DE EJECUCIÓN': x.fecha ? aTexto(x.fecha) : '' });
+        }
+    };
+    $('pll-cancelar').onclick = function () { $('dlg-prog-lote').close(); };
+    $('pll-guardar').onclick = function () {
+        var mr = $('pll-mr').value.trim().toUpperCase().replace(/\s+/g, ''), lote = $('pll-lote').value.trim();
+        if (!/^Z\d+CC\d+$/.test(mr)) { $('pll-aviso').innerHTML = '<span class="aviso-fotos">Escriba la microrruta como Z1CC0100.</span>'; $('pll-mr').focus(); return; }
+        if (!$('pll-cuad').value.trim()) { $('pll-aviso').innerHTML = '<span class="aviso-fotos">Escriba la cuadrilla.</span>'; $('pll-cuad').focus(); return; }
+        var sem = parseInt($('pll-semana').value, 10), dia = parseInt($('pll-dia').value, 10);
+        var prog = progDatos.prog, lotes = lotesDeQuincena(prog, $('prog-fecha').value || hoy());
+        var x = plEditando || { fila: lotes.reduce(function (m, y) { return Math.max(m, y.fila); }, 0) + 1, frec: null };
+        x.cuad = $('pll-cuad').value.trim(); x.mr = mr; x.lote = lote || 'NA'; x.area = Number($('pll-area').value) || 0;
+        x.dir = $('pll-dir').value.trim(); x.semana = isFinite(sem) ? sem : null; x.dia = isFinite(dia) && dia >= 1 && dia <= 6 ? dia : null;
+        x.hecho = $('pll-hecho').checked; x.fecha = $('pll-fecha').value || (x.hecho ? hoy() : ''); x.obs = $('pll-obs').value.trim(); x.editado = true;
+        if (!plEditando) lotes.push(x);
+        guardarProg();
+        $('dlg-prog-lote').close();
+        pintarProg();
+        toast(plEditando ? 'Cambios guardados.' : mr + ' agregado a la programación.');
+    };
+    $('pll-quitar').onclick = async function () {
+        if (!plEditando) return;
+        var x = plEditando;
+        if (!(await confirmar('¿Quitar ' + x.mr + (x.lote ? ' · lote ' + x.lote : '') + ' de la programación?', 'Se quita de la programación guardada en este equipo. El Excel no cambia: si lo vuelve a subir, el lote vuelve a aparecer.', '🗑 Quitar'))) return;
+        var prog = progDatos.prog;
+        [prog.q1, prog.q2].forEach(function (l) { var k = l.indexOf(x); if (k !== -1) l.splice(k, 1); });
+        guardarProg();
+        $('dlg-prog-lote').close();
+        pintarProg();
+        toast(x.mr + ' quitado de la programación.');
+    };
+    // Excel del listado filtrado (con los cambios hechos aquí)
+    $('pl-excel').onclick = async function () {
+        var lista = filtradosProg();
+        if (!lista.length) return toast('No hay lotes con esos filtros.');
+        var b = this; b.disabled = true;
+        try {
+            var { default: ExcelJS } = await import('exceljs'), wb = new ExcelJS.Workbook(), ws = wb.addWorksheet('Programación');
+            ws.addRow(['CUADRILLA', 'MICRORRUTA', 'LOTE', 'DIRECCIÓN', 'ÁREA m2', 'SEMANA', 'DÍA', 'FECHA PROGRAMADA', 'ESTADO', 'FECHA EJECUCIÓN', 'OBSERVACIÓN']).font = { bold: true };
+            var prog = progDatos.prog;
+            lista.forEach(function (f) {
+                var x = f.x;
+                ws.addRow([x.cuad, x.mr, x.lote, x.dir, x.area || '', x.semana || '', x.dia || '', x.semana && x.dia ? aTexto(fechaPlanProg(prog.mes, x.semana, x.dia)) : '',
+                    ESTADOS_LOTE[f.est], x.fecha ? aTexto(x.fecha) : '', x.obs]);
+            });
+            ws.columns.forEach(function (c, i) { c.width = [10, 13, 8, 50, 10, 8, 6, 14, 20, 14, 40][i]; });
+            ws.autoFilter = { from: 'A1', to: 'K1' };
+            descargar(await wb.xlsx.writeBuffer(), 'Programacion_' + prog.mes + '_' + ($('prog-fecha').value || hoy()) + '.xlsx', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        } catch (e) { toast('No se pudo crear el Excel: ' + e.message); }
+        finally { b.disabled = false; }
+    };
+
     async function cargarProg(file) {
         if (!file) return;
         $('prog-elegir').disabled = true;
@@ -2456,7 +2619,7 @@ export function iniciar(api, CFG) {
     $('prog-elegir').onclick = function () { $('prog-archivo').value = ''; $('prog-archivo').click(); };
     $('prog-archivo').onchange = function () { cargarProg(this.files && this.files[0]); };
     $('prog-fecha').onchange = pintarProg;
-    $('prog-cuad').onchange = pintarProg;
+    $('prog-cuad').onchange = function () { plPagina = 1; pintarProg(); };
     $('prog-texto').onclick = function () {
         if (!progDatos) return;
         var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), vis = visitasPorQuincena(prog.mes);

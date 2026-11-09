@@ -135,3 +135,19 @@ test('texto para WhatsApp', () => {
     assert.match(t, /Cuadrilla 2 · 0 de 1 hechos · al día\n  Hoy: Z2CC0079 lote 276/);
     assert.match(t, /10\/11 La Granja/);
 });
+
+import { estadoLote, lotesDeQuincena, zonaDe } from '../src/subsanaciones/programacion.js';
+test('estado de cada lote en la fecha', () => {
+    const prog = { mes: '2026-11', q1: leerLotes(Q1), q2: [], especiales: [] };
+    const est = (lote, enApp) => estadoLote(prog.q1.find(x => x.lote === lote), prog, '2026-11-09', enApp);
+    assert.equal(est('1105'), 'hecho');
+    assert.equal(est('1168'), 'atrasado');
+    assert.equal(est('1168', x => x.lote === '1168'), 'app');
+    assert.equal(est('488'), 'hoy');
+    assert.equal(est('282'), 'pendiente');
+    assert.equal(est('NA'), 'sin');
+    assert.equal(lotesDeQuincena(prog, '2026-11-20'), prog.q1);   // sin Q2 se sigue con la Q1
+    assert.equal(zonaDe('Z1CC0100'), '1');
+    assert.equal(zonaDe('Z6CC0212'), '6');
+    assert.equal(zonaDe('x'), '');
+});

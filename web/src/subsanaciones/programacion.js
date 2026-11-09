@@ -192,3 +192,22 @@ export function textoDelDia(est, especiales) {
     }
     return lin.join('\n');
 }
+
+// Estado de un lote en una fecha: 'hecho' (X en el Excel), 'app' (visita en la app), 'atrasado', 'hoy', 'pendiente' o 'sin'
+// (el Excel no dice semana o día). enApp(lote) como en estadoDelDia
+export var ESTADOS_LOTE = { hecho: 'Hecho (X)', app: 'Con visita en la app', atrasado: 'Atrasado', hoy: 'Le toca hoy', pendiente: 'Pendiente', sin: 'Sin día en el Excel' };
+export function estadoLote(x, prog, fecha, enApp) {
+    if (x.hecho) return 'hecho';
+    if (enApp && enApp(x)) return 'app';
+    if (x.semana == null || x.dia == null) return 'sin';
+    var sd = semanaDia(prog.mes, fecha) || { semana: 1, dia: 1 }, dia = sd.dia || 7;
+    if (x.semana === sd.semana && x.dia === sd.dia) return 'hoy';
+    return x.semana < sd.semana || (x.semana === sd.semana && x.dia < dia) ? 'atrasado' : 'pendiente';
+}
+// Lotes de la quincena de la fecha (Q2 si existe y la fecha cae en la semana 3 o después)
+export function lotesDeQuincena(prog, fecha) {
+    var sd = semanaDia(prog.mes, fecha) || { semana: 1 };
+    return quincenaDe(sd.semana) === 1 ? prog.q1 : (prog.q2.length ? prog.q2 : prog.q1);
+}
+// Zona operativa de la microrruta: Z1CC0100 → '1'
+export function zonaDe(mr) { var m = String(mr || '').match(/^Z(\d+)CC/i); return m ? m[1] : ''; }
