@@ -25,10 +25,18 @@ main.req { max-width: 1100px; margin: 0 auto; padding: 14px 16px 110px; }
 .req-sol { grid-template-columns: 1fr minmax(160px, 30%) auto; align-items: start; }
 .req-agregar { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 4px; }
 .req-agregar select { flex: 1 1 260px; min-width: 0; min-height: 38px; }
-.req-ans { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 6px; }
-.req-ans label { display: flex; gap: 8px; align-items: flex-start; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 13px; cursor: pointer; }
-.req-ans label span { color: var(--muted); }
-.req-ans input { margin-top: 2px; flex: none; }
+.req-ans { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 8px; }
+.req-ans label { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 9px 11px; border: 1px solid var(--line); border-radius: 10px;
+    font-size: 13px; font-weight: 400; color: var(--ink); cursor: pointer; background: #fff; min-width: 0; }
+.req-ans label:hover { border-color: #9fd3bd; }
+.req-ans label:has(input:checked) { border-color: var(--brand); background: #edf8f3; box-shadow: inset 0 0 0 1px var(--brand); }
+.req-ans .ans-txt { min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.req-ans .ans-txt b { font-size: 13.5px; }
+.req-ans .ans-txt span { color: var(--muted); line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; overflow-wrap: anywhere; }
+.req-ans-cuenta { font-size: 13px; color: var(--muted); font-weight: 400; margin-left: 6px; }
+/* Las casillas no toman el estilo de los campos de texto (label input = ancho completo y 38 px de alto) */
+main.req label input[type="checkbox"], #dlg-config label input[type="checkbox"] {
+    display: inline-block; width: 18px; height: 18px; min-height: 0; margin: 1px 0 0; padding: 0; flex: none; accent-color: var(--brand); }
 .req-plazo { max-width: 280px; margin-top: 12px; }
 .req-fotos { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 8px; }
 .req-fotos li { display: flex; gap: 10px; align-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; }

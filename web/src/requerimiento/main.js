@@ -104,6 +104,7 @@ function avisos() {
     if (!d.asunto) faltan.push('asunto');
     if (!d.eventoDesde) faltan.push('fecha del evento');
     var corchetes = pendientes([d.asunto, d.descripcion, d.ruta]);
+    $('f-ans-cuenta').textContent = d.ans.length ? '· ' + d.ans.length + (d.ans.length === 1 ? ' marcado' : ' marcados') + ': ANS ' + d.ans.join(', ') : '· ninguno marcado';
     $('f-avisos').innerHTML = (faltan.length ? '⚠ Falta: ' + esc(faltan.join(', ')) + '. ' : '') +
         (corchetes.length ? '⚠ Sin llenar: ' + esc(corchetes.slice(0, 3).join(' ')) + (corchetes.length > 3 ? '…' : '') : '') ||
         (fotos.length ? fotos.length + (fotos.length === 1 ? ' foto' : ' fotos') + ' de evidencia' : '');
@@ -233,7 +234,7 @@ async function cargarPlantillas() {
         return '<option value="' + i + '">' + esc(o.ref + ' — ' + o.t.slice(0, 70)) + '…</option>';
     }).join('');
     $('f-ans').innerHTML = Object.keys(P.ans).sort(function (a, b) { return a - b; }).map(function (n) {
-        return '<label title="' + esc(P.ans[n]) + '"><input type="checkbox" value="' + n + '"> <b>ANS ' + n + '</b> <span>' + esc(P.ans[n].slice(0, 90)) + '…</span></label>';
+        return '<label title="' + esc(P.ans[n]) + '"><input type="checkbox" value="' + n + '"><span class="ans-txt"><b>ANS ' + n + '</b><span>' + esc(P.ans[n]) + '</span></span></label>';
     }).join('');
     $('estado').hidden = !r.error;
     if (r.error) $('estado').textContent = 'Sin conexión: se usan las plantillas guardadas en este equipo.';
