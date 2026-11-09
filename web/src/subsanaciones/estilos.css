@@ -547,3 +547,20 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 }
 #dlg-auditoria .peligro-suave { color: #b91c1c; background: #fee2e2; }
 #dlg-auditoria .peligro-suave:hover { background: #fecaca; }
+
+/* Informes desde una tabla */
+#dlg-tabla textarea { width: 100%; margin-top: 10px; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre; overflow-x: auto; }
+#dlg-tabla .tabla-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+#dlg-tabla .tabla-botones button { flex: 1 1 160px; }
+.tabla-avisos { margin: 6px 0 0; padding-left: 18px; font-size: 13px; color: #9a3412; max-height: 120px; overflow: auto; }
+.tabla-avisos:empty { display: none; }
+.tabla-vista { margin-top: 10px; max-height: 260px; overflow: auto; border: 1px solid var(--line); border-radius: 8px; }
+.tabla-vista:empty { display: none; }
+.tabla-vista table { font-size: 12px; }
+.tabla-vista th, .tabla-vista td { padding: 5px 8px; white-space: nowrap; }
+.tabla-vista td.nov { white-space: normal; min-width: 180px; }
+.tabla-vista thead th { position: sticky; top: 0; z-index: 1; }
+.tabla-informes { margin-top: 14px; }
+.tabla-informes[hidden] { display: none; }
+.tabla-dia { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0 2px; }
+.tabla-dia select { flex: 1; min-width: 0; }

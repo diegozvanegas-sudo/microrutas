@@ -12,6 +12,7 @@ import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } f
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf } from './zippdf.js';
+import { leerTabla, diasDe } from './tabla.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2030,9 +2031,12 @@ export function iniciar(api, CFG) {
         ev.preventDefault();
         aplicarZoom(zoomXl * (ev.deltaY < 0 ? 1.1 : 1 / 1.1));
     }, { passive: false });
-    $('btn-excel').onclick = function () {
-        var lista = filtrados();
+    // listaExcel: lo que muestra y descarga la vista previa (lo filtrado, o lo pegado en «Informes desde una tabla»)
+    var listaExcel = [];
+    $('btn-excel').onclick = function () { abrirExcel(filtrados()); };
+    function abrirExcel(lista) {
         if (!lista.length) { toast('No hay registros para exportar.'); return; }
+        listaExcel = lista;
         hojasVista = hojasExcel(lista, items, itemsOp);
         $('excel-info').textContent = '· ' + lista.length + (lista.length === 1 ? ' visita' : ' visitas');
         $('excel-hojas').innerHTML = hojasVista.map(function (h, i) {
@@ -2040,7 +2044,7 @@ export function iniciar(api, CFG) {
         }).join('');
         verHoja(0);
         $('dlg-excel').showModal();
-    };
+    }
     $('excel-hojas').onclick = function (ev) { var b = ev.target.closest('[data-hoja]'); if (b) verHoja(+b.dataset.hoja); };
     $('excel-cerrar').onclick = function () { $('dlg-excel').close(); };
     // ⤢ / ⤡: ventana a pantalla completa o normal; queda como se dejó
@@ -2080,7 +2084,7 @@ export function iniciar(api, CFG) {
     $('excel-descargar').onclick = function () {
         var b = this;
         b.disabled = true;
-        exportarExcel(filtrados(), items, itemsOp)
+        exportarExcel(listaExcel, items, itemsOp)
             .catch(function (err) { toast('No se pudo generar el Excel: ' + err.message); })
             .then(function () { b.disabled = false; });
     };
@@ -2335,6 +2339,86 @@ export function iniciar(api, CFG) {
           });
     };
 
+    // ---------- Informes desde una tabla (src/subsanaciones/tabla.js) ----------
+    // Filas copiadas del Excel (o leídas de un pantallazo) → visitas → los mismos informes del resto de la página.
+    // No se guarda nada en la base
+    var tablaVisitas = [], tablaOcupado = false;
+    function fraseTabla(s) { s = String(s || '').trim().toLowerCase(); return s.charAt(0).toUpperCase() + s.slice(1); }
+    function leerTablaPegada() {
+        var r = leerTabla($('tabla-texto').value, items, itemsOp);
+        tablaVisitas = r.visitas;
+        var n = r.visitas.length, cuenta = {};
+        r.visitas.forEach(function (v) { cuenta[v.ESTADO] = (cuenta[v.ESTADO] || 0) + 1; });
+        var ej = r.visitas.filter(deLote).length, op = n - ej;
+        $('tabla-estado').innerHTML = !$('tabla-texto').value.trim() ? '' : !n ? '<span class="aviso-fotos">No se encontró ninguna microrruta (Z1CC0051…). Copie las filas desde el Excel.</span>' :
+            '<b>' + n + (n === 1 ? ' visita leída' : ' visitas leídas') + '</b>' + (r.imagen ? ' de la imagen' : r.encabezado ? ' con el encabezado' : ' (sin encabezado: con el orden del formato)') + ' · ' +
+            [ej ? ej + ' de lote ejecutado' : '', op ? op + ' de operación' : ''].filter(Boolean).join(' · ') + ' · ' +
+            Object.keys(cuenta).map(function (k) { return cuenta[k] + ' ' + k.toLowerCase(); }).join(' · ') +
+            (r.imagen ? '<br><span class="aviso-fotos">El lector de imágenes a veces cambia letras o números: revise la tabla antes de enviar.</span>' : '');
+        $('tabla-avisos').innerHTML = r.avisos.slice(0, 50).map(function (a) { return '<li>' + esc(a) + '</li>'; }).join('') +
+            (r.avisos.length > 50 ? '<li>… y ' + (r.avisos.length - 50) + ' avisos más</li>' : '');
+        $('tabla-vista').innerHTML = !n ? '' : '<table><thead><tr><th>Microrruta</th><th>Lote</th><th>Cuad.</th><th>Visita</th><th>Tipo</th><th>Estado</th><th>Novedades</th></tr></thead><tbody>' +
+            r.visitas.map(function (v) {
+                var nov = itemsEnNo(v).concat(String(v['ÍTEMS SUBSANADOS'] || '').split('|').filter(Boolean).map(function (i) { return i + ' (subsanado)'; }));
+                if (v['OBSERVACIONES NOVEDADES']) nov.push(v['OBSERVACIONES NOVEDADES']);
+                return '<tr><td>' + esc(v.MICRORRUTA) + '</td><td>' + esc(v.LOTE || '') + '</td><td>' + esc(v.CUADRILLA || '') + '</td><td>' + esc(v['FECHA DE LA VISITA'] || '') +
+                    '</td><td>' + (esOp(v) ? 'Operación' : 'Ejecutado') + '</td><td>' + badge(v.ESTADO) + '</td><td class="nov">' + esc(nov.map(fraseTabla).join(' · ')) + '</td></tr>';
+            }).join('') + '</tbody></table>';
+        var dias = diasDe(r.visitas), actual = $('tabla-dia').value;
+        $('tabla-dia').innerHTML = dias.map(function (d) { return '<option value="' + d + '">' + aTexto(d) + '</option>'; }).join('');
+        if (dias.indexOf(actual) !== -1) $('tabla-dia').value = actual;
+        $('tabla-informes').hidden = !n;
+    }
+    function mostrarInforme(texto, vacio) {
+        if (!texto) return toast(vacio);
+        $('wa-texto').value = texto;
+        actualizarEnlaceWa();
+        $('dlg-wa').showModal();
+    }
+    $('btn-tabla').onclick = function () { $('dlg-tabla').showModal(); if (!$('tabla-texto').value) $('tabla-texto').focus(); };
+    $('tabla-cerrar').onclick = function () { $('dlg-tabla').close(); };
+    $('tabla-texto').oninput = leerTablaPegada;
+    $('tabla-limpiar').onclick = function () { $('tabla-texto').value = ''; leerTablaPegada(); $('tabla-texto').focus(); };
+    $('tabla-pegar').onclick = function () {
+        if (!navigator.clipboard || !navigator.clipboard.readText) { $('tabla-texto').focus(); return toast('Mantenga presionado el cuadro y elija Pegar.'); }
+        navigator.clipboard.readText().then(function (t) { $('tabla-texto').value = t; leerTablaPegada(); },
+            function () { $('tabla-texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
+    };
+    // Pantallazo de la tabla: se saca el texto con el lector de imágenes (ocr.js) y se lee renglón por renglón
+    function leerTablaImagen(file) {
+        if (!file || tablaOcupado) return;
+        tablaOcupado = true;
+        $('tabla-elegir').disabled = true;
+        $('tabla-estado').textContent = 'Leyendo la imagen… (la primera vez se descarga el lector)';
+        leerImagenes([file]).then(function (res) {
+            var t = res[0] && res[0].texto;
+            if (!t) { $('tabla-estado').innerHTML = '<span class="aviso-fotos">No se pudo leer texto en la imagen.</span>'; return; }
+            $('tabla-texto').value = t;
+            leerTablaPegada();
+        }).catch(function (e) { $('tabla-estado').innerHTML = '<span class="aviso-fotos">' + esc(e.message || 'No se pudo leer la imagen.') + '</span>'; })
+          .then(function () { tablaOcupado = false; $('tabla-elegir').disabled = false; });
+    }
+    $('tabla-elegir').onclick = function () { $('tabla-imagen').value = ''; $('tabla-imagen').click(); };
+    $('tabla-imagen').onchange = function () { leerTablaImagen(this.files && this.files[0]); };
+    $('dlg-tabla').addEventListener('paste', function (ev) {
+        var f = ev.clipboardData && ev.clipboardData.files && ev.clipboardData.files[0];
+        if (f && /^image\//.test(f.type)) { ev.preventDefault(); leerTablaImagen(f); }
+    });
+    $('tabla-informes').onclick = function (ev) {
+        var b = ev.target.closest('[data-informe]');
+        if (!b || !tablaVisitas.length) return;
+        var dia = aTexto($('tabla-dia').value), delDia = tablaVisitas.filter(function (r) { return r['FECHA DE LA VISITA'] === dia; });
+        var pend = tablaVisitas.filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
+        switch (b.dataset.informe) {
+            case 'resumen': return mostrarInforme(pend.length ? textoResumen(pend) : '', 'No hay pendientes en la tabla.');
+            case 'novedades': return mostrarInforme(textoNovedadesDia(delDia, dia, menciones()), 'El ' + dia + ' no tiene novedades en la tabla.');
+            case 'dia': return mostrarInforme(delDia.length ? textoDia(delDia, dia) : '', 'El ' + dia + ' no tiene visitas en la tabla.');
+            case 'descuento': return mostrarInforme(textoDescuento(tablaVisitas), 'Ninguna visita de la tabla va para descuento.');
+            case 'vencimientos': return mostrarInforme(textoVencimientos(vencimientos(tablaVisitas), aTexto(hoy())), 'No hay pendientes con plazo en la tabla.');
+            case 'excel': return abrirExcel(tablaVisitas);
+        }
+    };
+
     // ---------- ZIP a PDF (src/subsanaciones/zippdf.js) ----------
     var zipOcupado = false;
     function elegidosZip() { return Array.prototype.slice.call($('zip-archivos').files || []); }
@@ -2372,7 +2456,7 @@ export function iniciar(api, CFG) {
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|fotos|zip|nota|ocr)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         btn.onclick();

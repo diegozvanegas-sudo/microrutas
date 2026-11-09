@@ -51,6 +51,7 @@
             <!-- Agrupado por para qué sirve: cada grupo una sola tarea -->
             <div class="titulo-menu">Subsanaciones</div>
             <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
+            <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <hr>
             <div class="titulo-menu">Crear archivos</div>
@@ -333,6 +334,39 @@
     </div>
 </dialog>
 <!-- Imágenes a texto (src/subsanaciones/ocr.js): se leen en este equipo, en el orden de los nombres -->
+<!-- Informes desde una tabla (src/subsanaciones/tabla.js): no guarda nada, solo lee lo pegado -->
+<dialog id="dlg-tabla">
+    <div class="cuerpo">
+        <h2>📥 Informes desde una tabla</h2>
+        <div class="sub">Copie las filas en el Excel (mejor con el encabezado) y péguelas aquí, o lea un pantallazo de la tabla.
+            Sirve para lote ejecutado y para operación. No se guarda nada en la base: solo se sacan los informes.</div>
+        <textarea id="tabla-texto" rows="6" placeholder="Pegue aquí las filas copiadas del Excel (Ctrl+V)" aria-label="Filas copiadas del Excel" spellcheck="false"></textarea>
+        <input type="file" id="tabla-imagen" accept="image/*" hidden>
+        <div class="tabla-botones">
+            <button type="button" class="secundario" id="tabla-pegar">📋 Pegar</button>
+            <button type="button" class="secundario" id="tabla-elegir">🖼️ Leer de una imagen</button>
+            <button type="button" class="secundario" id="tabla-limpiar">Borrar</button>
+        </div>
+        <div class="fotos-resumen" id="tabla-estado" aria-live="polite"></div>
+        <ul class="tabla-avisos" id="tabla-avisos"></ul>
+        <div class="tabla-vista" id="tabla-vista"></div>
+        <div class="tabla-informes" id="tabla-informes" hidden>
+            <div class="titulo-menu">Informes</div>
+            <label class="tabla-dia">Día <select id="tabla-dia" aria-label="Día para los informes del día"></select></label>
+            <div class="tabla-botones">
+                <button type="button" class="secundario" data-informe="resumen" title="Todas las novedades pendientes, por cuadrilla">📋 Resumen de pendientes</button>
+                <button type="button" class="secundario" data-informe="novedades" title="Formato de interventoría del día elegido, con los requerimientos">📊 Novedades del día</button>
+                <button type="button" class="secundario" data-informe="dia" title="Lotes revisados el día elegido, por cuadrilla">🗒️ Resumen de visitas del día</button>
+                <button type="button" class="secundario" data-informe="descuento" title="Pendientes con el plazo vencido o no subsanables">💸 Para descuento</button>
+                <button type="button" class="secundario" data-informe="vencimientos" title="Cuántas vencen pronto y cuántas ya pasaron el plazo">⏰ Vencimientos</button>
+                <button type="button" class="secundario" data-informe="excel" title="Excel con el formato de interventoría (vista previa, copiar filas o descargar)">📗 Excel</button>
+            </div>
+        </div>
+        <div class="pie">
+            <button type="button" class="secundario" id="tabla-cerrar">Cerrar</button>
+        </div>
+    </div>
+</dialog>
 <dialog id="dlg-ocr">
     <div class="cuerpo">
         <h2>🔤 Imágenes a texto</h2>
