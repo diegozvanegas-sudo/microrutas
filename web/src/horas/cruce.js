@@ -59,6 +59,16 @@ export function ruta(v) { return texto(v).replace(/\s+/g, '').replace(/^0+(?=\d)
 export function cedula(v) { return texto(v).replace(/\D/g, ''); }
 // Control del vehículo: el número de la columna Camión del cumplimiento ("635 - ABC123" -> "635")
 export function control(v) { return ruta(texto(v).split('-')[0]); }
+// Todos los controles de la celda: "564 - WMQ310, 572 - WMQ316" -> ['564', '572']; "564-572" -> ['564', '572'] (las placas no cuentan)
+export function controles(v) {
+    return texto(v).split(/[,;/-]/).map(function (x) { return x.trim(); }).filter(function (x) { return /^\d+$/.test(x); })
+        .map(ruta).filter(function (x, i, a) { return a.indexOf(x) === i; });
+}
+// ¿Comparten algún control? (si alguno de los dos no trae, no se puede decir que sean distintos)
+export function mismoControl(a, b) {
+    var x = controles(a), y = controles(b);
+    return !x.length || !y.length || x.some(function (k) { return y.indexOf(k) >= 0; });
+}
 
 // Fila de encabezados -> { clave: número de columna }. claves: { fecha: ['fecha'], ... } con los nombres planos aceptados
 export function columnas(encabezados, claves) {
@@ -71,7 +81,7 @@ export function columnas(encabezados, claves) {
     return r;
 }
 export var COLUMNAS_EXTRAS = {
-    fecha: ['fecha'], ruta: ['ruta'], control: ['control'], cargo: ['cargo'], cedula: ['cedula', 'cc', 'documento'], nombre: ['nombre'],
+    fecha: ['fecha'], ruta: ['ruta'], control: ['control'], cargo: ['cargo'], cedula: ['cedula', 'cc', 'documento'], nombre: ['nombre', 'nombres'], apellido: ['apellido', 'apellidos'],
     hi: ['hi', 'horainicio'], hf: ['hf', 'horafin'], extra: ['hextra', 'horaextra', 'hext'], real: ['hreal', 'horareal'],
     // Distribución de las horas extras (distribucion.js): ordinaria y festiva, diurna y nocturna
     od: ['od'], on: ['on'], fd: ['fd'], fn: ['fn'],
@@ -105,7 +115,7 @@ export function leerExtras(hoja) {
     }
     return { cols: c, encabezado: t.encabezado, filas: t.filas.map(function (f) {
         return { fila: f.fila, fecha: fechaIso(val(f, 'fecha')), ruta: ruta(val(f, 'ruta')), rutaVer: texto(val(f, 'ruta')).trim(), control: texto(val(f, 'control')).trim(), cargo: texto(val(f, 'cargo')).trim(),
-            cedula: cedula(val(f, 'cedula')), nombre: texto(val(f, 'nombre')).trim(), hi: minutos(val(f, 'hi')), hf: minutos(val(f, 'hf')), extra: minutos(val(f, 'extra')) };
+            cedula: cedula(val(f, 'cedula')), nombre: [texto(val(f, 'apellido')).trim(), texto(val(f, 'nombre')).trim()].filter(Boolean).join(' '), hi: minutos(val(f, 'hi')), hf: minutos(val(f, 'hf')), extra: minutos(val(f, 'extra')) };
     }).filter(function (e) { return e.cedula || e.nombre; }) };
 }
 // Hoja del reporte de cumplimiento -> [{ fecha, real, codigo, camion, control, dotacion }]
@@ -187,7 +197,7 @@ export function cruzar(extras, cumplimiento, tolerancia) {
             // (entre 4 horas antes y 6 después de la H.F); sin H.I o H.F no se puede saber cuál es
             candidatos = e.hi == null || e.hf == null ? [] : delDia.filter(function (c) {
                 var d = c.real == null ? null : desde(e.hi, c.real) - desde(e.hi, e.hf);
-                return c.control && c.control === ruta(e.control) && d != null && d >= -240 && d <= 360;
+                return controles(c.camion).length && mismoControl(c.camion, e.control) && d != null && d >= -240 && d <= 360;
             });
             if (candidatos.length) como = 'control';
         }
@@ -213,7 +223,7 @@ export function cruzar(extras, cumplimiento, tolerancia) {
             rutaReal: ref ? ref.codigoVer || ref.codigo : '', controlReal: ref ? ref.camion : '',
             // Ruta o control distintos a los del cumplimiento (si alguno de los dos no lo trae, no se marca)
             difRuta: !!ref && !!e.ruta && !!ref.codigo && ref.codigo !== e.ruta,
-            difControl: !!ref && !!e.control && !!ref.control && ref.control !== ruta(e.control),
+            difControl: !!ref && !mismoControl(ref.camion, e.control),
             diferencia: dif, extraReportada: extra(e.hi, e.hf, e.extra), extraReal: extra(e.hi, e.hf, real),
         });
     });
@@ -241,7 +251,7 @@ export function completarTripulantes(filas, tolerancia) {
     return filas.map(function (f) {
         if (f.real != null) return f;
         var c = conHora.filter(function (k) {
-            return k !== f && k.fecha === f.fecha && k.ruta && k.ruta === f.ruta && (!k.control || !f.control || ruta(k.control) === ruta(f.control));
+            return k !== f && k.fecha === f.fecha && k.ruta && k.ruta === f.ruta && mismoControl(k.control, f.control);
         }).sort(function (a, b) { return esConductor(b) - esConductor(a); })[0];
         if (!c) return f;
         var dif = diferencia(f.hi, f.extra, c.real);

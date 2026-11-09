@@ -7,9 +7,10 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, completarTripulantes, esConductor, fechasSinCumplimiento } from './cruce.js';
+import { conHorario, horarioTripulacion } from './horario.js';
 import { distribuir, enHoras, MINIMO } from './distribucion.js';
 import { hojaVista, COLOR_REAL, COLOR_REPORTADA, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
-import { revisarHorario, textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
+import { textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
 import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
 
@@ -99,10 +100,10 @@ async function procesar() {
         // Conductores y tripulantes, cada uno por su cédula. El tripulante sin hora propia toma la del conductor de su
         // ruta y control (queda para revisar)
         var tol = +$('tolerancia').value || 0;
-        filas = completarTripulantes(cruzar(extras.filas, cumplimiento, tol), tol).map(function (f) {
+        filas = horarioTripulacion(completarTripulantes(cruzar(extras.filas, cumplimiento, tol), tol).map(function (f) {
             // Se escribe por defecto lo encontrado por cédula; lo encontrado por ruta o por el conductor queda para revisar
-            return Object.assign(f, { usar: f.real != null && f.como === 'cedula' }, revisarHorario(f, horarios));
-        });
+            return Object.assign(f, { usar: f.real != null && f.como === 'cedula' }, conHorario(f, horarios));
+        }), horarios);
         $('estado').hidden = true;
         $('resultado').hidden = false;
         pintar();
@@ -165,6 +166,7 @@ function pintar() {
                 f.como === 'companero' ? 'hora del compañero de la ruta (' + f.conductor + '): revísela' : '',
                 f.otrosDias && f.otrosDias.length ? 'aparece el ' + f.otrosDias.map(fechaVer).join(', ') + ', no el ' + fechaVer(f.fecha) : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
                 f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
+                f.rutaHorario ? 'H.I y H.F revisadas con el horario de la ruta ' + f.rutaHorario + (f.horarioDe ? ', la de su compañero ' + f.horarioDe : ' del cumplimiento') : '',
                 horarios && !f.horario && /^\d+$/.test(f.ruta) ? 'la ruta no está en los horarios' : '']
                 .filter(Boolean);
             return '<tr class="' + est[1] + '" data-i="' + i + '">' +

@@ -123,3 +123,53 @@ test('conductor sin hora toma la del tripulante de su ruta si no hay conductor c
     ], 5);
     assert.deepEqual([r[0].real, r[0].como, r[0].conductor], [1004, 'companero', 'Tripulante B']);
 });
+
+import { controles, mismoControl } from '../src/horas/cruce.js';
+import { conHorario } from '../src/horas/horario.js';
+test('horas: varios controles en la misma celda', () => {
+    assert.deepEqual(controles('564 - WMQ310, 572 - WMQ316'), ['564', '572']);
+    assert.deepEqual(controles('564-572'), ['564', '572']);
+    assert.deepEqual(controles('673/660'), ['673', '660']);
+    assert.deepEqual(controles('0565 - JKL012'), ['565']);
+    assert.ok(mismoControl('572', '564 - WMQ310, 572 - WMQ316') && mismoControl('564-572', '572 - X') && !mismoControl('623', '425 - QLM046') && mismoControl('', '425 - X'));
+});
+
+test('horas: apellido y nombre en columnas separadas', () => {
+    const hoja = [[], [null, 'FECHA', 'ZONA', 'RUTA', 'CONTROL', 'CARGO', 'CEDULA', 'APELLIDO', 'NOMBRE', 'H.I', 'H.F', 'H. EXTRA', 'H.REAL'],
+        [null, new Date(Date.UTC(2026, 9, 27)), 6, 61301, 691, 'CONDUCTOR', 77777777, 'PEREZ RUIZ', 'ANA MARIA', hora(5, 0), hora(13, 0), hora(14, 10)]];
+    const ex = leerExtras(hoja);
+    assert.deepEqual([ex.filas[0].nombre, ex.filas[0].ruta, ex.cols.real], ['PEREZ RUIZ ANA MARIA', '61301', 12]);
+    // Solo los nombres de pila no bastan: "ANA MARIA" no es "GOMEZ, ANA MARIA" si el apellido no está
+    assert.ok(!estaPorNombre('PEREZ RUIZ ANA MARIA', '1 GOMEZ DIAZ, ANA MARIA') && estaPorNombre('PEREZ RUIZ ANA MARIA', '1 PEREZ RUIZ, ANA MARIA'));
+});
+
+test('horas: horario revisado con la ruta del cumplimiento si la del reporte está mal escrita', () => {
+    const horarios = { rutas: { '616301': { ruta: '616301', dias: [], horas: [300], porDia: {} } } };
+    const f = { fecha: '2026-10-27', ruta: '61301', rutaReal: '0616301', difRuta: true, como: 'cedula', hi: 300, hf: 780 };
+    const r = conHorario(f, horarios);
+    assert.deepEqual([!!r.horario, r.difHi, r.difHf, r.rutaHorario], [true, false, false, '0616301']);
+    // Encontrada solo por la ruta (no por la persona): no se cambia de ruta
+    assert.equal(conHorario({ ...f, como: 'ruta' }, horarios).horario, null);
+    // Con la ruta del reporte sí cuadra (el tripulante salió en otra ruta en otro turno): se queda con la del reporte
+    const dos = { rutas: { ...horarios.rutas, '61301': { ruta: '61301', dias: [], horas: [300], porDia: {} }, '790121': { ruta: '790121', dias: [], horas: [1380], porDia: {} } } };
+    const t = conHorario({ ...f, rutaReal: '0790121' }, dos);
+    assert.deepEqual([t.difHi, t.rutaHorario], [false, '']);
+    // Con ninguna cuadra: se queda con la del reporte y se marca
+    const u = conHorario({ ...f, hi: 600, hf: 1080, rutaReal: '0790121' }, dos);
+    assert.deepEqual([u.difHi, u.rutaHorario], [true, '']);
+    // La misma ruta: como siempre
+    const g = conHorario({ ...f, ruta: '616301', difRuta: false, hi: 360, hf: 840 }, horarios);
+    assert.deepEqual([g.difHi, g.difHf, g.rutaHorario], [true, true, '']);
+});
+
+import { horarioTripulacion } from '../src/horas/horario.js';
+test('horas: el tripulante que no cuadra se revisa con la ruta de su conductor del mismo turno', () => {
+    const horarios = { rutas: { '118919': { ruta: '118919', dias: [], horas: [1200], porDia: {} }, '790121': { ruta: '790121', dias: [], horas: [1380], porDia: {} } } };
+    const base = { fecha: '2026-10-26', ruta: '118901', control: '640', hi: 1200, hf: 240, difRuta: true, como: 'cedula' };
+    const filas = [{ ...base, cargo: 'CONDUCTOR', nombre: 'Conductor A', rutaReal: '0118919' }, { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante B', rutaReal: '0790121' },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante C', control: '999', rutaReal: '0790121' }].map(f => Object.assign(f, conHorario(f, horarios)));
+    assert.deepEqual([filas[0].difHi, filas[1].difHi], [false, true]);
+    const r = horarioTripulacion(filas, horarios);
+    assert.deepEqual([r[1].difHi, r[1].rutaHorario, r[1].horarioDe], [false, '0118919', 'Conductor A']);
+    assert.equal(r[2].difHi, true);      // otro control: no es su tripulación
+});
