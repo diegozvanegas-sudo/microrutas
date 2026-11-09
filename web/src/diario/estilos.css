@@ -118,3 +118,7 @@ details.hechos > summary { cursor: pointer; color: var(--muted); font-weight: 60
     main.pendientes .nuevo { position: sticky; top: 12px; }
     main.pendientes .nota-privada { grid-column: 1 / -1; }
 }
+
+/* Margen interno de todas las ventanas: nada pegado al borde (cada ventana puede cambiarlo con su id) */
+dialog > .cuerpo { padding: 18px; }
+@media (max-width: 560px) { dialog > .cuerpo { padding: 14px; } }

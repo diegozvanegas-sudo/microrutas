@@ -2504,6 +2504,12 @@ export function iniciar(api, CFG) {
     }
     $('btn-tabla').onclick = function () { $('dlg-tabla').showModal(); if (!$('tabla-texto').value) $('tabla-texto').focus(); };
     $('tabla-cerrar').onclick = function () { $('dlg-tabla').close(); };
+    // Al cerrar queda vacía para la próxima tabla
+    $('dlg-tabla').addEventListener('close', function () {
+        if (tablaOcupado) return;
+        $('tabla-texto').value = ''; $('tabla-imagen').value = '';
+        leerTablaPegada();
+    });
     $('tabla-texto').oninput = leerTablaPegada;
     $('tabla-limpiar').onclick = function () { $('tabla-texto').value = ''; leerTablaPegada(); $('tabla-texto').focus(); };
     $('tabla-pegar').onclick = function () {
@@ -2580,7 +2586,11 @@ export function iniciar(api, CFG) {
             porLote[k]++;
         });
         var revisar = cuenta['fl-revisar'] + cuenta['fl-falta'], solo = $('fl-solo').checked && revisar;
+        var sinLote = lista.filter(function (f) { return !f.rotulo; }).length, sinGps = lista.filter(function (f) { return !f.gps && !f.marcaLeida; }).length;
         $('fl-solo-caja').hidden = !revisar;
+        $('fl-ayuda').hidden = !sinLote;
+        $('fl-leer-marca').hidden = !sinGps;
+        $('fl-leer-marca').textContent = '🔎 Leer la marca de agua de ' + (sinGps === 1 ? 'la foto sin GPS' : 'las ' + sinGps + ' fotos sin GPS');
         $('fl-resumen').innerHTML = !lista.length ? '' : '<div class="fl-cuentas">' +
             '<b>' + lista.length + (lista.length === 1 ? ' foto' : ' fotos') + '</b>' +
             (cuenta['fl-ok'] ? '<span class="fl-chip fl-ok">✓ ' + cuenta['fl-ok'] + ' dentro</span>' : '') +
@@ -2598,6 +2608,38 @@ export function iniciar(api, CFG) {
         }).join('');
         $('fl-convertir').disabled = !lista.length || flOcupado;
     }
+    // Sin GPS en el archivo (p. ej. fotos de WhatsApp): coordenadas de la marca de agua con el lector de imágenes
+    async function leerMarcasFotoLote(lista) {
+        var sinGps = lista.filter(function (f) { return !f.gps && !f.marcaLeida; });
+        if (!sinGps.length || !window.leerCoordenadas) return;
+        var leidas = await leerImagenes(sinGps.map(function (f) { return f.archivo; }), function (i, t) { $('fl-resumen').textContent = 'Leyendo la marca de agua ' + (i + 1) + ' de ' + t + '…'; });
+        leidas.forEach(function (r, i) {
+            var c = r.texto && window.leerCoordenadas(r.texto);
+            sinGps[i].marcaLeida = true;
+            if (c) { sinGps[i].gps = { lat: c.lat, lon: c.lng }; sinGps[i].deMarca = true; }
+        });
+    }
+    // Lote de cada foto con GPS (las escritas a mano no se tocan) y nombre del PDF
+    async function ubicarFotoLote(lista) {
+        for (var i = 0; i < lista.length; i++) {
+            var f = lista[i];
+            $('fl-resumen').textContent = 'Buscando el lote de cada foto: ' + (i + 1) + ' de ' + lista.length + '…';
+            if (f.gps && !f.ubic) f.ubic = await ubicarLote(f.gps.lat, f.gps.lon);
+            if (!f.manual) f.rotulo = rotuloLote(f.ubic);
+        }
+        var r1 = flFotos.map(function (f) { return f.rotulo; }).filter(Boolean);
+        $('fl-nombre').value = (r1.length && r1.every(function (r) { return r === r1[0]; }) ? r1[0].replace(/ · /g, ' ') : 'Fotos con lote') + ' ' + new Date().toISOString().slice(0, 10);
+    }
+    // Volver a empezar: al cerrar la ventana queda vacía para la próxima vez (las opciones elegidas se conservan)
+    function limpiarFotoLote() {
+        if (flOcupado) return;
+        flFotos = [];
+        ['fl-fotos', 'fl-carpeta', 'fl-zip'].forEach(function (id) { $(id).value = ''; });
+        $('fl-todas').value = '';
+        $('fl-solo').checked = false;
+        $('fl-nombre').value = 'Fotos con lote ' + new Date().toISOString().slice(0, 10);
+        listarFotoLote();
+    }
     async function cargarFotoLote(archivos) {
         if (flOcupado) return;
         flOcupado = true;
@@ -2607,23 +2649,8 @@ export function iniciar(api, CFG) {
             if (!archivos.length) { flFotos = []; listarFotoLote(); $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se encontraron fotos.</span>'; return; }
             $('fl-resumen').textContent = 'Leyendo ' + archivos.length + ' fotos…';
             flFotos = await examinar(archivos);
-            // Sin GPS en el archivo: si se pidió, coordenadas de la marca de agua con el lector de imágenes
-            var sinGps = flFotos.filter(function (f) { return !f.gps; });
-            if (sinGps.length && $('fl-marca').checked && window.leerCoordenadas) {
-                var leidas = await leerImagenes(sinGps.map(function (f) { return f.archivo; }), function (i, t) { $('fl-resumen').textContent = 'Leyendo la marca de agua ' + (i + 1) + ' de ' + t + '…'; });
-                leidas.forEach(function (r, i) {
-                    var c = r.texto && window.leerCoordenadas(r.texto);
-                    if (c) { sinGps[i].gps = { lat: c.lat, lon: c.lng }; sinGps[i].deMarca = true; }
-                });
-            }
-            for (var i = 0; i < flFotos.length; i++) {
-                var f = flFotos[i];
-                $('fl-resumen').textContent = 'Buscando el lote de cada foto: ' + (i + 1) + ' de ' + flFotos.length + '…';
-                if (f.gps) f.ubic = await ubicarLote(f.gps.lat, f.gps.lon);
-                f.rotulo = rotuloLote(f.ubic);
-            }
-            var r1 = flFotos.map(function (f) { return f.rotulo; }).filter(Boolean);
-            $('fl-nombre').value = (r1.length && r1.every(function (r) { return r === r1[0]; }) ? r1[0].replace(/ · /g, ' ') : 'Fotos con lote') + ' ' + new Date().toISOString().slice(0, 10);
+            if ($('fl-marca').checked) await leerMarcasFotoLote(flFotos);
+            await ubicarFotoLote(flFotos);
         } catch (e) {
             $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se pudieron leer las fotos: ' + esc(e.message) + '</span>';
             flFotos = [];
@@ -2633,10 +2660,33 @@ export function iniciar(api, CFG) {
         listarFotoLote();
     }
     $('btn-fotolote').onclick = function () {
-        if (!flOcupado && !flFotos.length) { $('fl-nombre').value = 'Fotos con lote ' + new Date().toISOString().slice(0, 10); listarFotoLote(); }
+        if (!flOcupado) limpiarFotoLote();
         $('dlg-fotolote').showModal();
     };
     $('fl-cerrar').onclick = function () { $('dlg-fotolote').close(); };
+    // Cerrar con el botón, con Esc o tocando afuera: la próxima vez abre vacía
+    $('dlg-fotolote').addEventListener('close', limpiarFotoLote);
+    // Fotos que llegaron sin GPS: leer la marca de agua ahora, sin volver a elegirlas
+    $('fl-leer-marca').onclick = async function () {
+        if (flOcupado) return;
+        flOcupado = true;
+        this.disabled = $('fl-convertir').disabled = true;
+        try { await leerMarcasFotoLote(flFotos); await ubicarFotoLote(flFotos); }
+        catch (e) { toast('No se pudo leer la marca de agua: ' + e.message); }
+        finally { flOcupado = false; this.disabled = false; listarFotoLote(); }
+    };
+    // Un mismo lote para todas las fotos que no tienen (p. ej. un .zip de un solo lote sin GPS)
+    $('fl-aplicar').onclick = function () {
+        var r = rotuloEscrito($('fl-todas').value);
+        if (!r) { $('fl-todas').focus(); return toast('Escriba el lote o la microrruta.'); }
+        var n = 0;
+        flFotos.forEach(function (f) { if (!f.rotulo) { f.rotulo = r; f.manual = true; n++; } });
+        toast(n ? r + ' en ' + n + (n === 1 ? ' foto' : ' fotos') + '.' : 'Todas las fotos ya tienen lote.');
+        $('fl-todas').value = '';
+        ubicarFotoLote([]);
+        listarFotoLote();
+    };
+    $('fl-todas').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); $('fl-aplicar').click(); } });
     $('fl-elegir-fotos').onclick = function () { $('fl-fotos').value = ''; $('fl-fotos').click(); };
     $('fl-elegir-carpeta').onclick = function () { $('fl-carpeta').value = ''; $('fl-carpeta').click(); };
     $('fl-elegir-zip').onclick = function () { $('fl-zip').value = ''; $('fl-zip').click(); };

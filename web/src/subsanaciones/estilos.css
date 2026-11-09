@@ -71,6 +71,9 @@ td.acciones { white-space: nowrap; width: 1%; text-align: right; }
 .cargando { padding: 30px; text-align: center; color: var(--muted); }
 dialog { border: 0; border-radius: 14px; padding: 0; width: min(820px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 50px rgba(15, 45, 35, .3); }
 dialog::backdrop { background: rgba(15, 30, 25, .45); }
+/* Margen interno de todas las ventanas: nada pegado al borde (cada ventana puede cambiarlo con su id) */
+dialog > .cuerpo { padding: 18px; }
+@media (max-width: 560px) { dialog > .cuerpo { padding: 14px; } }
 /* Con un formulario abierto la página de atrás no se mueve; el scroll se queda dentro del formulario */
 html:has(dialog[open]) { overflow: hidden; }
 dialog { overscroll-behavior: contain; }
@@ -625,3 +628,9 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 #prog-especiales { margin-top: 12px; }
 #prog-especiales h3 { font-size: 15px; margin: 0 0 6px; }
 #prog-especiales li { font-size: 13.5px; margin: 4px 0; }
+
+.fl-ayuda { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; }
+.fl-ayuda[hidden] { display: none; }
+.fl-ayuda .fl-todas { display: flex; gap: 8px; flex-wrap: wrap; }
+.fl-ayuda .fl-todas input { flex: 1 1 200px; min-width: 0; min-height: 38px; }
+.fl-ayuda button { min-height: 38px; }

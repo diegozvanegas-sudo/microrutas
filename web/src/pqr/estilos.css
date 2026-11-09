@@ -206,3 +206,7 @@ html:has(dialog[open]) { overflow: hidden; }
     #vista-pqr:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 14px; align-items: start; }
     #vista-pqr > :not(.tarjeta-pqr) { grid-column: 1 / -1; }
 }
+
+/* Margen interno de todas las ventanas: nada pegado al borde (cada ventana puede cambiarlo con su id) */
+dialog > .cuerpo { padding: 18px; }
+@media (max-width: 560px) { dialog > .cuerpo { padding: 14px; } }

@@ -476,6 +476,13 @@
             <label class="fotos-check"><input type="checkbox" id="fl-reducir" checked> Reducir peso (para enviar por WhatsApp)</label>
         </div>
         <div class="fotos-resumen" id="fl-resumen" aria-live="polite"></div>
+        <div class="fl-ayuda" id="fl-ayuda" hidden>
+            <button type="button" class="secundario" id="fl-leer-marca" hidden>🔎 Leer la marca de agua de las fotos sin GPS</button>
+            <div class="fl-todas">
+                <input type="text" id="fl-todas" placeholder="Lote para todas las fotos sin lote (p. ej. 110)" aria-label="Lote para todas las fotos sin lote" autocomplete="off">
+                <button type="button" class="secundario" id="fl-aplicar">Poner</button>
+            </div>
+        </div>
         <label class="fotos-check fl-solo" id="fl-solo-caja" hidden><input type="checkbox" id="fl-solo"> Ver solo las que hay que revisar</label>
         <ol class="zip-informe fl-lista" id="fl-lista"></ol>
         <div class="pie">
