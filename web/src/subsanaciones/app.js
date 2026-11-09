@@ -13,7 +13,6 @@ import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
-import { coordenadasMarca, fechaMarca, recorteMarca } from './marcaagua.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
@@ -2733,8 +2732,8 @@ export function iniciar(api, CFG) {
     // afuera a más metros (naranja: revisar) o sin lote (rojo: escribirlo). [clase, ícono, texto]
     var BORDE_GPS = 10;
     function estadoFotoLote(f) {
-        if (f.manual) return f.rotulo ? ['fl-ok', '✎', f.deArriba ? 'Lote escrito arriba' : f.deZip ? 'Lote del nombre de «' + origenFoto(f) + '»' : 'Escrito a mano'] : ['fl-falta', '✎', 'Sin rótulo (se borró)'];
-        if (!$('fl-auto').checked && !f.ubic) return ['fl-falta', '⚠', 'Sin lote: escríbalo arriba en «Lote de estas fotos»'];
+        if (f.manual) return f.rotulo ? ['fl-ok', '✎', f.deArriba ? 'Lote escrito arriba' : f.deZip ? 'Lote del nombre «' + f.origenLote + '»' : 'Escrito a mano'] : ['fl-falta', '✎', 'Sin rótulo (se borró)'];
+        if (!f.ubic) return ['fl-falta', '⚠', origenesFoto(f).length ? '«' + origenesFoto(f)[0] + '» no trae un lote de la programación: escríbalo arriba' : 'Sin lote: escríbalo arriba en «Lote de estas fotos»'];
         if (f.ubic && !f.ubic.dist) return ['fl-ok', '✓', 'Dentro del lote' + (f.deMarca ? ' · GPS de la marca de agua' : '')];
         if (f.ubic && f.ubic.dist <= BORDE_GPS) return ['fl-borde', '✓', 'En el borde (a ' + f.ubic.dist + ' m)' + (f.deMarca ? ' · GPS de la marca de agua' : '')];
         if (f.ubic) return ['fl-revisar', '!', 'A ' + f.ubic.dist + ' m del lote: revíselo'];
@@ -2753,11 +2752,9 @@ export function iniciar(api, CFG) {
             porLote[k]++;
         });
         var revisar = cuenta['fl-revisar'] + cuenta['fl-falta'], solo = $('fl-solo').checked && revisar;
-        var sinLote = lista.filter(function (f) { return !f.rotulo; }).length, sinGps = lista.filter(function (f) { return !f.gps && !f.marcaLeida; }).length;
+        var sinLote = lista.filter(function (f) { return !f.rotulo; }).length;
         $('fl-solo-caja').hidden = !revisar;
         $('fl-ayuda').hidden = !sinLote;
-        $('fl-leer-marca').hidden = !sinGps || !$('fl-auto').checked;
-        $('fl-leer-marca').textContent = '🔎 Leer la marca de agua de ' + (sinGps === 1 ? 'la foto sin GPS' : 'las ' + sinGps + ' fotos sin GPS');
         $('fl-resumen').innerHTML = !lista.length ? '' : '<div class="fl-cuentas">' +
             '<b>' + lista.length + (lista.length === 1 ? ' foto' : ' fotos') + '</b>' +
             (escritos ? '<span class="fl-chip fl-ok">✓ ' + escritos + ' con el lote escrito</span>' : '') +
@@ -2776,28 +2773,6 @@ export function iniciar(api, CFG) {
         }).join('');
         $('fl-convertir').disabled = !lista.length || flOcupado;
     }
-    // Sin GPS en el archivo (p. ej. fotos de WhatsApp): coordenadas y fecha de la marca de agua (marcaagua.js).
-    // Se lee solo la franja de abajo con la letra blanca resaltada; las que no salen se intentan con otro umbral
-    async function leerMarcasFotoLote(lista) {
-        var pendientes = lista.filter(function (f) { return !f.gps && !f.marcaLeida; }), total = pendientes.length;
-        for (var pasada = 0; pasada < 2 && pendientes.length; pasada++) {
-            var recortes = [];
-            for (var i = 0; i < pendientes.length; i++) {
-                $('fl-resumen').textContent = 'Preparando la marca de agua ' + (i + 1) + ' de ' + pendientes.length + '…';
-                try { recortes.push(await recorteMarca(pendientes[i].archivo, pasada ? 175 : 205)); } catch (e) { recortes.push(pendientes[i].archivo); }
-            }
-            var leidas = await leerImagenes(recortes, function (k, t) {
-                $('fl-resumen').textContent = (pasada ? 'Segunda lectura' : 'Leyendo la marca de agua') + ': ' + (k + 1) + ' de ' + t + (pasada ? '' : ' (de ' + total + ' sin GPS)') + '…';
-            });
-            leidas.forEach(function (r, k) {
-                var f = pendientes[k], c = coordenadasMarca(r.texto) || (window.leerCoordenadas && window.leerCoordenadas(r.texto)), fe = fechaMarca(r.texto);
-                if (c) { f.gps = { lat: c.lat, lon: c.lon != null ? c.lon : c.lng }; f.deMarca = true; }
-                if (fe && !f.fecha) f.fecha = fe;
-            });
-            pendientes = pendientes.filter(function (f) { return !f.gps; });
-        }
-        lista.forEach(function (f) { if (!f.gps) f.marcaLeida = true; });
-    }
     // Lote de cada foto con GPS (las escritas a mano no se tocan) y nombre del PDF
     async function ubicarFotoLote(lista) {
         for (var i = 0; i < lista.length; i++) {
@@ -2812,9 +2787,18 @@ export function iniciar(api, CFG) {
     // Volver a empezar: al cerrar la ventana queda vacía para la próxima vez (las opciones elegidas se conservan)
     // Lote en el nombre del .zip o de la carpeta de cada foto (118.zip, carpeta «Lote 118»). Si todas vienen del mismo, va arriba
     function existeLote(v) { return !!(LOTES[v] || mrPorLote[v]); }
-    function origenFoto(f) { var a = f.archivo || {}; return a.zipOrigen || (a.webkitRelativePath ? a.webkitRelativePath.split('/').slice(0, -1).join(' ') : ''); }
+    // Nombres donde se busca el lote de una foto: el .zip y luego sus carpetas, de la más cercana a la foto hacia afuera
+    function origenesFoto(f) {
+        var a = f.archivo || {}, carpetas = String(a.rutaZip || a.webkitRelativePath || '').split('/').slice(0, -1).reverse();
+        return (a.zipOrigen ? [a.zipOrigen] : []).concat(carpetas).filter(Boolean);
+    }
+    function loteDeFoto(f) {
+        var os = origenesFoto(f);
+        for (var i = 0; i < os.length; i++) { var l = loteDeNombre(os[i], existeLote); if (l) { f.origenLote = os[i]; return l; } }
+        return '';
+    }
     function loteDeLosNombres() {
-        var porFoto = flFotos.map(function (f) { return loteDeNombre(origenFoto(f), existeLote); });
+        var porFoto = flFotos.map(loteDeFoto);
         var distintos = porFoto.filter(function (l, i, a) { return l && a.indexOf(l) === i; });
         if (distintos.length === 1 && porFoto.every(Boolean)) { $('fl-lote').value = distintos[0]; return; }
         flFotos.forEach(function (f, i) { if (porFoto[i]) { f.rotulo = rotuloEscrito(porFoto[i]); f.manual = true; f.deZip = true; } });
@@ -2847,11 +2831,7 @@ export function iniciar(api, CFG) {
             if (!archivos.length) { flFotos = []; listarFotoLote(); $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se encontraron fotos.</span>'; return; }
             $('fl-resumen').textContent = 'Leyendo ' + archivos.length + ' fotos…';
             flFotos = await examinar(archivos);
-            // Solo si se pidió: el lote de cada foto por su GPS (y la marca de agua). Si no, manda el lote escrito arriba
-            if ($('fl-auto').checked) {
-                if ($('fl-marca').checked) await leerMarcasFotoLote(flFotos);
-                await ubicarFotoLote(flFotos);
-            }
+            // Las fotos no se leen: el lote sale del nombre del .zip o de la carpeta, o del escrito arriba
             if (!$('fl-lote').value.trim()) loteDeLosNombres();
             aplicarLoteTodas();
         } catch (e) {
@@ -2864,23 +2844,12 @@ export function iniciar(api, CFG) {
     }
     $('btn-fotolote').onclick = function () {
         if (!flOcupado) limpiarFotoLote();
-        $('fl-marca-caja').hidden = !$('fl-auto').checked;
         $('dlg-fotolote').showModal();
     };
     $('fl-cerrar').onclick = function () { $('dlg-fotolote').close(); };
     $('fl-lote').addEventListener('input', function () { aplicarLoteTodas(); listarFotoLote(); });
-    $('fl-auto').onchange = function () { $('fl-marca-caja').hidden = !this.checked; };
     // Cerrar con el botón, con Esc o tocando afuera: la próxima vez abre vacía
     $('dlg-fotolote').addEventListener('close', limpiarFotoLote);
-    // Fotos que llegaron sin GPS: leer la marca de agua ahora, sin volver a elegirlas
-    $('fl-leer-marca').onclick = async function () {
-        if (flOcupado) return;
-        flOcupado = true;
-        this.disabled = $('fl-convertir').disabled = true;
-        try { await leerMarcasFotoLote(flFotos); await ubicarFotoLote(flFotos); }
-        catch (e) { toast('No se pudo leer la marca de agua: ' + e.message); }
-        finally { flOcupado = false; this.disabled = false; listarFotoLote(); }
-    };
     // Un mismo lote para todas las fotos que no tienen (p. ej. un .zip de un solo lote sin GPS)
     $('fl-aplicar').onclick = function () {
         var r = rotuloEscrito($('fl-todas').value);

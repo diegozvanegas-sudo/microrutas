@@ -500,7 +500,8 @@
 <dialog id="dlg-fotolote">
     <div class="cuerpo">
         <h2>📍 Fotos con su lote</h2>
-        <div class="sub">Elija fotos, una carpeta o archivos .zip: a cada foto se le pone en grande la microrruta y el lote, y quedan en PDF o en un .zip para enviar. Si el .zip o la carpeta se llaman con el número del lote (p. ej. 118.zip), el lote se pone solo. Puede corregir el lote de cualquier foto antes de crear el PDF. Se hace en este equipo.</div>
+        <div class="sub">Elija fotos, una carpeta o uno o varios .zip: a cada foto se le pone en grande la microrruta y el lote, y quedan en PDF o en un .zip para enviar.
+            El lote sale del <b>nombre</b> del .zip o de la carpeta (p. ej. 118.zip → Z1CC0108 · Lote 118); las fotos no se leen. Puede corregir el lote de cualquier foto antes de crear el PDF. Se hace en este equipo.</div>
         <input type="file" id="fl-fotos" accept="image/*" multiple hidden>
         <input type="file" id="fl-carpeta" webkitdirectory multiple hidden>
         <input type="file" id="fl-zip" accept=".zip,application/zip,application/x-zip-compressed" multiple hidden>
@@ -513,8 +514,7 @@
             <input type="text" id="fl-lote" placeholder="Escriba el lote o la microrruta: 118 o Z1CC0108" autocomplete="off" autocapitalize="characters">
             <span class="sub" id="fl-lote-ver">Se pone a todas las fotos (antes o después de elegirlas). Cada una se puede cambiar abajo.</span>
         </label>
-        <label class="fotos-check"><input type="checkbox" id="fl-auto"> Buscar el lote de cada foto por su GPS o su marca de agua (automático; puede equivocarse)</label>
-        <label class="fotos-check" id="fl-marca-caja" hidden><input type="checkbox" id="fl-marca" checked> Si una foto no trae GPS (p. ej. pasada por WhatsApp), leer las coordenadas de la marca de agua que tiene escrita</label>
+
         <div class="fotos-opciones">
             <label>DISEÑO
                 <select id="fl-diseno">
@@ -535,7 +535,6 @@
         </div>
         <div class="fotos-resumen" id="fl-resumen" aria-live="polite"></div>
         <div class="fl-ayuda" id="fl-ayuda" hidden>
-            <button type="button" class="secundario" id="fl-leer-marca" hidden>🔎 Leer la marca de agua de las fotos sin GPS</button>
             <div class="fl-todas">
                 <input type="text" id="fl-todas" placeholder="Lote para todas las fotos sin lote (p. ej. 110)" aria-label="Lote para todas las fotos sin lote" autocomplete="off">
                 <button type="button" class="secundario" id="fl-aplicar">Poner</button>
