@@ -52,6 +52,7 @@
             <!-- Agrupado por para qué sirve: cada grupo una sola tarea -->
             <div class="titulo-menu">Subsanaciones</div>
             <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
+            <button type="button" class="item-menu" id="btn-prog" title="Subir el Excel de programación del mes y ver qué lote le toca hoy a cada cuadrilla y dónde va">📅 Programación del día</button>
             <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <hr>
@@ -336,6 +337,28 @@
     </div>
 </dialog>
 <!-- Imágenes a texto (src/subsanaciones/ocr.js): se leen en este equipo, en el orden de los nombres -->
+<!-- Programación del día (src/subsanaciones/programacion.js): el Excel se lee en este equipo y queda guardado aquí -->
+<dialog id="dlg-prog">
+    <div class="cuerpo">
+        <h2>📅 Programación del día</h2>
+        <div class="sub">Suba el Excel de programación del mes (p. ej. 2026_11_Noviembre_Programacion_CW394406.xlsx). Se leen todas las filas,
+            también las ocultas por el filtro. Queda guardado en este equipo hasta que suba otro. Las visitas registradas en la app cuentan como hechas aunque el Excel no tenga la X.</div>
+        <input type="file" id="prog-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+        <button type="button" class="secundario zip-elegir" id="prog-elegir">📁 Elegir el Excel de programación</button>
+        <div class="fotos-resumen" id="prog-estado" aria-live="polite"></div>
+        <div class="prog-controles" id="prog-controles" hidden>
+            <label>DÍA <input type="date" id="prog-fecha"></label>
+            <label>CUADRILLA <select id="prog-cuad"><option value="">Todas</option></select></label>
+        </div>
+        <div class="prog-dia" id="prog-dia"></div>
+        <div id="prog-cuadrillas"></div>
+        <div id="prog-especiales"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="prog-cerrar">Cerrar</button>
+            <button type="button" class="wa" id="prog-texto" disabled>📋 Texto para WhatsApp</button>
+        </div>
+    </div>
+</dialog>
 <!-- Informes desde una tabla (src/subsanaciones/tabla.js): no guarda nada, solo lee lo pegado -->
 <dialog id="dlg-tabla">
     <div class="cuerpo">

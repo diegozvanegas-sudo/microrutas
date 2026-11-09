@@ -596,3 +596,32 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .fl-lista .fl-revisar .fl-estado { color: #9a3412; font-weight: 650; }
 .fl-lista .fl-falta .fl-estado { color: #991b1b; font-weight: 650; }
 .fl-lista input { flex: 1 1 190px; min-width: 0; min-height: 36px; font-size: 14px; }
+
+/* Programación del día */
+#dlg-prog .zip-elegir { width: 100%; margin: 10px 0 4px; padding: 12px; border: 2px dashed #9fd3bd; }
+.prog-controles { display: flex; flex-wrap: wrap; gap: 8px 12px; margin-top: 10px; }
+.prog-controles[hidden] { display: none; }
+.prog-controles label { flex: 1 1 160px; display: flex; flex-direction: column; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.prog-dia { margin: 10px 0 4px; font-size: 15px; }
+.prog-dia:empty { display: none; }
+.prog-dia .chips { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
+.prog-chip { padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; background: #f1f5f9; color: #334155; }
+.prog-chip.ok { background: #dcfce7; color: #166534; }
+.prog-chip.atraso { background: #fee2e2; color: #991b1b; }
+.prog-cuad { border: 1px solid var(--line); border-left: 5px solid var(--c, #64748b); border-radius: 12px; padding: 10px 12px; margin-top: 10px; background: var(--surface); }
+.prog-cuad h3 { margin: 0 0 6px; font-size: 15px; display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.prog-cuad .barra { flex: 1 1 120px; height: 8px; border-radius: 999px; background: #e2e8f0; overflow: hidden; min-width: 80px; }
+.prog-cuad .barra i { display: block; height: 100%; background: #16a34a; }
+.prog-cuad .fila { font-size: 13.5px; margin: 4px 0; line-height: 1.45; }
+.prog-cuad .fila b { color: var(--ink); }
+.prog-cuad .lote { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 8px; border-radius: 8px; background: #f1f8f4; border: 1px solid #cfe7da; font-size: 12.5px; white-space: nowrap; }
+.prog-cuad .lote.hecho { background: #dcfce7; border-color: #86efac; }
+.prog-cuad .lote.app { background: #e0e7ff; border-color: #a5b4fc; }
+.prog-cuad details { margin-top: 4px; font-size: 13px; }
+.prog-cuad summary { cursor: pointer; color: #991b1b; font-weight: 650; }
+.prog-cuad .acciones { margin-top: 6px; display: flex; flex-wrap: wrap; gap: 6px; }
+.prog-cuad .obs { font-size: 12.5px; color: #9a3412; }
+#prog-especiales:empty { display: none; }
+#prog-especiales { margin-top: 12px; }
+#prog-especiales h3 { font-size: 15px; margin: 0 0 6px; }
+#prog-especiales li { font-size: 13.5px; margin: 4px 0; }

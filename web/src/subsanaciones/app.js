@@ -14,6 +14,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2340,6 +2341,131 @@ export function iniciar(api, CFG) {
           });
     };
 
+    // ---------- Programación del día (src/subsanaciones/programacion.js) ----------
+    // El Excel del mes se lee en este equipo (con las filas ocultas por el filtro) y queda guardado aquí hasta subir otro.
+    // Las visitas de lote ejecutado registradas en la app cuentan como hechas aunque el Excel no tenga la X
+    var PROG_CACHE = 'programacion_cache', progDatos = null;
+    try { progDatos = JSON.parse(localStorage.getItem(PROG_CACHE)) || null; } catch (e) { progDatos = null; }
+    // Lotes con visita de lote ejecutado en la app, por quincena del mes: { 'aaaa-mm|q': { lote: 1, MR: 1 } }
+    function visitasPorQuincena(mes) {
+        var out = {};
+        registros.forEach(function (r) {
+            if (!deLote(r)) return;
+            var f = fechaISO(r['FECHA DE EJECUCIÓN']) || fechaISO(r['FECHA DE LA VISITA']);
+            if (!f || f.slice(0, 7) !== mes) return;
+            var sd = semanaProg(mes, f);
+            if (!sd) return;
+            var k = mes + '|' + quincenaProg(sd.semana), s = out[k] = out[k] || {};
+            var lote = String(r.LOTE || '').trim(), mr = String(r.MICRORRUTA || '').trim().toUpperCase();
+            if (lote && !/^N\/?A$/i.test(lote)) s['L' + lote] = 1;
+            if (mr) s['M' + mr] = 1;
+        });
+        return out;
+    }
+    function idMapaProg(x) { return x.lote && !/^N\/?A$/i.test(x.lote) && enMapaPorLote(x.lote) ? x.lote : x.mr; }
+    function chipLote(x, enApp) {
+        var cls = x.hecho ? ' hecho' : enApp(x) ? ' app' : '';
+        return '<a class="lote' + cls + '" href="' + esc(urlMapa(x.mr, x.lote)) + '" title="' + esc(x.dir) + (x.hecho ? ' · marcado ' + aTexto(x.fecha) : enApp(x) ? ' · con visita en la app' : '') + '">' +
+            esc(x.mr + (x.lote && !/^N\/?A$/i.test(x.lote) ? ' · ' + x.lote : '')) + (x.hecho ? ' ✓' : enApp(x) ? ' ◉' : '') + '</a>';
+    }
+    function pintarProg() {
+        var hay = !!(progDatos && progDatos.prog);
+        $('prog-controles').hidden = !hay;
+        $('prog-texto').disabled = !hay;
+        if (!hay) { $('prog-dia').innerHTML = $('prog-cuadrillas').innerHTML = $('prog-especiales').innerHTML = ''; return; }
+        var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy();
+        var vis = visitasPorQuincena(prog.mes);
+        var est = estadoDelDia(prog, fecha, function (x) {
+            var s = vis[prog.mes + '|' + quincenaProg((semanaProg(prog.mes, fecha) || { semana: 1 }).semana)] || {};
+            return !!(s['L' + x.lote] || s['M' + x.mr]);
+        });
+        var enApp = function (x) {
+            var s = vis[prog.mes + '|' + est.quincena] || {};
+            return !x.hecho && !!(s['L' + x.lote] || s['M' + x.mr]);
+        };
+        var fueraMes = fecha.slice(0, 7) !== prog.mes;
+        $('prog-estado').innerHTML = '📄 ' + esc(progDatos.archivo) + ' · ' + prog.q1.length + ' lotes en Q1, ' + prog.q2.length + ' en Q2 · cargado ' + esc(progDatos.cargado) +
+            (fueraMes ? '<br><span class="aviso-fotos">⚠ El día elegido no es del mes de este Excel (' + esc(prog.mes) + '): suba la programación de ese mes.</span>' : '');
+        var tot = est.cuadrillas.reduce(function (a, c) { a.l += c.total; a.h += c.hechos; a.at += c.atrasados.length; a.app += c.soloApp; return a; }, { l: 0, h: 0, at: 0, app: 0 });
+        $('prog-dia').innerHTML = '<b>' + (est.domingo ? 'Domingo' : nombreDia(est.dia).replace(/^./, function (l) { return l.toUpperCase(); })) + ' ' + aTexto(fecha) +
+            '</b> · semana ' + est.semana + (est.dia ? ', día ' + est.dia : '') + ' · quincena ' + est.quincena +
+            '<div class="chips"><span class="prog-chip">' + tot.h + ' de ' + tot.l + ' lotes hechos</span>' +
+            (tot.at ? '<span class="prog-chip atraso">' + tot.at + ' atrasados</span>' : '<span class="prog-chip ok">sin atrasos</span>') +
+            (tot.app ? '<span class="prog-chip" title="Sin X en el Excel pero con visita registrada en la app">◉ ' + tot.app + ' solo en la app</span>' : '') + '</div>';
+        // Selector de cuadrilla (se conserva la elegida)
+        var sel = $('prog-cuad'), actual = sel.value;
+        sel.innerHTML = '<option value="">Todas</option>' + est.cuadrillas.map(function (c) { return '<option value="' + esc(c.cuad) + '">Cuadrilla ' + esc(c.cuad) + '</option>'; }).join('');
+        sel.value = actual;
+        $('prog-cuadrillas').innerHTML = est.cuadrillas.filter(function (c) { return !sel.value || c.cuad === sel.value; }).map(function (c) {
+            var pct = c.total ? Math.round(100 * c.hechos / c.total) : 0;
+            var estado = c.atrasados.length ? '<span class="prog-chip atraso">' + c.atrasados.length + ' atrasados</span>' : c.adelantados ? '<span class="prog-chip ok">adelantada</span>' : '<span class="prog-chip ok">al día</span>';
+            var ids = c.hoy.map(idMapaProg);
+            return '<section class="prog-cuad" style="--c:' + colorCuadrilla(c.cuad) + '"><h3>Cuadrilla ' + esc(c.cuad) + ' ' + estado +
+                '<span class="barra" title="' + pct + ' %"><i style="width:' + pct + '%"></i></span><small>' + c.hechos + ' de ' + c.total + '</small></h3>' +
+                '<div class="fila"><b>Hoy le toca:</b> ' + (c.hoy.length ? c.hoy.map(function (x) { return chipLote(x, enApp); }).join('') : (est.domingo ? 'domingo, sin programación' : 'nada programado para este día')) + '</div>' +
+                (c.ultimo ? '<div class="fila"><b>Va en:</b> ' + (c.siguen.length ? c.siguen.map(function (x) { return chipLote(x, enApp); }).join('') : 'terminó lo programado') +
+                    ' <span class="sub">(último marcado ' + aTexto(c.ultimo.fecha) + ': ' + esc(c.ultimo.lotes.slice(-2).map(function (x) { return x.lote || x.mr; }).join(', ')) + ')</span></div>'
+                    : '<div class="fila"><b>Va en:</b> <span class="sub">sin nada marcado con X en el Excel' + (c.soloApp ? '; ' + c.soloApp + ' con visita en la app' : '') + '</span></div>') +
+                (c.atrasados.length ? '<details><summary>Atrasados (' + c.atrasados.length + ' de ' + c.debian + ' que ya debían estar)</summary>' +
+                    c.atrasados.map(function (x) { return chipLote(x, enApp); }).join('') + '</details>' : '') +
+                (c.obs.length ? c.obs.slice(0, 4).map(function (x) { return '<div class="obs">⚠ ' + esc((x.lote || x.mr) + ': ' + x.obs) + '</div>'; }).join('') : '') +
+                (ids.length ? '<div class="acciones"><a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.join(',')) + '">🗺️ Lo de hoy en el mapa</a></div>' : '') +
+                '</section>';
+        }).join('');
+        var esp = especialesDeSemana(prog, fecha);
+        $('prog-especiales').innerHTML = esp.length ? '<h3>Operaciones especiales de la semana</h3><ul>' + esp.map(function (e) {
+            return '<li><b>' + aTexto(e.proxima) + '</b> · ' + esc(e.ruta) + (e.dir ? ' · ' + esc(e.dir) : '') + (e.area ? ' · ' + Math.round(e.area).toLocaleString('es-CO') + ' m²' : '') +
+                (e.ejecutado ? ' · ✓ ejecutado' + (e.ejecutado.length > 3 ? ' ' + aTexto(e.ejecutado) : '') : '') + (e.obs ? '<br><span class="sub">' + esc(e.obs) + '</span>' : '') + '</li>';
+        }).join('') + '</ul>' + (prog.sif && prog.sif.cc ? '<div class="sub">Rutas SIF de corte: ' + prog.sif.cc.q1 + ' de ' + prog.sif.cc.total + ' con ejecución en Q1' +
+            (prog.sif.esp ? ' · espartillos: ' + prog.sif.esp.q1 + ' de ' + prog.sif.esp.total : '') + '</div>' : '') : '';
+    }
+    async function cargarProg(file) {
+        if (!file) return;
+        $('prog-elegir').disabled = true;
+        $('prog-estado').textContent = 'Leyendo ' + file.name + '… (un libro grande tarda unos segundos)';
+        try {
+            var { default: ExcelJS } = await import('exceljs');
+            var wb = new ExcelJS.Workbook();
+            await wb.xlsx.load(await file.arrayBuffer());
+            var hojas = {};
+            wb.worksheets.forEach(function (ws) { hojas[ws.name] = filasHoja(ws); });
+            var prog = leerProgramacion(hojas, file.name);
+            if (!prog.q1.length && !prog.q2.length) throw new Error('no se encontraron lotes (hojas Q1, Q2 o PROGRAMACION con la columna MICRORRUTA)');
+            if (!prog.mes) throw new Error('no se pudo saber de qué mes es (ponga el año y el mes en el nombre: 2026_11_…)');
+            // Para guardar en el equipo, la dirección corta
+            [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
+            progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
+            try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+            if (!$('prog-fecha').value || $('prog-fecha').value.slice(0, 7) !== prog.mes) $('prog-fecha').value = hoy().slice(0, 7) === prog.mes ? hoy() : prog.mes + '-01';
+            pintarProg();
+            toast('Programación de ' + prog.mes + ' cargada: ' + (prog.q1.length + prog.q2.length) + ' lotes.');
+        } catch (e) {
+            $('prog-estado').innerHTML = '<span class="aviso-fotos">No se pudo leer el Excel: ' + esc(e.message) + '</span>';
+        } finally {
+            $('prog-elegir').disabled = false;
+        }
+    }
+    $('btn-prog').onclick = function () {
+        if (!$('prog-fecha').value) $('prog-fecha').value = hoy();
+        if (!progDatos) $('prog-estado').textContent = 'Todavía no hay programación cargada en este equipo.';
+        pintarProg();
+        $('dlg-prog').showModal();
+    };
+    $('prog-cerrar').onclick = function () { $('dlg-prog').close(); };
+    $('prog-elegir').onclick = function () { $('prog-archivo').value = ''; $('prog-archivo').click(); };
+    $('prog-archivo').onchange = function () { cargarProg(this.files && this.files[0]); };
+    $('prog-fecha').onchange = pintarProg;
+    $('prog-cuad').onchange = pintarProg;
+    $('prog-texto').onclick = function () {
+        if (!progDatos) return;
+        var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), vis = visitasPorQuincena(prog.mes);
+        var est = estadoDelDia(prog, fecha, function (x) { var s = vis[prog.mes + '|' + quincenaProg((semanaProg(prog.mes, fecha) || { semana: 1 }).semana)] || {}; return !!(s['L' + x.lote] || s['M' + x.mr]); });
+        if ($('prog-cuad').value) est.cuadrillas = est.cuadrillas.filter(function (c) { return c.cuad === $('prog-cuad').value; });
+        $('wa-texto').value = textoDelDia(est, especialesDeSemana(prog, fecha));
+        actualizarEnlaceWa();
+        $('dlg-wa').showModal();
+    };
+
     // ---------- Informes desde una tabla (src/subsanaciones/tabla.js) ----------
     // Filas copiadas del Excel (o leídas de un pantallazo) → visitas → los mismos informes del resto de la página.
     // No se guarda nada en la base
@@ -2611,7 +2737,7 @@ export function iniciar(api, CFG) {
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla|fotolote)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla|fotolote|prog)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         btn.onclick();
