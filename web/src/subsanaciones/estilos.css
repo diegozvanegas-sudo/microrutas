@@ -36,6 +36,13 @@ button:disabled { opacity: .55; cursor: not-allowed; }
 .filtros .rango-fechas[hidden] { display: none; }
 .filtros .rango-fechas label { display: flex; align-items: center; gap: 6px; flex: 1 1 150px; font-size: 14px; color: var(--ink); margin: 0; }
 .filtros .rango-fechas input { flex: 1; min-width: 0; }
+.filtros .rango-fechas label[hidden] { display: none; }
+.filtros .atajos-fecha { display: flex; flex-wrap: wrap; gap: 6px; flex: 1 1 100%; }
+.filtros .atajos-fecha:empty { display: none; }
+.filtros .atajos-fecha button { min-height: 32px; padding: 4px 10px; font-size: 13px; border-radius: 999px; }
+.filtros .atajos-fecha button[aria-pressed="true"] { background: #dcfce7; border-color: #16a34a; color: #14532d; font-weight: 700; }
+.filtros .rango-ayuda { flex: 1 1 100%; font-size: 13px; color: var(--muted); }
+.filtros .rango-ayuda b { color: var(--ink); }
 .filtros .peligro-suave { min-height: 38px; color: #b91c1c; background: #fee2e2; font-weight: 700; }
 .filtros .peligro-suave:hover { background: #fecaca; }
 .panel { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; overflow: hidden; }

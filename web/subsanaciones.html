@@ -86,10 +86,13 @@
         <select id="f-zona" aria-label="Zona"><option value="">Zona: todas</option></select>
         <select id="f-cuadrilla" aria-label="Cuadrilla"><option value="">Cuadrilla: todas</option></select>
         <select id="f-dia" aria-label="Día de la visita"><option value="">Día: todos</option></select>
-        <!-- Con "Día: entre fechas": solo Desde = de ese día en adelante; solo Hasta = de ese día hacia atrás -->
+        <!-- Entre fechas (los dos días cuentan; solo Desde = en adelante, solo Hasta = hacia atrás), antes de o después de un día
+             (sin contarlo). La frase de abajo dice exactamente qué días se ven (src/subsanaciones/fechas.js) -->
         <div class="rango-fechas" id="f-rango" hidden>
-            <label>Desde <input type="date" id="f-desde" aria-label="Desde el día"></label>
-            <label>Hasta <input type="date" id="f-hasta" aria-label="Hasta el día"></label>
+            <label id="l-desde"><span id="t-desde">Desde</span> <input type="date" id="f-desde" aria-label="Desde el día"></label>
+            <label id="l-hasta"><span id="t-hasta">Hasta</span> <input type="date" id="f-hasta" aria-label="Hasta el día"></label>
+            <div class="atajos-fecha" id="f-atajos" role="group" aria-label="Atajos de fechas"></div>
+            <div class="rango-ayuda" id="f-rango-ayuda" aria-live="polite"></div>
         </div>
         <!-- Solo para el administrador (los demás ven únicamente sus visitas) -->
         <select id="f-usuario" aria-label="Usuario que registró la visita" hidden><option value="">Usuario: todos</option></select>
