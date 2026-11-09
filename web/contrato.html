@@ -66,9 +66,12 @@
         <button type="button" id="v-mapa" aria-pressed="false">🧠 Mapa mental</button>
     </div>
     <p class="doc" id="doc"></p>
+    <!-- Busca en todos los documentos a la vez (resumen del contrato, guía de campo, citas y ANS, convenios); con la casilla, solo en el abierto -->
     <div class="buscador">
-        <input type="search" id="buscar" placeholder="Buscar en este documento…" aria-label="Buscar en este documento" autocomplete="off">
+        <input type="search" id="buscar" placeholder="Buscar en todos los documentos: supervisor, mallas, plazo…" aria-label="Buscar en los documentos" autocomplete="off">
+        <label class="solo-doc"><input type="checkbox" id="solo-doc"> Solo en este documento</label>
     </div>
+    <div class="frecuentes" id="frecuentes"></div>
     <nav class="indice" id="indice" aria-label="Secciones del contrato"></nav>
     <div id="estado" class="estado-carga">Cargando…</div>
     <div id="secciones"></div>

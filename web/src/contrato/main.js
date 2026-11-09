@@ -5,16 +5,26 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
+import { buscarEnDocumentos, documentoCitas, resaltarPalabras } from './busqueda.js';
 
 var CACHE = 'contrato_cache';            // también la usa pqr.html: solo el contrato de corte de césped
 var CACHE_CONVENIOS = 'convenios_cache';
 var CESPED = 'CESPED';
 // Orden y nombre corto de los documentos; los mapas (MAPA-…) van al final con su propio título
 var GRUPOS = [
-    { titulo: 'Zonas verdes', docs: [[CESPED, '🌿 Corte de césped'], ['GUIA-CAMPO', '🧭 Guía de campo']] },
+    { titulo: 'Zonas verdes', docs: [[CESPED, '🌿 Corte de césped'], ['GUIA-CAMPO', '🧭 Guía de campo'], ['CITAS', '📨 Citas y ANS']] },
     { titulo: 'Convenios LV y RyT', docs: [['PPSA', '📘 PPSA'], ['RYT-FUDEA', '🚛 RyT FUDEA'], ['LV-FUDEA', '🧹 LV FUDEA'], ['RYT-FUNTRAEV', '🚛 RyT FUNTRAEV'], ['LV-FUNTRAEV', '🧹 LV FUNTRAEV']] },
 ];
 var $ = function (id) { return document.getElementById(id); };
+// Búsquedas frecuentes en campo (atajos debajo del buscador)
+var FRECUENTES = ['supervisor', 'mallas', 'EPP', 'residuos', 'barrido', 'plazo', 'fauna', 'alturas', 'PMT', 'valla', 'fotos', 'árboles', 'descuento', 'carné'];
+function nombresDocs() {
+    var n = {};
+    GRUPOS.forEach(function (g) { g.docs.forEach(function (d) { n[d[0]] = d[1]; }); });
+    Object.keys(docs).forEach(function (c) { if (!n[c] && c.indexOf('MAPA-') === 0) n[c] = '🧠 ' + ((metaDe(c) || {}).titulo || c); });
+    return n;
+}
+function ordenDocs() { return [].concat.apply([], GRUPOS.map(function (g) { return g.docs.map(function (d) { return d[0]; }); })); }
 var docs = {};                           // código → secciones ordenadas
 var actual = CESPED, vista = 'lista', deCopia = false;
 
@@ -84,8 +94,44 @@ function elegir(codigo) {
     window.scrollTo(0, 0);
 }
 
+// Resultados de la búsqueda en todos los documentos, agrupados por documento y sección
+function pintarGeneral(texto) {
+    var r = buscarEnDocumentos(docsBuscables(), texto, nombresDocs(), ordenDocs());
+    $('indice').hidden = true;
+    $('doc').innerHTML = '🔎 <b>' + r.total + (r.total === 1 ? ' resultado' : ' resultados') + '</b> para «' + esc(texto) + '» en ' +
+        r.grupos.length + (r.grupos.length === 1 ? ' documento' : ' documentos') + (r.palabras.length ? ' <span class="sub">(se buscan todas las palabras: ' + esc(r.palabras.join(', ')) + ')</span>' : '');
+    $('secciones').innerHTML = r.grupos.map(function (g) {
+        return '<section class="res-doc"><h2>' + esc(g.nombre) + ' <span class="res-n">' + g.total + '</span>' +
+            '<button type="button" class="secundario pequeno" data-ir="' + esc(g.codigo) + '">Abrir documento</button></h2>' +
+            g.secciones.map(function (s) {
+                return '<div class="res-sec"><h3>' + esc(s.icono || '') + ' ' + esc(s.titulo) +
+                    ' <button type="button" class="enlace" data-ir="' + esc(g.codigo) + '" data-sec="' + esc(s.id) + '">Ver en el documento ›</button></h3><ul>' +
+                    s.items.map(function (it) {
+                        return '<li>' + (it.clave ? '<b>' + resaltarPalabras(it.clave, r.palabras, esc) + ':</b> ' : '') + resaltarPalabras(it.t, r.palabras, esc) +
+                            (it.ref ? '<span class="ref">' + esc(it.ref) + '</span>' : '') +
+                            (it.ej ? '<span class="ej"><b>Ejemplo:</b> ' + resaltarPalabras(it.ej, r.palabras, esc) + '</span>' : '') + '</li>';
+                    }).join('') + '</ul></div>';
+            }).join('') + '</section>';
+    }).join('');
+    $('estado').hidden = !!r.total;
+    if (!r.total) $('estado').innerHTML = r.palabras.length ? 'No hay nada con «' + esc(texto) + '» en ningún documento. Pruebe con menos palabras o con otra (p. ej. «malla» en vez de «protección»).' : 'Escriba al menos una palabra de 3 letras.';
+}
+// Documentos donde se busca: todos menos las plantillas internas de requerimientos (sus citas están en CITAS)
+function docsBuscables() { var d = {}; Object.keys(docs).forEach(function (c) { if (c !== 'REQ-PLANTILLAS') d[c] = docs[c]; }); return d; }
+function irA(codigo, seccion) {
+    $('solo-doc').checked = false;
+    elegir(codigo);
+    if (!seccion) return;
+    var el = document.getElementById(seccion);
+    if (el) { el.scrollIntoView({ block: 'start' }); el.classList.add('resaltada'); setTimeout(function () { el.classList.remove('resaltada'); }, 2200); }
+}
+
 function pintar() {
-    var secciones = docs[actual] || [], q = plano($('buscar').value.trim());
+    var textoBuscado = $('buscar').value.trim();
+    $('frecuentes').hidden = !!textoBuscado;
+    if (textoBuscado && !$('solo-doc').checked) { $('v-lista').parentNode.hidden = true; pintarGeneral(textoBuscado); return; }
+    $('v-lista').parentNode.hidden = false;
+    var secciones = docs[actual] || [], q = plano(textoBuscado);
     var meta = metaDe(actual);
     $('doc').innerHTML = meta ? esc(meta.titulo) + (meta.items[0] ? ' · ' + esc(meta.items[0].t) : '') + (deCopia ? ' · <b>copia guardada en este equipo (sin conexión)</b>' : '') : '';
     $('v-lista').setAttribute('aria-pressed', vista === 'lista');
@@ -158,7 +204,10 @@ async function cargar() {
     if (cesped) docs[CESPED] = ordenar(cesped);
     (convenios || []).forEach(function (f) { (docs[f.documento] = docs[f.documento] || []).push(f); });
     Object.keys(docs).forEach(function (c) { docs[c] = ordenar(docs[c]); });
-    elegir(new URL(location.href).searchParams.get('doc') || actual);
+    if (docs['REQ-PLANTILLAS']) docs.CITAS = documentoCitas(docs['REQ-PLANTILLAS']);
+    var u = new URL(location.href), qUrl = u.searchParams.get('q');
+    elegir(u.searchParams.get('doc') || actual);
+    if (qUrl) { $('buscar').value = qUrl; pintar(); }
 }
 
 async function arrancar() {
@@ -166,6 +215,10 @@ async function arrancar() {
     $('btn-imprimir').onclick = function () { window.print(); };
     $('btn-recargar').onclick = cargar;
     $('buscar').addEventListener('input', pintar);
+    $('solo-doc').addEventListener('change', pintar);
+    $('frecuentes').innerHTML = '<span class="sub">Búsquedas frecuentes:</span>' + FRECUENTES.map(function (f) { return '<button type="button" class="chip-buscar" data-buscar="' + esc(f) + '">' + esc(f) + '</button>'; }).join('');
+    $('frecuentes').addEventListener('click', function (e) { var b = e.target.closest('[data-buscar]'); if (b) { $('buscar').value = b.dataset.buscar; $('solo-doc').checked = false; pintar(); $('buscar').focus(); } });
+    $('secciones').addEventListener('click', function (e) { var b = e.target.closest('[data-ir]'); if (b) irA(b.dataset.ir, b.dataset.sec); });
     $('docs').addEventListener('click', function (e) { var b = e.target.closest('button[data-doc]'); if (b) elegir(b.dataset.doc); });
     $('v-lista').onclick = function () { vista = 'lista'; pintar(); };
     $('v-mapa').onclick = function () { vista = 'mapa'; pintar(); };

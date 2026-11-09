@@ -8,9 +8,37 @@ import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, nombreDia } from '../diario/comun.js';
 import { filtroContiene, esNumeroLote, sinCeros } from './buscar.js';
 import { TIPOS, nombreRevision, tieneNovedad } from '../revision/comun.js';
+import { buscarEnDocumentos, documentoCitas } from '../contrato/busqueda.js';
 
 var $ = function (id) { return document.getElementById(id); };
-var TOPE = 50, pedido = 0;
+var TOPE = 50, pedido = 0, conContrato = false, docsContrato = null;
+// Contrato, guía de campo, citas y ANS (solo para quien tiene el permiso): se traen una vez y se busca aquí mismo
+var NOMBRES = { CESPED: '🌿 Corte de césped', 'GUIA-CAMPO': '🧭 Guía de campo', CITAS: '📨 Citas y ANS', PPSA: '📘 PPSA', 'RYT-FUDEA': '🚛 RyT FUDEA', 'LV-FUDEA': '🧹 LV FUDEA', 'RYT-FUNTRAEV': '🚛 RyT FUNTRAEV', 'LV-FUNTRAEV': '🧹 LV FUNTRAEV' };
+async function documentosContrato() {
+    if (docsContrato) return docsContrato;
+    var r = await Promise.all([supabase.from('contrato_secciones').select('id, orden, icono, titulo, tipo, items'), supabase.from('convenio_secciones').select('documento, id, orden, icono, titulo, tipo, items')]);
+    if (r[0].error && r[1].error) return null;
+    var d = {};
+    if (r[0].data) d.CESPED = r[0].data;
+    (r[1].data || []).forEach(function (f) { (d[f.documento] = d[f.documento] || []).push(f); });
+    if (d['REQ-PLANTILLAS']) { d.CITAS = documentoCitas(d['REQ-PLANTILLAS']); delete d['REQ-PLANTILLAS']; }
+    Object.keys(d).forEach(function (c) { if (c.indexOf('MAPA-') === 0) delete d[c]; });
+    docsContrato = d;
+    return d;
+}
+async function grupoContrato(q) {
+    var d = await documentosContrato();
+    if (!d) return '';
+    var r = buscarEnDocumentos(d, q, NOMBRES, Object.keys(NOMBRES)), n = 0;
+    var filas = [];
+    r.grupos.forEach(function (g) { g.secciones.forEach(function (s) { s.items.forEach(function (it) { if (n++ < 12) filas.push({ g: g, s: s, it: it }); }); }); });
+    return '<section class="tarjeta"><h2>📜 Contrato y guía <span class="sub">' + r.total + '</span></h2>' +
+        (filas.length ? filas.map(function (x) {
+            return renglon('contrato.html?q=' + encodeURIComponent(q), (x.it.clave ? x.it.clave + ': ' : '') + String(x.it.t).slice(0, 160) + (String(x.it.t).length > 160 ? '…' : ''),
+                [x.g.nombre, x.s.titulo, x.it.ref].filter(Boolean).join(' · '), '');
+        }).join('') + (r.total > 12 ? '<a class="res" href="contrato.html?q=' + encodeURIComponent(q) + '"><span class="res-tit">Ver los ' + r.total + ' resultados en Contrato ›</span></a>' : '')
+            : '<div class="sub">Sin resultados.</div>') + '</section>';
+}
 
 function consultas(q) {
     var num = esNumeroLote(q);
@@ -41,12 +69,12 @@ async function buscar() {
     if (q.length < 2 && !esNumeroLote(q)) { $('resultados').innerHTML = ''; $('estado').textContent = 'Escriba al menos 2 letras, o un número de lote.'; return; }
     if (!configurado) { $('estado').textContent = 'Falta la conexión con Supabase (.env).'; return; }
     $('estado').textContent = 'Buscando…';
-    var r = await Promise.all(consultas(q));
+    var r = await Promise.all(consultas(q)), contrato = conContrato ? await grupoContrato(q).catch(function () { return ''; }) : '';
     if (este !== pedido) return;
     var total = r.reduce(function (s, x) { return s + (x.data ? Math.min(x.data.length, TOPE) : 0); }, 0);
     var fallos = r.filter(function (x) { return x.error; }).length;
     $('estado').textContent = fallos === r.length ? 'No se pudo buscar. Revise la conexión.' : total + (total === 1 ? ' resultado' : ' resultados') + ' para «' + q + '»';
-    $('resultados').innerHTML =
+    $('resultados').innerHTML = contrato +
         grupo('📋 Visitas', r[0], function (v) {
             return renglon('subsanaciones.html?ver=' + encodeURIComponent(v.id), v.lote ? 'Lote ' + v.lote : v.microrruta || v.id,
                 [v.lote ? v.microrruta : '', v.zona ? 'Zona ' + v.zona : '', v.cuadrilla ? 'Cuadrilla ' + v.cuadrilla : '', v.fecha_visita && nombreDia(v.fecha_visita), v.observaciones].filter(Boolean).join(' · '), v.estado);
@@ -74,7 +102,8 @@ async function arrancar() {
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { cerrarSesion(supabase); };
-    aplicarPermisos(supabase, usuario);
+    var permisos = await aplicarPermisos(supabase, usuario);
+    conContrato = !!(permisos && permisos.contrato);
     if (inicial) buscar(); else $('q').focus();
 }
 
