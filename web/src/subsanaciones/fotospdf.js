@@ -83,15 +83,35 @@ function encajar(img, x, y, w, h) {
 // fotos: lista ya ordenada (de examinar). opciones: { diseno, reducir, nombre, rotulo, devolver }. informe(hechas, total)
 // Cada foto puede traer su propio rótulo (foto.rotulo, p. ej. el lote según su GPS); si no, va el de opciones.
 // devolver: no descarga, entrega los bytes del PDF en el resultado (para juntar varios PDF en un .zip)
+// Renglones que caben en el ancho (corta por palabras; el último lleva «…» si sobra texto)
+function renglones(texto, letra, tam, ancho, max) {
+    var out = [], linea = '';
+    String(texto || '').replace(/[^ -~¡-ÿ–—‘’“”•…·]/g, '').split(/\s+/).filter(Boolean).forEach(function (p) {
+        var prueba = linea ? linea + ' ' + p : p;
+        if (letra.widthOfTextAtSize(prueba, tam) <= ancho) linea = prueba; else { if (linea) out.push(linea); linea = p; }
+    });
+    if (linea) out.push(linea);
+    if (out.length > max) { out = out.slice(0, max); var u = out[max - 1]; while (u.length > 3 && letra.widthOfTextAtSize(u + '…', tam) > ancho) u = u.slice(0, -1); out[max - 1] = u + '…'; }
+    return out;
+}
+// foto.datosLote (opcional): renglones con los datos del lote (microrruta, cuadrilla, dirección…) que van debajo de la foto
 export async function fotosAPdf(fotos, opciones, informe) {
     var { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
-    var pdf = await PDFDocument.create(), letra = await pdf.embedFont(StandardFonts.Helvetica);
+    var pdf = await PDFDocument.create(), letra = await pdf.embedFont(StandardFonts.Helvetica), negrita = await pdf.embedFont(StandardFonts.HelveticaBold);
     var porHoja = opciones.diseno === 'carta4' ? 4 : 1, omitidas = [], pagina = null;
+    // Con datos del lote se deja más espacio debajo de cada foto
+    var conDatos = fotos.some(function (f) { return f.datosLote && f.datosLote.length; });
+    var tamDatos = porHoja === 4 ? 7 : 9, maxDatos = porHoja === 4 ? 4 : 5, pieTotal = PIE + (conDatos ? maxDatos * (tamDatos + 2) + 6 : 0);
     for (var i = 0; i < fotos.length; i++) {
         try {
             var img = await pdf.embedJpg(await prepararJpg(fotos[i].archivo, opciones.reducir, fotos[i].rotulo != null ? fotos[i].rotulo : opciones.rotulo));
             if (opciones.diseno === 'completa') {
-                pdf.addPage([img.width, img.height]).drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
+                // Foto completa; con datos del lote, una franja blanca debajo con ellos
+                var dl = fotos[i].datosLote || [], tamC = Math.max(14, Math.round(img.width / 70)), linC = [];
+                dl.forEach(function (t, n) { renglones(t, n ? letra : negrita, tamC, img.width - tamC * 2, 2).forEach(function (r) { linC.push([r, n ? letra : negrita]); }); });
+                var franja = linC.length ? linC.length * tamC * 1.35 + tamC * 1.6 : 0, pg = pdf.addPage([img.width, img.height + franja]);
+                pg.drawImage(img, { x: 0, y: franja, width: img.width, height: img.height });
+                linC.forEach(function (l, n) { pg.drawText(l[0], { x: tamC, y: franja - tamC * 1.2 - n * tamC * 1.35, size: tamC, font: l[1], color: rgb(0.1, 0.12, 0.14) }); });
             } else {
                 var k = (i - omitidas.length) % porHoja;
                 if (k === 0) pagina = pdf.addPage(CARTA);
@@ -100,7 +120,7 @@ export async function fotosAPdf(fotos, opciones, informe) {
                 var w = (anchoUtil - (celdas - 1) * 12) / celdas, h = (altoUtil - (celdas - 1) * 12) / celdas;
                 var x = MARGEN + col * (w + 12), yTop = CARTA[1] - MARGEN - fila * (h + 12);
                 // La foto arriba de su celda y el pie justo debajo de la foto (no al fondo de la celda)
-                var caja = encajar(img, x, yTop - h + PIE, w, h - PIE);
+                var caja = encajar(img, x, yTop - h + pieTotal, w, h - pieTotal);
                 caja.y = yTop - caja.height;
                 pagina.drawImage(img, caja);
                 // Pie: nombre · fecha y hora · GPS (en dos líneas si no cabe)
@@ -109,6 +129,15 @@ export async function fotosAPdf(fotos, opciones, informe) {
                 lineas.forEach(function (l, n) {
                     while (letra.widthOfTextAtSize(l, tam) > w && l.length > 8) l = l.slice(0, -2);
                     pagina.drawText(l, { x: caja.x, y: caja.y - tam - 4 - n * (tam + 2), size: tam, font: letra, color: rgb(0.2, 0.25, 0.3) });
+                });
+                // Datos del lote: el primer renglón en negrita (microrruta, lote, cuadrilla…), luego dirección y descripción
+                var yd = caja.y - tam - 4 - lineas.length * (tam + 2) - 4, usados = 0;
+                (fotos[i].datosLote || []).forEach(function (t, n) {
+                    if (usados >= maxDatos) return;
+                    renglones(t, n ? letra : negrita, tamDatos, w, maxDatos - usados).forEach(function (r) {
+                        pagina.drawText(r, { x: caja.x, y: yd - tamDatos - usados * (tamDatos + 2), size: tamDatos, font: n ? letra : negrita, color: rgb(0.1, 0.12, 0.14) });
+                        usados++;
+                    });
                 });
             }
         } catch (e) {

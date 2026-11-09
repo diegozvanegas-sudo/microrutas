@@ -2741,7 +2741,7 @@ export function iniciar(api, CFG) {
         return ['fl-falta', '⚠', 'Ningún lote a menos de ' + CERCA_LOTE + ' m: escriba el lote'];
     }
     function listarFotoLote() {
-        var lista = ordenarFotos(flFotos, $('fl-orden').value), cuenta = { 'fl-ok': 0, 'fl-borde': 0, 'fl-revisar': 0, 'fl-falta': 0 }, porLote = {}, orden = [];
+        var lista = fotosPorLote(), cuenta = { 'fl-ok': 0, 'fl-borde': 0, 'fl-revisar': 0, 'fl-falta': 0 }, porLote = {}, orden = [];
         var escritos = lista.filter(function (f) { return f.manual && f.rotulo; }).length;
         $('fl-zip-crear').disabled = !lista.length || flOcupado;
         lista.forEach(function (f) {
@@ -2787,6 +2787,26 @@ export function iniciar(api, CFG) {
     // Volver a empezar: al cerrar la ventana queda vacía para la próxima vez (las opciones elegidas se conservan)
     // Lote en el nombre del .zip o de la carpeta de cada foto (118.zip, carpeta «Lote 118»). Si todas vienen del mismo, va arriba
     function existeLote(v) { return !!(LOTES[v] || mrPorLote[v]); }
+    // Fotos en el orden en que salen: todas las de un lote seguidas (lotes de menor a mayor; las sin lote al final) y, dentro de
+    // cada lote, por fecha o por nombre según lo elegido. Cada una con los datos de su lote para ponerlos debajo de la foto
+    function numeroLote(r) { var m = String(r || '').match(/Lote (\d+)/); return m ? Number(m[1]) : Infinity; }
+    function fotosPorLote() {
+        var lista = ordenarFotos(flFotos, $('fl-orden').value);
+        lista = lista.map(function (f, i) { return { f: f, i: i }; }).sort(function (a, b) {
+            var x = a.f.rotulo || '', y = b.f.rotulo || '';
+            if (!x !== !y) return x ? -1 : 1;
+            return numeroLote(x) - numeroLote(y) || x.localeCompare(y) || a.i - b.i;
+        }).map(function (o) { return o.f; });
+        lista.forEach(function (f) { f.datosLote = datosDeLote(f.rotulo); });
+        return lista;
+    }
+    // «Z1CC0034 · Lote 34» → ['Z1CC0034 · Lote 34 · Cuadrilla 4 · Mensual · 1.980 m²', 'Dirección: …', 'Descripción: …'] (de la programación)
+    function datosDeLote(rotulo) {
+        var mr = (String(rotulo || '').match(/Z\d+CC\d+/) || [])[0], p = mr && LOTES[mr];
+        if (!p) return rotulo ? [rotulo] : [];
+        return [[rotulo, p.cuad ? 'Cuadrilla ' + p.cuad : '', p.frec || '', p.area ? Math.round(p.area).toLocaleString('es-CO') + ' m²' : ''].filter(Boolean).join(' · '),
+            p.d ? 'Dirección: ' + p.d : '', p.desc ? 'Descripción: ' + p.desc : ''].filter(Boolean);
+    }
     // Nombres donde se busca el lote de una foto: el .zip y luego sus carpetas, de la más cercana a la foto hacia afuera
     function origenesFoto(f) {
         var a = f.archivo || {}, carpetas = String(a.rutaZip || a.webkitRelativePath || '').split('/').slice(0, -1).reverse();
@@ -2879,7 +2899,7 @@ export function iniciar(api, CFG) {
         var sinLote = flFotos.filter(function (f) { return !f.rotulo; }).length;
         if (sinLote && !(await confirmar('¿Crear el .zip con fotos sin lote?', sinLote + (sinLote === 1 ? ' foto no tiene' : ' fotos no tienen') + ' lote: van en la carpeta «Sin lote» y sin rótulo.', 'Crear igual', 'Volver'))) return;
         flOcupado = true;
-        var b = this, lista = ordenarFotos(flFotos, $('fl-orden').value), op = { diseno: $('fl-diseno').value, reducir: $('fl-reducir').checked };
+        var b = this, lista = fotosPorLote(), op = { diseno: $('fl-diseno').value, reducir: $('fl-reducir').checked };
         b.disabled = $('fl-convertir').disabled = true;
         try {
             var { default: JSZip } = await import('jszip'), salida = new JSZip(), grupos = {}, orden = [], fecha = new Date().toISOString().slice(0, 10), hechas = 0;
@@ -2922,7 +2942,7 @@ export function iniciar(api, CFG) {
     $('fl-convertir').onclick = async function () {
         if (!flFotos.length || flOcupado) return;
         flOcupado = true;
-        var b = $('fl-convertir'), lista = ordenarFotos(flFotos, $('fl-orden').value).map(function (f) { return Object.assign({}, f, { rotulo: f.rotulo || '' }); });
+        var b = $('fl-convertir'), lista = fotosPorLote().map(function (f) { return Object.assign({}, f, { rotulo: f.rotulo || '' }); });
         var op = { diseno: $('fl-diseno').value, reducir: $('fl-reducir').checked, nombre: $('fl-nombre').value };
         b.disabled = true;
         try {
