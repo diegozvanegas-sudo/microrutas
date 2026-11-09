@@ -564,3 +564,13 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .tabla-informes[hidden] { display: none; }
 .tabla-dia { display: flex; align-items: center; gap: 8px; font-size: 14px; margin: 6px 0 2px; }
 .tabla-dia select { flex: 1; min-width: 0; }
+
+/* Fotos con su lote */
+#dlg-fotolote .fl-elegir { display: flex; gap: 8px; margin: 10px 0 4px; }
+#dlg-fotolote .fl-elegir .zip-elegir { flex: 1 1 0; min-width: 0; padding: 12px 6px; border: 2px dashed #9fd3bd; }
+.fl-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
+.fl-lista .fl-nombre { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+.fl-lista .fl-estado { font-size: 12px; color: var(--muted); }
+.fl-lista .fl-estado.ok { color: #15803d; }
+.fl-lista .fl-estado.aviso { color: #9a3412; font-weight: 650; }
+.fl-lista input { flex: 1 1 170px; min-width: 0; min-height: 34px; font-size: 14px; }

@@ -67,6 +67,21 @@ async function unZip(JSZip, PDFDocument, archivo, alAvanzar) {
     return { pdf: paginas ? await pdf.save() : null, paginas: paginas, omitidas: omitidas };
 }
 
+// Las imágenes de uno o varios .zip como archivos sueltos (File), en el orden de los nombres; para Fotos con su lote
+export async function imagenesDeZips(archivos) {
+    var { default: JSZip } = await import('jszip'), out = [];
+    for (var k = 0; k < archivos.length; k++) {
+        var zip = await JSZip.loadAsync(archivos[k]);
+        var nombres = Object.keys(zip.files).filter(function (n) { return !zip.files[n].dir && esImagen(n); }).sort(ordenNatural);
+        for (var i = 0; i < nombres.length; i++) {
+            var e = zip.files[nombres[i]], ext = nombres[i].split('.').pop().toLowerCase();
+            var tipo = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : ext === 'bmp' ? 'image/bmp' : /tiff?/.test(ext) ? 'image/tiff' : 'image/jpeg';
+            out.push(new File([await e.async('blob')], nombres[i].split('/').pop(), { type: tipo, lastModified: e.date ? e.date.getTime() : Date.now() }));
+        }
+    }
+    return out;
+}
+
 export function descargar(bytes, nombre, tipo) {
     var a = document.createElement('a');
     a.href = URL.createObjectURL(new Blob([bytes], { type: tipo }));

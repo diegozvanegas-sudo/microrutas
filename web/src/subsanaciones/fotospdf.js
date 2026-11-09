@@ -77,14 +77,16 @@ function encajar(img, x, y, w, h) {
     return { x: x + (w - iw) / 2, y: y + (h - ih) / 2, width: iw, height: ih };
 }
 
-// fotos: lista ya ordenada (de examinar). opciones: { diseno, reducir, nombre, rotulo }. informe(hechas, total)
+// fotos: lista ya ordenada (de examinar). opciones: { diseno, reducir, nombre, rotulo, devolver }. informe(hechas, total)
+// Cada foto puede traer su propio rótulo (foto.rotulo, p. ej. el lote según su GPS); si no, va el de opciones.
+// devolver: no descarga, entrega los bytes del PDF en el resultado (para juntar varios PDF en un .zip)
 export async function fotosAPdf(fotos, opciones, informe) {
     var { PDFDocument, StandardFonts, rgb } = await import('pdf-lib');
     var pdf = await PDFDocument.create(), letra = await pdf.embedFont(StandardFonts.Helvetica);
     var porHoja = opciones.diseno === 'carta4' ? 4 : 1, omitidas = [], pagina = null;
     for (var i = 0; i < fotos.length; i++) {
         try {
-            var img = await pdf.embedJpg(await prepararJpg(fotos[i].archivo, opciones.reducir, opciones.rotulo));
+            var img = await pdf.embedJpg(await prepararJpg(fotos[i].archivo, opciones.reducir, fotos[i].rotulo != null ? fotos[i].rotulo : opciones.rotulo));
             if (opciones.diseno === 'completa') {
                 pdf.addPage([img.width, img.height]).drawImage(img, { x: 0, y: 0, width: img.width, height: img.height });
             } else {
@@ -114,6 +116,8 @@ export async function fotosAPdf(fotos, opciones, informe) {
     var paginas = pdf.getPageCount();
     if (!paginas) return { paginas: 0, omitidas: omitidas };
     var nombre = (opciones.nombre || 'Fotos').trim().replace(/[\\/:*?"<>|]+/g, '-').replace(/\.pdf$/i, '') + '.pdf';
-    descargar(await pdf.save(), nombre, 'application/pdf');
+    var bytes = await pdf.save();
+    if (opciones.devolver) return { paginas: paginas, omitidas: omitidas, nombre: nombre, bytes: bytes };
+    descargar(bytes, nombre, 'application/pdf');
     return { paginas: paginas, omitidas: omitidas, nombre: nombre };
 }

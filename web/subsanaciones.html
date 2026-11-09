@@ -57,6 +57,7 @@
             <div class="titulo-menu">Crear archivos</div>
             <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
             <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
+            <button type="button" class="item-menu" id="btn-fotolote" title="Fotos, carpeta o .zip a PDF con la microrruta y el lote de cada foto según su GPS">📍 Fotos con su lote</button>
             <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
             <button type="button" class="item-menu" id="btn-ocr" title="Sacar el texto de una o muchas imágenes o pantallazos">🔤 Imágenes a texto</button>
             <hr>
@@ -414,6 +415,47 @@
         <div class="pie">
             <button type="button" class="secundario" id="fotos-cerrar">Cerrar</button>
             <button type="button" class="primario" id="fotos-convertir" disabled>Crear PDF</button>
+        </div>
+    </div>
+</dialog>
+<!-- Fotos con su lote (src/subsanaciones/lotegps.js): el lote de cada foto sale de su GPS y los polígonos del mapa rápido -->
+<dialog id="dlg-fotolote">
+    <div class="cuerpo">
+        <h2>📍 Fotos con su lote</h2>
+        <div class="sub">Elija fotos, una carpeta o archivos .zip: a cada foto se le pone en grande la microrruta y el lote donde se tomó
+            (por el GPS de la foto) y quedan en PDF. Puede corregir el lote de cualquier foto antes de crear el PDF. Se hace en este equipo.</div>
+        <input type="file" id="fl-fotos" accept="image/*" multiple hidden>
+        <input type="file" id="fl-carpeta" webkitdirectory multiple hidden>
+        <input type="file" id="fl-zip" accept=".zip,application/zip,application/x-zip-compressed" multiple hidden>
+        <div class="fl-elegir">
+            <button type="button" class="secundario zip-elegir" id="fl-elegir-fotos">🖼️ Fotos</button>
+            <button type="button" class="secundario zip-elegir" id="fl-elegir-carpeta">📁 Carpeta</button>
+            <button type="button" class="secundario zip-elegir" id="fl-elegir-zip">🗜️ .zip</button>
+        </div>
+        <label class="fotos-check"><input type="checkbox" id="fl-marca"> Si una foto no trae GPS (p. ej. pasada por WhatsApp), leer las coordenadas de la marca de agua (más lento)</label>
+        <div class="fotos-opciones">
+            <label>DISEÑO
+                <select id="fl-diseno">
+                    <option value="carta1">Hoja carta · 1 foto por hoja con fecha, hora y GPS</option>
+                    <option value="carta4">Hoja carta · 4 fotos por hoja con fecha, hora y GPS</option>
+                    <option value="completa">Foto completa (una por página)</option>
+                </select>
+            </label>
+            <label>ORDEN
+                <select id="fl-orden">
+                    <option value="fecha">Por fecha y hora de la foto</option>
+                    <option value="nombre">Por nombre del archivo</option>
+                </select>
+            </label>
+            <label>NOMBRE DEL PDF <input type="text" id="fl-nombre" autocomplete="off"></label>
+            <label class="fotos-check"><input type="checkbox" id="fl-separar"> Un PDF por lote (se bajan juntos en un .zip)</label>
+            <label class="fotos-check"><input type="checkbox" id="fl-reducir" checked> Reducir peso (para enviar por WhatsApp)</label>
+        </div>
+        <div class="fotos-resumen" id="fl-resumen" aria-live="polite"></div>
+        <ol class="zip-informe fl-lista" id="fl-lista"></ol>
+        <div class="pie">
+            <button type="button" class="secundario" id="fl-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="fl-convertir" disabled>Crear PDF</button>
         </div>
     </div>
 </dialog>

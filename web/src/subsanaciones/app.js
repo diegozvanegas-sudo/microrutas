@@ -11,7 +11,8 @@ import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
-import { zipsAPdf } from './zippdf.js';
+import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
+import { crearUbicador, rotuloLote, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta } from './fotospdf.js';
@@ -2419,6 +2420,139 @@ export function iniciar(api, CFG) {
         }
     };
 
+    // ---------- Fotos con su lote (src/subsanaciones/lotegps.js) ----------
+    // Fotos, carpeta o .zip → el lote de cada foto por su GPS (polígonos del mapa rápido) → rótulo en grande y PDF.
+    // Cada rótulo se puede corregir a mano antes de crear el PDF
+    var flFotos = [], flOcupado = false, ubicarLote = crearUbicador();
+    // Lo escrito a mano: 110 → "Z1CC0100 · Lote 110"; Z1CC0100 → igual; otro texto tal cual
+    function rotuloEscrito(v) {
+        v = String(v || '').trim();
+        var mr = v.toUpperCase().replace(/\s+/g, '');
+        if (!v) return '';
+        if (/^\d+$/.test(v)) return mrPorLote[v] ? mrPorLote[v] + ' · Lote ' + v : 'Lote ' + v;
+        if (LOTES[mr]) return mr + (LOTES[mr].lote && LOTES[mr].lote !== 'NA' ? ' · Lote ' + LOTES[mr].lote : '');
+        return v;
+    }
+    function estadoFotoLote(f) {
+        if (f.manual) return f.rotulo ? ['ok', '✎ escrito a mano'] : ['aviso', '✎ sin rótulo (se borró)'];
+        if (f.ubic) return f.ubic.dist ? ['aviso', '📍 afuera, a ' + f.ubic.dist + ' m del lote: revíselo'] : ['ok', '📍 dentro del lote' + (f.deMarca ? ' (GPS de la marca de agua)' : '')];
+        if (!f.gps) return ['aviso', '⚠ sin GPS: escriba el lote'];
+        return ['aviso', '⚠ ningún lote a menos de ' + CERCA_LOTE + ' m: escriba el lote'];
+    }
+    function listarFotoLote() {
+        var lista = ordenarFotos(flFotos, $('fl-orden').value), conLote = lista.filter(function (f) { return f.rotulo; }).length;
+        var lotes = lista.map(function (f) { return f.rotulo; }).filter(function (r, i, a) { return r && a.indexOf(r) === i; });
+        $('fl-resumen').innerHTML = !lista.length ? '' : lista.length + (lista.length === 1 ? ' foto' : ' fotos') + ' · ' + conLote + ' con lote' +
+            (lotes.length ? ' · ' + lotes.length + (lotes.length === 1 ? ' lote' : ' lotes') : '') +
+            (conLote < lista.length ? ' · <span class="aviso-fotos">⚠ ' + (lista.length - conLote) + ' sin lote: escríbalo o quedan sin rótulo</span>' : '');
+        $('fl-lista').innerHTML = lista.map(function (f) {
+            var e = estadoFotoLote(f);
+            return '<li><span class="fl-nombre">' + esc(f.nombre) + '<br><span class="fl-estado ' + e[0] + '">' + (f.fecha ? esc(fechaCorta(f.fecha)) + ' · ' : '') + esc(e[1]) + '</span></span>' +
+                '<input type="text" data-fl="' + flFotos.indexOf(f) + '" value="' + esc(f.rotulo || '') + '" placeholder="Lote o microrruta" aria-label="Lote de ' + esc(f.nombre) + '" autocomplete="off"></li>';
+        }).join('');
+        $('fl-convertir').disabled = !lista.length || flOcupado;
+    }
+    async function cargarFotoLote(archivos) {
+        if (flOcupado) return;
+        flOcupado = true;
+        $('fl-convertir').disabled = true;
+        try {
+            archivos = archivos.filter(function (f) { return /^image\//.test(f.type) || /\.(jpe?g|png|webp|heic|heif|bmp|gif|tiff?)$/i.test(f.name); });
+            if (!archivos.length) { flFotos = []; listarFotoLote(); $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se encontraron fotos.</span>'; return; }
+            $('fl-resumen').textContent = 'Leyendo ' + archivos.length + ' fotos…';
+            flFotos = await examinar(archivos);
+            // Sin GPS en el archivo: si se pidió, coordenadas de la marca de agua con el lector de imágenes
+            var sinGps = flFotos.filter(function (f) { return !f.gps; });
+            if (sinGps.length && $('fl-marca').checked && window.leerCoordenadas) {
+                var leidas = await leerImagenes(sinGps.map(function (f) { return f.archivo; }), function (i, t) { $('fl-resumen').textContent = 'Leyendo la marca de agua ' + (i + 1) + ' de ' + t + '…'; });
+                leidas.forEach(function (r, i) {
+                    var c = r.texto && window.leerCoordenadas(r.texto);
+                    if (c) { sinGps[i].gps = { lat: c.lat, lon: c.lng }; sinGps[i].deMarca = true; }
+                });
+            }
+            for (var i = 0; i < flFotos.length; i++) {
+                var f = flFotos[i];
+                $('fl-resumen').textContent = 'Buscando el lote de cada foto: ' + (i + 1) + ' de ' + flFotos.length + '…';
+                if (f.gps) f.ubic = await ubicarLote(f.gps.lat, f.gps.lon);
+                f.rotulo = rotuloLote(f.ubic);
+            }
+            var r1 = flFotos.map(function (f) { return f.rotulo; }).filter(Boolean);
+            $('fl-nombre').value = (r1.length && r1.every(function (r) { return r === r1[0]; }) ? r1[0].replace(/ · /g, ' ') : 'Fotos con lote') + ' ' + new Date().toISOString().slice(0, 10);
+        } catch (e) {
+            $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se pudieron leer las fotos: ' + esc(e.message) + '</span>';
+            flFotos = [];
+        } finally {
+            flOcupado = false;
+        }
+        listarFotoLote();
+    }
+    $('btn-fotolote').onclick = function () {
+        if (!flOcupado && !flFotos.length) { $('fl-nombre').value = 'Fotos con lote ' + new Date().toISOString().slice(0, 10); listarFotoLote(); }
+        $('dlg-fotolote').showModal();
+    };
+    $('fl-cerrar').onclick = function () { $('dlg-fotolote').close(); };
+    $('fl-elegir-fotos').onclick = function () { $('fl-fotos').value = ''; $('fl-fotos').click(); };
+    $('fl-elegir-carpeta').onclick = function () { $('fl-carpeta').value = ''; $('fl-carpeta').click(); };
+    $('fl-elegir-zip').onclick = function () { $('fl-zip').value = ''; $('fl-zip').click(); };
+    $('fl-fotos').onchange = $('fl-carpeta').onchange = function () { cargarFotoLote(Array.prototype.slice.call(this.files || [])); };
+    $('fl-zip').onchange = function () {
+        var zips = Array.prototype.slice.call(this.files || []);
+        if (!zips.length || flOcupado) return;
+        $('fl-resumen').textContent = 'Abriendo ' + (zips.length === 1 ? zips[0].name : zips.length + ' archivos .zip') + '…';
+        imagenesDeZips(zips).then(cargarFotoLote, function (e) {
+            $('fl-resumen').innerHTML = '<span class="aviso-fotos">No se pudo abrir el .zip' + (/zip|central directory|signature/i.test(e.message) ? ' (está dañado)' : ': ' + esc(e.message)) + '</span>';
+        });
+    };
+    $('fl-orden').onchange = listarFotoLote;
+    // Lote escrito a mano: se completa con la programación al salir del campo
+    $('fl-lista').addEventListener('change', function (ev) {
+        var inp = ev.target.closest('[data-fl]'), f = inp && flFotos[+inp.dataset.fl];
+        if (!f) return;
+        f.rotulo = rotuloEscrito(inp.value);
+        f.manual = f.rotulo !== rotuloLote(f.ubic);
+        listarFotoLote();
+    });
+    $('fl-convertir').onclick = async function () {
+        if (!flFotos.length || flOcupado) return;
+        flOcupado = true;
+        var b = $('fl-convertir'), lista = ordenarFotos(flFotos, $('fl-orden').value).map(function (f) { return Object.assign({}, f, { rotulo: f.rotulo || '' }); });
+        var op = { diseno: $('fl-diseno').value, reducir: $('fl-reducir').checked, nombre: $('fl-nombre').value };
+        b.disabled = true;
+        try {
+            if (!$('fl-separar').checked) {
+                var r = await fotosAPdf(lista, op, function (h, t) { b.textContent = 'Foto ' + h + ' de ' + t + '…'; });
+                toast(!r.paginas ? 'No se pudo leer ninguna foto.' : 'Listo: ' + r.nombre + ' (' + r.paginas + (r.paginas === 1 ? ' página)' : ' páginas)') +
+                    (r.omitidas.length ? ' · no se pudieron leer: ' + r.omitidas.join(', ') : ''));
+            } else {
+                // Un PDF por lote, con el nombre del lote; las fotos sin lote van en "Sin lote"
+                var grupos = {}, orden = [];
+                lista.forEach(function (f) { var k = f.rotulo || 'Sin lote'; if (!grupos[k]) { grupos[k] = []; orden.push(k); } grupos[k].push(f); });
+                var hechos = [], fecha = new Date().toISOString().slice(0, 10);
+                for (var i = 0; i < orden.length; i++) {
+                    var x = await fotosAPdf(grupos[orden[i]], Object.assign({}, op, { nombre: orden[i].replace(/ · /g, ' ') + ' ' + fecha, devolver: true }), function (h, t) {
+                        b.textContent = 'Lote ' + (i + 1) + ' de ' + orden.length + ' · foto ' + h + ' de ' + t + '…';
+                    });
+                    if (x.paginas) hechos.push(x);
+                }
+                if (!hechos.length) toast('No se pudo leer ninguna foto.');
+                else if (hechos.length === 1) { descargar(hechos[0].bytes, hechos[0].nombre, 'application/pdf'); toast('Listo: ' + hechos[0].nombre); }
+                else {
+                    var { default: JSZip } = await import('jszip'), salida = new JSZip();
+                    hechos.forEach(function (h) { salida.file(h.nombre, h.bytes); });
+                    var nombreZip = ($('fl-nombre').value.trim() || 'Fotos por lote').replace(/[\\/:*?"<>|]+/g, '-') + '.zip';
+                    descargar(await salida.generateAsync({ type: 'uint8array' }), nombreZip, 'application/zip');
+                    toast('Listo: ' + hechos.length + ' PDF (uno por lote) en ' + nombreZip);
+                }
+            }
+        } catch (e) {
+            toast('No se pudo crear el PDF: ' + e.message);
+        } finally {
+            flOcupado = false;
+            b.textContent = 'Crear PDF';
+            b.disabled = !flFotos.length;
+        }
+    };
+
     // ---------- ZIP a PDF (src/subsanaciones/zippdf.js) ----------
     var zipOcupado = false;
     function elegidosZip() { return Array.prototype.slice.call($('zip-archivos').files || []); }
@@ -2456,7 +2590,7 @@ export function iniciar(api, CFG) {
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla|fotolote)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         btn.onclick();
