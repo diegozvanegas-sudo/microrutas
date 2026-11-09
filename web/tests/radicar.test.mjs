@@ -31,3 +31,14 @@ test('opciones como las del formulario', () => {
     assert.equal(OPCIONES.tipoSolicitud.length, 11);
     assert.ok(LETRAS.indexOf('A') === 0 && LETRAS.indexOf('CE') !== -1 && LETRAS.indexOf('CF') === -1);
 });
+
+import { readFileSync } from 'node:fs';
+import { scriptTampermonkey, enlaceMarcador, datosMarcador, PREFIJO } from '../src/radicar/marcador.js';
+test('el script de Tampermonkey publicado está al día con marcador.js', () => {
+    const publicado = readFileSync(new URL('../public/llenar-pqr-emvarias.user.js', import.meta.url), 'utf8').replace(/\r\n/g, '\n');
+    assert.equal(publicado, scriptTampermonkey().split(String.fromCharCode(13)).join(''), 'Corra: node tools/generar_userscript.mjs');
+    assert.match(publicado, /@match\s+https:\/\/runtime\.lappiz\.io\/\*/);
+    new Function(publicado);                                   // sin errores de sintaxis
+    new Function(decodeURIComponent(enlaceMarcador().slice('javascript:'.length)));
+    assert.ok(datosMarcador({ tipoSolicitud: 'Petición' }).startsWith(PREFIJO));
+});

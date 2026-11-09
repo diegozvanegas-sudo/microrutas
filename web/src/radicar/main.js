@@ -219,13 +219,21 @@ function eventos() {
     $('btn-copiar-todo').onclick = function () { copiar(textoTodo(datos()), 'todos los datos'); };
     $('btn-copiar-marcador').onclick = function () { copiar(datosMarcador(datos()), 'los datos para el marcador 🪄'); };
     $('lnk-marcador').href = enlaceMarcador();
+    // ¿Está instalado el llenado automático? (el script de Tampermonkey marca la página al cargar)
+    setTimeout(function () {
+        var si = document.documentElement.getAttribute('data-llenado-emvarias') === '1';
+        $('auto-estado').innerHTML = si ? '✓ <b>Llenado automático instalado</b> en este navegador: al abrir el formulario y aceptar el tratamiento de datos, se llena solo.'
+            : 'Llenado automático <b>no instalado</b> en este navegador (puede usar el marcador 🪄).';
+        $('auto-estado').classList.toggle('ok', si);
+    }, 1200);
     $('lnk-marcador').onclick = function (ev) { ev.preventDefault(); toast('Arrástrelo a la barra de favoritos. Se usa estando en la página de EMVARIAS.'); };
     $('btn-copiar-marcador-codigo').onclick = function () { copiar(enlaceMarcador(), 'el código del marcador'); };
     $('btn-copiar-contenido').onclick = function () { copiar(datos().contenido, 'contenido de la solicitud'); };
-    // Copia los datos para el marcador 🪄 (en el mismo toque, así el navegador lo permite) y abre el formulario
+    // Al abrir el formulario: la PQR va al llenado automático (Tampermonkey, si está) y al portapapeles para el marcador 🪄
     $('btn-abrir').onclick = function () {
-        var f = datos(), falta = faltantes(f);
-        try { navigator.clipboard.writeText(datosMarcador(f)); } catch (e) { /* si no deja, el marcador pide pegarlos */ }
+        var f = datos(), falta = faltantes(f), d = datosMarcador(f);
+        window.postMessage({ tipo: 'PQR-EMVARIAS', datos: d }, location.origin);
+        try { navigator.clipboard.writeText(d); } catch (e) { /* si no deja, el marcador pide pegarlos */ }
         guardarEnHistorial(f);
         if (falta.length) toast('Ojo, falta: ' + falta.join(', ') + '. EMVARIAS lo va a pedir.');
     };

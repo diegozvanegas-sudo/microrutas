@@ -78,11 +78,21 @@
             <ol>
                 <li>Llene aquí los datos.</li>
                 <li>Toque <b>🏛️ Abrir formulario de EMVARIAS</b> (copia los datos y abre la página).</li>
-                <li>Allá acepte el tratamiento de datos y toque el marcador <b>🪄 Llenar PQR EMVARIAS</b> de su barra de favoritos: se llenan todos los campos.</li>
+                <li>Allá acepte el tratamiento de datos: con el <b>llenado automático</b> el formulario se llena solo; sin él, toque el marcador <b>🪄 Llenar PQR EMVARIAS</b> de su barra de favoritos.</li>
                 <li>Revise, adjunte las fotos, marque el captcha y radique. Escriba aquí el número que le da EMVARIAS y guarde.</li>
             </ol>
+            <p class="rad-auto" id="auto-estado"></p>
             <details class="rad-marcador">
-                <summary>🪄 Instalar el marcador (una sola vez por equipo)</summary>
+                <summary>⚡ Instalar el llenado automático (recomendado, una sola vez por navegador)</summary>
+                <ol>
+                    <li>Instale la extensión gratuita <b>Tampermonkey</b> desde la tienda de extensiones de Chrome o Edge.</li>
+                    <li>Toque <a class="boton primario" href="llenar-pqr-emvarias.user.js" target="_blank" rel="noopener">⚡ Instalar «Llenar PQR EMVARIAS»</a> y en Tampermonkey toque <b>Instalar</b>.</li>
+                    <li>Recargue esta página: arriba debe decir «Llenado automático instalado».</li>
+                </ol>
+                <p class="sub">Desde ahí: <b>Abrir formulario de EMVARIAS</b> → acepte el tratamiento de datos → el formulario se llena solo → revise, marque el captcha y radique. La PQR queda guardada en el navegador máximo 30 minutos y se borra al usarla.</p>
+            </details>
+            <details class="rad-marcador">
+                <summary>🪄 O instalar el marcador (sin extensión)</summary>
                 <p><b>En el computador:</b> muestre la barra de favoritos (Ctrl + Shift + B) y <b>arrastre</b> este botón hasta ella:
                     <a class="boton primario" id="lnk-marcador" href="#" title="Arrástrelo a la barra de favoritos">🪄 Llenar PQR EMVARIAS</a></p>
                 <p><b>En el celular (Chrome):</b> toque <button type="button" class="secundario pequeno" id="btn-copiar-marcador-codigo">Copiar el código del marcador</button>,

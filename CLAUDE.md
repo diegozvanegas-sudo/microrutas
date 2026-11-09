@@ -8,6 +8,17 @@ Responder siempre en español. La app la usa la interventoría del corte de cés
 - Si el arreglo de verdad necesita tocar algo compartido (un estilo general, `sesion.js`, el menú de todas las páginas), **primero se pregunta** y se explica qué más se afectaría.
 - Mejoras que se noten en otras secciones se proponen al final, no se hacen sin permiso.
 
+## Probar y verificar todo antes de subir (regla del usuario, siempre)
+
+Nada se sube (commit ni push) sin haber pasado por esto, y al usuario se le dice qué se verificó y qué no:
+1. **Pruebas:** `npm test` en `web/` (todas en verde) y pruebas nuevas para la lógica que se agregó o cambió.
+2. **Lint:** `npx eslint src` sin errores nuevos (los 7 de `src/pqr/main.js` con `L` ya existían).
+3. **Compilar:** `npx vite build` (a una carpeta temporal) sin errores.
+4. **Con datos reales** cuando el usuario los dio (Excel, .zip, PDF): correr la lógica con ellos y revisar que el resultado tenga sentido (cuántas filas, qué quedó vacío y por qué).
+5. **Ver la pantalla** de lo que cambió, en computador (1280 px) y celular (390 px): `node tools/captura.mjs <página o copia .html> <salida>` hace las dos capturas y avisa si algo se sale del ancho. Si la página pide sesión, se arma una copia con sus estilos y datos de ejemplo. Mirar las capturas, no solo generarlas.
+6. **PDF, Excel o .zip que genera la app:** generarlo de verdad y mirar las páginas o el contenido.
+7. Lo que no se pudo probar (p. ej. una página externa como EMVARIAS) se dice claro, con el riesgo y qué debe probar el usuario.
+
 ## Interfaz: lo básico que siempre se hace (sin que lo pidan)
 
 Toda pantalla, ventana (`<dialog>`) o herramienta nueva o cambiada cumple esto antes de darla por terminada:
