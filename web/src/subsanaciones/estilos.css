@@ -568,9 +568,31 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 /* Fotos con su lote */
 #dlg-fotolote .fl-elegir { display: flex; gap: 8px; margin: 10px 0 4px; }
 #dlg-fotolote .fl-elegir .zip-elegir { flex: 1 1 0; min-width: 0; padding: 12px 6px; border: 2px dashed #9fd3bd; }
-.fl-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; }
-.fl-lista .fl-nombre { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
-.fl-lista .fl-estado { font-size: 12px; color: var(--muted); }
-.fl-lista .fl-estado.ok { color: #15803d; }
-.fl-lista .fl-estado.aviso { color: #9a3412; font-weight: 650; }
-.fl-lista input { flex: 1 1 170px; min-width: 0; min-height: 34px; font-size: 14px; }
+.fl-cuentas { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.fl-chip { padding: 2px 10px; border-radius: 999px; font-size: 12.5px; font-weight: 700; }
+.fl-chip.fl-ok { background: #dcfce7; color: #166534; }
+.fl-chip.fl-borde { background: #ecfccb; color: #3f6212; }
+.fl-chip.fl-revisar { background: #ffedd5; color: #9a3412; }
+.fl-chip.fl-falta { background: #fee2e2; color: #991b1b; }
+.fl-lotes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fl-lote { padding: 3px 8px; border: 1px solid var(--line); border-radius: 8px; font-size: 12.5px; background: #f8fafb; }
+.fl-lote b { margin-left: 4px; color: var(--brand); }
+.fl-lote.sin { border-color: #fecaca; background: #fef2f2; color: #991b1b; }
+.fl-solo { margin-top: 8px; }
+.fl-solo[hidden] { display: none; }
+.zip-informe.fl-lista li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; padding: 8px 10px 8px 12px; border-left: 4px solid transparent; }
+.fl-lista li.fl-ok { border-left-color: #22c55e; }
+.fl-lista li.fl-borde { border-left-color: #84cc16; }
+.fl-lista li.fl-revisar { border-left-color: #f97316; background: #fff7ed; }
+.fl-lista li.fl-falta { border-left-color: #ef4444; background: #fef2f2; }
+.fl-lista .fl-info { flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.fl-lista .fl-nombre { font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fl-lista .fl-estado { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.fl-lista .fl-icono { display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%; font-size: 11px; font-weight: 800; color: #fff; flex: none; }
+.fl-lista .fl-ok .fl-icono { background: #16a34a; }
+.fl-lista .fl-borde .fl-icono { background: #65a30d; }
+.fl-lista .fl-revisar .fl-icono { background: #ea580c; }
+.fl-lista .fl-falta .fl-icono { background: #dc2626; }
+.fl-lista .fl-revisar .fl-estado { color: #9a3412; font-weight: 650; }
+.fl-lista .fl-falta .fl-estado { color: #991b1b; font-weight: 650; }
+.fl-lista input { flex: 1 1 190px; min-width: 0; min-height: 36px; font-size: 14px; }

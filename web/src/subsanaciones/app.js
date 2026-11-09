@@ -2433,22 +2433,42 @@ export function iniciar(api, CFG) {
         if (LOTES[mr]) return mr + (LOTES[mr].lote && LOTES[mr].lote !== 'NA' ? ' · Lote ' + LOTES[mr].lote : '');
         return v;
     }
+    // Estado de cada foto: dentro (verde), en el borde a pocos metros (verde claro: es el error normal del GPS),
+    // afuera a más metros (naranja: revisar) o sin lote (rojo: escribirlo). [clase, ícono, texto]
+    var BORDE_GPS = 10;
     function estadoFotoLote(f) {
-        if (f.manual) return f.rotulo ? ['ok', '✎ escrito a mano'] : ['aviso', '✎ sin rótulo (se borró)'];
-        if (f.ubic) return f.ubic.dist ? ['aviso', '📍 afuera, a ' + f.ubic.dist + ' m del lote: revíselo'] : ['ok', '📍 dentro del lote' + (f.deMarca ? ' (GPS de la marca de agua)' : '')];
-        if (!f.gps) return ['aviso', '⚠ sin GPS: escriba el lote'];
-        return ['aviso', '⚠ ningún lote a menos de ' + CERCA_LOTE + ' m: escriba el lote'];
+        if (f.manual) return f.rotulo ? ['fl-ok', '✎', 'Escrito a mano'] : ['fl-falta', '✎', 'Sin rótulo (se borró)'];
+        if (f.ubic && !f.ubic.dist) return ['fl-ok', '✓', 'Dentro del lote' + (f.deMarca ? ' · GPS de la marca de agua' : '')];
+        if (f.ubic && f.ubic.dist <= BORDE_GPS) return ['fl-borde', '✓', 'En el borde (a ' + f.ubic.dist + ' m)' + (f.deMarca ? ' · GPS de la marca de agua' : '')];
+        if (f.ubic) return ['fl-revisar', '!', 'A ' + f.ubic.dist + ' m del lote: revíselo'];
+        if (!f.gps) return ['fl-falta', '⚠', 'Sin GPS: escriba el lote'];
+        return ['fl-falta', '⚠', 'Ningún lote a menos de ' + CERCA_LOTE + ' m: escriba el lote'];
     }
     function listarFotoLote() {
-        var lista = ordenarFotos(flFotos, $('fl-orden').value), conLote = lista.filter(function (f) { return f.rotulo; }).length;
-        var lotes = lista.map(function (f) { return f.rotulo; }).filter(function (r, i, a) { return r && a.indexOf(r) === i; });
-        $('fl-resumen').innerHTML = !lista.length ? '' : lista.length + (lista.length === 1 ? ' foto' : ' fotos') + ' · ' + conLote + ' con lote' +
-            (lotes.length ? ' · ' + lotes.length + (lotes.length === 1 ? ' lote' : ' lotes') : '') +
-            (conLote < lista.length ? ' · <span class="aviso-fotos">⚠ ' + (lista.length - conLote) + ' sin lote: escríbalo o quedan sin rótulo</span>' : '');
-        $('fl-lista').innerHTML = lista.map(function (f) {
-            var e = estadoFotoLote(f);
-            return '<li><span class="fl-nombre">' + esc(f.nombre) + '<br><span class="fl-estado ' + e[0] + '">' + (f.fecha ? esc(fechaCorta(f.fecha)) + ' · ' : '') + esc(e[1]) + '</span></span>' +
-                '<input type="text" data-fl="' + flFotos.indexOf(f) + '" value="' + esc(f.rotulo || '') + '" placeholder="Lote o microrruta" aria-label="Lote de ' + esc(f.nombre) + '" autocomplete="off"></li>';
+        var lista = ordenarFotos(flFotos, $('fl-orden').value), cuenta = { 'fl-ok': 0, 'fl-borde': 0, 'fl-revisar': 0, 'fl-falta': 0 }, porLote = {}, orden = [];
+        lista.forEach(function (f) {
+            f.estado = estadoFotoLote(f);
+            cuenta[f.estado[0]]++;
+            var k = f.rotulo || '';
+            if (!(k in porLote)) { porLote[k] = 0; orden.push(k); }
+            porLote[k]++;
+        });
+        var revisar = cuenta['fl-revisar'] + cuenta['fl-falta'], solo = $('fl-solo').checked && revisar;
+        $('fl-solo-caja').hidden = !revisar;
+        $('fl-resumen').innerHTML = !lista.length ? '' : '<div class="fl-cuentas">' +
+            '<b>' + lista.length + (lista.length === 1 ? ' foto' : ' fotos') + '</b>' +
+            (cuenta['fl-ok'] ? '<span class="fl-chip fl-ok">✓ ' + cuenta['fl-ok'] + ' dentro</span>' : '') +
+            (cuenta['fl-borde'] ? '<span class="fl-chip fl-borde">✓ ' + cuenta['fl-borde'] + ' en el borde</span>' : '') +
+            (cuenta['fl-revisar'] ? '<span class="fl-chip fl-revisar">! ' + cuenta['fl-revisar'] + ' por revisar</span>' : '') +
+            (cuenta['fl-falta'] ? '<span class="fl-chip fl-falta">⚠ ' + cuenta['fl-falta'] + ' sin lote</span>' : '') + '</div>' +
+            '<div class="fl-lotes">' + orden.map(function (k) {
+                return '<span class="fl-lote' + (k ? '' : ' sin') + '">' + esc(k || 'Sin lote') + ' <b>' + porLote[k] + '</b></span>';
+            }).join('') + '</div>';
+        $('fl-lista').innerHTML = lista.filter(function (f) { return !solo || f.estado[0] === 'fl-revisar' || f.estado[0] === 'fl-falta'; }).map(function (f) {
+            var e = f.estado;
+            return '<li class="' + e[0] + '"><div class="fl-info"><span class="fl-nombre" title="' + esc(f.nombre) + '">' + esc(f.nombre) + '</span>' +
+                '<span class="fl-estado"><span class="fl-icono" aria-hidden="true">' + e[1] + '</span>' + esc(e[2]) + (f.fecha ? ' · ' + esc(fechaCorta(f.fecha)) : '') + '</span></div>' +
+                '<input type="text" data-fl="' + flFotos.indexOf(f) + '" value="' + esc(f.rotulo || '') + '" placeholder="Escriba el lote" aria-label="Lote de ' + esc(f.nombre) + '" autocomplete="off"></li>';
         }).join('');
         $('fl-convertir').disabled = !lista.length || flOcupado;
     }
@@ -2504,6 +2524,7 @@ export function iniciar(api, CFG) {
         });
     };
     $('fl-orden').onchange = listarFotoLote;
+    $('fl-solo').onchange = listarFotoLote;
     // Lote escrito a mano: se completa con la programación al salir del campo
     $('fl-lista').addEventListener('change', function (ev) {
         var inp = ev.target.closest('[data-fl]'), f = inp && flFotos[+inp.dataset.fl];
