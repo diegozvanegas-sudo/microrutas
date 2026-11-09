@@ -96,3 +96,21 @@ export function crearUbicador(base, traer) {
         return mejor;
     };
 }
+
+// Lote o microrruta en el nombre de un archivo («118.zip», «Lote 118 C4.zip», «Z1CC0108.zip», «fotos 0118.zip») → texto
+// que entiende rotuloEscrito ('118' o 'Z1CC0108'), o ''. Se quitan antes las fechas y horas para no confundirlas;
+// existe(valor) dice si el lote o la microrruta están en la programación (así un número cualquiera no se toma por lote)
+export function loteDeNombre(nombre, existe) {
+    var t = String(nombre || '').replace(/\.[a-z0-9]{2,4}$/i, '');
+    var mr = t.match(/Z\d+CC\d+/i);
+    if (mr && existe(mr[0].toUpperCase())) return mr[0].toUpperCase();
+    t = t.replace(/\b\d{4}[-_.]\d{1,2}[-_.]\d{1,2}\b/g, ' ').replace(/\b\d{1,2}[-_.]\d{1,2}[-_.]\d{2,4}\b/g, ' ')
+        .replace(/\b\d{1,2}[.:h]\d{2}([.:]\d{2})?\b/gi, ' ').replace(/\(\d+\)/g, ' ');
+    var preferido = t.match(/lote\s*[-_#]?\s*(\d{1,4})/i);
+    var candidatos = (preferido ? [preferido[1]] : []).concat(t.match(/\d{1,4}/g) || []);
+    for (var i = 0; i < candidatos.length; i++) {
+        var n = String(Number(candidatos[i]));
+        if (existe(n)) return n;
+    }
+    return '';
+}

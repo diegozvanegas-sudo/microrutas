@@ -62,3 +62,17 @@ test('con los datos reales: lejos de todo no hay lote', async () => {
     assert.equal(await ubicar(0, 0), null);
 });
 test('CERCA es la tolerancia del GPS del celular', () => { assert.equal(CERCA, 30); });
+
+import { loteDeNombre } from '../src/subsanaciones/lotegps.js';
+test('lote o microrruta en el nombre del archivo', () => {
+    const existe = v => ['118', '110', '4', 'Z1CC0108'].includes(v);
+    assert.equal(loteDeNombre('118.zip', existe), '118');
+    assert.equal(loteDeNombre('Lote 118 cuadrilla 4.zip', existe), '118');
+    assert.equal(loteDeNombre('fotos_0118.zip', existe), '118');
+    assert.equal(loteDeNombre('Z1CC0108.zip', existe), 'Z1CC0108');
+    assert.equal(loteDeNombre('z1cc0108 fotos.zip', existe), 'Z1CC0108');
+    assert.equal(loteDeNombre('WhatsApp 2026-11-04 at 17.00.58.zip', existe), '');   // fecha y hora no son lote
+    assert.equal(loteDeNombre('fotos 04-11-2026.zip', existe), '');
+    assert.equal(loteDeNombre('999.zip', existe), '');                                // no está en la programación
+    assert.equal(loteDeNombre('', existe), '');
+});

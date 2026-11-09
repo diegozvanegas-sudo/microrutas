@@ -71,6 +71,9 @@ async function prepararJpg(archivo, reducir, rotulo) {
     return new Uint8Array(await blob.arrayBuffer());
 }
 
+// La foto derecha con su rótulo en grande, como JPG (para entregarla suelta en un .zip)
+export function fotoRotulada(archivo, rotulo, reducir) { return prepararJpg(archivo, reducir, rotulo); }
+
 // Cabe la imagen en una caja sin deformarla, centrada
 function encajar(img, x, y, w, h) {
     var e = Math.min(w / img.width, h / img.height), iw = img.width * e, ih = img.height * e;

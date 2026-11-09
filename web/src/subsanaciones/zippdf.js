@@ -76,7 +76,9 @@ export async function imagenesDeZips(archivos) {
         for (var i = 0; i < nombres.length; i++) {
             var e = zip.files[nombres[i]], ext = nombres[i].split('.').pop().toLowerCase();
             var tipo = ext === 'png' ? 'image/png' : ext === 'webp' ? 'image/webp' : ext === 'gif' ? 'image/gif' : ext === 'bmp' ? 'image/bmp' : /tiff?/.test(ext) ? 'image/tiff' : 'image/jpeg';
-            out.push(new File([await e.async('blob')], nombres[i].split('/').pop(), { type: tipo, lastModified: e.date ? e.date.getTime() : Date.now() }));
+            var f = new File([await e.async('blob')], nombres[i].split('/').pop(), { type: tipo, lastModified: e.date ? e.date.getTime() : Date.now() });
+            f.zipOrigen = archivos[k].name;   // de qué .zip salió (su nombre puede traer el lote)
+            out.push(f);
         }
     }
     return out;

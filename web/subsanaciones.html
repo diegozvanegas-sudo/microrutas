@@ -500,8 +500,7 @@
 <dialog id="dlg-fotolote">
     <div class="cuerpo">
         <h2>📍 Fotos con su lote</h2>
-        <div class="sub">Elija fotos, una carpeta o archivos .zip: a cada foto se le pone en grande la microrruta y el lote donde se tomó
-            (por el GPS de la foto) y quedan en PDF. Puede corregir el lote de cualquier foto antes de crear el PDF. Se hace en este equipo.</div>
+        <div class="sub">Elija fotos, una carpeta o archivos .zip: a cada foto se le pone en grande la microrruta y el lote, y quedan en PDF o en un .zip para enviar. Si el .zip o la carpeta se llaman con el número del lote (p. ej. 118.zip), el lote se pone solo. Puede corregir el lote de cualquier foto antes de crear el PDF. Se hace en este equipo.</div>
         <input type="file" id="fl-fotos" accept="image/*" multiple hidden>
         <input type="file" id="fl-carpeta" webkitdirectory multiple hidden>
         <input type="file" id="fl-zip" accept=".zip,application/zip,application/x-zip-compressed" multiple hidden>
@@ -546,6 +545,7 @@
         <ol class="zip-informe fl-lista" id="fl-lista"></ol>
         <div class="pie">
             <button type="button" class="secundario" id="fl-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="fl-zip-crear" disabled title="Un .zip con una carpeta por lote: las fotos con su rótulo y el PDF">🗜️ Crear .zip para enviar</button>
             <button type="button" class="primario" id="fl-convertir" disabled>Crear PDF</button>
         </div>
     </div>
