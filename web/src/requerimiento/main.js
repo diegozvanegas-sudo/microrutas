@@ -11,7 +11,7 @@ import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { leerPlantillas, firma, rellenar, pendientes, fechaEvento } from './plantillas.js';
 import { armarPdf } from './pdf.js';
 
-var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete';
+var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete', FIRMAS_IMG = 'req_firmas_img';
 var ZONAS = ['1', '2', '3', '4', '5', '6', '7'];
 var P = { config: {}, ans: {}, plantillas: [], catalogo: [] }, fotos = [], editandoId = null, cambios = false;
 
@@ -31,13 +31,21 @@ function configUsuario() {
         para: c.para || '', cc: c.cc || ''
     };
 }
+// data:image/…;base64,… → { bytes, tipo }
+function deDataUrl(datos) {
+    if (!datos || datos.indexOf('data:image/') !== 0) return null;
+    var b = atob(datos.split(',')[1] || ''), bytes = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i);
+    return { bytes: bytes, tipo: /^data:image\/png/.test(datos) ? 'png' : 'jpg' };
+}
+// El membrete propio del equipo (⚙️ Configuración) o, si no hay, el de las plantillas (privado, en la base)
 function membrete() {
     var m = leer(MEMBRETE, null);
-    if (!m || !m.datos) return null;
-    var b = atob(m.datos.split(',')[1] || ''), bytes = new Uint8Array(b.length);
-    for (var i = 0; i < b.length; i++) bytes[i] = b.charCodeAt(i);
-    return { bytes: bytes, tipo: m.tipo };
+    return deDataUrl(m && m.datos) || deDataUrl(cfg('membrete'));
 }
+// Imagen de la firma de cada firmante, por nombre: solo en este equipo (cada quien pone la suya)
+function firmasImagen() { return leer(FIRMAS_IMG, {}); }
+function claveFirma(nombre) { return String(nombre || '').trim().toUpperCase(); }
 
 // ---------- Formulario ----------
 function vacio() {
@@ -103,6 +111,7 @@ function avisos() {
     if (!d.radicado) faltan.push('radicado');
     if (!d.asunto) faltan.push('asunto');
     if (!d.eventoDesde) faltan.push('fecha del evento');
+    if (!membrete()) faltan.push('membrete (⚙️ Configuración)');
     var corchetes = pendientes([d.asunto, d.descripcion, d.ruta]);
     $('f-ans-cuenta').textContent = d.ans.length ? '· ' + d.ans.length + (d.ans.length === 1 ? ' marcado' : ' marcados') + ': ANS ' + d.ans.join(', ') : '· ninguno marcado';
     $('f-avisos').innerHTML = (faltan.length ? '⚠ Falta: ' + esc(faltan.join(', ')) + '. ' : '') +
@@ -149,7 +158,8 @@ function datosPdf(d) {
         ansIntro: cfg('ans_intro'), ans: d.ans.map(function (n) { return { clave: 'ANS ' + n, t: P.ans[n] || '' }; }).filter(function (a) { return a.t; }),
         solicitudes: d.solicitudes, soportes: cfg('soportes'), plazo: d.plazo,
         consideracionesRespuesta: cfg('consideraciones_respuesta'), preventivo: cfg('preventivo'),
-        firmas: c.firmas, copias: c.copias, codigo: cfg('codigo'), pie: cfg('pie')
+        firmas: c.firmas.map(function (f) { var im = firmasImagen()[claveFirma(f.nombre)]; return { nombre: f.nombre, cargo: f.cargo, imagen: im ? deDataUrl(im) : null }; }),
+        copias: c.copias, codigo: cfg('codigo'), pie: cfg('pie')
     };
 }
 function nombreArchivo(d) {
@@ -344,12 +354,33 @@ function eventos() {
         var c = configUsuario(), m = leer(MEMBRETE, null);
         $('c-firmas').value = c.firmas.map(function (f) { return f.nombre + (f.cargo ? ' | ' + f.cargo : ''); }).join('\n');
         $('c-copias').value = c.copias.join('\n'); $('c-para').value = c.para; $('c-cc').value = c.cc;
-        $('c-membrete-ver').hidden = !m; if (m) $('c-membrete-ver').src = m.datos;
+        var deBase = cfg('membrete');
+        $('c-membrete-ver').hidden = !(m || deBase); $('c-membrete-ver').src = m ? m.datos : deBase || '';
         $('c-membrete-quitar').hidden = !m;
-        $('c-membrete-estado').textContent = m ? 'Membrete guardado en este equipo.' : 'Sin membrete: el PDF sale con margen normal y sin logos.';
+        $('c-membrete-estado').textContent = m ? 'Se usa el membrete elegido en este equipo.' : deBase ? 'Se usa el membrete de las plantillas (el mismo para todos). Puede elegir otro solo para este equipo.' : 'Sin membrete: el PDF sale con margen normal y sin logos.';
+        pintarFirmasConfig();
         $('dlg-config').showModal();
     };
     $('c-cerrar').onclick = function () { $('dlg-config').close(); };
+    $('c-firmas').addEventListener('input', pintarFirmasConfig);
+    $('c-firmas-img').addEventListener('click', function (ev) {
+        var s = ev.target.closest('[data-subir-firma]'), q = ev.target.closest('[data-quitar-firma]');
+        if (s) { firmaPendiente = s.dataset.subirFirma; $('c-firma-archivo').value = ''; $('c-firma-archivo').click(); }
+        if (q) { var m = firmasImagen(); delete m[q.dataset.quitarFirma]; guardar(FIRMAS_IMG, m); pintarFirmasConfig(); }
+    });
+    $('c-firma-archivo').onchange = async function () {
+        var f = this.files && this.files[0];
+        if (!f || !firmaPendiente) return;
+        try {
+            // Se guarda como PNG de hasta 600 px de ancho (conserva el fondo transparente si lo tiene)
+            var bmp = await createImageBitmap(f), e = Math.min(1, 600 / bmp.width), c = document.createElement('canvas');
+            c.width = Math.round(bmp.width * e); c.height = Math.round(bmp.height * e);
+            c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
+            var m = firmasImagen(); m[firmaPendiente] = c.toDataURL('image/png');
+            if (!guardar(FIRMAS_IMG, m)) throw new Error('no hay espacio en el equipo');
+            pintarFirmasConfig();
+        } catch (er) { toast('No se pudo usar la imagen: ' + er.message); }
+    };
     $('c-guardar').onclick = function () {
         guardar(CONFIG, {
             firmas: $('c-firmas').value.split('\n').map(function (l) { return firma(l); }).filter(function (f) { return f.nombre; }),
@@ -377,6 +408,18 @@ function eventos() {
     $('c-membrete-quitar').onclick = function () { localStorage.removeItem(MEMBRETE); $('c-membrete-ver').hidden = true; this.hidden = true; $('c-membrete-estado').textContent = 'Sin membrete.'; };
     $('btn-recargar').onclick = async function () { if (await cargarPlantillas()) toast('Plantillas actualizadas.'); };
     window.addEventListener('beforeunload', function () { if (!$('form-req').hidden) guardar(BORRADOR, datosForm()); });
+}
+
+// Firmantes del cuadro de texto, cada uno con su imagen de firma (o el botón para ponerla)
+var firmaPendiente = '';
+function pintarFirmasConfig() {
+    var imgs = firmasImagen(), nombres = $('c-firmas').value.split('\n').map(function (l) { return firma(l).nombre; }).filter(Boolean);
+    $('c-firmas-img').innerHTML = nombres.length ? nombres.map(function (n) {
+        var k = claveFirma(n), im = imgs[k];
+        return '<div class="req-firma"><span class="req-firma-nombre">' + esc(n) + '</span>' +
+            (im ? '<img src="' + im + '" alt="Firma de ' + esc(n) + '"><button type="button" class="secundario pequeno" data-quitar-firma="' + esc(k) + '">Quitar</button>'
+                : '<span class="sub">Sin firma: sale la línea en blanco</span><button type="button" class="secundario pequeno" data-subir-firma="' + esc(k) + '">Subir firma</button>') + '</div>';
+    }).join('') : '<span class="sub">Escriba arriba quién firma.</span>';
 }
 
 // Desde otra página: requerimiento.html?plantilla=residuos-8h&ruta=Z1CC0100 (110)&fecha=2026-11-09&zona=1

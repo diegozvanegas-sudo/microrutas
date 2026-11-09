@@ -2,7 +2,7 @@
 // 2. Evidencias (fotos con su pie), 3. Consideraciones (obligaciones del contrato y ANS citados), 4. Información solicitada
 // (tabla), 5. Soportes y plazo, 6. Consideraciones sobre la respuesta, firmas y copias. Hoja carta.
 // El membrete (logos de la institución) lo pone cada usuario desde su equipo: no está en el repositorio.
-// Las firmas van en blanco: cada persona firma el documento.
+// Las firmas van en blanco (cada persona firma), salvo que quien firma haya puesto la imagen de su firma en su equipo.
 // pdf-lib se carga solo al generar. Funciona igual en el navegador y en Node (pruebas).
 
 var CARTA = [612, 792];
@@ -233,13 +233,22 @@ export async function armarPdf(req, opciones) {
     // Firmas en dos columnas, con espacio para firmar
     var firmas = (req.firmas || []).filter(function (f) { return f.nombre; });
     espacio(40); y -= 8; texto('Cordialmente,', M.izq, y - 10); y -= 22;
-    var wcol = ANCHO / 2;
+    var wcol = ANCHO / 2, imagenesFirma = [];
+    for (var q = 0; q < firmas.length; q++) {
+        var im = null, f0 = firmas[q].imagen;
+        if (f0 && f0.bytes) { try { im = f0.tipo === 'png' ? await pdf.embedPng(f0.bytes) : await pdf.embedJpg(f0.bytes); } catch (e) { im = null; } }
+        imagenesFirma.push(im);
+    }
     for (var j = 0; j < firmas.length; j += 2) {
         var par2 = firmas.slice(j, j + 2), filasN = par2.map(function (f) { return partir(f.nombre, negrita, 10, wcol - 20).concat(partir(f.cargo || '', normal, 9.5, wcol - 20)); });
         var hfirma = 44 + Math.max.apply(null, filasN.map(function (l) { return l.length; })) * 12.5;
         espacio(hfirma);
         par2.forEach(function (f, k) {
-            var cx = M.izq + k * wcol + wcol / 2, yy = y - 40;
+            var cx = M.izq + k * wcol + wcol / 2, yy = y - 40, imf = imagenesFirma[j + k];
+            if (imf) {
+                var ef = Math.min(150 / imf.width, 36 / imf.height), wfi = imf.width * ef, hfi = imf.height * ef;
+                pag.drawImage(imf, { x: cx - wfi / 2, y: yy + 1, width: wfi, height: hfi });
+            }
             pag.drawLine({ start: { x: cx - 85, y: yy }, end: { x: cx + 85, y: yy }, thickness: 0.6, color: col(GRIS) });
             filasN[k].forEach(function (l, n) {
                 var le = n < partir(f.nombre, negrita, 10, wcol - 20).length ? negrita : normal, tam = le === negrita ? 10 : 9.5;

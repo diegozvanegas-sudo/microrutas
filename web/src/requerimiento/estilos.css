@@ -85,3 +85,9 @@ main.req label input[type="checkbox"], #dlg-config label input[type="checkbox"] 
     .req-tabla .acc { white-space: normal; padding-top: 6px; }
     .req-ans { grid-template-columns: 1fr; }
 }
+
+.req-aviso-firma { margin: 6px 0; padding: 8px 10px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; font-size: 13px; color: #7c2d12; }
+.req-firmas { display: grid; gap: 6px; }
+.req-firma { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; }
+.req-firma-nombre { font-weight: 700; font-size: 13px; flex: 1 1 200px; min-width: 0; }
+.req-firma img { height: 34px; max-width: 150px; object-fit: contain; background: #fff; border: 1px dashed var(--line); border-radius: 4px; }
