@@ -2,6 +2,12 @@
 
 Responder siempre en español. La app la usa la interventoría del corte de césped en el computador y en el celular.
 
+## Solo se toca la sección que se pidió (regla del usuario, siempre)
+
+- Si el pedido es de una sección (p. ej. «LV y RyT · Horas extras», «Fotos con su lote», «Requerimientos»), se cambian **solo los archivos de esa sección**. Nada de otras páginas, otros menús, estilos compartidos ni archivos generales «de paso».
+- Si el arreglo de verdad necesita tocar algo compartido (un estilo general, `sesion.js`, el menú de todas las páginas), **primero se pregunta** y se explica qué más se afectaría.
+- Mejoras que se noten en otras secciones se proponen al final, no se hacen sin permiso.
+
 ## Interfaz: lo básico que siempre se hace (sin que lo pidan)
 
 Toda pantalla, ventana (`<dialog>`) o herramienta nueva o cambiada cumple esto antes de darla por terminada:

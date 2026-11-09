@@ -61,3 +61,23 @@ test('horas: cruce por cédula en la dotación, por ruta si no está, y sin hora
     assert.equal(ana.extraReal, 0);
     assert.equal(leerCumplimiento(hojaExtras), null);
 });
+
+import { completarTripulantes, esConductor } from '../src/horas/cruce.js';
+test('tripulante sin hora propia toma la del conductor de su ruta y control', () => {
+    const base = { fecha: '2026-10-26', hi: 480, hf: 960, extra: 1005 };
+    const filas = [
+        { ...base, cargo: 'CONDUCTOR', nombre: 'Conductor A', ruta: '710407', control: '635', real: 1010, como: 'cedula', estado: 'ok' },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante B', ruta: '710407', control: '635', real: null, como: 'cedula', estado: 'sinhora' },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante C', ruta: '710407', control: '999', real: null, como: '', estado: 'nada' },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante D', ruta: '710407', control: '635', real: 1000, como: 'cedula', estado: 'ok' },
+    ];
+    const r = completarTripulantes(filas, 5);
+    assert.equal(r[1].real, 1010);
+    assert.equal(r[1].como, 'conductor');
+    assert.equal(r[1].conductor, 'Conductor A');
+    assert.equal(r[1].estado, 'ok');
+    assert.equal(r[2].real, null);          // otro control: no se toma
+    assert.equal(r[3].real, 1000);          // ya tenía la suya
+    assert.equal(r[0], filas[0]);
+    assert.ok(esConductor({ cargo: 'Conductor' }) && !esConductor({ cargo: 'TRIPULANTE' }));
+});

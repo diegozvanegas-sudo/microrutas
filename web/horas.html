@@ -84,10 +84,17 @@
 
     <section class="tarjeta" id="resultado" hidden>
         <h2>🔎 Resultado</h2>
+        <div class="filtro-cargo" role="group" aria-label="Cargo">
+            <span class="sub">Cargo:</span>
+            <button type="button" class="chip" data-cargo="" aria-pressed="true">Todos</button>
+            <button type="button" class="chip" data-cargo="conductor" aria-pressed="false">Conductores</button>
+            <button type="button" class="chip" data-cargo="tripulante" aria-pressed="false">Tripulantes</button>
+        </div>
         <div class="chips" id="resumen"></div>
+        <p class="aviso-horas" id="aviso-horas" hidden></p>
         <p class="totales" id="totales"></p>
         <div class="tabla-caja"><table class="tabla-horas" id="tabla"></table></div>
-        <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) queda sin marcar: revíselo antes de escribirlo.
+        <p class="ayuda">Puede corregir la hora real a mano. Lo encontrado solo por ruta (sin la cédula en la dotación) y la hora que un tripulante toma de su conductor quedan sin marcar: revíselos antes de escribirlos.
             Con ☑ <b>Escribir</b> del encabezado se marcan todas las filas que se ven. Las que no tienen hora real en el cumplimiento también se pueden marcar: se escribe la H. EXTRA reportada, en <b>naranja</b> en el Excel (no se pudo verificar).
             Si al cumplimiento le faltan horas reales, bájelo de nuevo más tarde y cárguelo junto con el anterior.</p>
         <div class="acciones fin">

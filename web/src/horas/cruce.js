@@ -180,3 +180,23 @@ export function resumen(filas) {
     });
     return r;
 }
+
+// Tripulantes sin hora real propia (su cédula no trae HORA REAL o no está en la dotación): toman la del conductor de su
+// misma ruta ese día (y del mismo control si los dos lo traen), marcada como 'conductor' para revisarla antes de escribirla
+export function esConductor(f) { return plano(f.cargo).indexOf('conductor') >= 0; }
+export function completarTripulantes(filas, tolerancia) {
+    tolerancia = tolerancia == null ? 5 : tolerancia;
+    var conductores = filas.filter(function (f) { return esConductor(f) && f.real != null; });
+    return filas.map(function (f) {
+        if (esConductor(f) || f.real != null) return f;
+        var c = conductores.find(function (k) {
+            return k.fecha === f.fecha && k.ruta && k.ruta === f.ruta && (!k.control || !f.control || ruta(k.control) === ruta(f.control));
+        });
+        if (!c) return f;
+        var dif = diferencia(f.hi, f.extra, c.real);
+        return Object.assign({}, f, {
+            real: c.real, como: 'conductor', conductor: c.nombre, diferencia: dif, extraReal: extra(f.hi, f.hf, c.real),
+            estado: Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos'
+        });
+    });
+}
