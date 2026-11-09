@@ -6,11 +6,13 @@
 import { esc, valorItem, claveFecha, hoy, aInput } from './util.js';
 import { deLote, esOp, itemsEnNo, itemsSubsanados, loteNoRevisable, textoObservacion } from './estado.js';
 
-var XL = { verde: 'FF00B050', azul: 'FF9BC2E6', amarillo: 'FFFFFF00', verdeNo: 'FF00FF00', gris: 'FFD9D9D9', rojo: 'FFFF0000', azulObs: 'FF4A86E8', naranja: 'FFFFD966' };
+var XL = { verde: 'FF00B050', azul: 'FF9BC2E6', amarillo: 'FFFFFF00', verdeNo: 'FF00FF00', gris: 'FFD9D9D9', rojo: 'FFFF0000', azulObs: 'FF4A86E8', naranja: 'FFFFD966', verdeClaro: 'FFC6EFCE' };
 var LETRA = 11, ALTO_CAB = 60;   // alto del encabezado en puntos, para que quepan los nombres largos de los ítems
 // Formato nuevo de interventoría (lote ejecutado, nov 2026): CLASIFICACION, FECHA DE CORRECCION y DÍAS TRANSCURRIDOS.
 // La clasificación no se guarda en la visita: todos los lotes del contrato son de la programación CLUS
 var CLASIF_CAB = 'CLASIFICACION', CLASIF = 'CLUS', F_CORR = 'FECHA DE CORRECCION', DIAS_T = 'DÍAS TRANSCURRIDOS (VISITA A CORRECCIÓN)';
+// Formato nuevo de operación (nov 2026): las mismas columnas; sin novedad va NA en fecha de corrección y días,
+// y lo corregido el mismo día de la visita dice NOVEDAD SUBSANADA INMEDIATAMENTE
 
 // Área como número para que Excel la muestre con separador de miles. api.js la entrega como en Colombia
 // ("36.823", "3.500,5"): el punto es de miles y la coma de decimales
@@ -31,43 +33,43 @@ function diasACorreccion(r) {
 
 // Contenido y colores de una hoja: { nombre, cab, anchos, fondoCab, filas: [{ v, fondo, ajustar }], miles }
 function armarHoja(nombre, lista, its, op) {
-    var inicio = ['MICRORRUTA', 'LOTE', 'ÁREA M2'].concat(op ? [] : [CLASIF_CAB], ['ZONA', 'CUADRILLA'], op ? [] : ['FECHA DE EJECUCIÓN'], ['FECHA DE LA VISITA', 'INTERVENTOR']);
-    var fin = op ? ['OBSERVACIONES', 'CANTIDAD DE NOVEDADES'] : ['OBSERVACIONES NOVEDADES', F_CORR, 'CANTIDAD DE NOVEDADES POR MICRORRUTA', DIAS_T];
-    var obs = fin[0], cant = op ? fin[1] : fin[2];
-    // Seguimiento de la subsanación (no está en el Excel original): al final, en gris, solo en operación.
-    // Lote ejecutado sale exactamente como el formato de interventoría (se pegan las filas en ese Excel)
-    var extra = op ? ['ESTADO', 'FECHA SUBSANACIÓN', 'OBSERVACIÓN SUBSANACIÓN', 'EVIDENCIA', 'ID'] : [];
-    var cab = inicio.concat(its, fin, extra);
+    var inicio = ['MICRORRUTA', 'LOTE', 'ÁREA M2', CLASIF_CAB, 'ZONA', 'CUADRILLA'].concat(op ? [] : ['FECHA DE EJECUCIÓN'], ['FECHA DE LA VISITA', 'INTERVENTOR']);
+    var fin = op ? ['OBSERVACIONES', F_CORR, 'CANTIDAD DE NOVEDADES', DIAS_T] : ['OBSERVACIONES NOVEDADES', F_CORR, 'CANTIDAD DE NOVEDADES POR MICRORRUTA', DIAS_T];
+    var obs = fin[0], cant = fin[2];
+    // Las dos hojas salen exactamente como el formato de interventoría (se pegan las filas en ese Excel)
+    var cab = inicio.concat(its, fin);
     var hoja = {
         nombre: nombre, cab: cab,
-        anchos: cab.map(function (c) { return c === obs ? 46 : c === 'OBSERVACIÓN SUBSANACIÓN' || c === 'EVIDENCIA' ? 30 : c === F_CORR || c === DIAS_T ? 16 : its.indexOf(c) !== -1 ? 13 : c === 'MICRORRUTA' ? 12 : 11; }),
+        anchos: cab.map(function (c) { return c === obs ? 46 : c === F_CORR || c === DIAS_T ? 16 : its.indexOf(c) !== -1 ? 13 : c === 'MICRORRUTA' ? 12 : 11; }),
         // En el formato de operación la columna OBSERVACIONES va en azul oscuro; en el de lote ejecutado,
         // OBSERVACIONES NOVEDADES y FECHA DE CORRECCION en verde claro
-        fondoCab: cab.map(function (c) { return its.indexOf(c) !== -1 ? XL.azul : extra.indexOf(c) !== -1 ? XL.gris : op && c === obs ? XL.azulObs : !op && (c === obs || c === F_CORR) ? XL.verdeNo : XL.verde; }),
+        fondoCab: cab.map(function (c) { return its.indexOf(c) !== -1 || (op && c === F_CORR) ? XL.azul : op && c === obs ? XL.azulObs : !op && (c === obs || c === F_CORR) ? XL.verdeNo : XL.verde; }),
         miles: cab.map(function (c) { return c === 'ÁREA M2'; }),
         filas: []
     };
     // Del más antiguo al más reciente, como se lleva el Excel
     lista.slice().sort(function (a, b) { return claveFecha(a['FECHA DE LA VISITA']).localeCompare(claveFecha(b['FECHA DE LA VISITA'])); }).forEach(function (r) {
-        var subs = itemsSubsanados(r), enNo = itemsEnNo(r);
+        var subs = itemsSubsanados(r), enNo = itemsEnNo(r), nov = enNo.length + subs.length;
+        // Operación: sin novedad → NA; corregido el día de la visita → INMEDIATAMENTE
+        var na = op && !nov && !loteNoRevisable(r), dt = diasACorreccion(r);
         hoja.filas.push({
             v: cab.map(function (c) {
                 if (its.indexOf(c) !== -1) return subs.indexOf(c) !== -1 ? 'NO' : valorItem(r[c]) || String(r[c] || '');
-                if (c === obs) return textoObservacion(r);
-                if (c === cant) return enNo.length + subs.length;
+                if (c === obs) return op && dt === 0 ? textoObservacion(r).replace(/^NOVEDAD SUBSANADA EL \S+/, 'NOVEDAD SUBSANADA INMEDIATAMENTE') : textoObservacion(r);
+                if (c === cant) return nov;
                 if (c === CLASIF_CAB) return CLASIF;
-                if (c === F_CORR) return r.ESTADO === 'SUBSANADO' ? String(r['FECHA SUBSANACIÓN'] || '') : '';
-                if (c === DIAS_T) return diasACorreccion(r);
+                if (c === F_CORR) return na ? 'NA' : r.ESTADO === 'SUBSANADO' ? String(r['FECHA SUBSANACIÓN'] || '') : '';
+                if (c === DIAS_T) return na ? 'NA' : op && dt === 'Pendiente' ? '' : dt;
                 if (c === 'ÁREA M2') return numeroArea(r[c]);
                 return String(r[c] || '');
             }),
             fondo: cab.map(function (c) {
                 if (its.indexOf(c) !== -1) return enNo.indexOf(c) !== -1 ? XL.amarillo : subs.indexOf(c) !== -1 ? XL.verdeNo : null;
                 if (c === obs) return loteNoRevisable(r) ? XL.rojo : r.ESTADO === 'PENDIENTE' ? XL.amarillo : r.ESTADO === 'SUBSANADO' ? XL.verdeNo : null;
-                if (c === DIAS_T) return r.ESTADO === 'PENDIENTE' ? XL.naranja : null;
+                if (c === DIAS_T) return op ? (r.ESTADO === 'PENDIENTE' ? null : XL.verdeClaro) : r.ESTADO === 'PENDIENTE' ? XL.naranja : null;
                 return null;
             }),
-            ajustar: cab.map(function (c) { return c === obs || c === 'OBSERVACIÓN SUBSANACIÓN'; })
+            ajustar: cab.map(function (c) { return c === obs; })
         });
     });
     return hoja;
