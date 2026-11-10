@@ -3,7 +3,7 @@
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegistro, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
-import { textoWhatsapp, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
+import { textoVisita, FORMATOS_VISITA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel, hojasExcel, htmlHoja, filasParaCopiar } from './excel.js';
@@ -491,11 +491,39 @@ export function iniciar(api, CFG) {
     }
     $('wa-abrir').addEventListener('click', recordarMenciones);
     function actualizarEnlaceWa() { $('wa-abrir').href = 'https://wa.me/?text=' + encodeURIComponent($('wa-texto').value); }
-    function mostrarWhatsapp(r) {
-        $('wa-texto').value = textoWhatsapp(r);
+    // Mensaje de una visita: se elige el formato y si va el plazo (preferencias del equipo). Los demás resúmenes que usan
+    // esta ventana no muestran estas opciones
+    var waVisita = null, PREF_WA = 'subsanaciones_wa_formato';
+    function prefWa() { try { return JSON.parse(localStorage.getItem(PREF_WA)) || {}; } catch (e) { return {}; } }
+    $('wa-formato').innerHTML = Object.keys(FORMATOS_VISITA).map(function (k) { return '<option value="' + k + '">' + esc(FORMATOS_VISITA[k]) + '</option>'; }).join('');
+    function pintarWaVisita() {
+        var cuad = String(waVisita.CUADRILLA || '').trim().replace(/^C\s*/i, '');
+        $('wa-texto').value = textoVisita(waVisita, { formato: $('wa-formato').value, plazo: $('wa-plazo').checked, mencion: menciones()[cuad] || '' });
         actualizarEnlaceWa();
+    }
+    function mostrarWhatsapp(r) {
+        var p = prefWa();
+        waVisita = r;
+        $('wa-formato').value = FORMATOS_VISITA[p.formato] ? p.formato : 'corto';
+        $('wa-plazo').checked = p.plazo !== false;
+        $('wa-formatos').hidden = false;
+        $('wa-ayuda').textContent = 'Puede ajustar el texto antes de copiarlo. Si cambia el formato o el plazo, el texto se vuelve a armar.';
+        pintarWaVisita();
         $('dlg-wa').showModal();
     }
+    function cambioWa() {
+        if (!waVisita) return;
+        try { localStorage.setItem(PREF_WA, JSON.stringify({ formato: $('wa-formato').value, plazo: $('wa-plazo').checked })); } catch (e) {}
+        pintarWaVisita();
+    }
+    $('wa-formato').addEventListener('change', cambioWa);
+    $('wa-plazo').addEventListener('change', cambioWa);
+    // Al cerrar se esconden las opciones: la ventana la usan también los otros resúmenes
+    $('dlg-wa').addEventListener('close', function () {
+        waVisita = null;
+        $('wa-formatos').hidden = true;
+        $('wa-ayuda').textContent = 'Puede ajustar el texto antes de copiarlo.';
+    });
     $('wa-texto').addEventListener('input', actualizarEnlaceWa);
     $('wa-cerrar').onclick = function () { $('dlg-wa').close(); };
     $('wa-copiar').onclick = function () {

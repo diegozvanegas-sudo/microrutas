@@ -175,8 +175,13 @@
 <dialog id="dlg-wa">
     <div class="cuerpo">
         <h2>Resumen para WhatsApp</h2>
+        <!-- Solo con el mensaje de una visita: formato y si va el plazo (se recuerdan en el equipo) -->
+        <div class="wa-formatos" id="wa-formatos" hidden>
+            <label>FORMATO <select id="wa-formato"></select></label>
+            <label class="wa-plazo"><input type="checkbox" id="wa-plazo" checked> Incluir el plazo de cada novedad</label>
+        </div>
         <textarea id="wa-texto" aria-label="Texto del resumen"></textarea>
-        <div class="sub" style="margin-top:6px">Puede ajustar el texto antes de copiarlo.</div>
+        <div class="sub" style="margin-top:6px" id="wa-ayuda">Puede ajustar el texto antes de copiarlo.</div>
         <div class="pie">
             <button type="button" class="secundario" id="wa-cerrar">Cerrar</button>
             <a class="boton secundario" id="wa-abrir" target="_blank" rel="noopener">Abrir WhatsApp</a>

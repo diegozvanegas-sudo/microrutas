@@ -1,23 +1,65 @@
 // Textos para WhatsApp: novedad de una visita y resumen de las pendientes.
-import { norm, frase, claveRegistro } from './util.js';
+import { norm, frase, claveRegistro, aTexto, hoy } from './util.js';
 import { esOp, itemsEnNo, plazoNovedad, plazoVisita, NO_REALIZADO } from './estado.js';
 
 // "Barrido del lote (Plazo: el mismo día)": el plazo de corrección queda visible en cada novedad
 function conPlazo(texto, r) { var p = plazoNovedad(texto, esOp(r)); return p ? texto + ' (' + p + ')' : texto; }
 
-export function textoWhatsapp(r) {
-    var h = new Date().getHours();
-    var saludo = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
-    var cuad = String(r.CUADRILLA || '').trim();
-    if (/^\d+$/.test(cuad)) cuad = 'C' + cuad;
+export function textoWhatsapp(r) { return textoVisita(r, { formato: 'corto', plazo: true }); }
+
+// Mensaje de UNA visita en el formato que se elija (ventana «Resumen para WhatsApp»). o: { formato, plazo (incluir el
+// plazo de cada novedad), mencion ('@~Encargado', la recordada de la cuadrilla), hora (para probar el saludo) }
+export var FORMATOS_VISITA = {
+    corto: 'Corto (novedad y plazo)',
+    formal: 'Formal: novedades y requerimientos',
+    requerimiento: 'Solicitud formal de subsanación',
+    reiteracion: 'Reiteración: sigue sin subsanar',
+};
+// "- Plateo (Plazo: 5 días)." por cada ítem en NO y la observación; en un lote no realizado basta con decirlo
+function lineasVisita(r, plazo) {
     var obs = String(r['OBSERVACIONES NOVEDADES'] || '').trim();
-    // Lote no realizado: no se listan todos los ítems, basta con decirlo
-    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '- ' + conPlazo(frase(i).replace(/\.$/, ''), r) + '.'; });
-    if (obs && norm(obs) !== 'SIN NOVEDAD') lineas.push('- ' + conPlazo(frase(obs).replace(/\.$/, ''), r) + '.');
-    return saludo + '\n\n' +
-        'Novedad' + (esOp(r) ? ' en operación' : '') + (cuad ? ' ' + cuad : '') + '\n\n' +
-        (r.MICRORRUTA || '') + (r.LOTE ? ' (' + r.LOTE + ')' : '') + '\n' +
-        lineas.join('\n');
+    var poner = function (t) { t = frase(t).replace(/\.$/, ''); return '- ' + (plazo ? conPlazo(t, r) : t) + '.'; };
+    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(poner);
+    if (obs && norm(obs) !== 'SIN NOVEDAD') lineas.push(poner(obs));
+    return lineas;
+}
+export function textoVisita(r, o) {
+    o = o || {};
+    var h = o.hora != null ? o.hora : new Date().getHours(), formato = FORMATOS_VISITA[o.formato] ? o.formato : 'corto';
+    var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, ''), op = esOp(r), lineas = lineasVisita(r, o.plazo !== false);
+    var lote = r.LOTE && r.LOTE !== 'NA' ? r.LOTE : '', fecha = r['FECHA DE LA VISITA'] || aTexto(hoy());
+    var micro = (r.MICRORRUTA || '') + (lote ? ' (' + lote + ')' : '');
+    if (formato === 'corto') {
+        var saludo = h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches';
+        var cc = String(r.CUADRILLA || '').trim();
+        if (/^\d+$/.test(cc)) cc = 'C' + cc;
+        return saludo + '\n\n' + 'Novedad' + (op ? ' en operación' : '') + (cc ? ' ' + cc : '') + '\n\n' +
+            (r.MICRORRUTA || '') + (r.LOTE ? ' (' + r.LOTE + ')' : '') + '\n' + lineas.join('\n');
+    }
+    var saludoF = h < 12 ? '¡Buenos días!' : h < 19 ? '¡Buenas tardes!' : '¡Buenas noches!';
+    var cab = ['Cuadrilla: ' + (cuad || '…')].concat(o.mencion ? [o.mencion] : []);
+    var momento = op ? 'durante la operación' : 'posoperación';
+    var sitio = 'la microrruta ' + (r.MICRORRUTA || '…') + (lote ? ' (lote ' + lote + ')' : '');
+    if (formato === 'formal') {
+        // Como el resumen del día: «NOVEDADES POSOPERACION», fecha, cuadrilla, @mención, el lote y los requerimientos
+        return saludoF + '\n\n' + ['NOVEDADES ' + (op ? 'EN OPERACION' : 'POSOPERACION'), 'Fecha: ' + fecha].concat(cab).join('\n') +
+            '\n\n' + micro + '\n' + lineas.join('\n') + '\n\n\n' + REQUERIMIENTOS;
+    }
+    if (formato === 'requerimiento') {
+        return saludoF + '\n\n' + 'SOLICITUD DE SUBSANACIÓN\n' + cab.join('\n') + '\n\n' +
+            'En la visita de verificación ' + momento + ' realizada el ' + fecha + ' a ' + sitio + ', se evidenciaron las siguientes novedades:\n\n' +
+            lineas.join('\n') + '\n\n' +
+            'Se solicita realizar la subsanación correspondiente ' + (o.plazo !== false ? 'dentro del plazo indicado para cada novedad' : 'a la mayor brevedad') +
+            ' y remitir el registro fotográfico que la soporte, citando el número de la microrruta.\n\n' +
+            'Quedamos atentos.\nInterventoría del Área de Servicios de Aseo';
+    }
+    // Reiteración: la novedad sigue sin subsanar; se recuerda que pasa a descuento (primero se habla con el supervisor)
+    return saludoF + '\n\n' + 'REITERACIÓN DE NOVEDAD\n' + cab.join('\n') + '\n\n' +
+        'Se reitera la novedad reportada el ' + fecha + ' en ' + sitio + ', la cual a la fecha continúa sin subsanar:\n\n' +
+        lineas.join('\n') + '\n\n' +
+        'Se solicita atenderla de manera prioritaria y enviar el registro fotográfico de la corrección. De no subsanarse' +
+        (o.plazo !== false ? ' dentro del plazo establecido' : '') + ', se procederá con el descuento correspondiente en la factura, conforme a lo establecido en el contrato.\n\n' +
+        'Quedamos atentos.\nInterventoría del Área de Servicios de Aseo';
 }
 
 // En los resúmenes del día, en el orden en que se revisó: primero lo registrado más temprano
