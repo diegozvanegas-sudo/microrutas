@@ -14,6 +14,30 @@ export function fechaLarga(iso) {
     return m ? +m[3] + ' de ' + MESES[+m[2] - 1] + ' de ' + m[1] : '';
 }
 
+// aaaa-mm-dd -> "07/11/2026", como en las plantillas aprobadas por EMVARIAS ('' si no hay fecha)
+export function fechaCorta(iso) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || ''));
+    return m ? m[3] + '/' + m[2] + '/' + m[1] : '';
+}
+
+// Daño trasladado a Precoodes: cómo terminó. desenlaceDe lee lo que respondieron (texto pegado del grupo); '' si no se reconoce
+export var DESENLACES = {
+    desistio: 'El usuario desistió (sin pruebas)',
+    pago: 'Precoodes pagó los daños',
+    reparo: 'Precoodes reparó el daño',
+    acuerdo: 'Llegaron a un acuerdo',
+    noprocede: 'No se comprobó que fuera el corte',
+};
+export function desenlaceDe(texto) {
+    var t = String(texto || '');
+    if (/desisti/i.test(t)) return 'desistio';
+    if (/no (procede|se (comprob|evidenci|demostr))|no (hay|existe) (relaci|evidencia)/i.test(t)) return 'noprocede';
+    if (/\bpag(o|ó|aron|amos)\b|consign|transfer|desembols|reembols|indemniz/i.test(t)) return 'pago';
+    if (/repar|arregl|reemplaz/i.test(t)) return 'reparo';
+    if (/acuerdo|concili/i.test(t)) return 'acuerdo';
+    return '';
+}
+
 // "CR 38 # 91 83 MANRIQUE CENTRAL No.2" -> { via: 'CR 38 # 91 83', barrio: 'MANRIQUE CENTRAL No.2' }:
 // la dirección son las piezas con números (y letras sueltas, #, sur) del principio; el barrio, lo que sigue.
 // También "CL 79 A # ENTRE CARRERA 85 A - 86", "cr 85 cl 76AF-4" y "CR 95 A CL 70 A -2"
@@ -133,6 +157,11 @@ export function armarRespuestas(d) {
         marco: 'Considerando los alcances de la prestación del servicio público de aseo',
         norma: 'de acuerdo con la programación y las frecuencias aprobadas en el Decreto 1077 de 2015 y en el Plan de Gestión Integral de Residuos Sólidos (PGIRS) vigente, según el catastro de áreas verdes aprobado por la Alcaldía de Medellín',
         area: d.area || 'un antejardín o zona de propiedad privada',
+        // Fechas como en las plantillas aprobadas: "El 07/11/2026 profesional del servicio visitó…"
+        visitaCorta: fechaCorta(d.fechaVisita) || '[fecha de la visita]', corteLargo: fechaLarga(d.fechaCorte) || '[fecha del corte]',
+        lugar: dir ? 'en ' + dir : 'en la dirección de la solicitud',
+        // Daño trasladado: cómo terminó (sin elegir y con fecha de pago: se pagó, como antes)
+        desenlace: d.desenlace || (d.fechaCorregido ? 'pago' : ''),
         sinVisita: d.contacto === 'sinvisita',
         contacto: {
             si: 'se estableció contacto con el usuario, a quien se le informó',
@@ -150,14 +179,18 @@ export function armarRespuestas(d) {
     var cobro = d.cobro ? 'Respecto al cobro en la factura de servicios públicos, le informamos que la actividad de corte de césped incluida en la tarifa del servicio de aseo corresponde a las áreas verdes públicas que hacen parte del catastro aprobado, y se ejecuta con la frecuencia establecida para cada una.' : '';
 
     caso.armar(c, p, b);
-    if (cobro) p.push(cobro);
+    // Plantilla aprobada por EMVARIAS: el texto tal cual, con la fecha y la dirección; solo se le suma lo que se marcó aparte
+    var oficial = caso.oficial ? caso.oficial(c) : '', extras = [];
+    if (cobro) { p.push(cobro); extras.push(cobro); }
     if (d.mallas) {
         p.push('También se estableció comunicación ' + c.supervisor.replace(/^al /, 'con el ') + ' para que realice la respectiva retroalimentación al personal sobre el correcto uso de las mallas de protección y/o mallas auxiliares durante el corte.');
         b.push('Se pidió al supervisor retroalimentar al personal sobre el uso de las mallas de protección.');
+        extras.push(p[p.length - 1]);
     }
     if (d.barrido) {
         p.push('Respecto al barrido de calles, le informamos que esta actividad corresponde a otro componente del servicio público de aseo, distinto al corte de césped; su solicitud se traslada al área encargada para su verificación y programación.');
         b.push('Lo del barrido de calles se traslada al área encargada.');
+        extras.push(p[p.length - 1]);
     }
     var clausulas = (d.clausulas || []).filter(function (x) { return x && x.t; });
     if (clausulas.length) {
@@ -166,12 +199,14 @@ export function armarRespuestas(d) {
         }).join('\n'));
         b.push('Lo anterior, conforme a las especificaciones técnicas del contrato de corte de césped.');
     }
-    if (d.observacion && !caso.usaObservacion) { p.push(d.observacion.trim()); b.push(d.observacion.trim()); }
+    if (d.observacion && !caso.usaObservacion) { p.push(d.observacion.trim()); b.push(d.observacion.trim()); extras.push(d.observacion.trim()); }
     if (caso.seguimiento === 'siCorte' ? c.hayCorte : caso.seguimiento !== false) { p.push(seguimiento); b.push('Se mantiene seguimiento en el sector.'); }
-    return [
+    var r = [
         { titulo: 'Completa', texto: inicio + '\n\n' + p.join('\n\n') },
         { titulo: 'Breve', texto: inicio + '\n\n' + b.join(' ') },
     ];
+    if (oficial) r.push({ titulo: 'Plantilla aprobada EMVARIAS', oficial: true, texto: inicio + '\n\n' + [oficial].concat(extras).join('\n\n') });
+    return r;
 }
 
 // "Durante la visita se estableció contacto con el usuario, a quien se le informó lo anterior." (nada si no hubo contacto)
@@ -180,7 +215,9 @@ function informar(c, p) { if (c.contacto) p.push('Durante la visita ' + c.contac
 // Lo que se encontró en la visita y cómo se responde. armar(c, p, b) agrega los párrafos de la completa (p) y las frases de
 // la breve (b). seguimiento: false cuando el área no es del servicio y no hay "siguientes rondas" que prometer.
 var CASOS = {
-    ejecutado: { titulo: 'Ya estaba ejecutado', armar: function (c, p, b) {
+    ejecutado: { titulo: 'Ya estaba ejecutado', 
+        oficial: function (c) { return 'Considerando los alcances de la Prestación del Servicio Público de Aseo, se informa que en la dirección de su solicitud se realizó intervención asociada a corte de césped el ' + c.corteLargo + ', de acuerdo con la programación y frecuencias aprobadas en el Decreto 1077 de 2015 y el Plan de Gestión Integral de Residuos Sólidos vigente (catastro aprobado por la Alcaldía de Medellín). ' + 'Se realizará monitoreo permanente en el sector para las siguientes rondas programadas, con el fin de garantizar cumplimiento, seguridad y calidad en la prestación del servicio.'; },
+        armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.enDir + ' se realizó intervención asociada a corte de césped el ' + c.corte + ', ' + c.norma + '.');
         if (c.sinVisita) { b.push('En ' + (c.dir || 'la dirección de la solicitud') + ' se realizó corte de césped el ' + c.corte + ', según la programación y frecuencias del PGIRS vigente (Decreto 1077 de 2015).'); return; }
         p.push('Adicionalmente, ' + c.elDia + 'se realizó visita de verificación en la dirección' +
@@ -208,7 +245,9 @@ var CASOS = {
             (c.obs ? c.obs.replace(/^./, function (l) { return l.toLowerCase(); }) : 'nos encontramos a la espera de la atención de la novedad por parte del contratista; una vez se tenga evidencia de su ejecución, se informará el cierre.');
         p.push(texto); b.push(texto);
     } },
-    sinresiduos: { titulo: 'No había residuos', armar: function (c, p, b) {
+    sinresiduos: { titulo: 'No había residuos', 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' se realizó visita técnica en la dirección y no se evidenciaron residuos vegetales en el punto. Se realizará monitoreo durante las próximas rondas para garantizar cumplimiento y calidad en el servicio.'; },
+        armar: function (c, p, b) {
         p.push('Considerando los alcances de la prestación del servicio público de aseo, ' + c.elDia + 'se realizó visita técnica ' + c.enDir + ', durante la cual no se evidenció la presencia de residuos vegetales asociados al servicio de corte de césped.');
         informar(c, p);
         b.push(c.enVisita + 'no se evidenciaron residuos vegetales del corte de césped en ' + c.laDir + '.');
@@ -221,7 +260,9 @@ var CASOS = {
         b.push('El área ' + (c.dir ? 'de ' + c.dir + ' ' : '') + 'hace parte del catastro aprobado y se interviene según las frecuencias del PGIRS vigente (Decreto 1077 de 2015). ' +
             (c.proxima ? 'La próxima intervención está programada para el ' + c.proxima + '.' : 'Se intervendrá en la siguiente ronda programada.'));
     } },
-    privado: { titulo: 'No corresponde (área privada)', seguimiento: false, armar: function (c, p, b) {
+    privado: { titulo: 'No corresponde (área privada)', seguimiento: false, 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' profesional del servicio visitó el sector referente a esta solicitud y evidenció que la solicitud hace referencia a un espacio ubicado en el antejardín de la propiedad, por tanto, no es posible gestionarla por EMVARIAS S.A. E.S.P. de acuerdo con los alcances de la Prestación del Servicio Público de Aseo. Por lo anterior, es responsabilidad del administrador y/o propietario del espacio realizar el mantenimiento pertinente.'; },
+        armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó visita de verificación ' + c.enDir + ' y se constató que el área señalada corresponde a ' + c.area +
             ', la cual no hace parte del catastro de áreas verdes públicas aprobado por la Alcaldía de Medellín ni de las frecuencias establecidas en el Decreto 1077 de 2015 y el PGIRS vigente. Por lo tanto, su mantenimiento corresponde al propietario o a la copropiedad.');
         informar(c, p);
@@ -235,7 +276,9 @@ var CASOS = {
         b.push(c.enVisita + 'se verificó que el césped en ' + c.laDir + ' tiene menos de 10 cm de altura, por lo que aún no requiere corte; se intervendrá ' + c.siguiente + ' (PGIRS vigente, Decreto 1077 de 2015).');
     } },
     // Con "Se corrigió el": la novedad se envió al supervisor de la cuadrilla y ya se atendió (así se responde cuando se resuelve en la visita)
-    residuos: { titulo: 'Quedaron residuos del corte', armar: function (c, p, b) {
+    residuos: { titulo: 'Quedaron residuos del corte', 
+        oficial: function (c) { return c.corregido ? 'El ' + c.visitaCorta + ' se realizó visita técnica en la dirección y se evidenció la recolección de los residuos vegetales producto del servicio de corte de césped en el marco de la Prestación del Servicio Público de Aseo. Se realizará monitoreo durante las próximas rondas para garantizar cumplimiento y calidad en el servicio.' : ''; },
+        armar: function (c, p, b) {
         if (c.hayCorte) p.push(c.marco + ', se informa que ' + c.enDir + ' se realizó corte de césped el ' + c.corte + ', ' + c.norma + '.');
         var pendiente = 'una recolección pendiente de residuos vegetales, informada en la solicitud';
         p.push((c.hayCorte ? 'En la visita de inspección' + (c.visita ? ' del ' + c.visita : '') : c.marco + ', se informa que ' + c.elDia + 'se realizó visita de inspección ' + c.enDir + '. Una vez realizada la visita,') +
@@ -271,15 +314,30 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó lo reportado en ' + c.laDir + ' sobre la forma de corte. El contrato no permite cortar con machete ni usar herbicida en el bordeo; se requirió al contratista ajustar la ejecución.');
     } },
-    danos: { titulo: 'Daño durante el corte', armar: function (c, p, b) {
+    danos: { titulo: 'Daño durante el corte', 
+        oficial: function (c) { return c.desenlace ? '' : 'EMVARIAS S.A. E.S.P. encarga la ejecución del servicio de corte de césped a ' + CONTRATISTA + ', por lo tanto, se realizarán las investigaciones pertinentes y con base en la evidencia proporcionada por las partes se iniciará con la gestión o requerimiento que corresponda. Adicionalmente, se realizará monitoreo permanente en el sector para las siguientes rondas programadas, con el fin de garantizar cumplimiento, seguridad y calidad en la prestación del servicio.'; },
+        armar: function (c, p, b) {
         p.push('EMVARIAS S.A. E.S.P. tiene a su cargo la supervisión del servicio de corte de césped, cuya ejecución es realizada por ' + CONTRATISTA + '. ' +
             'En atención a la situación reportada' + (c.visita ? ', el ' + c.visita + ' se realizó visita de verificación ' + c.enDir + ' y' : ',') +
             ' se adelantaron las investigaciones pertinentes con base en las evidencias aportadas por las partes, dando lugar a las gestiones y al requerimiento correspondiente.');
-        p.push(c.corregido ? 'Como resultado, el contratista realizó las verificaciones respectivas y ' + c.corregido.replace(/^el mismo día /, 'el ') + ' efectuó el desembolso del dinero correspondiente a los daños ocasionados, aportando el comprobante de pago como soporte.'
-            : 'La novedad fue trasladada al contratista, quien de acuerdo con las condiciones del contrato debe atender las reclamaciones de la comunidad y responder por los daños ocasionados durante la prestación del servicio. ' +
+        var cuando = c.corregido ? ' ' + c.corregido.replace(/^el mismo día /, 'el ') : '';
+        // [completa, breve] según cómo terminó lo trasladado a Precoodes
+        var fin = {
+            pago: ['Como resultado, el contratista realizó las verificaciones respectivas y' + cuando + ' efectuó el desembolso del dinero correspondiente a los daños ocasionados, aportando el comprobante de pago como soporte.',
+                '; el contratista pagó los daños' + cuando + ' y aportó el comprobante.'],
+            reparo: ['Como resultado, el contratista realizó las verificaciones respectivas y' + cuando + ' efectuó la reparación de los daños ocasionados, aportando el soporte correspondiente.',
+                '; el contratista reparó el daño' + cuando + ' y aportó el soporte.'],
+            acuerdo: ['Como resultado, el contratista y el usuario llegaron' + cuando + ' a un acuerdo para la atención de la afectación reportada, con lo cual se da por atendida la reclamación.',
+                '; el contratista y el usuario llegaron a un acuerdo' + cuando + ' y se da por atendida la reclamación.'],
+            desistio: ['La novedad fue trasladada al contratista, quien adelantó la gestión correspondiente con el usuario. Como resultado, el usuario desistió de la reclamación al no disponer de videos u otras pruebas que soporten la afectación reportada; por este motivo, se procede al cierre formal del caso.',
+                '. Se trasladó al contratista; el usuario desistió de la reclamación al no disponer de pruebas, por lo que se procede al cierre formal del caso.'],
+            noprocede: ['Una vez revisadas las evidencias aportadas por las partes, incluido el registro fotográfico de antes, durante y después de la intervención, no se comprobó que la afectación reportada haya sido ocasionada durante la prestación del servicio de corte de césped, por lo que no procede el reconocimiento de los daños por parte del contratista.',
+                '. Revisadas las evidencias de las partes, no se comprobó que la afectación fuera ocasionada durante el corte de césped, por lo que no procede el reconocimiento de los daños.'],
+        }[c.desenlace];
+        p.push(fin ? fin[0] : 'La novedad fue trasladada al contratista, quien de acuerdo con las condiciones del contrato debe atender las reclamaciones de la comunidad y responder por los daños ocasionados durante la prestación del servicio. ' +
               'Asimismo, se le solicitó reforzar las medidas de protección (mallas, limpieza previa del área y señalización) para evitar que la situación se repita.');
         informar(c, p);
-        b.push('Se verificó la afectación reportada en ' + c.laDir + (c.corregido ? '; el contratista pagó los daños ' + c.corregido.replace(/^el mismo día /, 'el ') + ' y aportó el comprobante.' : '. Se trasladó al contratista para su atención y se solicitó reforzar las medidas de protección durante el corte.'));
+        b.push('Se verificó la afectación reportada en ' + c.laDir + (fin ? fin[1] : '. Se trasladó al contratista para su atención y se solicitó reforzar las medidas de protección durante el corte.'));
     } },
     restriccion: { titulo: 'Obra o sin acceso', armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó visita de verificación ' + c.enDir + ' y se evidenció que el área presenta restricción de acceso u obras en el espacio público, condición que impide su intervención en este momento.');
@@ -287,7 +345,9 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó que ' + c.laDir + ' tiene restricción de acceso u obras en el espacio público; se intervendrá cuando se levante la restricción.');
     } },
-    obraprivada: { titulo: 'Obra privada o predio cerrado', seguimiento: false, armar: function (c, p, b) {
+    obraprivada: { titulo: 'Obra privada o predio cerrado', seguimiento: false, 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' profesional del servicio visitó el sector referente a esta solicitud y evidenció que la solicitud hace referencia a un espacio con restricción de acceso, por tanto, no es posible gestionarla por EMVARIAS S.A. E.S.P. de acuerdo con los alcances de la Prestación del Servicio Público de Aseo. Por lo anterior, es responsabilidad del administrador y/o propietario del espacio realizar el mantenimiento pertinente.'; },
+        armar: function (c, p, b) {
         p.push((c.visita ? 'El ' + c.visita + ' p' : 'P') + 'rofesional del servicio visitó el sector referente a esta solicitud' + (c.dir ? ' (' + c.dir + ')' : '') +
             ' y evidenció que la solicitud hace referencia a un espacio con restricción de acceso por obras de construcción o cerramiento, por lo que no es posible gestionarla por EMVARIAS S.A. E.S.P. de acuerdo con los alcances de la prestación del servicio público de aseo.');
         p.push('Por lo anterior, es responsabilidad del administrador y/o propietario del espacio realizar el mantenimiento pertinente.');
@@ -301,7 +361,9 @@ var CASOS = {
         informar(c, p);
         b.push('Se realizó corte de césped en ' + (c.dir || 'la dirección de la solicitud') + ' el ' + c.corte + '. En visitas al sector se ha evidenciado cerramiento o intervención de terceros en el área pública.');
     } },
-    ordenpublico: { titulo: 'Orden público', armar: function (c, p, b) {
+    ordenpublico: { titulo: 'Orden público', 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' profesional del servicio visitó el sector referente a esta solicitud y evidenció que la actividad de corte de césped no ha sido ejecutada debido a conflictos de orden público. Se sugiere al ciudadano articular con la autoridad competente o líderes comunitarios para reprogramar este servicio.'; },
+        armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó visita de verificación ' + c.enDir + ' y se evidenciaron condiciones de orden público que impiden, por el momento, la intervención segura del área.');
         p.push('El área hace parte del catastro y será intervenida ' + c.norma + ', una vez las condiciones lo permitan' + (c.proxima ? '; se tiene prevista para el ' + c.proxima : '') + '.');
         informar(c, p);
@@ -340,7 +402,9 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó que ' + c.laDir + ' corresponde a un talud inestable; se intervendrá cuando el terreno se estabilice.');
     } },
-    ambiental: { titulo: 'Quebrada o retiro ambiental', seguimiento: false, armar: function (c, p, b) {
+    ambiental: { titulo: 'Quebrada o retiro ambiental', seguimiento: false, 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' profesional del servicio visitó el sector referente a esta solicitud y evidenció que no hace parte de la base de datos actual de corte de césped aprobada por el Distrito de Medellín. Conforme con los lineamientos de la normatividad vigente, el solicitante debe establecer comunicación con la Secretaría de Medio Ambiente de la Alcaldía de Medellín para solicitar verificación del área y gestión en el marco de sus competencias vigentes.'; },
+        armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó visita de verificación ' + c.enDir + ' y se constató que el área señalada corresponde a una zona de manejo y preservación ambiental (retiro de quebrada, río o canal), ' +
             'la cual no hace parte del alcance del corte de césped del servicio público de aseo.');
         p.push('Su intervención corresponde a la autoridad ambiental competente, a quien puede dirigir su solicitud.');
@@ -348,7 +412,9 @@ var CASOS = {
         b.push(c.enVisita + 'se verificó que el área en ' + c.laDir + ' es un retiro de quebrada o zona de preservación ambiental, que no hace parte del alcance del corte de césped; corresponde a la autoridad ambiental.');
     } },
     // Con fecha del corte: el corte sí se hizo y en la visita se le explicó al usuario que no se hace ornato ni jardinería
-    jardin: { titulo: 'Jardín u ornato', seguimiento: 'siCorte', armar: function (c, p, b) {
+    jardin: { titulo: 'Jardín u ornato', seguimiento: 'siCorte', 
+        oficial: function (c) { return c.hayCorte ? '' : 'El ' + c.visitaCorta + ' se realizó verificación en la dirección asociada a esta solicitud y se evidenció que el área solicitada hace referencia a jardinería, ornato y embellecimiento, por tanto, no es competencia de EMVARIAS como entidad Prestadora del Servicio Público de Aseo. Se sugiere al ciudadano realizar trámite ante la Secretaría de Infraestructura Física del Distrito de Medellín para que se gestione su solicitud conforme con los alcances y competencias vigentes.'; },
+        armar: function (c, p, b) {
         if (c.hayCorte) {
             p.push(c.marco + ', se informa que ' + c.enDir + ' se realizó intervención asociada a corte de césped el ' + c.corte + ', ' + c.norma + '.');
             p.push('Adicionalmente, ' + c.elDia + 'se realizó visita al lugar y se le explicaron al usuario los alcances del servicio (no se realizan labores de ornato ni jardinería).');
@@ -368,7 +434,9 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó que lo solicitado en ' + c.laDir + ' es poda o tala de árboles, que EMVARIAS realiza a través del contratista DVB Ingeniería S.A.S.; se traslada para su evaluación.');
     } },
-    catastro: { titulo: 'Área pública fuera del catastro', seguimiento: false, armar: function (c, p, b) {
+    catastro: { titulo: 'Área pública fuera del catastro', seguimiento: false, 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' profesional del servicio visitó el sector referente a esta solicitud y evidenció que no hace parte de la base de datos actual de corte de césped aprobada por el Distrito de Medellín. Conforme con los lineamientos de la normatividad vigente, el solicitante debe establecer comunicación con la Secretaría de Infraestructura Física de la Alcaldía de Medellín para solicitar verificación del área y eventual entrega de forma oficial a EMVARIAS S.A. E.S.P. en el marco tarifario de la Prestación del Servicio Público de Aseo.'; },
+        armar: function (c, p, b) {
         p.push((c.visita ? 'El ' + c.visita + ' p' : 'P') + 'rofesional del servicio visitó el sector referente a esta solicitud' + (c.dir ? ' (' + c.dir + ')' : '') +
             ' y evidenció que no hace parte de la base de datos actual de corte de césped aprobada por el Distrito de Medellín.');
         p.push('Conforme con los lineamientos de la normatividad vigente, el solicitante debe establecer comunicación con la Secretaría de Infraestructura Física de la Alcaldía de Medellín para solicitar la verificación del área ' +
@@ -382,7 +450,9 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó que en ' + c.laDir + ' hay caña brava, cuya intervención requiere permiso de la autoridad ambiental; se intervendrá cuando se cuente con él.');
     } },
-    zonadura: { titulo: 'Maleza en andén o zona dura', seguimiento: false, armar: function (c, p, b) {
+    zonadura: { titulo: 'Maleza en andén o zona dura', seguimiento: false, 
+        oficial: function (c) { return 'El ' + c.visitaCorta + ' se realizó verificación en la dirección asociada a esta solicitud y se evidenció que la grama se encuentra en zona dura y su altura desproporcionada es producto de la falta de mantenimiento de la estructura por parte del ente territorial, por lo tanto, no es competencia de esta entidad la gestión de esta solicitud. Sin embargo, en la actualidad, EMVARIAS tiene un contrato con la Secretaría de Infraestructura Física del Distrito de Medellín para la gestión de este tipo de actividades, por tanto, se realizará gestión con base en los alcances del contrato vigente. En caso de alguna duda, se sugiere al ciudadano comunicarse directamente con la Secretaría de Infraestructura Física por ser la entidad competente de realizar la inspección, verificación y gestión del retiro de espartillo en zonas duras.'; },
+        armar: function (c, p, b) {
         p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó visita de verificación ' + c.enDir + ' y se constató que la vegetación señalada crece sobre zonas duras (andenes, adoquines, alcorques o cascajo) y no corresponde a césped en área verde.');
         p.push('Su retiro hace parte de las actividades de retiro de espartillo y limpieza de zonas duras, que se programan por separado del corte de césped; la solicitud se traslada para su evaluación y programación.');
         informar(c, p);
@@ -399,6 +469,41 @@ var CASOS = {
         informar(c, p);
         b.push(c.enVisita + 'se verificó que el área en ' + c.laDir + ' no tiene cobertura vegetal, por lo que no requiere corte de césped.');
     } },
+    residuosajenos: { titulo: 'Residuos vegetales que no son del servicio', seguimiento: false,
+        oficial: function (c) {
+            return 'El ' + c.visitaCorta + ' se realizó verificación en la dirección asociada a esta solicitud y se evidenció que los residuos vegetales no hacen parte de la operación de EMVARIAS S.A. E.S.P., por lo tanto, no son competencia de esta entidad. Se informa que según el Decreto 1077 de 2015 y el actual Plan de Gestión Integral de Residuos Sólidos, la gestión de esta solicitud es responsabilidad del Distrito de Medellín a través de la Secretaría de Infraestructura Física.\n' +
+                'Actualmente, EMVARIAS tiene un contrato con la Alcaldía de Medellín para la gestión de este tipo de residuos; sin embargo, es responsabilidad de la SIF la autorización pertinente, por tanto, se realizará gestión con base en los alcances del contrato. En caso de alguna duda, se sugiere al ciudadano comunicarse directamente con la Secretaría de Infraestructura Física por ser la entidad competente de realizar la inspección, verificación y recolección de residuos vegetales solicitados ' + c.lugar + ' del Distrito de Medellín.';
+        },
+        armar: function (c, p, b) {
+            p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó verificación ' + c.enDir + ' y se evidenció que los residuos vegetales no son producto de la operación de corte de césped de EMVARIAS S.A. E.S.P. Según el Decreto 1077 de 2015 y el PGIRS vigente, su gestión corresponde al Distrito de Medellín a través de la Secretaría de Infraestructura Física, con la que EMVARIAS tiene contrato para este tipo de residuos.');
+            informar(c, p);
+            b.push(c.enVisita + 'se verificó que los residuos vegetales en ' + c.laDir + ' no son de la operación de corte de césped; su gestión corresponde a la Secretaría de Infraestructura Física.');
+        } },
+    contingencia: { titulo: 'Contingencia: sin contrato vigente', seguimiento: false,
+        oficial: function () {
+            return 'El área referida en su solicitud hace parte de la base de datos de corte de césped aprobada por el Distrito de Medellín. Actualmente, se encuentra en verificación el sector para establecer el cronograma y frecuencia eficiente del servicio con el fin de dar cumplimiento al Decreto 1077 de 2015 en Fenómeno Niño y Niña y así garantizar optimización en los recorridos de la operación en el marco de la tarifa pública de aseo. Nos estaremos comunicando con usted a través de los medios de contacto que usted aprobó, cuando se identifique la nueva frecuencia del servicio.';
+        },
+        armar: function (c, p, b) {
+            p.push('El área referida en su solicitud' + (c.dir ? ' (' + c.dir + ')' : '') + ' hace parte de la base de datos de corte de césped aprobada por el Distrito de Medellín. Actualmente se encuentra en verificación el sector para establecer el cronograma y la frecuencia del servicio (Decreto 1077 de 2015). Nos comunicaremos con usted por los medios de contacto que autorizó cuando se defina la nueva frecuencia.');
+            b.push('El área hace parte de la base de datos de corte de césped; se está definiendo el cronograma y la frecuencia del servicio y se le informará cuando se tenga.');
+        } },
+    maltrato: { titulo: 'Maltrato al ciudadano', seguimiento: false,
+        oficial: function (c) {
+            return 'El ' + c.visitaCorta + ', profesionales del servicio verificaron la situación expuesta y se procede a realizar retroalimentación del caso con el área pertinente para garantizar calidad y cumplimiento en la Prestación del Servicio Público de Aseo. El cumplimiento de las condiciones normativas, operativas, de calidad y seguridad son prioritarias para EMVARIAS S.A. E.S.P., por tanto, agradecemos su informe, ya que este tipo de reportes y/o situaciones permiten reforzar los procesos y procedimientos establecidos, en el marco de las condiciones y naturaleza de las intervenciones que están enmarcadas en una operación sostenible, de calidad y satisfactoria.';
+        },
+        armar: function (c, p, b) {
+            p.push((c.visita ? 'El ' + c.visita + ', p' : 'P') + 'rofesionales del servicio verificaron la situación expuesta y se realizó retroalimentación del caso ' + c.supervisor + ' para garantizar la calidad y el buen trato en la prestación del servicio público de aseo. Agradecemos su informe, ya que este tipo de reportes permite reforzar los procesos y procedimientos establecidos.');
+            informar(c, p);
+            b.push('Se verificó la situación y se realizó retroalimentación del caso ' + c.supervisor + '. Agradecemos su informe.');
+        } },
+    sincontacto: { titulo: 'No se pudo contactar al usuario', seguimiento: false,
+        oficial: function (c) {
+            return 'El ' + c.visitaCorta + ' se intentó establecer enlace con el ciudadano a través de los medios de comunicación proporcionados en la solicitud y no fue posible el contacto. Sin embargo, se gestionó la solicitud conforme a los lineamientos de la Prestación del Servicio Público de Aseo.';
+        },
+        armar: function (c, p, b) {
+            p.push((c.visita ? 'El ' + c.visita + ' s' : 'S') + 'e intentó establecer comunicación con el usuario a través de los medios proporcionados en la solicitud y no fue posible el contacto. Sin embargo, la solicitud se gestionó conforme a los lineamientos de la prestación del servicio público de aseo.');
+            b.push('Se intentó contactar al usuario por los medios de la solicitud sin éxito; la solicitud se gestionó conforme a los lineamientos del servicio.');
+        } },
     noubicada: { titulo: 'No se ubicó el sitio', seguimiento: false, armar: function (c, p, b) {
         p.push('En atención a su solicitud, se procedió a verificar la dirección reportada' + (c.dir ? ' (' + c.dir + ')' : '') + ' en el control de ejecución y mediante visita de campo' + (c.visita ? ' el ' + c.visita : '') +
             ', con el fin de identificar el lugar y validar la novedad manifestada.');

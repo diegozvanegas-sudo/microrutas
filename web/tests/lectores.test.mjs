@@ -323,3 +323,49 @@ test('PQR: llamado de atención a la cuadrilla', async () => {
     assert.match(v, /🚗/);
     assert.doesNotMatch(v, /🌿/);
 });
+
+test('PQR: plantilla aprobada por EMVARIAS, tal cual y con la fecha corta', async () => {
+    const { fechaCorta } = await import('../src/pqr/plantillas.js');
+    assert.equal(fechaCorta('2026-11-07'), '07/11/2026');
+    // El caso real del 442188 (área fuera del catastro, SIF): igual al que se envió al grupo
+    const r = armarRespuestas({ id: '442188', resultado: 'catastro', fechaVisita: '2026-11-07', hora: 14 });
+    const o = r.find(x => x.oficial);
+    assert.equal(o.texto, 'Buenas tardes, favor dar cierre al ID 442188.\n\nEl 07/11/2026 profesional del servicio visitó el sector referente a esta solicitud y evidenció que no hace parte de la base de datos actual de corte de césped aprobada por el Distrito de Medellín. Conforme con los lineamientos de la normatividad vigente, el solicitante debe establecer comunicación con la Secretaría de Infraestructura Física de la Alcaldía de Medellín para solicitar verificación del área y eventual entrega de forma oficial a EMVARIAS S.A. E.S.P. en el marco tarifario de la Prestación del Servicio Público de Aseo.');
+    // Completa y breve siguen en su lugar
+    assert.deepEqual(r.map(x => x.titulo), ['Completa', 'Breve', 'Plantilla aprobada EMVARIAS']);
+    // Sin fecha de visita queda marcado para llenarlo; lo marcado aparte (cobro) se suma
+    assert.match(armarRespuestas({ id: '1', resultado: 'ambiental', fechaVisita: '', cobro: true })[2].texto, /^.*\n\nEl \[fecha de la visita\] profesional[\s\S]*Medio Ambiente[\s\S]*Respecto al cobro/);
+    // Residuos: la aprobada es solo cuando ya se recogieron; jardín, solo sin corte
+    assert.equal(armarRespuestas({ id: '1', resultado: 'residuos' }).length, 2);
+    assert.match(armarRespuestas({ id: '1', resultado: 'residuos', fechaVisita: '2026-11-07', fechaCorregido: '2026-11-07' })[2].texto, /se evidenció la recolección/);
+    assert.equal(armarRespuestas({ id: '1', resultado: 'jardin', fechaCorte: '2026-11-01' }).length, 2);
+    // Residuos que no son del servicio: con la dirección del PQR, no la del ejemplo
+    const ajenos = armarRespuestas({ id: '1', resultado: 'residuosajenos', direccion: 'CL 44N 90A', barrio: 'El Danubio', fechaVisita: '2026-11-07' })[2].texto;
+    assert.match(ajenos, /solicitados en CL 44N 90A, El Danubio del Distrito de Medellín\.$/);
+    for (const k of ['contingencia', 'maltrato', 'sincontacto', 'privado', 'obraprivada', 'ordenpublico', 'ejecutado', 'sinresiduos', 'zonadura', 'danos'])
+        assert.ok(armarRespuestas({ id: '1', resultado: k, fechaVisita: '2026-11-07' }).some(x => x.oficial), k);
+    // Daño: la aprobada usa el contratista vigente, no el contrato viejo
+    const dano = armarRespuestas({ id: '1', resultado: 'danos' })[2].texto;
+    assert.match(dano, /CW 394406/);
+    assert.doesNotMatch(dano, /328595/);
+});
+
+test('PQR: daño trasladado a Precoodes, cierre según lo que respondieron', async () => {
+    const { desenlaceDe } = await import('../src/pqr/plantillas.js');
+    assert.equal(desenlaceDe('La señora desistió de la reclamación al no disponer de los videos o pruebas. Por este motivo, procedemos al cierre formal del caso'), 'desistio');
+    assert.equal(desenlaceDe('Ya se le pagó al señor, adjunto comprobante de la transferencia'), 'pago');
+    assert.equal(desenlaceDe('Se reparó el vidrio del carro'), 'reparo');
+    assert.equal(desenlaceDe('Revisados los videos no se evidencia que el daño lo hiciera la cuadrilla'), 'noprocede');
+    assert.equal(desenlaceDe('Se concilió con el usuario'), 'acuerdo');
+    assert.equal(desenlaceDe('Estamos revisando'), '');
+    const base = { id: '441000', direccion: 'CR 38 # 91 83', resultado: 'danos', hora: 9 };
+    const [c, b, ...resto] = armarRespuestas({ ...base, desenlace: 'desistio' });
+    assert.match(c.texto, /^Buenos días, favor dar cierre al ID 441000\./);
+    assert.match(c.texto, /el usuario desistió de la reclamación al no disponer de videos u otras pruebas[\s\S]*cierre formal del caso/);
+    assert.match(b.texto, /desistió/);
+    assert.equal(resto.length, 0);   // ya no es la primera respuesta: no va la plantilla de «presunto daño»
+    assert.match(armarRespuestas({ ...base, desenlace: 'noprocede' })[0].texto, /no procede el reconocimiento de los daños/);
+    assert.match(armarRespuestas({ ...base, desenlace: 'reparo', fechaCorregido: '2026-11-08', fechaVisita: '2026-11-03' })[0].texto, /el 8 de noviembre de 2026 efectuó la reparación/);
+    // Como antes: con fecha de pago y sin desenlace elegido, se pagó
+    assert.match(armarRespuestas({ ...base, fechaCorregido: '2026-11-08' })[0].texto, /desembolso del dinero/);
+});

@@ -4,7 +4,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga } from './plantillas.js';
+import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga, DESENLACES, desenlaceDe } from './plantillas.js';
 import { textoLlamado, PUNTOS } from './llamados.js';
 import { hojaPqr, descargarPqr } from './excel.js';
 import { htmlHoja, filasParaCopiar } from '../subsanaciones/excel.js';
@@ -218,6 +218,9 @@ function abrir(p) {
     $('v-mallas').checked = !!v.mallas;
     $('v-cobro').checked = v.cobro != null ? !!v.cobro : hablaDeCobro(p.queja);
     $('v-obs').value = v.observacion || '';
+    $('v-precoodes').value = v.respuestaPrecoodes || '';
+    $('v-desenlace').value = v.desenlace || '';
+    delete $('v-desenlace').dataset.mano;
     $('respuesta').value = p.respuesta || '';
     ['tr-precoodes', 'tr-grupo'].forEach(function (id) { delete $(id).dataset.mano; });
     elegidas = {};
@@ -253,6 +256,8 @@ function datos() {
         cuadrilla: $('v-cuadrilla').value.trim(), fechaCorregido: $('v-corregido').value, barrido: $('v-barrido').checked, mallas: $('v-mallas').checked,
         telefono: $('f-telefono').value.trim(),
         contacto: $('v-contacto').value, cobro: $('v-cobro').checked, area: $('v-area').value.trim(), observacion: $('v-obs').value.trim(),
+        // Daño trasladado: lo que contestó Precoodes y cómo terminó
+        respuestaPrecoodes: $('v-precoodes').value.trim(), desenlace: $('v-desenlace').value,
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
         // Para el Excel de seguimiento: la zona EMV y el día en que se respondió o se trasladó (lo pone guardar)
         zona: $('v-zona').value.trim(), fechaCierre: (actual && actual.visita && actual.visita.fechaCierre) || '',
@@ -287,13 +292,23 @@ function actualizar() {
     $('cobro-auto').textContent = hablaDeCobro($('texto').value) ? '(la queja habla de cobro o factura)' : '';
     pintarTemas();
     armarTraslado();
+    leerDesenlace();
     propuestas = armarRespuestas(datos());
+    // La plantilla aprobada por EMVARIAS se ve primero (es la que se envía tal cual)
     $('propuestas').innerHTML = propuestas.map(function (r, i) {
-        return '<div class="propuesta"><div class="cab"><b>' + esc(r.titulo) + '</b>' +
+        return '<div class="propuesta' + (r.oficial ? ' oficial' : '') + '"><div class="cab"><b>' + (r.oficial ? '✅ ' : '') + esc(r.titulo) + '</b>' +
             '<button type="button" class="secundario pequeno" data-copiar="' + i + '">📋 Copiar</button>' +
             '<button type="button" class="primario pequeno" data-usar="' + i + '">Usar esta</button></div>' +
             '<p>' + esc(r.texto).replace(/\n/g, '<br>') + '</p></div>';
     }).join('');
+}
+
+// Lo que contestó Precoodes -> cómo terminó (si no se eligió a mano)
+function leerDesenlace() {
+    var sel = $('v-desenlace'), d = desenlaceDe($('v-precoodes').value);
+    if (!sel.dataset.mano && d) sel.value = d;
+    $('desenlace-auto').textContent = d && sel.value === d && !sel.dataset.mano ? '(reconocido en lo que respondieron)' :
+        $('v-precoodes').value.trim() && !d ? '(no se reconoció: elíjalo)' : '';
 }
 
 // ---------- Daño durante el corte: pasar el caso a Precoodes ----------
@@ -719,6 +734,9 @@ async function arrancar() {
     $('resultados').innerHTML = Object.keys(RESULTADOS).map(function (k) {
         return '<button type="button" role="radio" class="resultado" data-r="' + k + '" aria-checked="false">' + esc(RESULTADOS[k]) + '</button>';
     }).join('');
+    $('v-desenlace').innerHTML = '<option value="">Aún no responden (sigue trasladado)</option>' +
+        Object.keys(DESENLACES).map(function (k) { return '<option value="' + k + '">' + esc(DESENLACES[k]) + '</option>'; }).join('');
+    $('v-desenlace').addEventListener('change', function () { this.dataset.mano = '1'; });
     $('resultados').onclick = function (ev) { var b = ev.target.closest('[data-r]'); if (b) { marcarResultado(b.dataset.r); actualizar(); } };
     var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1, 'tr-precoodes': 1, 'tr-grupo': 1 };
     $('vista-pqr').addEventListener('input', function (ev) {

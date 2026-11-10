@@ -210,3 +210,11 @@ html:has(dialog[open]) { overflow: hidden; }
 /* Margen interno de todas las ventanas: nada pegado al borde (cada ventana puede cambiarlo con su id) */
 dialog > .cuerpo { padding: 18px; }
 @media (max-width: 560px) { dialog > .cuerpo { padding: 14px; } }
+
+/* Plantilla aprobada por EMVARIAS: primera y marcada */
+.propuesta.oficial { order: -1; border-color: #86c5a8; background: #f1f8f4; }
+.propuesta.oficial .cab b { color: #14532d; }
+/* Daño trasladado: cierre cuando Precoodes responde */
+.tr-cierre { margin-top: 14px; padding-top: 12px; border-top: 1px dashed #c4b5fd; }
+.tr-cierre .sub { margin: 4px 0 0; }
+.tr-cierre select { width: 100%; }

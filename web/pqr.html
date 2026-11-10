@@ -168,6 +168,15 @@
                     <a class="boton secundario pequeno" data-tr-whatsapp="tr-grupo" target="_blank" rel="noopener">💬 WhatsApp</a>
                     <span class="espacio"></span>
                     <button type="button" class="primario pequeno" id="btn-trasladado">↪ Guardar como trasladado</button></div>
+                <!-- Cuando Precoodes contesta en el grupo: se pega lo que dijeron, se elige cómo terminó y la respuesta de cierre se arma con eso -->
+                <div class="tr-cierre">
+                    <h3>✅ Cuando Precoodes responda</h3>
+                    <p class="sub">Pegue lo que contestaron en el grupo; se reconoce cómo terminó (puede cambiarlo). La respuesta de abajo se arma con eso: úsela y toque «Guardar como respondido».</p>
+                    <label class="campo ancho"><span>LO QUE RESPONDIÓ PRECOODES</span>
+                        <textarea id="v-precoodes" rows="3" placeholder="Ej.: La señora desistió de la reclamación al no disponer de los videos o pruebas. Por este motivo, procedemos al cierre formal del caso."></textarea></label>
+                    <label class="campo ancho"><span>CÓMO TERMINÓ <span class="sub" id="desenlace-auto"></span></span>
+                        <select id="v-desenlace"></select></label>
+                </div>
             </div>
         </div>
 
