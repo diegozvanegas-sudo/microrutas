@@ -666,6 +666,9 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 #prog-especiales { margin-top: 12px; }
 #prog-especiales h3 { font-size: 15px; margin: 0 0 6px; }
 #prog-especiales li { font-size: 13.5px; margin: 4px 0; }
+#prog-especiales li + li { margin-top: 10px; }
+.prog-esp-acc { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 6px; }
+.prog-esp-acc .boton { min-height: 36px; display: inline-flex; align-items: center; }
 
 .fl-ayuda { display: grid; gap: 8px; margin-top: 8px; padding: 10px; border: 1px solid #fecaca; border-radius: 10px; background: #fef2f2; }
 .fl-ayuda[hidden] { display: none; }

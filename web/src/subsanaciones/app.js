@@ -15,7 +15,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
-import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE } from './programacion.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2548,10 +2548,20 @@ export function iniciar(api, CFG) {
         var esp = especialesDeSemana(prog, fecha);
         $('prog-especiales').innerHTML = esp.length ? '<h3>Operaciones especiales de la semana</h3><ul>' + esp.map(function (e) {
             return '<li><b>' + aTexto(e.proxima) + '</b> · ' + esc(e.ruta) + (e.dir ? ' · ' + esc(e.dir) : '') + (e.area ? ' · ' + Math.round(e.area).toLocaleString('es-CO') + ' m²' : '') +
-                (e.ejecutado ? ' · ✓ ejecutado' + (e.ejecutado.length > 3 ? ' ' + aTexto(e.ejecutado) : '') : '') + (e.obs ? '<br><span class="sub">' + esc(e.obs) + '</span>' : '') + '</li>';
+                (e.ejecutado ? ' · ✓ ejecutado' + (e.ejecutado.length > 3 ? ' ' + aTexto(e.ejecutado) : '') : '') + (e.obs ? '<br><span class="sub">' + esc(e.obs) + '</span>' : '') +
+                accionesEspecial(e) + '</li>';
         }).join('') + '</ul>' + (prog.sif && prog.sif.cc ? '<div class="sub">Rutas SIF de corte: ' + prog.sif.cc.q1 + ' de ' + prog.sif.cc.total + ' con ejecución en Q1' +
             (prog.sif.esp ? ' · espartillos: ' + prog.sif.esp.q1 + ' de ' + prog.sif.esp.total : '') + '</div>' : '') : '';
         if (progVista === 'lista') pintarListaProg();
+    }
+    // Botones para ubicar la operación especial (las rurales sin nomenclatura solo en Google Maps)
+    function accionesEspecial(e) {
+        var en = enlacesEspecial(e);
+        if (!en.mapa && !en.google) return '';
+        return '<div class="prog-esp-acc">' +
+            (en.mapa ? '<a class="boton secundario pequeno" href="' + esc(en.mapa) + '">🗺️ Ver en el mapa</a>' : '') +
+            (en.google ? '<a class="boton secundario pequeno" href="' + esc(en.google) + '" target="_blank" rel="noopener">📍 Google Maps</a>' : '') +
+            (en.mapa ? '' : '<span class="sub">Dirección rural: el mapa de lotes no la ubica.</span>') + '</div>';
     }
     // ---------- Programación: listado de todos los lotes de la quincena (ver, marcar, editar, agregar, quitar) ----------
     var progVista = 'dia', plPagina = 1, PL_POR = 30, plEditando = null;

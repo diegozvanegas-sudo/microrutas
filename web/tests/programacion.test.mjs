@@ -151,3 +151,15 @@ test('estado de cada lote en la fecha', () => {
     assert.equal(zonaDe('Z6CC0212'), '6');
     assert.equal(zonaDe('x'), '');
 });
+
+test('operación especial: mapa rápido si la dirección es de nomenclatura, Google Maps siempre', async () => {
+    const { enlacesEspecial } = await import('../src/subsanaciones/programacion.js');
+    const urb = enlacesEspecial({ ruta: 'Centro Integrado San Cristóbal', dir: 'Calle 64 N 127-32' });
+    assert.equal(urb.mapa, 'mapa_rapido.html?q=' + encodeURIComponent('Calle 64 N 127-32'));
+    assert.match(decodeURIComponent(urb.google), /Centro Integrado San Cristóbal, Calle 64 N 127-32, Medellín/);
+    assert.ok(enlacesEspecial({ ruta: 'Juan Pablo II', dir: 'Carrera 70 con Calle 18' }).mapa);
+    const rural = enlacesEspecial({ ruta: 'Sede de San Cristóbal "La Granja"', dir: 'Vía al Mar Km 7' });
+    assert.equal(rural.mapa, '');
+    assert.match(decodeURIComponent(rural.google), /La Granja", Vía al Mar Km 7, Medellín/);
+    assert.deepEqual(enlacesEspecial({ ruta: '', dir: '' }), { mapa: '', google: '' });
+});

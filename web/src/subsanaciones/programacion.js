@@ -106,6 +106,18 @@ export function leerEspeciales(filas) {
             obs: String(f[c.obs] || '').replace(/\s+/g, ' ').trim() };
     });
 }
+// Dónde ver una operación especial: en el mapa rápido si la dirección es de nomenclatura (Calle 64 N 127-32, Carrera 70
+// con Calle 18; el mapa la ubica con sus cruces) y siempre en Google Maps con el nombre del sitio, que también encuentra
+// las rurales sin placa (Vía al Mar Km 7). → { mapa, google } ('' si no hay con qué buscar)
+export function enlacesEspecial(e) {
+    var dir = String(e.dir || '').trim(), sitio = String(e.ruta || e.escenario || '').trim();
+    var urbana = /^(calle|cll?|carrera|cra|kra|cr|kr|diagonal|dg|transversal|tv|tr|circular|cq)\.?\s*\d/i.test(norm(dir));
+    var texto = [sitio, dir].filter(Boolean).join(', ');
+    return {
+        mapa: urbana ? 'mapa_rapido.html?q=' + encodeURIComponent(dir) : '',
+        google: texto ? 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent(texto + ', Medellín, Antioquia') : '',
+    };
+}
 // Rutas SIF (corte y espartillo): cuántas hay y cuántas tienen ejecución en cada quincena
 export function leerSif(filas) {
     var iCab = filas.findIndex(function (f) { return f.some(function (h) { return /^CODIFICACION/.test(norm(h)); }); });
