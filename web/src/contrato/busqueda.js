@@ -80,3 +80,26 @@ export function resaltarPalabras(texto, ps, esc) {
     marcas.forEach(function (m) { if (m[0] < pos) return; out += esc(t.slice(pos, m[0])) + '<mark>' + esc(t.slice(m[0], m[1])) + '</mark>'; pos = m[1]; });
     return out + esc(t.slice(pos));
 }
+
+// Texto para pegar en WhatsApp con lo que salió en la búsqueda: *negrita* y _cursiva_ de WhatsApp, un punto por renglón con su página.
+// grupos: [{ nombre, secciones: [{ icono, titulo, items: [{ clave, t, ref, ej }] }] }] (los de buscarEnDocumentos sirven tal cual)
+// Se quitan * _ ~ de los textos para que no rompan el formato de WhatsApp.
+function limpioWa(s) { return String(s == null ? '' : s).replace(/[*_~`]/g, '').replace(/\s+/g, ' ').trim(); }
+export function textoWhatsApp(busqueda, grupos) {
+    var gs = (grupos || []).filter(function (g) { return g.secciones && g.secciones.some(function (s) { return s.items && s.items.length; }); });
+    var total = gs.reduce(function (n, g) { return n + g.secciones.reduce(function (m, s) { return m + s.items.length; }, 0); }, 0);
+    var lineas = ['*📜 Contrato · búsqueda «' + limpioWa(busqueda) + '»*',
+        '_' + total + (total === 1 ? ' resultado' : ' resultados') + ' en ' + gs.length + (gs.length === 1 ? ' documento' : ' documentos') + '_'];
+    gs.forEach(function (g) {
+        lineas.push('', '*' + limpioWa(g.nombre) + '*');
+        g.secciones.forEach(function (s) {
+            if (!s.items.length) return;
+            lineas.push((s.icono ? limpioWa(s.icono) + ' ' : '') + '_' + limpioWa(s.titulo) + '_');
+            s.items.forEach(function (it) {
+                lineas.push('• ' + (it.clave ? '*' + limpioWa(it.clave) + ':* ' : '') + limpioWa(it.t) + (it.ref ? ' (' + limpioWa(it.ref) + ')' : ''));
+                if (it.ej) lineas.push('   Ejemplo: ' + limpioWa(it.ej));
+            });
+        });
+    });
+    return lineas.join('\n');
+}

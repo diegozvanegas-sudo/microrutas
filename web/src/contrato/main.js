@@ -5,7 +5,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { buscarEnDocumentos, documentoCitas, resaltarPalabras } from './busqueda.js';
+import { buscarEnDocumentos, documentoCitas, resaltarPalabras, textoWhatsApp } from './busqueda.js';
 
 var CACHE = 'contrato_cache';            // también la usa pqr.html: solo el contrato de corte de césped
 var CACHE_CONVENIOS = 'convenios_cache';
@@ -94,6 +94,39 @@ function elegir(codigo) {
     window.scrollTo(0, 0);
 }
 
+// Copiar lo que salió en la búsqueda para pegarlo en WhatsApp (sin búsqueda, los botones no se ven)
+var textoWa = '';
+var LARGO_WA = 6000;   // más que esto, el enlace de WhatsApp puede no abrir: mejor copiar y pegar
+function compartirWa(busqueda, grupos) {
+    var hay = busqueda && grupos.some(function (g) { return g.secciones.some(function (s) { return s.items.length; }); });
+    $('compartir-wa').hidden = !hay;
+    textoWa = hay ? textoWhatsApp(busqueda, grupos) : '';
+    if (!hay) return;
+    var largo = textoWa.length > LARGO_WA;
+    $('cw-abrir').href = 'https://wa.me/?text=' + encodeURIComponent(largo ? '' : textoWa);
+    $('cw-abrir').hidden = largo;
+    $('cw-nota').textContent = largo ? 'Mensaje largo (' + textoWa.length.toLocaleString('es-CO') + ' letras): cópielo y péguelo en el chat, o busque algo más preciso.' : '';
+}
+function avisoWa(msg) {
+    var t = $('cw-toast');
+    t.textContent = msg; t.classList.add('ver');
+    clearTimeout(avisoWa.t); avisoWa.t = setTimeout(function () { t.classList.remove('ver'); }, 3500);
+}
+function copiarWa() {
+    if (!textoWa) return;
+    var listo = function () { avisoWa('Copiado: péguelo en el chat de WhatsApp.'); };
+    var aMano = function () {
+        var a = document.createElement('textarea');
+        a.value = textoWa; a.setAttribute('readonly', ''); a.style.position = 'fixed'; a.style.opacity = '0';
+        document.body.appendChild(a); a.select();
+        var ok = false;
+        try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+        a.remove();
+        if (ok) listo(); else avisoWa('No se pudo copiar en este navegador: use «Abrir WhatsApp».');
+    };
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(textoWa).then(listo, aMano); else aMano();
+}
+
 // Resultados de la búsqueda en todos los documentos, agrupados por documento y sección
 function pintarGeneral(texto) {
     var r = buscarEnDocumentos(docsBuscables(), texto, nombresDocs(), ordenDocs());
@@ -113,6 +146,7 @@ function pintarGeneral(texto) {
                     }).join('') + '</ul></div>';
             }).join('') + '</section>';
     }).join('');
+    compartirWa(texto, r.grupos);
     $('estado').hidden = !!r.total;
     if (!r.total) $('estado').innerHTML = r.palabras.length ? 'No hay nada con «' + esc(texto) + '» en ningún documento. Pruebe con menos palabras o con otra (p. ej. «malla» en vez de «protección»).' : 'Escriba al menos una palabra de 3 letras.';
 }
@@ -158,6 +192,8 @@ function pintar() {
             (hechos ? '<button type="button" class="reiniciar" data-reiniciar="' + esc(s.id) + '">Empezar de nuevo</button>' : '') + '</div>' : '';
         return '<section class="seccion t-' + esc(s.tipo) + '" id="' + esc(s.id) + '"><h2>' + esc(s.icono) + ' ' + esc(s.titulo) + '</h2>' + barra + cuerpo + '</section>';
     }).join('');
+    // «Solo en este documento»: también se puede copiar lo que salió
+    compartirWa(q ? textoBuscado : '', q ? [{ nombre: nombresDocs()[actual] || (meta ? meta.titulo : actual), secciones: visibles.map(function (x) { return { icono: x.s.icono, titulo: x.s.titulo, items: x.items }; }) }] : []);
     $('estado').hidden = !!visibles.length;
     if (!visibles.length) $('estado').textContent = q ? 'No hay nada con «' + $('buscar').value.trim() + '» en este documento.' : 'Este documento está vacío.';
 }
@@ -216,6 +252,7 @@ async function arrancar() {
     $('btn-recargar').onclick = cargar;
     $('buscar').addEventListener('input', pintar);
     $('solo-doc').addEventListener('change', pintar);
+    $('cw-copiar').addEventListener('click', copiarWa);
     $('frecuentes').innerHTML = '<span class="sub">Búsquedas frecuentes:</span>' + FRECUENTES.map(function (f) { return '<button type="button" class="chip-buscar" data-buscar="' + esc(f) + '">' + esc(f) + '</button>'; }).join('');
     $('frecuentes').addEventListener('click', function (e) { var b = e.target.closest('[data-buscar]'); if (b) { $('buscar').value = b.dataset.buscar; $('solo-doc').checked = false; pintar(); $('buscar').focus(); } });
     $('secciones').addEventListener('click', function (e) { var b = e.target.closest('[data-ir]'); if (b) irA(b.dataset.ir, b.dataset.sec); });

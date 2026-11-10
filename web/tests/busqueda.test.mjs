@@ -53,3 +53,22 @@ test('resaltar sin tildes y escapando', () => {
     assert.equal(resaltarPalabras('La operación <x>', ['operacion'], esc), 'La <mark>operación</mark> &lt;x>');
     assert.equal(plano('ÁRBOL'), 'arbol');
 });
+
+test('textoWhatsApp: arma el mensaje con documento, sección, puntos y página', async () => {
+    const { textoWhatsApp } = await import('../src/contrato/busqueda.js');
+    const r = buscarEnDocumentos(DOCS, 'supervisor', { 'GUIA-CAMPO': '🧭 Guía', CESPED: '🌿 Contrato' }, ['GUIA-CAMPO', 'CESPED']);
+    const t = textoWhatsApp('supervisor', r.grupos).split('\n');
+    assert.equal(t[0], '*📜 Contrato · búsqueda «supervisor»*');
+    assert.equal(t[1], '_3 resultados en 2 documentos_');
+    assert.ok(t.includes('*🧭 Guía*'));
+    assert.ok(t.includes('🚧 _Al llegar al frente de trabajo_'));
+    assert.ok(t.includes('• *ANS 22:* Supervisor ausente de la cuadrilla durante la operación → 1 SMMLV.'));
+    assert.ok(t.includes('• Supervisores con transporte propio. (pág. 12)'));
+});
+test('textoWhatsApp: quita * y _ del texto, incluye el ejemplo y salta secciones vacías', async () => {
+    const { textoWhatsApp } = await import('../src/contrato/busqueda.js');
+    const t = textoWhatsApp('malla', [{ nombre: 'Guía', secciones: [
+        { icono: '🦺', titulo: 'EPP', items: [{ t: 'Malla *siempre* puesta', ej: 'Foto_1 con malla' }] },
+        { icono: 'x', titulo: 'Vacía', items: [] }] }, { nombre: 'Sin nada', secciones: [] }]);
+    assert.equal(t, '*📜 Contrato · búsqueda «malla»*\n_1 resultado en 1 documento_\n\n*Guía*\n🦺 _EPP_\n• Malla siempre puesta\n   Ejemplo: Foto1 con malla');
+});

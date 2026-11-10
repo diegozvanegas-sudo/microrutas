@@ -103,3 +103,18 @@ mark { background: #fde68a; color: inherit; border-radius: 3px; padding: 0 1px; 
 .res-sec mark, .seccion mark { background: #fde68a; padding: 0 1px; border-radius: 2px; }
 .enlace { border: 0; background: none; padding: 0; color: var(--brand, #167a55); font-weight: 650; font-size: 13px; cursor: pointer; text-decoration: underline; min-height: 0; }
 .seccion.resaltada { box-shadow: 0 0 0 3px #fbbf24; transition: box-shadow .3s; }
+
+/* Copiar la búsqueda para WhatsApp */
+.compartir-wa { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; margin: 0 0 10px; }
+.compartir-wa .cw-copiar, .compartir-wa .cw-abrir { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 8px 14px; border-radius: 10px; font-size: 14px; font-weight: 650; cursor: pointer; text-decoration: none; }
+.compartir-wa .cw-copiar { border: 1px solid var(--brand); background: var(--brand); color: #fff; }
+.compartir-wa .cw-copiar:hover { background: var(--brand-dark); }
+.compartir-wa .cw-abrir { border: 1px solid #25d366; background: #fff; color: #128c4a; }
+.compartir-wa .cw-abrir:hover { background: #effaf3; }
+.compartir-wa .cw-nota { font-size: 13px; color: var(--aviso); flex: 1 1 220px; }
+.compartir-wa .cw-nota:empty { display: none; }
+.cw-toast { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); max-width: calc(100% - 32px); background: #1f2937; color: #fff; padding: 10px 16px; border-radius: 10px;
+    font-size: 14px; opacity: 0; pointer-events: none; transition: opacity .2s; z-index: 50; }
+.cw-toast.ver { opacity: 1; }
+@media (max-width: 480px) { .compartir-wa .cw-copiar, .compartir-wa .cw-abrir { flex: 1 1 auto; justify-content: center; } }
+@media print { .compartir-wa, .cw-toast { display: none; } }

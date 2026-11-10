@@ -67,6 +67,12 @@
         <button type="button" id="v-mapa" aria-pressed="false">🧠 Mapa mental</button>
     </div>
     <p class="doc" id="doc"></p>
+    <!-- Con una búsqueda: copiar lo que salió para pegarlo en WhatsApp -->
+    <div class="compartir-wa" id="compartir-wa" hidden>
+        <button type="button" class="cw-copiar" id="cw-copiar">📋 Copiar para WhatsApp</button>
+        <a class="cw-abrir" id="cw-abrir" href="#" target="_blank" rel="noopener">💬 Abrir WhatsApp</a>
+        <span class="cw-nota" id="cw-nota"></span>
+    </div>
     <!-- Busca en todos los documentos a la vez (resumen del contrato, guía de campo, citas y ANS, convenios); con la casilla, solo en el abierto -->
     <div class="buscador">
         <input type="search" id="buscar" placeholder="Buscar en todos los documentos: supervisor, mallas, plazo…" aria-label="Buscar en los documentos" autocomplete="off">
@@ -76,6 +82,7 @@
     <nav class="indice" id="indice" aria-label="Secciones del contrato"></nav>
     <div id="estado" class="estado-carga">Cargando…</div>
     <div id="secciones"></div>
+    <div id="cw-toast" class="cw-toast" role="status" aria-live="polite"></div>
     <p class="nota-privada">🔒 Este contenido solo se ve con sesión iniciada. Las páginas (pág. o p.) son las del PDF de cada documento.</p>
 </main>
 <script type="module" src="/src/contrato/main.js"></script>
