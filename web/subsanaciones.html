@@ -54,6 +54,7 @@
             <!-- Agrupado por para qué sirve: cada grupo una sola tarea -->
             <div class="titulo-menu">Subsanaciones</div>
             <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
+            <button type="button" class="item-menu" id="btn-buenas" title="Mensajes de lo que se ve bien en campo (correcta operación), listos para el grupo">✅ Buena operación</button>
             <button type="button" class="item-menu" id="btn-prog" title="Subir el Excel de programación del mes y ver qué lote le toca hoy a cada cuadrilla y dónde va">📅 Programación del día</button>
             <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
@@ -301,6 +302,27 @@
         <input type="search" id="hall-buscar" aria-label="Buscar hallazgo" placeholder="Escriba qué vio: sopladora, piedras, carro parqueado, lluvia…" autocomplete="off">
         <div class="sub" id="hall-cuenta"></div>
         <div class="hall-lista" id="hall-lista"></div>
+    </div>
+</dialog>
+<!-- Buena operación (src/subsanaciones/buenaoperacion.js): mensajes de lo que se ve bien en campo, uno o varios en un solo mensaje -->
+<dialog id="dlg-buenas">
+    <div class="cuerpo">
+        <h2>✅ Buena operación
+            <button type="button" class="cerrar-dlg" id="bo-x" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <p class="sub">Mensajes de la correcta operación para el grupo. Escriba dónde está la cuadrilla y busque por palabra; marque varios para enviarlos en un solo mensaje.</p>
+        <div class="bo-campos">
+            <label class="bo-donde">DÓNDE <input id="bo-donde" placeholder="Las Palmas (842)" autocomplete="off"></label>
+            <label class="bo-buscar">BUSCAR <input type="search" id="bo-buscar" placeholder="mallas, PMT, EPP, plateo, barrido…" autocomplete="off"></label>
+        </div>
+        <div class="bo-barra"><span class="sub" id="bo-cuenta"></span>
+            <label class="bo-solo"><input type="checkbox" id="bo-solo"> Ver solo los marcados</label></div>
+        <div class="bo-lista" id="bo-lista"></div>
+        <div class="bo-vista" id="bo-vista" hidden></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="bo-cerrar">Cerrar</button>
+            <a class="boton secundario" id="bo-wa" target="_blank" rel="noopener" hidden>💬 Abrir WhatsApp</a>
+            <button type="button" class="wa" id="bo-copiar" disabled>📋 Copiar marcados</button>
+        </div>
     </div>
 </dialog>
 <dialog id="dlg-nota">

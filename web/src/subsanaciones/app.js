@@ -8,6 +8,7 @@ import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { exportarExcel, hojasExcel, htmlHoja, filasParaCopiar } from './excel.js';
 import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
+import { BUENAS, buscarBuenas, mensaje as mensajeBuena, mensajeVarios } from './buenaoperacion.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
@@ -2099,7 +2100,8 @@ export function iniciar(api, CFG) {
         var aMano = function () {
             var t = document.createElement('textarea');
             t.value = texto; t.style.position = 'fixed'; t.style.opacity = '0';
-            ($('dlg-hallazgos').open ? $('dlg-hallazgos') : document.body).appendChild(t);
+            // Dentro de la ventana abierta (Posibles hallazgos o Buena operación): con una ventana abierta, lo de afuera no se puede seleccionar
+            ($('dlg-buenas').open ? $('dlg-buenas') : $('dlg-hallazgos').open ? $('dlg-hallazgos') : document.body).appendChild(t);
             t.select();
             try { document.execCommand('copy'); toast(listo); } catch (e) { toast('No se pudo copiar: seleccione el texto y cópielo.'); }
             t.remove();
@@ -2151,6 +2153,67 @@ export function iniciar(api, CFG) {
         }).join('') : '';
     }
     $('obs-sug').onclick = function (ev) { var b = ev.target.closest('[data-hall]'); if (b) abrirHallazgos(HALLAZGOS[b.dataset.hall].t); };
+
+    // ---------- Buena operación (src/subsanaciones/buenaoperacion.js) ----------
+    // Mensajes de lo que se ve bien: uno por uno (Copiar) o varios marcados en un solo mensaje (pie). Abre vacía: al cerrar
+    // se borran dónde, la búsqueda y lo marcado
+    var buenasMarcadas = [];
+    function pintarBuenas() {
+        var q = $('bo-buscar').value.trim(), lugar = $('bo-donde').value, solo = $('bo-solo').checked, conForm = dlg.open;
+        var idx = buscarBuenas(q);
+        if (solo) idx = idx.filter(function (i) { return buenasMarcadas.indexOf(i) !== -1; });
+        $('bo-cuenta').textContent = (q ? idx.length + (idx.length === 1 ? ' mensaje' : ' mensajes') + ' con "' + q + '"' : BUENAS.length + ' mensajes') +
+            (buenasMarcadas.length ? ' · ' + buenasMarcadas.length + (buenasMarcadas.length === 1 ? ' marcado' : ' marcados') : '') +
+            (!idx.length ? (solo ? '. No hay marcados aquí.' : '. Pruebe con otra palabra: mallas, señales, EPP, barrido, fotos…') : '');
+        var grupo = '';
+        $('bo-lista').innerHTML = idx.map(function (i) {
+            var b = BUENAS[i], si = buenasMarcadas.indexOf(i) !== -1;
+            var cab = !q && !solo && b.g !== grupo ? '<h3 class="bo-grupo">' + esc(grupo = b.g) + '</h3>' : '';
+            return cab + '<div class="bo-item' + (si ? ' marcado' : '') + '"><label class="bo-marca"><input type="checkbox" data-marcar="' + i + '"' + (si ? ' checked' : '') + '>' +
+                '<span><b>' + esc(b.t) + '</b><span class="bo-texto">' + esc(mensajeBuena(i, lugar)) + '</span></span></label>' +
+                '<div class="botones"><button type="button" class="wa pequeno" data-copiar="' + i + '">📋 Copiar</button>' +
+                (conForm ? '<button type="button" class="secundario pequeno" data-agregar="' + i + '">➕ A la observación</button>' : '') + '</div></div>';
+        }).join('');
+        var todo = mensajeVarios(buenasMarcadas, lugar);
+        $('bo-vista').hidden = buenasMarcadas.length < 2;
+        $('bo-vista').textContent = todo;
+        $('bo-copiar').disabled = !buenasMarcadas.length;
+        $('bo-copiar').textContent = buenasMarcadas.length ? '📋 Copiar ' + (buenasMarcadas.length === 1 ? 'el marcado' : 'los ' + buenasMarcadas.length + ' marcados') : '📋 Copiar marcados';
+        $('bo-wa').hidden = !buenasMarcadas.length;
+        $('bo-wa').href = 'https://wa.me/?text=' + encodeURIComponent(todo);
+    }
+    $('btn-buenas').onclick = function () { pintarBuenas(); $('dlg-buenas').showModal(); $('bo-donde').focus(); };
+    $('bo-buscar').addEventListener('input', function () { pintarBuenas(); $('bo-lista').scrollTop = 0; });
+    $('bo-donde').addEventListener('input', pintarBuenas);
+    $('bo-solo').addEventListener('change', pintarBuenas);
+    $('bo-x').onclick = $('bo-cerrar').onclick = function () { $('dlg-buenas').close(); };
+    $('dlg-buenas').addEventListener('close', function () {
+        buenasMarcadas = [];
+        $('bo-donde').value = $('bo-buscar').value = '';
+        $('bo-solo').checked = false;
+        $('bo-lista').innerHTML = $('bo-vista').textContent = '';
+    });
+    $('bo-lista').addEventListener('change', function (ev) {
+        var c = ev.target.closest('[data-marcar]');
+        if (!c) return;
+        var i = +c.dataset.marcar, k = buenasMarcadas.indexOf(i), y = $('bo-lista').scrollTop;
+        if (c.checked && k === -1) buenasMarcadas.push(i); else if (!c.checked && k !== -1) buenasMarcadas.splice(k, 1);
+        pintarBuenas();
+        $('bo-lista').scrollTop = y;
+    });
+    $('bo-lista').addEventListener('click', function (ev) {
+        var c = ev.target.closest('[data-copiar]'), a = ev.target.closest('[data-agregar]');
+        if (c) copiarTexto(mensajeBuena(+c.dataset.copiar, $('bo-donde').value), 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
+        if (!a) return;
+        var obs = campoObs(), actual = obs.value.trim(), m = mensajeBuena(+a.dataset.agregar, $('bo-donde').value);
+        obs.value = !actual || norm(actual) === 'SIN NOVEDAD' ? m : actual.replace(/\.?$/, '.') + ' ' + m;
+        obs.dispatchEvent(new Event('input', { bubbles: true }));
+        $('dlg-buenas').close();
+        toast('Agregado a la observación. Puede ajustarlo.');
+    });
+    $('bo-copiar').onclick = function () {
+        if (buenasMarcadas.length) copiarTexto(mensajeVarios(buenasMarcadas, $('bo-donde').value), 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
+    };
 
     // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
     // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan
@@ -3017,7 +3080,7 @@ export function iniciar(api, CFG) {
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|fotos|zip|nota|ocr|tabla|fotolote|prog)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|fotolote|prog)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         btn.onclick();
