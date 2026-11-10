@@ -369,3 +369,11 @@ test('PQR: daño trasladado a Precoodes, cierre según lo que respondieron', asy
     // Como antes: con fecha de pago y sin desenlace elegido, se pagó
     assert.match(armarRespuestas({ ...base, fechaCorregido: '2026-11-08' })[0].texto, /desembolso del dinero/);
 });
+
+test('PQR: sin dirección ni contacto, aviso de seguimiento sin cierre', () => {
+    const [completa, breve] = armarRespuestas({ id: '442733', resultado: 'sindireccion', hora: 15 });
+    assert.equal(breve.texto, 'Buenas tardes.\n\nSe informa que el ID 442733 no presenta dirección y se ha intentado establecer comunicación con el usuario y no ha sido posible.\n\nSe seguirá intentando para dar respuesta a la solicitud.');
+    assert.match(completa.texto, /^Buenas tardes\.\n\nSe informa que el ID 442733 no presenta dirección y se ha intentado establecer comunicación con el usuario a través de los medios proporcionados en la solicitud/);
+    assert.doesNotMatch(completa.texto, /favor dar cierre|monitoreo permanente/);
+    assert.match(armarRespuestas({ id: '442733 y 442734', resultado: 'sindireccion' })[1].texto, /los ID 442733 y 442734 no presentan dirección/);
+});

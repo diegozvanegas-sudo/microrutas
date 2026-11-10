@@ -245,7 +245,14 @@ var CASOS = {
             (c.obs ? c.obs.replace(/^./, function (l) { return l.toLowerCase(); }) : 'nos encontramos a la espera de la atención de la novedad por parte del contratista; una vez se tenga evidencia de su ejecución, se informará el cierre.');
         p.push(texto); b.push(texto);
     } },
-    sinresiduos: { titulo: 'No había residuos', 
+    // Aviso sin cierre: la queja no trae dirección y no se ha podido hablar con el usuario (como lo manda Diego al grupo)
+    sindireccion: { titulo: 'Sin dirección ni contacto (seguimiento)', soloSeguimiento: true, seguimiento: false, armar: function (c, p, b) {
+        var varios = /^las /.test(c.ids), el = c.ids.replace(/^las PQRS con ID/, 'los ID').replace(/^la PQRS con ID/, 'el ID');
+        p.push('Se informa que ' + el + (varios ? ' no presentan' : ' no presenta') + ' dirección y se ha intentado establecer comunicación con el usuario a través de los medios proporcionados en la solicitud, sin que haya sido posible.');
+        p.push('Se seguirá intentando el contacto para dar respuesta a la solicitud.');
+        b.push('Se informa que ' + el + (varios ? ' no presentan' : ' no presenta') + ' dirección y se ha intentado establecer comunicación con el usuario y no ha sido posible.\n\nSe seguirá intentando para dar respuesta a la solicitud.');
+    } },
+    sinresiduos: { titulo: 'No había residuos',
         oficial: function (c) { return 'El ' + c.visitaCorta + ' se realizó visita técnica en la dirección y no se evidenciaron residuos vegetales en el punto. Se realizará monitoreo durante las próximas rondas para garantizar cumplimiento y calidad en el servicio.'; },
         armar: function (c, p, b) {
         p.push('Considerando los alcances de la prestación del servicio público de aseo, ' + c.elDia + 'se realizó visita técnica ' + c.enDir + ', durante la cual no se evidenció la presencia de residuos vegetales asociados al servicio de corte de césped.');
