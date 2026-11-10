@@ -17,6 +17,8 @@ function baseMotor() {
 
 var sb = null, usuario = null, base = '', conectado = false;
 var quincenas = [], archivos = { zips: [], informes: [] }, estados = {}, novedades = [], sondeo = null, subida = null;
+// motor: opciones por defecto y arranque (GET /motor; null si el motor abierto es de antes). reintento: buscar el motor cada 5 s
+var motor = null, reintento = null, consolaAbierta = {}, consolaAbajo = {};
 
 // ---------- Llamadas al motor ----------
 async function pedir(ruta, opciones, espera) {
@@ -58,22 +60,106 @@ async function conectar() {
     base = baseMotor();
     $('aud-motor').className = 'aud-motor';
     $('aud-motor').textContent = 'Buscando el motor de auditoría en este PC…';
+    clearTimeout(reintento);
     try {
         archivos = await pedir('/archivos', null, 4000);
         conectado = true;
+        motor = await pedir('/motor', null, 4000).catch(function () { return null; });
         $('aud-motor').classList.add('ok');
-        $('aud-motor').innerHTML = '✓ Motor de auditoría conectado. Lee las fotos con el plan de Claude Code: no se paga la API.' +
-            ' <a href="' + esc((base || '') + '/zonas-verdes') + '" target="_blank" rel="noopener">Revisar a fondo en el portal ↗</a>';
+        pintarMotor();
     } catch (e) {
-        conectado = false;
+        conectado = false; motor = null;
         $('aud-motor').classList.add('sin');
-        $('aud-motor').innerHTML = '<b>No se encontró el motor de auditoría.</b> La auditoría se hace en el PC: abra ' +
-            '<b>Abrir_aplicaciones.bat</b> (carpeta Aplicaciones) y toque «Reintentar». Si Chrome pregunta si deja que la página ' +
-            'acceda a la red local o a este equipo, toque <b>Permitir</b>. Desde el celular se ven los resultados ya guardados.' +
-            ' <button type="button" class="secundario pequeno" id="aud-reintentar">↻ Reintentar</button>';
+        $('aud-motor').innerHTML = '<b>No se encontró el motor de auditoría en este PC.</b>' +
+            '<ol class="aud-pasos"><li>Abra <b>Abrir_aplicaciones.bat</b> (Documentos › Envarias › Revisar IA reporte › Aplicaciones).</li>' +
+            '<li>Si Chrome pregunta si la página puede acceder a la red local o a este equipo, toque <b>Permitir</b>.</li>' +
+            '<li>Ya conectado, prenda <b>«Arrancar solo al prender el PC»</b>: así no tiene que abrirlo más.</li></ol>' +
+            '<span class="aud-buscando">Se vuelve a buscar cada 5 segundos…</span> <button type="button" class="secundario pequeno" id="aud-reintentar">↻ Reintentar ya</button>' +
+            '<div class="sub">Desde el celular no hay motor: allí se ven los resultados ya guardados.</div>';
         $('aud-reintentar').onclick = abrir;
+        // Mientras la ventana siga abierta, se busca solo: apenas se abra el .bat, se conecta
+        reintento = setTimeout(function () { if ($('dlg-auditoria').open && !conectado) abrir(); }, 5000);
     }
     $('aud-trabajo').hidden = !conectado;
+    pintarOpciones();
+}
+// Franja verde del motor conectado: arranque con Windows y apagar
+function pintarMotor() {
+    var a = motor && motor.arranque;
+    $('aud-motor').innerHTML = '<div>✓ <b>Motor de auditoría conectado.</b> Lee las fotos con el plan de Claude Code: no se paga la API.' +
+        ' <a href="' + esc((base || '') + '/zonas-verdes') + '" target="_blank" rel="noopener">Revisar a fondo en el portal ↗</a></div>' +
+        (!motor ? '<div class="sub">⚠ Este motor es de antes: ciérrelo y vuelva a abrir <b>Abrir_aplicaciones.bat</b> para tener el arranque automático, la consola y todas las opciones.</div>'
+            : '<div class="aud-motor-fila">' +
+            (a && a.disponible ? '<label class="aud-check aud-arranque"><input type="checkbox" id="aud-arranque"' + (a.activo ? ' checked' : '') + '> Arrancar solo al prender el PC <span class="sub">(' + (a.activo ? 'queda encendido, sin ventana' : 'hoy hay que abrir el .bat') + ')</span></label>' : '') +
+            '<button type="button" class="secundario pequeno" id="aud-apagar" title="Apagar el motor en este PC (no se pierde nada; se vuelve a abrir con el .bat o al prender el PC)">⏻ Apagar el motor</button></div>');
+}
+async function cambiarArranque(activo) {
+    var c = $('aud-arranque'); c.disabled = true;
+    try {
+        motor.arranque = await pedir('/motor/arranque', json('PUT', { activo: activo }), 10000);
+        toast(activo ? '✓ Listo: el motor arranca solo cada vez que prenda el PC (sin ventana).' : 'Ya no arranca solo: ábralo con Abrir_aplicaciones.bat cuando lo necesite.');
+    } catch (e) { toast('No se cambió el arranque: ' + e.message); }
+    pintarMotor();
+}
+async function apagarMotor() {
+    if (!confirm('¿Apagar el motor de auditoría en este PC?\nNo se pierde nada. Para volver a usarlo, abra Abrir_aplicaciones.bat' + (motor && motor.arranque && motor.arranque.activo ? ' o reinicie el PC.' : '.'))) return;
+    try {
+        await pedir('/motor/apagar', json('POST', { confirmar: true }), 10000);
+        toast('Motor apagado.');
+        setTimeout(abrir, 1500);
+    } catch (e) { toast(e.message); }
+}
+
+// ---------- Opciones del motor (se recuerdan en el equipo; la cuadrilla no, es de cada ZIP) ----------
+var OPCIONES = 'auditoria_opciones';
+function opcionesGuardadas() { try { return JSON.parse(localStorage.getItem(OPCIONES)) || {}; } catch (e) { return {}; } }
+function pintarOpciones() {
+    var m = motor || { modelos: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'], modelo_lectura: 'claude-haiku-5-5', modelo_metro: 'claude-sonnet-5-5', paralelo: 6, lote: 8 };
+    var g = opcionesGuardadas();
+    var lista = function (actual, defecto) {
+        var ms = m.modelos.indexOf(actual) === -1 && actual ? m.modelos.concat([actual]) : m.modelos;
+        return ms.map(function (x) { return '<option value="' + esc(x) + '"' + (x === (actual || defecto) ? ' selected' : '') + '>' + esc(x.replace(/^claude-/, '')) + (x === defecto ? ' ★' : '') + '</option>'; }).join('');
+    };
+    $('aud-op-modelo').innerHTML = lista(g.modelo, m.modelo_lectura);
+    $('aud-op-metro').innerHTML = lista(g.modelo_metro, m.modelo_metro);
+    $('aud-op-prueba').value = g.prueba || 20;
+    $('aud-op-paralelo').value = g.paralelo || m.paralelo;
+    $('aud-op-lote').value = g.lote || m.lote;
+    $('aud-op-maximo').value = g.maximo || '';
+    $('aud-op-enderezar').checked = !!g.sin_enderezar;
+    $('aud-op-viejo').hidden = !conectado || !!motor;
+    resumenOpciones();
+}
+function leerOpciones() {
+    var n = function (id) { var v = parseInt($(id).value, 10); return isNaN(v) ? null : v; };
+    return { prueba: n('aud-op-prueba') || 20, modelo: $('aud-op-modelo').value, paralelo: n('aud-op-paralelo'), lote: n('aud-op-lote'),
+        cuadrilla: n('aud-op-cuadrilla'), sin_enderezar: $('aud-op-enderezar').checked, modelo_metro: $('aud-op-metro').value, maximo: n('aud-op-maximo') };
+}
+function guardarOpciones() {
+    var o = leerOpciones(), m = motor || {};
+    var g = { prueba: o.prueba !== 20 ? o.prueba : null, modelo: o.modelo !== m.modelo_lectura ? o.modelo : null, paralelo: o.paralelo !== m.paralelo ? o.paralelo : null,
+        lote: o.lote !== m.lote ? o.lote : null, sin_enderezar: o.sin_enderezar || null, modelo_metro: o.modelo_metro !== m.modelo_metro ? o.modelo_metro : null, maximo: o.maximo };
+    Object.keys(g).forEach(function (k) { if (g[k] == null) delete g[k]; });
+    try { localStorage.setItem(OPCIONES, JSON.stringify(g)); } catch (e) {}
+    resumenOpciones();
+    pintarQuincena();
+}
+// Lo que está distinto de lo de siempre, al lado del título (para no olvidarlo)
+function resumenOpciones() {
+    var o = leerOpciones(), m = motor || {}, d = [];
+    if (o.modelo && m.modelo_lectura && o.modelo !== m.modelo_lectura) d.push(o.modelo.replace(/^claude-/, ''));
+    if (o.paralelo && m.paralelo && o.paralelo !== m.paralelo) d.push(o.paralelo + ' al tiempo');
+    if (o.lote && m.lote && o.lote !== m.lote) d.push(o.lote + ' por lote');
+    if (o.cuadrilla) d.push('cuadrilla ' + o.cuadrilla);
+    if (o.sin_enderezar) d.push('sin enderezar');
+    $('aud-op-resumen').textContent = d.length ? '· ' + d.join(' · ') : '· las de siempre';
+}
+// Lo que se le manda al motor según el botón
+function opcionesPara(tipo, prueba) {
+    var o = leerOpciones(), r = { tipo: tipo, modelo: o.modelo, paralelo: o.paralelo, lote: o.lote, cuadrilla: o.cuadrilla, sin_enderezar: o.sin_enderezar };
+    if (tipo === 'lectura' && prueba) r.prueba = o.prueba;
+    if (tipo === 'metro') { r.modelo_metro = o.modelo_metro; r.maximo = o.maximo; }
+    return r;
 }
 
 // ---------- 1. Quincena ----------
@@ -125,20 +211,60 @@ function pintarQuincena() {
     $('aud-agregar').disabled = !libres.length;
     $('aud-fuentes').innerHTML = q.fuentes.length ? q.fuentes.map(function (f) {
         var e = estados[f.id] || {}, corriendo = e.estado === 'CORRIENDO';
+        // «Ver avance» solo cuenta (no lee): no se muestra como leído ni con su barra
+        var cuenta = e.tipo === 'avance' && !corriendo;
+        var etiqueta = cuenta && e.estado === 'TERMINADA' ? '📊 Avance listo' : e.tipo === 'metro' && e.estado === 'TERMINADA' ? '✓ Metro leído' : (ESTADO[e.estado] || 'Sin leer');
         var pct = e.total ? e.actual / e.total * 100 : null;
         return '<div class="aud-fuente" data-fuente="' + f.id + '">' +
-            '<div class="cab"><b>📦 ' + esc(f.nombre) + '</b><span class="aud-estado ' + esc((e.estado || 'SIN_INICIAR').toLowerCase()) + '">' + (ESTADO[e.estado] || 'Sin leer') + '</span></div>' +
-            (corriendo || e.total ? '<div class="aud-mini" role="progressbar" aria-valuemin="0" aria-valuemax="100"' + (pct == null ? '' : ' aria-valuenow="' + Math.round(pct) + '"') + '>' +
+            '<div class="cab"><b>📦 ' + esc(f.nombre) + '</b><span class="aud-estado ' + esc((e.estado || 'SIN_INICIAR').toLowerCase()) + '">' + etiqueta + '</span></div>' +
+            (!cuenta && (corriendo || e.total) ? '<div class="aud-mini" role="progressbar" aria-valuemin="0" aria-valuemax="100"' + (pct == null ? '' : ' aria-valuenow="' + Math.round(pct) + '"') + '>' +
                 '<span style="width:' + (pct == null ? 35 : pct) + '%" class="' + (pct == null ? 'mueve' : '') + '"></span></div>' : '') +
-            '<div class="sub">' + esc(e.total ? miles(e.actual) + ' de ' + miles(e.total) + ' fotos' + (e.mensaje && !/fotos$/.test(e.mensaje) ? ' · ' + e.mensaje : '') : (e.mensaje || 'Toque «Probar con 20 fotos» antes de leerlo completo.')) + '</div>' +
+            '<div class="sub">' + esc(cuenta ? 'Se contó lo que va sin llamar a Claude: el resumen está en la consola.' : e.total ? miles(e.actual) + ' de ' + miles(e.total) + ' fotos' + (e.mensaje && !/fotos$/.test(e.mensaje) ? ' · ' + e.mensaje : '') : (e.mensaje || 'Toque «Probar con ' + leerOpciones().prueba + ' fotos» antes de leerlo completo.')) + '</div>' +
             (e.estado === 'LIMITE' ? '<div class="sub aviso-limite">Se acabó el límite del plan de Claude. Vuelva a tocar «Leer todas» más tarde: sigue donde iba sin volver a pagar las fotos hechas.</div>' : '') +
-            (e.estado === 'ERROR' && e.lineas && e.lineas.length ? '<details class="sub"><summary>Ver lo que dijo el motor</summary><pre>' + esc(e.lineas.slice(-12).join('\n')) + '</pre></details>' : '') +
+            (!cuenta && e.total && (corriendo || e.fin) ? '<div class="sub aud-tiempos">' + esc(tiempos(e)) + '</div>' : '') +
             '<div class="acciones">' + (corriendo
                 ? '<button type="button" class="peligro-suave pequeno" data-detener>⏸ Detener</button>'
-                : '<button type="button" class="secundario pequeno" data-leer="20">🧪 Probar con 20 fotos</button>' +
-                  '<button type="button" class="primario pequeno" data-leer="">▶ ' + (e.estado === 'DETENIDA' || e.estado === 'LIMITE' ? 'Seguir leyendo' : 'Leer todas') + '</button>') +
-            '</div></div>';
+                : '<button type="button" class="secundario pequeno" data-correr="prueba">🧪 Probar con ' + miles(leerOpciones().prueba) + ' fotos</button>' +
+                  '<button type="button" class="primario pequeno" data-correr="lectura">▶ ' + (e.estado === 'DETENIDA' || e.estado === 'LIMITE' ? 'Seguir leyendo' : 'Leer todas') + '</button>' +
+                  '<button type="button" class="secundario pequeno" data-correr="metro" title="Volver a leer solo las fotos del metro con el modelo de «Opciones del motor»">📏 Segunda pasada del metro</button>' +
+                  '<button type="button" class="secundario pequeno" data-correr="avance" title="Cuántas fotos van y un Excel parcial con las carpetas completas, sin llamar a Claude">📊 Ver avance (sin leer)</button>') +
+            '</div>' + consola(f.id, e) + '</div>';
     }).join('') : '<p class="sub">Esta quincena aún no tiene ZIP. Súbalo o elíjalo arriba.</p>';
+    // La consola sigue abajo (lo último) salvo que se haya subido a leer algo
+    $('aud-fuentes').querySelectorAll('[data-consola] pre').forEach(function (pre) {
+        var fid = pre.closest('[data-consola]').dataset.consola;
+        if (consolaAbajo[fid] !== false) pre.scrollTop = pre.scrollHeight; else if (consolaAbajo['y' + fid] != null) pre.scrollTop = consolaAbajo['y' + fid];
+    });
+}
+// Tiempo que lleva, fotos por minuto y cuánto falta (aproximado: las fotos de la caché pasan rápido)
+export function tiempos(e, ahora) {
+    var ini = Date.parse(e.inicio), fin = e.fin ? Date.parse(e.fin) : (ahora || Date.now());
+    if (isNaN(ini)) return '';
+    var seg = Math.max(0, (fin - ini) / 1000), t = [];
+    var dur = function (s) { s = Math.round(s); return s < 60 ? s + ' s' : s < 3600 ? Math.round(s / 60) + ' min' : Math.floor(s / 3600) + ' h ' + Math.round(s % 3600 / 60) + ' min'; };
+    t.push((e.fin ? 'Duró ' : 'Lleva ') + dur(seg));
+    if (e.actual > 0 && seg >= 20) {
+        var porMin = e.actual / seg * 60;
+        t.push(porMin >= 10 ? Math.round(porMin) + ' fotos/min' : porMin.toFixed(1).replace('.', ',') + ' fotos/min');
+        if (!e.fin && e.total > e.actual) t.push('faltan ~' + dur((e.total - e.actual) / porMin * 60));
+    }
+    return '⏱ ' + t.join(' · ');
+}
+// Consola del motor: lo mismo que se ve en la ventana negra (las últimas 300 líneas), con el comando que se corrió
+function consola(fid, e) {
+    var l = e.lineas || [];
+    if (!l.length && !e.comando) return '';
+    // Abierta mientras corre, si falló y al terminar el avance o el metro (su resumen es lo que importa)
+    var abierta = consolaAbierta[fid] != null ? consolaAbierta[fid] : e.estado === 'CORRIENDO' || e.estado === 'ERROR' || (e.tipo !== 'lectura' && !!e.fin);
+    var parcial = l.map(function (x) { var m = /Excel parcial:\s+(.+\.xlsx)\s*$/i.exec(x); return m && m[1]; }).filter(Boolean).pop();
+    return '<details class="aud-consola" data-consola="' + fid + '"' + (abierta ? ' open' : '') + '><summary>🖥️ Consola del motor <span class="sub">· ' +
+        (e.tipo === 'metro' ? 'segunda pasada del metro' : e.tipo === 'avance' ? 'avance sin leer' : e.opciones && e.opciones.prueba ? 'prueba de ' + e.opciones.prueba + ' fotos' : 'lectura') +
+        (e.inicio ? ' · ' + esc(e.inicio.slice(11, 16)) : '') + '</span></summary>' +
+        (e.comando ? '<div class="aud-cmd">&gt; ' + esc(e.comando) + '</div>' : '') +
+        '<pre>' + esc(l.join('\n') || 'Esperando lo primero que diga el motor…') + '</pre>' +
+        '<div class="acciones"><button type="button" class="secundario pequeno" data-copiar-consola>📋 Copiar la consola</button>' +
+        (parcial ? '<a class="boton secundario pequeno" href="' + esc(base + API + '/descargar?ruta=' + encodeURIComponent(parcial)) + '" download>⬇ Excel parcial</a>' : '') +
+        '</div></details>';
 }
 async function agregarFuente(ruta) {
     var q = quincena();
@@ -199,9 +325,13 @@ async function subirInforme(archivo) {
 }
 
 // ---------- Lectura con Claude y su avance ----------
-async function leer(fid, prueba) {
-    estados[fid] = await pedir('/fuentes/' + fid + '/revision', json('POST', prueba ? { tipo: 'lectura', prueba: prueba } : { tipo: 'lectura' }));
-    toast(prueba ? 'Leyendo 20 fotos de prueba…' : 'Leyendo todas las fotos. Puede cerrar esta ventana: el motor sigue en el PC.');
+// que: prueba | lectura | metro | avance (botones de cada ZIP), con las opciones del motor
+async function correr(fid, que) {
+    var o = opcionesPara(que === 'prueba' ? 'lectura' : que, que === 'prueba');
+    estados[fid] = await pedir('/fuentes/' + fid + '/revision', json('POST', o));
+    consolaAbierta[fid] = true; consolaAbajo[fid] = true;
+    toast({ prueba: 'Leyendo ' + o.prueba + ' fotos de prueba…', lectura: 'Leyendo todas las fotos. Puede cerrar esta ventana: el motor sigue en el PC.',
+        metro: 'Segunda pasada del metro con ' + o.modelo_metro + '…', avance: 'Contando lo que va, sin llamar a Claude…' }[que]);
     pintarQuincena();
     seguir();
 }
@@ -222,17 +352,21 @@ async function seguir() {
     pintarQuincena();
     if (corriendo) {
         var e = estados[corriendo.id];
-        barra(2, 'Leyendo las fotos de ' + corriendo.nombre + ' con Claude · ' + (e.total ? miles(e.actual) + ' de ' + miles(e.total) : (e.mensaje || 'preparando las fotos…')),
+        var t = e.total ? tiempos(e).replace(/^⏱ /, ' · ') : '';
+        barra(2, (e.tipo === 'avance' ? 'Contando lo que va de ' : e.tipo === 'metro' ? 'Segunda pasada del metro de ' : 'Leyendo las fotos de ') + corriendo.nombre +
+            (e.tipo === 'avance' ? ' (sin Claude) · ' : ' con Claude · ') + (e.total ? miles(e.actual) + ' de ' + miles(e.total) + t : (e.mensaje || 'preparando las fotos…')),
             e.total ? e.actual / e.total * 100 : null);
         sondeo = setTimeout(seguir, 2000);
         return;
     }
     // Uno acaba de terminar: el reporte se arma solo
-    var termino = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA'; });
+    var termino = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo !== 'avance'; });
+    var conto = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo === 'avance'; });
+    if (conto) barra(2, '✓ Avance de ' + conto.nombre + ' listo: mire el resumen en la consola del motor.', 100, 'listo');
     if (termino) cargarNovedades(true);
     var malo = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && /ERROR|LIMITE/.test(estados[f.id].estado); });
     if (malo) barra(2, estados[malo.id].estado === 'LIMITE' ? 'Se acabó el límite del plan de Claude en ' + malo.nombre + '. Siga más tarde: no se vuelven a pagar las fotos hechas.'
-        : 'El motor se detuvo con un error en ' + malo.nombre + '. Abra «Ver lo que dijo el motor».', 0, 'error');
+        : 'El motor se detuvo con un error en ' + malo.nombre + '. Mire la consola del motor (debajo del ZIP).', 0, 'error');
 }
 
 // ---------- 3. Resultados por microrruta ----------
@@ -350,7 +484,33 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
     // Se abre desde el menú Zonas verdes (#auditar); el botón es opcional
     if ($('btn-auditoria')) $('btn-auditoria').onclick = abrir;
     $('aud-cerrar').onclick = function () { $('dlg-auditoria').close(); };
-    $('dlg-auditoria').addEventListener('close', function () { clearTimeout(sondeo); });
+    // Al cerrar: se para de preguntar y se olvida lo de esta vez (consolas abiertas, cuadrilla); las opciones quedan
+    $('dlg-auditoria').addEventListener('close', function () {
+        clearTimeout(sondeo); clearTimeout(reintento);
+        consolaAbierta = {}; consolaAbajo = {};
+        $('aud-op-cuadrilla').value = '';
+        $('aud-opciones').open = false;
+    });
+    $('aud-motor').addEventListener('change', function (ev) { if (ev.target.id === 'aud-arranque') cambiarArranque(ev.target.checked); });
+    $('aud-motor').addEventListener('click', function (ev) { if (ev.target.closest('#aud-apagar')) apagarMotor(); });
+    $('aud-opciones').addEventListener('change', guardarOpciones);
+    $('aud-op-restablecer').onclick = function () {
+        try { localStorage.removeItem(OPCIONES); } catch (e) {}
+        $('aud-op-cuadrilla').value = '';
+        pintarOpciones(); pintarQuincena();
+        toast('Opciones como siempre.');
+    };
+    // Consola: recordar si se abrió o cerró y si se subió a leer (para no bajarla de golpe cada 2 s)
+    $('aud-fuentes').addEventListener('toggle', function (ev) {
+        var d = ev.target.closest && ev.target.closest('[data-consola]');
+        if (d) consolaAbierta[d.dataset.consola] = d.open;
+    }, true);
+    $('aud-fuentes').addEventListener('scroll', function (ev) {
+        var pre = ev.target, d = pre.closest && pre.closest('[data-consola]');
+        if (!d || pre.tagName !== 'PRE') return;
+        consolaAbajo[d.dataset.consola] = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
+        consolaAbajo['y' + d.dataset.consola] = pre.scrollTop;
+    }, true);
     $('aud-quincena').onchange = function () { novedades = []; pintarResultados([], ''); $('aud-res-acciones').hidden = true; $('aud-avance').hidden = true; pintarQuincena(); seguir(); };
     $('aud-btn-nueva').onclick = function () { $('aud-nueva').hidden = !$('aud-nueva').hidden; pintarInformes(); };
     $('aud-crear').onclick = crearQuincena;
@@ -363,8 +523,13 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
     $('aud-fuentes').onclick = function (ev) {
         var caja = ev.target.closest('[data-fuente]'), fid = caja && +caja.dataset.fuente;
         if (!fid) return;
-        var l = ev.target.closest('[data-leer]');
-        if (l) { l.disabled = true; leer(fid, +l.dataset.leer || null).catch(function (e) { toast('No arrancó la lectura: ' + e.message); l.disabled = false; }); }
+        var l = ev.target.closest('[data-correr]');
+        if (l) { l.disabled = true; correr(fid, l.dataset.correr).catch(function (e) { toast('No arrancó: ' + e.message); l.disabled = false; }); }
+        if (ev.target.closest('[data-copiar-consola]')) {
+            var e2 = estados[fid] || {}, texto = (e2.comando ? '> ' + e2.comando + '\n' : '') + (e2.lineas || []).join('\n');
+            (navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(texto) : Promise.reject()).then(function () { toast('Consola copiada.'); },
+                function () { toast('No se pudo copiar: seleccione el texto de la consola y cópielo.'); });
+        }
         if (ev.target.closest('[data-detener]')) detener(fid).catch(function (e) { toast(e.message); });
     };
     $('aud-ver').onclick = function () { cargarNovedades(true); };

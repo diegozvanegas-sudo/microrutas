@@ -265,6 +265,29 @@
                     <select id="aud-zip-lista" aria-label="ZIP que ya está en el PC"></select>
                     <button type="button" class="secundario" id="aud-agregar">Agregar</button>
                 </div>
+                <!-- Opciones del motor (las mismas de la consola). No están, a propósito, las que cuestan: borrar la caché y la API -->
+                <details class="aud-opciones" id="aud-opciones">
+                    <summary>⚙️ Opciones del motor <span class="sub" id="aud-op-resumen"></span></summary>
+                    <p class="sub aud-op-aviso" id="aud-op-viejo" hidden>⚠ El motor abierto es de antes y no recibe estas opciones: ciérrelo (o tóquele «⏻ Apagar») y vuelva a abrir <b>Abrir_aplicaciones.bat</b>.</p>
+                    <div class="aud-op-rejilla">
+                        <label>FOTOS DE PRUEBA <input type="number" id="aud-op-prueba" min="1" max="5000" inputmode="numeric" placeholder="20"></label>
+                        <label>MODELO DE LECTURA <select id="aud-op-modelo"></select><span class="sub">★ el de siempre.</span></label>
+                        <label>LOTES AL TIEMPO <input type="number" id="aud-op-paralelo" min="1" max="12" inputmode="numeric"><span class="sub">Si el límite del plan se acaba rápido, use 1.</span></label>
+                        <label>FOTOS POR LOTE <input type="number" id="aud-op-lote" min="1" max="20" inputmode="numeric" placeholder="8"></label>
+                        <label>CUADRILLA <input type="number" id="aud-op-cuadrilla" min="1" max="999" inputmode="numeric" placeholder="Del nombre del ZIP"><span class="sub">Solo si el nombre del ZIP no la dice (C10.zip → 10).</span></label>
+                        <label class="aud-check aud-op-ancho"><input type="checkbox" id="aud-op-enderezar"> No enderezar las fotos por la marca de agua (solo el giro que trae la foto)</label>
+                    </div>
+                    <h4>📏 Segunda pasada del metro</h4>
+                    <p class="sub">Vuelve a leer solo las fotos con metro (ANTES y DESPUÉS) con un modelo más fuerte. Use la caché de la primera lectura.</p>
+                    <div class="aud-op-rejilla">
+                        <label>MODELO DEL METRO <select id="aud-op-metro"></select></label>
+                        <label>MÁXIMO DE FOTOS <input type="number" id="aud-op-maximo" min="1" max="100000" inputmode="numeric" placeholder="Todas"></label>
+                    </div>
+                    <div class="aud-fila">
+                        <button type="button" class="secundario pequeno" id="aud-op-restablecer">↺ Valores de siempre</button>
+                        <span class="sub">Se recuerdan en este equipo (menos la cuadrilla). No están, a propósito, «borrar la caché» ni la API de Anthropic: cuestan.</span>
+                    </div>
+                </details>
                 <div id="aud-fuentes" class="aud-fuentes"></div>
             </section>
             <section class="aud-seccion" id="aud-paso-res" hidden>
