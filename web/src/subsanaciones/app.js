@@ -20,6 +20,7 @@ import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 import { leerImagenes, ordenarPorNombre } from './ocr.js';
+import { mezclarRutas, tocaReleer } from './prerutas.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -92,20 +93,31 @@ export function iniciar(api, CFG) {
         btn.disabled = true;
         btn.textContent = '↻ Actualizando…';
         var inicio = Date.now();
+        leyendo = true; ultimaLectura = inicio;
         leer().then(function (d) {
             aviso('');
-            // Mientras se leía se cambió una pre-ruta aquí (p. ej. se quitó un lote): manda lo de este celular
-            if (ultimoCambioRuta >= inicio) delete d.rutas;
-            else ultimasRutas = d.rutas || null;
+            // Las pre-rutas salen de la base (las mismas en todos los equipos del usuario). Solo se deja lo de este equipo
+            // en la cuadrilla que se cambió aquí mientras se leía o que aún no se pudo subir.
+            if (d.rutas) { d.rutas = mezclarRutas(d.rutas, cambiosRuta, inicio); ultimasRutas = d.rutas; }
             aplicarDatos(d, false);
             guardarCache();
+            subirPendientes();
         }).catch(function (err) {
             if (cargado) return aviso('Se muestra lo guardado en este celular' + (copia && copia.t ? ' (' + new Date(copia.t).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) + ')' : '') +
                 '. No se pudo actualizar: ' + esc(err.message) + '. Pulse "↻ Actualizar" para reintentar.');
             aviso('<b>No se pudo leer la base de datos:</b> ' + esc(err.message), true);
             $('tabla').innerHTML = '<div class="vacio">No hay datos.</div>';
-        }).then(function () { btn.disabled = false; btn.textContent = '↻ Actualizar'; });
+        }).then(function () { leyendo = false; btn.disabled = false; btn.textContent = '↻ Actualizar'; });
     }
+    // Al volver a la página (otra pestaña, otra app, el celular bloqueado) se lee otra vez la base: así lo que se
+    // cambió desde el PC aparece en el celular y al revés, sin tener que pulsar "↻ Actualizar".
+    var leyendo = false, ultimaLectura = 0;
+    function releerSiToca() {
+        if (document.visibilityState !== 'visible' || !CFG.url || !cargado) return;
+        if (tocaReleer(Date.now(), ultimaLectura, leyendo, !!document.querySelector('dialog[open]'))) cargar();
+    }
+    document.addEventListener('visibilitychange', releerSiToca);
+    window.addEventListener('focus', releerSiToca);
     function aplicarDatos(d, desdeCache) {
         items = d.items || [];
         columnas = d.columnas || [];
@@ -123,7 +135,7 @@ export function iniciar(api, CFG) {
         llenarUsuarios();
         if (d.rutas) rutasDeHoja(d.rutas, desdeCache);
         // Con la copia del celular la pre-ruta puede estar vieja: no se toca la hoja hasta que llegue la de verdad
-        if (!desdeCache) rutasAlDia = true;
+        if (!desdeCache) { rutasAlDia = true; ordenarConGps(); }
         cargado = true;
         pintar();
         abrirDesdeUrl(!desdeCache);
@@ -1037,7 +1049,7 @@ export function iniciar(api, CFG) {
         dlg.addEventListener('close', function () { if ($('f-texto').value === (mr || lote)) { $('f-texto').value = ''; pintar(); } }, { once: true });
     }
 
-    // ---------- Pre-ruta: lotes que mandan a revisar (se guarda en este celular) ----------
+    // ---------- Pre-ruta: lotes que mandan a revisar (se guarda en la base, la misma en todos los equipos del usuario) ----------
     var CENTROS = window.centrosLotes || {};
     // Una ruta por cuadrilla: { cuad, paradas: [{ id, fecha (ejecución), creada (día), carga (aaaa-mm-ddTHH:MM:SS), encurso }] }
     // encurso: desde cuándo la cuadrilla está trabajando en ese lote ("inicia labores en el lote ..."); aún no se revisa
@@ -1053,22 +1065,36 @@ export function iniciar(api, CFG) {
     // Sin eso (script viejo o sin conexión) se trabaja solo con la copia de este celular.
     var modoHoja = false;
     function guardarRutas() { try { localStorage.setItem('subsanaciones_rutas', JSON.stringify(rutas)); } catch (e) {} }
-    // Hora del último cambio hecho aquí a una pre-ruta: una lectura de la hoja que salió antes no lo deshace
-    var ultimoCambioRuta = 0;
+    // Cambios hechos en este equipo a cada cuadrilla: { cuad: { t, filas, paradas, pendiente } }. Una lectura de la base
+    // que salió antes del cambio no lo deshace; pendiente = aún no está en la base (se sube al llegar la lectura o al reintentar).
+    var cambiosRuta = {};
     function subirRuta(ruta) {
         if (!modoHoja) return;
-        ultimoCambioRuta = Date.now();
+        var llegada = porLlegada(ruta);
         var paradas = ruta.paradas.map(function (p) {
-            return { lote: p.id, fecha: aTexto(p.fecha), cargada: textoCarga(p.carga) || aTexto(p.creada), encurso: textoCarga(p.encurso), sinfotos: p.sinfotos || '' };
+            return { lote: p.id, fecha: aTexto(p.fecha), cargada: textoCarga(p.carga) || aTexto(p.creada), encurso: textoCarga(p.encurso), sinfotos: p.sinfotos || '',
+                despues: !!p.despues, llegada: llegada };
         });
-        // La copia del celular queda igual de una vez: al recargar no reaparecen los lotes quitados
-        ultimasRutas = (ultimasRutas || []).filter(function (r) { return r.cuadrilla !== ruta.cuad; }).concat(paradas.map(function (p, n) {
-            return { cuadrilla: ruta.cuad, lote: p.lote, fecha: p.fecha, orden: String(n + 1), cargada: p.cargada, encurso: p.encurso, sinfotos: p.sinfotos };
-        }));
+        var filas = paradas.map(function (p, n) {
+            return { cuadrilla: ruta.cuad, lote: p.lote, fecha: p.fecha, orden: String(n + 1), cargada: p.cargada, encurso: p.encurso, sinfotos: p.sinfotos,
+                despues: p.despues, llegada: llegada };
+        });
+        // La copia del equipo queda igual de una vez: al recargar no reaparecen los lotes quitados
+        ultimasRutas = (ultimasRutas || []).filter(function (r) { return r.cuadrilla !== ruta.cuad; }).concat(filas);
         guardarCache();
-        enviar('guardar_ruta', { cuadrilla: ruta.cuad, paradas: paradas })
-            .catch(function (err) { toast('La pre-ruta quedó en este celular pero no en la base de datos: ' + err.message); });
+        // Antes de que llegue la base, lo de este equipo puede estar viejo: el cambio espera y se sube encima de lo leído
+        cambiosRuta[ruta.cuad] = { t: Date.now(), filas: filas, paradas: paradas, pendiente: !rutasAlDia };
+        if (rutasAlDia) mandarRuta(ruta.cuad);
     }
+    function mandarRuta(cuad) {
+        var c = cambiosRuta[cuad];
+        c.pendiente = false;
+        enviar('guardar_ruta', { cuadrilla: cuad, paradas: c.paradas }).catch(function (err) {
+            if (cambiosRuta[cuad] === c) c.pendiente = true;
+            toast('La pre-ruta quedó en este equipo pero no en la base de datos: ' + err.message + '. Se vuelve a intentar al actualizar.');
+        });
+    }
+    function subirPendientes() { Object.keys(cambiosRuta).forEach(function (c) { if (cambiosRuta[c].pendiente) mandarRuta(c); }); }
     // desdeCache: copia guardada en el celular mientras llega la hoja; no sube nada a la hoja
     function rutasDeHoja(lista, desdeCache) {
         modoHoja = true;
@@ -1077,6 +1103,8 @@ export function iniciar(api, CFG) {
         var migrar = false;
         if (!desdeCache) try { migrar = !localStorage.getItem('subsanaciones_rutas_en_hoja'); localStorage.setItem('subsanaciones_rutas_en_hoja', '1'); } catch (e) {}
         rutas = [];
+        // Paradas cuya marca «Para después» viene de la base; sin la migración 0019 se conserva la de este equipo
+        var conDespues = {};
         lista.slice().sort(function (a, b) {
             return a.cuadrilla.localeCompare(b.cuadrilla, 'es', { numeric: true }) || (Number(a.orden) || 1e9) - (Number(b.orden) || 1e9);
         }).forEach(function (r) {
@@ -1084,19 +1112,24 @@ export function iniciar(api, CFG) {
             var n = { id: id, fecha: aInput(r.fecha), creada: aInput(r.cargada) || hoy(), carga: cargaDeTexto(r.cargada) };
             if (r.encurso !== undefined) n.encurso = cargaDeTexto(r.encurso);
             if (r.sinfotos !== undefined) n.sinfotos = r.sinfotos;
+            if (r.despues) n.despues = true;
+            if (r.despues !== undefined) conDespues[r.cuadrilla + '|' + id] = true;
             agregarParadas(r.cuadrilla, [n]);
+            // Orden «por llegada» guardado en la base (migración 0019): igual en todos los equipos
+            if (r.llegada !== undefined) { if (r.llegada) modos[r.cuadrilla] = 'llegada'; else delete modos[r.cuadrilla]; }
         });
+        guardarModos();
         // Un Apps Script sin actualizar no trae la columna EN CURSO: se usa la de este celular
         var hojaConCurso = lista.some(function (r) { return r.encurso !== undefined; });
         // Sin la columna SIN FOTOS en la base (migración 0008 sin correr) se conserva la marca de este celular
         var hojaConSinFotos = lista.some(function (r) { return r.sinfotos !== undefined; });
-        // La hoja guarda el orden pero no la marca "para después": se conserva la de este celular
+        // Lo que la base todavía no guarda (columnas de migraciones sin correr) se conserva de este equipo
         locales.forEach(function (l) {
             var ruta = rutas.find(function (r) { return r.cuad === l.cuad; });
             if (ruta) l.paradas.forEach(function (p) {
                 var q = ruta.paradas.find(function (x) { return x.id === p.id; });
                 if (!q) return;
-                if (p.despues) q.despues = true;
+                if (p.despues && !conDespues[l.cuad + '|' + p.id]) q.despues = true;
                 if (!hojaConCurso && p.encurso) q.encurso = p.encurso;
                 if (!hojaConSinFotos && p.sinfotos) q.sinfotos = p.sinfotos;
                 // Filas viejas de la hoja solo tienen el día: se conserva la hora que sabe este celular
@@ -1375,6 +1408,16 @@ export function iniciar(api, CFG) {
         if (fijada) return fijada.p ? fijada.p[0].toFixed(6) + ',' + fijada.p[1].toFixed(6) : encodeURIComponent(fijada.d + ', Medellín, Antioquia');
         return posicion ? posicion[0].toFixed(6) + ',' + posicion[1].toFixed(6) : '';
     }
+    // Por defecto cada pre-ruta se ordena desde su ubicación en cuanto el GPS la encuentra (salvo las que están "por llegada"),
+    // una vez por visita a la página. Se espera a tener la pre-ruta de la base: ordenar la copia vieja del equipo y subirla
+    // pisaba en la base lo que se había hecho desde el otro equipo.
+    var ordenadaConGps = false;
+    function ordenarConGps() {
+        if (ordenadaConGps || !rutasAlDia || estadoUbic !== 'ok') return;
+        ordenadaConGps = true;
+        rutas.forEach(function (ruta) { if (!porLlegada(ruta)) { ordenar(ruta, posicion); subirRuta(ruta); } });
+        guardarRutas();
+    }
     function seguirUbicacion() {
         if (vigia !== null || !navigator.geolocation) { if (!navigator.geolocation) estadoUbic = 'sin'; return; }
         estadoUbic = 'buscando';
@@ -1385,11 +1428,7 @@ export function iniciar(api, CFG) {
             if (fijada && precision <= 30 && (fijada.p ? distLotes(gps, puntosDe(fijada.id).length ? fijada.id : fijada.p) : Infinity) > 150) { soltar(); }
             usarFijada();
             var antes = estadoUbic; estadoUbic = 'ok';
-            // Por defecto cada pre-ruta se ordena desde su ubicación en cuanto el GPS la encuentra (salvo las que están "por llegada")
-            if (antes !== 'ok') {
-                rutas.forEach(function (ruta) { if (!porLlegada(ruta)) { ordenar(ruta, posicion); subirRuta(ruta); } });
-                guardarRutas();
-            }
+            if (antes !== 'ok') ordenarConGps();
             if (antes !== 'ok' || !pintadaEn || metros(pintadaEn, posicion) > 25) pintarRutas();
         }, function (err) {
             if (err.code === 1) { estadoUbic = 'negada'; navigator.geolocation.clearWatch(vigia); }

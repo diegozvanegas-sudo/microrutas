@@ -112,6 +112,9 @@ function aRuta(f) {
         cargada: momentoTexto(f.cargada, true), encurso: momentoTexto(f.en_curso, true),
         // Sin la migración 0008 la columna no existe: undefined, y se usa la marca guardada en el celular
         sinfotos: f.sin_fotos === undefined ? undefined : f.sin_fotos || '',
+        // Sin la migración 0019: undefined, y «Para después» / «por llegada» se toman de este equipo
+        despues: f.despues === undefined ? undefined : !!f.despues,
+        llegada: f.por_llegada === undefined ? undefined : !!f.por_llegada,
     };
 }
 
@@ -206,7 +209,8 @@ export function crearApi(supabase) {
         revisar(await supabase.rpc('guardar_ruta', {
             cuadrilla: String(cuadrilla || ''),
             paradas: (paradas || []).map(function (p) {
-                return { lote: String(p.lote || ''), fecha: fechaIso(p.fecha) || '', cargada: momentoIso(p.cargada) || '', encurso: momentoIso(p.encurso) || '', sinfotos: String(p.sinfotos || '') };
+                return { lote: String(p.lote || ''), fecha: fechaIso(p.fecha) || '', cargada: momentoIso(p.cargada) || '', encurso: momentoIso(p.encurso) || '', sinfotos: String(p.sinfotos || ''),
+                    despues: !!p.despues, llegada: !!p.llegada };
             }),
         }));
         return {};
