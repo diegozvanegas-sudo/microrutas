@@ -71,9 +71,10 @@ async function conectar() {
         conectado = false; motor = null;
         $('aud-motor').classList.add('sin');
         $('aud-motor').innerHTML = '<b>No se encontró el motor de auditoría en este PC.</b>' +
-            '<ol class="aud-pasos"><li>Abra <b>Abrir_aplicaciones.bat</b> (Documentos › Envarias › Revisar IA reporte › Aplicaciones).</li>' +
+            '<ol class="aud-pasos"><li>Haga doble clic en <b>«Motor de auditoría»</b> en el escritorio (es <b>Motor_auditoria.bat</b>, en la carpeta ' +
+            '<b>Documents del PC</b>, no la de OneDrive › Envarias › Revisar IA reporte › Aplicaciones). Se abre una ventana negra: <b>déjela abierta</b> mientras audita; al cerrarla, el motor se apaga.</li>' +
             '<li>Si Chrome pregunta si la página puede acceder a la red local o a este equipo, toque <b>Permitir</b>.</li>' +
-            '<li>Ya conectado, prenda <b>«Arrancar solo al prender el PC»</b>: así no tiene que abrirlo más.</li></ol>' +
+            '<li>Si prefiere que arranque solo al prender el PC (sin ventana), ya conectado marque <b>«Arrancar solo al prender el PC»</b>.</li></ol>' +
             '<span class="aud-buscando">Se vuelve a buscar cada 5 segundos…</span> <button type="button" class="secundario pequeno" id="aud-reintentar">↻ Reintentar ya</button>' +
             '<div class="sub">Desde el celular no hay motor: allí se ven los resultados ya guardados.</div>';
         $('aud-reintentar').onclick = abrir;
@@ -88,21 +89,21 @@ function pintarMotor() {
     var a = motor && motor.arranque;
     $('aud-motor').innerHTML = '<div>✓ <b>Motor de auditoría conectado.</b> Lee las fotos con el plan de Claude Code: no se paga la API.' +
         ' <a href="' + esc((base || '') + '/zonas-verdes') + '" target="_blank" rel="noopener">Revisar a fondo en el portal ↗</a></div>' +
-        (!motor ? '<div class="sub">⚠ Este motor es de antes: ciérrelo y vuelva a abrir <b>Abrir_aplicaciones.bat</b> para tener el arranque automático, la consola y todas las opciones.</div>'
+        (!motor ? '<div class="sub">⚠ Este motor es de antes: ciérrelo y vuelva a abrir <b>«Motor de auditoría»</b> del escritorio para tener el arranque automático, la consola y todas las opciones.</div>'
             : '<div class="aud-motor-fila">' +
-            (a && a.disponible ? '<label class="aud-check aud-arranque"><input type="checkbox" id="aud-arranque"' + (a.activo ? ' checked' : '') + '> Arrancar solo al prender el PC <span class="sub">(' + (a.activo ? 'queda encendido, sin ventana' : 'hoy hay que abrir el .bat') + ')</span></label>' : '') +
+            (a && a.disponible ? '<label class="aud-check aud-arranque"><input type="checkbox" id="aud-arranque"' + (a.activo ? ' checked' : '') + '> Arrancar solo al prender el PC <span class="sub">(' + (a.activo ? 'queda encendido sin ventana: se apaga con «⏻ Apagar el motor»' : 'si no, se prende con «Motor de auditoría» del escritorio y se apaga al cerrar su ventana') + ')</span></label>' : '') +
             '<button type="button" class="secundario pequeno" id="aud-apagar" title="Apagar el motor en este PC (no se pierde nada; se vuelve a abrir con el .bat o al prender el PC)">⏻ Apagar el motor</button></div>');
 }
 async function cambiarArranque(activo) {
     var c = $('aud-arranque'); c.disabled = true;
     try {
         motor.arranque = await pedir('/motor/arranque', json('PUT', { activo: activo }), 10000);
-        toast(activo ? '✓ Listo: el motor arranca solo cada vez que prenda el PC (sin ventana).' : 'Ya no arranca solo: ábralo con Abrir_aplicaciones.bat cuando lo necesite.');
+        toast(activo ? '✓ Listo: el motor arranca solo cada vez que prenda el PC (sin ventana).' : 'Ya no arranca solo: ábralo con «Motor de auditoría» del escritorio cuando lo necesite.');
     } catch (e) { toast('No se cambió el arranque: ' + e.message); }
     pintarMotor();
 }
 async function apagarMotor() {
-    if (!confirm('¿Apagar el motor de auditoría en este PC?\nNo se pierde nada. Para volver a usarlo, abra Abrir_aplicaciones.bat' + (motor && motor.arranque && motor.arranque.activo ? ' o reinicie el PC.' : '.'))) return;
+    if (!confirm('¿Apagar el motor de auditoría en este PC?\nNo se pierde nada. Para volver a usarlo, abra «Motor de auditoría» del escritorio' + (motor && motor.arranque && motor.arranque.activo ? ' o reinicie el PC.' : '.'))) return;
     try {
         await pedir('/motor/apagar', json('POST', { confirmar: true }), 10000);
         toast('Motor apagado.');
@@ -330,7 +331,7 @@ async function correr(fid, que) {
     var o = opcionesPara(que === 'prueba' ? 'lectura' : que, que === 'prueba');
     estados[fid] = await pedir('/fuentes/' + fid + '/revision', json('POST', o));
     consolaAbierta[fid] = true; consolaAbajo[fid] = true;
-    toast({ prueba: 'Leyendo ' + o.prueba + ' fotos de prueba…', lectura: 'Leyendo todas las fotos. Puede cerrar esta ventana: el motor sigue en el PC.',
+    toast({ prueba: 'Leyendo ' + o.prueba + ' fotos de prueba…', lectura: 'Leyendo todas las fotos. Puede cerrar esta página: el motor sigue. Si cierra la ventana negra del motor, la lectura se detiene (luego sigue donde iba).',
         metro: 'Segunda pasada del metro con ' + o.modelo_metro + '…', avance: 'Contando lo que va, sin llamar a Claude…' }[que]);
     pintarQuincena();
     seguir();
