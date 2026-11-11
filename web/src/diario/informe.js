@@ -7,6 +7,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_RECORRIDO } from './comun.js';
+import { abrirProgramar } from '../whatsapp/programar.js';
 
 var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha';
 var $ = function (id) { return document.getElementById(id); };
@@ -220,6 +221,11 @@ async function arrancar() {
         copiar(textoInforme(actividades, { fecha: $('con-fecha').checked ? fecha : '' }));
     };
     $('btn-whatsapp').onclick = function (ev) { if (!actividades.some(function (a) { return a.trim(); })) { ev.preventDefault(); toast('El informe está vacío.'); } };
+    // Programarlo: lo envía el servidor a la hora elegida (web/src/whatsapp/programar.js)
+    $('btn-programar').onclick = function () {
+        if (!actividades.some(function (a) { return a.trim(); })) return toast('El informe está vacío.');
+        abrirProgramar({ texto: textoInforme(actividades, { fecha: $('con-fecha').checked ? fecha : '' }), origen: 'Informe diario', avisar: toast });
+    };
     // Si se cierra la página con algo sin guardar, al menos queda la copia en el equipo
     window.addEventListener('pagehide', function () { if (espera) { copia[fecha] = actividades.filter(function (a) { return a.trim(); }); guardarCopia(); } });
 

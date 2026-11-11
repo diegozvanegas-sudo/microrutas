@@ -1,0 +1,36 @@
+/* programados.html (usa también los estilos generales de subsanaciones) */
+main.envios { max-width: 900px; margin: 0 auto; padding: 14px 16px 40px; }
+.envios-estado { margin: 12px 0; padding: 14px 16px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; line-height: 1.5; }
+.envios-estado[hidden], .envios-panel[hidden] { display: none; }
+.envios-panel { padding: 16px 18px; }
+.envios-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; justify-content: space-between; }
+.envios-cab h2 { margin: 0; font-size: 17px; }
+.envios-cab button { min-height: 40px; }
+.envios-servidor { margin: 10px 0; padding: 8px 10px; border-radius: 8px; background: #f1f5f9; font-size: 13.5px; line-height: 1.4; }
+.envios-servidor.ok { background: #dcfce7; color: #166534; }
+.envios-servidor.aviso { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.envios-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0; }
+.envios-filtro { min-height: 36px; padding: 4px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; }
+.envios-filtro span { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: #e2e8f0; font-size: 11.5px; text-align: center; }
+.envios-filtro[aria-pressed="true"] { border-color: var(--brand); background: #edf8f3; color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.envios-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.envio { border: 1px solid var(--line); border-left: 4px solid #cbd5e1; border-radius: 10px; padding: 10px 12px; background: #fff; display: grid; gap: 4px; min-width: 0; }
+.envio.pendiente, .envio.enviando { border-left-color: #f59e0b; }
+.envio.enviado { border-left-color: #16a34a; }
+.envio.error { border-left-color: #dc2626; }
+.envio.cancelado { opacity: .7; }
+.envio-cab { display: flex; flex-wrap: wrap; gap: 4px 8px; align-items: center; }
+.envio-est { display: inline-block; padding: 0 8px; border-radius: 999px; background: #e2e8f0; font-size: 12px; font-weight: 700; }
+.envio.pendiente .envio-est { background: #fef3c7; color: #92400e; }
+.envio.enviado .envio-est { background: #dcfce7; color: #166534; }
+.envio.error .envio-est { background: #fee2e2; color: #991b1b; }
+.envio-para { overflow-wrap: anywhere; }
+.envio-texto { margin: 2px 0 0; white-space: pre-wrap; font: inherit; font-size: 13.5px; color: #334155; max-height: 9.5em; overflow: auto; background: #f8fafb; border-radius: 6px; padding: 6px 8px; }
+.envio-error { color: #991b1b; font-size: 13px; }
+.envio-acc { display: flex; justify-content: flex-end; }
+.envio-acc button { min-height: 36px; }
+@media (max-width: 640px) {
+    main.envios { padding: 10px 10px 40px; }
+    .envios-panel { padding: 14px; }
+    .envios-cab button { flex: 1 1 100%; }
+}

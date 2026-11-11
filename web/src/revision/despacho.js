@@ -7,6 +7,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia, sumarDias, deIso } from '../diario/comun.js';
 import { SECCIONES_DESPACHO, ALIADOS, filaVolqueta, resumenVolquetas, textoDespacho } from './comun.js';
+import { abrirProgramar } from '../whatsapp/programar.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var fecha = hoy(), datos = {}, tGuardar = null, listo = false;
@@ -86,6 +87,7 @@ function pintarReporte() {
     var texto = textoDespacho(datos, fechaLarga());
     $('vista-previa').textContent = texto || 'Escriba en una sección y aquí queda el reporte.';
     $('btn-copiar').disabled = !texto;
+    $('btn-programar').disabled = !texto;
     $('btn-whatsapp').hidden = !texto;
     $('btn-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(texto);
 }
@@ -144,6 +146,12 @@ async function arrancar() {
     $('dia-antes').onclick = function () { irA(sumarDias(fecha, -1)); };
     $('dia-despues').onclick = function () { irA(sumarDias(fecha, 1)); };
     $('dia-fecha').onchange = function () { if (this.value) irA(this.value); };
+    // Programarlo: lo envía el servidor a la hora elegida (web/src/whatsapp/programar.js)
+    $('btn-programar').onclick = function () {
+        var texto = textoDespacho(datos, fechaLarga());
+        if (!texto) return toast('El reporte está vacío.');
+        abrirProgramar({ texto: texto, origen: 'Despacho', avisar: toast });
+    };
     $('btn-copiar').onclick = function () {
         navigator.clipboard.writeText($('vista-previa').textContent).then(function () { toast('Reporte copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
     };

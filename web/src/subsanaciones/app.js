@@ -2,6 +2,7 @@
 // Viene del <script> de la página original; lo que no depende del estado de la página ya está en módulos aparte.
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegistro, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
+import { abrirProgramar } from '../whatsapp/programar.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
 import { textoVisita, FORMATOS_VISITA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
@@ -502,6 +503,13 @@ export function iniciar(api, CFG) {
         try { localStorage.setItem('subsanaciones_menciones', JSON.stringify(Object.assign(menciones(), nuevas))); } catch (e) {}
     }
     $('wa-abrir').addEventListener('click', recordarMenciones);
+    // Programarlo: lo envía el servidor a la hora elegida (web/src/whatsapp/programar.js)
+    $('wa-programar').onclick = function () {
+        var texto = $('wa-texto').value.trim();
+        if (!texto) return toast('El mensaje está vacío.');
+        recordarMenciones();
+        abrirProgramar({ texto: texto, origen: 'Subsanaciones', avisar: toast });
+    };
     function actualizarEnlaceWa() { $('wa-abrir').href = 'https://wa.me/?text=' + encodeURIComponent($('wa-texto').value); }
     // Mensaje de una visita: se elige el formato y si va el plazo (preferencias del equipo). Los demás resúmenes que usan
     // esta ventana no muestran estas opciones

@@ -1,0 +1,45 @@
+/* Ventana «⏰ Programar envío» (web/src/whatsapp/programar.js): se usa en varias páginas, por eso todo va bajo #dlg-wap */
+#dlg-wap { border: 0; border-radius: 14px; padding: 0; width: min(640px, calc(100% - 24px)); max-height: calc(100dvh - 24px); box-shadow: 0 20px 50px rgba(15, 45, 35, .3); color: var(--ink, #14191f); }
+#dlg-wap::backdrop { background: rgba(15, 30, 25, .45); }
+#dlg-wap > .cuerpo { padding: 18px 18px 0; display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 24px); box-sizing: border-box; overflow: auto; }
+#dlg-wap h2 { margin: 0; font-size: 18px; }
+#dlg-wap .sub { color: var(--muted, #5b6770); font-size: 13px; line-height: 1.45; }
+.wap-servidor { padding: 8px 10px; border-radius: 8px; background: #f1f5f9; font-size: 13px; line-height: 1.4; }
+.wap-servidor.ok { background: #dcfce7; color: #166534; }
+.wap-servidor.aviso { background: #fff7ed; color: #9a3412; border: 1px solid #fed7aa; }
+.wap-campos { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wap-campos label { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted, #5b6770); min-width: 0; }
+.wap-campos input, .wap-campos select, .wap-campos textarea { min-height: 38px; font: inherit; font-size: 14px; font-weight: 400; color: var(--ink, #14191f); padding: 7px 10px; border: 1px solid var(--line, #d7dee2); border-radius: 8px; background: #fff; box-sizing: border-box; width: 100%; }
+.wap-campos textarea { line-height: 1.45; resize: vertical; }
+.wap-ancho, .wap-otro, .wap-rapidas { grid-column: 1 / -1; }
+.wap-otro { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.wap-otro[hidden] { display: none; }
+.wap-rapidas { display: flex; flex-wrap: wrap; gap: 6px; align-items: flex-end; }
+.wap-rapida { min-height: 34px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line, #d7dee2); background: #fff; font: inherit; font-size: 13px; cursor: pointer; }
+.wap-rapida:hover { border-color: #9fd3bd; }
+.wap-adjunto { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.wap-adjunto button { min-height: 38px; }
+.wap-adjunto button[hidden] { display: none; }
+.wap-error { padding: 8px 10px; border-radius: 8px; background: #fef2f2; color: #991b1b; border: 1px solid #fecaca; font-size: 13.5px; }
+.wap-error[hidden] { display: none; }
+.wap-lista { border: 1px solid var(--line, #d7dee2); border-radius: 10px; padding: 8px 12px; }
+.wap-lista summary { cursor: pointer; font-weight: 700; font-size: 14px; }
+.wap-lista ul { list-style: none; margin: 8px 0 0; padding: 0; display: grid; gap: 6px; }
+.wap-item { display: flex; gap: 8px; align-items: flex-start; justify-content: space-between; padding: 7px 8px; border-radius: 8px; background: #f8fafb; font-size: 13.5px; line-height: 1.4; }
+.wap-item > div { min-width: 0; overflow-wrap: anywhere; }
+.wap-item button { flex: none; min-height: 34px; }
+.wap-est { display: inline-block; padding: 0 7px; border-radius: 999px; background: #e2e8f0; font-size: 11.5px; font-weight: 700; }
+.wap-item.enviado .wap-est { background: #dcfce7; color: #166534; }
+.wap-item.error .wap-est { background: #fee2e2; color: #991b1b; }
+.wap-item.pendiente .wap-est { background: #fef3c7; color: #92400e; }
+.wap-item.cancelado { opacity: .65; }
+#dlg-wap .pie { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; margin: 4px -18px 0; padding: 12px 18px 18px; position: sticky; bottom: 0; background: #fff; border-top: 1px solid var(--line, #d7dee2); }
+#dlg-wap .pie button { min-height: 42px; padding: 8px 16px; }
+@media (max-width: 640px) {
+    #dlg-wap > .cuerpo { padding: 14px 14px 0; }
+    #dlg-wap .pie { margin: 4px -14px 0; padding: 10px 14px 14px; }
+    .wap-campos, .wap-otro { grid-template-columns: 1fr; }
+    #dlg-wap .pie button { flex: 1 1 40%; }
+}
+#wap-aviso { position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 3000; max-width: calc(100% - 32px); padding: 10px 16px; border-radius: 10px; background: #1f2937; color: #fff; font-size: 14px; box-shadow: 0 8px 24px rgba(0, 0, 0, .25); }
+#wap-aviso[hidden] { display: none; }
