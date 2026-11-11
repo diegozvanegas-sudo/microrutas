@@ -191,6 +191,19 @@
                     </div>
                 </div>
             </div>
+            <div class="ancho">
+                <b>Formato del Word</b> <span class="sub">(.docx de la institución: el requerimiento se escribe dentro de él, con su encabezado, pie, márgenes y letra)</span>
+                <input type="file" id="c-formato" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden>
+                <div class="req-formato">
+                    <div class="req-formato-info" id="c-formato-estado"></div>
+                    <div class="req-formato-acc">
+                        <button type="button" class="secundario" id="c-formato-elegir">📄 Usar otro formato (.docx)</button>
+                        <button type="button" class="secundario" id="c-formato-ver">⬇ Descargar el formato</button>
+                        <button type="button" class="secundario" id="c-formato-quitar" hidden>Volver al predeterminado</button>
+                    </div>
+                    <div class="sub">Puede subir un requerimiento ya hecho: se toman el encabezado, el pie y los estilos, y se quitan el texto, las fotos y las firmas. El formato que elija queda solo en este equipo. El PDF sigue usando el membrete.</div>
+                </div>
+            </div>
             <label class="ancho">FIRMAN (una persona por renglón: NOMBRE | cargo) <textarea id="c-firmas" rows="6"></textarea></label>
             <div class="ancho">
                 <b>Imagen de la firma</b> <span class="sub">(opcional; queda solo en este equipo y va encima de la línea de esa persona)</span>

@@ -1,11 +1,12 @@
 // Word (.docx) del «Requerimiento de interventoría», con el mismo contenido y orden del PDF (pdf.js), para que el equipo lo
 // revise y corrija antes de dar el visto bueno. Se arma a mano (WordprocessingML) con JSZip, que ya usa la aplicación.
-// El membrete va de fondo en el encabezado (se repite en cada página, detrás del texto) y el pie lleva «Página X de Y».
+// Con un formato (.docx de la institución, ⚙️ Configuración) el requerimiento se escribe dentro de ese Word, con su encabezado,
+// pie, márgenes y letra. Sin formato, el membrete va de fondo en el encabezado y el pie lleva «Página X de Y».
 // Funciona igual en el navegador y en Node (pruebas).
 import { enLetras, filasNovedad, gruposPdf } from './pdf.js';
 
 var EMU = 12700;                       // 1 punto en EMU (imágenes)
-var ANCHO = 12240 - 2 * 1240;          // hoja carta menos márgenes izquierdo y derecho, en twips (1/20 de punto)
+var ANCHO_BASE = 12240 - 2 * 1240;     // hoja carta menos márgenes izquierdo y derecho, en twips (1/20 de punto), sin formato
 var TEAL = '0F7378', GRIS = '8C9499', BORDE = 'C8D1D3', FONDO = 'F4F7F7';
 var NS = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" ' +
     'xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" ' +
@@ -33,17 +34,98 @@ export function medidasImagen(b) {
     return null;
 }
 
-// req: el mismo objeto de armarPdf. opciones: { membrete: { bytes, tipo } }. Devuelve Uint8Array
+// ---------- Formato (.docx de la institución) ----------
+// Del .docx se conserva todo menos el contenido: encabezado y pie (con el membrete), estilos, numeración, tema, márgenes y
+// tamaño de hoja. Se quitan el texto, las imágenes y vínculos que solo usaba el contenido (fotos, firmas) y los comentarios.
+// En el cuerpo queda un párrafo vacío con la letra y el tamaño que más se usaban, para escribir el requerimiento con ellos.
+var RELS_DEL_CUERPO = /\/(image|hyperlink|comments|commentsExtended|commentsIds|commentsExtensible|oleObject|package|chart|diagramData|diagramLayout|diagramQuickStyle|diagramColors|diagramDrawing|people)$/;
+function masUsado(lista) {
+    var c = {}, mejor = null;
+    lista.forEach(function (x) { c[x] = (c[x] || 0) + 1; if (mejor == null || c[x] > c[mejor]) mejor = x; });
+    return mejor;
+}
+// Letra, tamaño, ancho útil y márgenes del cuerpo de un document.xml
+export function datosFormato(doc) {
+    var ini = doc.indexOf('<w:body>'), cuerpo = ini === -1 ? doc : doc.slice(ini);
+    var fuente = masUsado((cuerpo.match(/<w:rFonts [^>]*w:ascii="([^"]+)"/g) || []).map(function (m) { return m.match(/w:ascii="([^"]+)"/)[1]; }));
+    var tam = masUsado((cuerpo.match(/<w:sz w:val="(\d+)"/g) || []).map(function (m) { return +m.match(/\d+/)[0]; }));
+    var s = cuerpo.slice(cuerpo.lastIndexOf('<w:sectPr')), num = function (re, d) { var m = s.match(re); return m ? +m[1] : d; };
+    var hoja = num(/<w:pgSz [^>]*w:w="(\d+)"/, 12240), izq = num(/<w:pgMar [^>]*w:left="(\d+)"/, 1440), der = num(/<w:pgMar [^>]*w:right="(\d+)"/, 1440);
+    return { fuente: fuente || '', tam: tam ? tam / 2 : 0, ancho: hoja - izq - der, margenes: { arriba: num(/<w:pgMar [^>]*w:top="(-?\d+)"/, 0), abajo: num(/<w:pgMar [^>]*w:bottom="(-?\d+)"/, 0), izq: izq, der: der } };
+}
+// Abre el .docx y lo deja como formato (sin contenido). Devuelve { zip, raiz, seccion, datos }
+async function limpiarFormato(JSZip, bytes) {
+    var zip;
+    try { zip = await JSZip.loadAsync(bytes); } catch (e) { throw new Error('el archivo no es un Word (.docx) válido'); }
+    var f = zip.file('word/document.xml');
+    if (!f) throw new Error('el archivo no es un Word (.docx): no tiene word/document.xml');
+    var doc = await f.async('string'), ib = doc.indexOf('<w:body>'), fin = doc.lastIndexOf('</w:body>');
+    if (ib === -1 || fin === -1) throw new Error('el Word no tiene cuerpo');
+    var datos = datosFormato(doc), is = doc.lastIndexOf('<w:sectPr', fin);
+    var seccion = is > ib ? doc.slice(is, fin) : '<w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr>';
+    var raiz = doc.slice(0, ib);
+    // Prefijos que usan las imágenes del requerimiento
+    [['wp', 'http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing'], ['a', 'http://schemas.openxmlformats.org/drawingml/2006/main'],
+        ['pic', 'http://schemas.openxmlformats.org/drawingml/2006/picture'], ['r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships']].forEach(function (n) {
+        if (raiz.indexOf('xmlns:' + n[0] + '=') === -1) raiz = raiz.replace(/<w:document\b/, '<w:document xmlns:' + n[0] + '="' + n[1] + '"');
+    });
+    // Relaciones del cuerpo que ya no se usan
+    var rf = zip.file('word/_rels/document.xml.rels'), rels = rf ? await rf.async('string') : '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"></Relationships>';
+    var quitadas = [];
+    rels = rels.replace(/<Relationship\b[^>]*\/>/g, function (r) {
+        var tipo = (r.match(/Type="([^"]+)"/) || [])[1] || '', destino = (r.match(/Target="([^"]+)"/) || [])[1] || '';
+        if (RELS_DEL_CUERPO.test(tipo)) { if (!/TargetMode="External"/.test(r)) quitadas.push(destino); return ''; }
+        return r;
+    });
+    zip.file('word/_rels/document.xml.rels', rels);
+    // Partes del cuerpo que quedaron sin uso (fotos, comentarios…): se borran si ninguna otra relación las nombra
+    var todasRels = '';
+    for (var nombre of Object.keys(zip.files)) if (/\.rels$/.test(nombre) && !zip.files[nombre].dir) todasRels += await zip.file(nombre).async('string');
+    var ct = zip.file('[Content_Types].xml') ? await zip.file('[Content_Types].xml').async('string') : '';
+    quitadas.forEach(function (d) {
+        var parte = 'word/' + d.replace(/^\.\//, '');
+        if (todasRels.indexOf('"' + d + '"') !== -1) return;
+        zip.remove(parte);
+        ct = ct.replace(new RegExp('<Override PartName="/' + parte.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '"[^>]*/>'), '');
+    });
+    if (ct.indexOf('Extension="png"') === -1) ct = ct.replace('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">', '$&<Default Extension="png" ContentType="image/png"/>');
+    if (ct.indexOf('Extension="jpg"') === -1) ct = ct.replace('<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">', '$&<Default Extension="jpg" ContentType="image/jpeg"/>');
+    zip.file('[Content_Types].xml', ct);
+    return { zip: zip, raiz: raiz, seccion: seccion, datos: datos };
+}
+function marcaFormato(datos) {
+    var pr = (datos.fuente ? '<w:rFonts w:ascii="' + xml(datos.fuente) + '" w:hAnsi="' + xml(datos.fuente) + '" w:cs="' + xml(datos.fuente) + '"/>' : '') +
+        (datos.tam ? '<w:sz w:val="' + Math.round(datos.tam * 2) + '"/>' : '');
+    return '<w:p><w:pPr><w:rPr>' + pr + '</w:rPr></w:pPr><w:r><w:rPr>' + pr + '</w:rPr></w:r></w:p>';
+}
+// .docx cualquiera → formato listo para guardar (sin contenido). ajustes: { abajo: twips } cambia el margen inferior.
+// Devuelve { bytes, datos: { fuente, tam, ancho, margenes } }
+export async function prepararFormato(bytes, ajustes) {
+    var JSZip = (await import('jszip')).default, f = await limpiarFormato(JSZip, bytes), seccion = f.seccion;
+    if (ajustes && ajustes.abajo) seccion = seccion.replace(/(<w:pgMar [^>]*w:bottom=")\d+"/, '$1' + Math.round(ajustes.abajo) + '"');
+    f.zip.file('word/document.xml', f.raiz + '<w:body>' + marcaFormato(f.datos) + seccion + '</w:body></w:document>');
+    var datos = datosFormato(f.raiz + '<w:body>' + marcaFormato(f.datos) + seccion + '</w:body>');
+    return { bytes: await f.zip.generateAsync({ type: 'uint8array', compression: 'DEFLATE' }), datos: datos };
+}
+
+// req: el mismo objeto de armarPdf. opciones: { membrete: { bytes, tipo }, formato: bytes de un .docx }. Devuelve Uint8Array.
+// Con formato, el requerimiento se escribe dentro de ese Word (su encabezado, pie, márgenes y letra) y el membrete no se usa.
 export async function armarDocx(req, opciones) {
     opciones = opciones || {};
     var JSZip = (await import('jszip')).default;
     var medios = [], idDibujo = 0;   // imágenes del documento: { nombre, bytes, rid, parte }
+    var formato = opciones.formato ? await limpiarFormato(JSZip, opciones.formato) : null;
+    var ANCHO = formato && formato.datos.ancho > 3000 ? formato.datos.ancho : ANCHO_BASE;
+    var FUENTE = formato ? formato.datos.fuente : '', TAM = formato ? formato.datos.tam : 0;
+    if (formato) idDibujo = 1000;   // no chocar con los dibujos del encabezado y el pie del formato
 
     // ---------- piezas ----------
     function run(t, o) {
         o = o || {};
-        var pr = '<w:rPr>' + (o.b ? '<w:b/>' : '') + (o.i ? '<w:i/>' : '') + (o.color ? '<w:color w:val="' + o.color + '"/>' : '') +
-            (o.sz ? '<w:sz w:val="' + Math.round(o.sz * 2) + '"/><w:szCs w:val="' + Math.round(o.sz * 2) + '"/>' : '') + (o.resaltar ? '<w:highlight w:val="yellow"/>' : '') + '</w:rPr>';
+        var sz = o.sz || TAM;
+        var pr = '<w:rPr>' + (FUENTE ? '<w:rFonts w:ascii="' + xml(FUENTE) + '" w:hAnsi="' + xml(FUENTE) + '" w:cs="' + xml(FUENTE) + '"/>' : '') +
+            (o.b ? '<w:b/>' : '') + (o.i ? '<w:i/>' : '') + (o.color ? '<w:color w:val="' + o.color + '"/>' : '') +
+            (sz ? '<w:sz w:val="' + Math.round(sz * 2) + '"/><w:szCs w:val="' + Math.round(sz * 2) + '"/>' : '') + (o.resaltar ? '<w:highlight w:val="yellow"/>' : '') + '</w:rPr>';
         return String(t == null ? '' : t).split('\n').map(function (l, i) {
             return (i ? '<w:r>' + pr + '<w:br/></w:r>' : '') + '<w:r>' + pr + l.split('\t').map(function (s) { return '<w:t xml:space="preserve">' + xml(s) + '</w:t>'; }).join('<w:tab/>') + '</w:r>';
         }).join('');
@@ -69,7 +151,8 @@ export async function armarDocx(req, opciones) {
     function titulo(t) { return p(run(t, { b: true, sz: 11 }), { antes: 200, despues: 140, juntoSig: true }); }
     function subtitulo(t) { return p(run(t, { b: true }), { antes: 80, despues: 100, juntoSig: true }); }
     function imagen(bytes, tipo, wPt, hPt, parte) {
-        var n = medios.length + 1, nombre = 'imagen' + n + (tipo === 'png' ? '.png' : '.jpg'), rid = 'rIdImg' + n, id = ++idDibujo;
+        // Con formato, nombres propios para no pisar las imágenes del encabezado (que pueden venir de un Word hecho con la app)
+        var n = medios.length + 1, nombre = (formato ? 'req-foto' : 'imagen') + n + (tipo === 'png' ? '.png' : '.jpg'), rid = (formato ? 'rIdReqImg' : 'rIdImg') + n, id = ++idDibujo;
         medios.push({ nombre: nombre, bytes: bytes, rid: rid, parte: parte || 'document' });
         return { rid: rid, id: id, cx: Math.round(wPt * EMU), cy: Math.round(hPt * EMU), nombre: nombre };
     }
@@ -210,6 +293,21 @@ export async function armarDocx(req, opciones) {
     if (copias.length) {
         b.push(p(run('Con copia a:', { b: true, sz: 8 }), { jc: 'right', antes: 120, despues: 40, juntoSig: true }));
         copias.forEach(function (c) { b.push(p(run(c, { sz: 7.5 }), { jc: 'right', despues: 20 })); });
+    }
+
+    // ---------- con formato: el cuerpo va dentro del Word de la institución ----------
+    if (formato) {
+        var zf = formato.zip, rr = await zf.file('word/_rels/document.xml.rels').async('string');
+        var nuevas = medios.map(function (m) { return '<Relationship Id="' + m.rid + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/' + m.nombre + '"/>'; }).join('');
+        zf.file('word/_rels/document.xml.rels', rr.replace('</Relationships>', nuevas + '</Relationships>'));
+        medios.forEach(function (m) { zf.file('word/media/' + m.nombre, m.bytes); });
+        zf.file('word/document.xml', formato.raiz + '<w:body>' + b.join('') + formato.seccion + '</w:body></w:document>');
+        var core = zf.file('docProps/core.xml');
+        if (core) {
+            var tc = await core.async('string'), titulo1 = '<dc:title>' + xml('Requerimiento de interventoría ' + (req.radicado || '')) + '</dc:title>';
+            zf.file('docProps/core.xml', /<dc:title>[\s\S]*?<\/dc:title>|<dc:title\/>/.test(tc) ? tc.replace(/<dc:title>[\s\S]*?<\/dc:title>|<dc:title\/>/, titulo1) : tc.replace('</cp:coreProperties>', titulo1 + '</cp:coreProperties>'));
+        }
+        return zf.generateAsync({ type: 'uint8array', compression: 'DEFLATE' });
     }
 
     // ---------- encabezado (membrete de fondo) y pie ----------

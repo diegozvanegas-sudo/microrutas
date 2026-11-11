@@ -10,9 +10,9 @@ import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia } from './plantillas.js';
 import { armarPdf } from './pdf.js';
-import { armarDocx } from './word.js';
+import { armarDocx, prepararFormato } from './word.js';
 
-var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete', FIRMAS_IMG = 'req_firmas_img';
+var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete', FIRMAS_IMG = 'req_firmas_img', FORMATO = 'req_formato';
 var ZONAS = ['1', '2', '3', '4', '5', '6', '7'];
 var DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 // fotosGrupo[i]: fotos (en memoria) de la evidencia i, en el mismo orden de las tarjetas
@@ -46,6 +46,46 @@ function deDataUrl(datos) {
 function membrete() {
     var m = leer(MEMBRETE, null);
     return deDataUrl(m && m.datos) || deDataUrl(cfg('membrete'));
+}
+// Formato del Word: el elegido en este equipo o, si no hay, el predeterminado de las plantillas (privado, en la base).
+// → { bytes, nombre, origen: 'equipo'|'plantillas' } o null (sin formato: el Word sale con el diseño propio y el membrete)
+function bytesDe64(datos) {
+    var b = atob(String(datos || '').split(',')[1] || ''), out = new Uint8Array(b.length);
+    for (var i = 0; i < b.length; i++) out[i] = b.charCodeAt(i);
+    return out;
+}
+function formatoWord() {
+    var f = leer(FORMATO, null);
+    if (f && f.datos) return { bytes: bytesDe64(f.datos), nombre: f.nombre || 'formato.docx', origen: 'equipo', info: f.info || null };
+    if (cfg('formato_docx')) return { bytes: bytesDe64(cfg('formato_docx')), nombre: cfg('formato_nombre') || 'Formato predeterminado', origen: 'plantillas', info: null };
+    return null;
+}
+function opcionesWord() { var f = formatoWord(); return { membrete: membrete(), formato: f ? f.bytes : null }; }
+function aBase64(bytes) {
+    var s = '';
+    for (var i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    return btoa(s);
+}
+// «Arial 11 · márgenes: arriba 2,7 cm, abajo 3,9 cm, lados 1,3 cm»
+function textoFormato(d) {
+    if (!d) return '';
+    var cm = function (tw) { return (tw / 567).toFixed(1).replace('.', ',') + ' cm'; }, m = d.margenes || {};
+    return [d.fuente && d.fuente + (d.tam ? ' ' + String(d.tam).replace('.', ',') : ''), 'ancho útil ' + cm(d.ancho),
+        'márgenes: arriba ' + cm(m.arriba || 0) + ', abajo ' + cm(m.abajo || 0) + ', izquierda ' + cm(m.izq || 0) + ', derecha ' + cm(m.der || 0)].filter(Boolean).join(' · ');
+}
+var pintandoFormato = 0;
+async function pintarFormatoConfig() {
+    var f = formatoWord(), yo = ++pintandoFormato;
+    $('c-formato-quitar').hidden = !f || f.origen !== 'equipo';
+    $('c-formato-quitar').textContent = cfg('formato_docx') ? 'Volver al predeterminado' : 'Quitar el formato';
+    $('c-formato-ver').hidden = !f;
+    if (!f) { $('c-formato-estado').innerHTML = '<b>Sin formato:</b> el Word sale con el diseño de la aplicación y el membrete. Suba el .docx de la institución para usarlo.'; return; }
+    $('c-formato-estado').innerHTML = '<b>' + esc(f.nombre) + '</b> · ' + (f.origen === 'equipo' ? 'elegido en este equipo' : 'predeterminado (el mismo para todos)') + '<br><span class="sub">Leyendo…</span>';
+    var info = f.info;
+    if (!info) { try { info = (await prepararFormato(f.bytes)).datos; } catch (e) { info = null; } }
+    if (yo !== pintandoFormato) return;
+    $('c-formato-estado').innerHTML = '<b>' + esc(f.nombre) + '</b> · ' + (f.origen === 'equipo' ? 'elegido en este equipo' : 'predeterminado (el mismo para todos)') +
+        '<br><span class="sub">' + (info ? esc(textoFormato(info)) : '⚠ No se pudo leer: vuelva al predeterminado o suba otro .docx.') + '</span>';
 }
 // Imagen de la firma de cada firmante, por nombre: solo en este equipo (cada quien pone la suya)
 function firmasImagen() { return leer(FIRMAS_IMG, {}); }
@@ -245,7 +285,7 @@ async function generar(conAvisos, formato) {
             (a.corchetes.length ? 'Quedan textos sin llenar: ' + a.corchetes.join(' ') : '') + (word ? '\nEn el Word se puede completar después.' : ''), 'Generar igual', 'Volver a revisar');
         if (!seguir) return null;
     }
-    var bytes = await (word ? armarDocx : armarPdf)(datosPdf(d), { membrete: membrete() });
+    var bytes = word ? await armarDocx(datosPdf(d), opcionesWord()) : await armarPdf(datosPdf(d), { membrete: membrete() });
     return { d: d, bytes: bytes, nombre: nombreArchivo(d, word ? 'docx' : 'pdf'), tipo: word ? DOCX : 'application/pdf' };
 }
 function descargar(bytes, nombre, tipo) {
@@ -497,7 +537,7 @@ function eventos() {
         else if (b.dataset.h === 'pdf') {
             try { descargar(await armarPdf(datosPdf(x), { membrete: membrete() }), nombreArchivo(x)); } catch (e) { toast('No se pudo generar: ' + e.message); }
         } else if (b.dataset.h === 'word') {
-            try { descargar(await armarDocx(datosPdf(x), { membrete: membrete() }), nombreArchivo(x, 'docx'), DOCX); } catch (e) { toast('No se pudo generar: ' + e.message); }
+            try { descargar(await armarDocx(datosPdf(x), opcionesWord()), nombreArchivo(x, 'docx'), DOCX); } catch (e) { toast('No se pudo generar: ' + e.message); }
         } else if (b.dataset.h === 'enviado') { x.estado = x.estado === 'Enviado' ? 'Borrador' : 'Enviado'; h[i] = x; guardar(HISTORIAL, h); pintarHistorial(); }
         else if (b.dataset.h === 'eliminar') {
             if (!(await confirmar('¿Eliminar el requerimiento ' + (x.radicado || 'sin radicado') + '?', 'Se borra de este equipo. No se puede deshacer.', '🗑 Eliminar'))) return;
@@ -514,7 +554,29 @@ function eventos() {
         $('c-membrete-quitar').hidden = !m;
         $('c-membrete-estado').textContent = m ? 'Se usa el membrete elegido en este equipo.' : deBase ? 'Se usa el membrete de las plantillas (el mismo para todos). Puede elegir otro solo para este equipo.' : 'Sin membrete: el PDF sale con margen normal y sin logos.';
         pintarFirmasConfig();
+        pintarFormatoConfig();
         $('dlg-config').showModal();
+    };
+    // Formato del Word: elegir otro .docx (se limpia y queda en este equipo), descargarlo o volver al predeterminado
+    $('c-formato-elegir').onclick = function () { $('c-formato').value = ''; $('c-formato').click(); };
+    $('c-formato').onchange = async function () {
+        var f = this.files && this.files[0];
+        if (!f) return;
+        var b = $('c-formato-elegir');
+        b.disabled = true; $('c-formato-estado').textContent = 'Leyendo ' + f.name + '…';
+        try {
+            if (!/\.docx$/i.test(f.name)) throw new Error('debe ser un archivo de Word .docx (los .doc antiguos no sirven: ábralo en Word y guárdelo como .docx)');
+            var r = await prepararFormato(new Uint8Array(await f.arrayBuffer()));
+            if (!guardar(FORMATO, { datos: 'data:' + DOCX + ';base64,' + aBase64(r.bytes), nombre: f.name, info: r.datos, fecha: new Date().toISOString() }))
+                throw new Error('no hay espacio en este equipo para guardarlo (' + Math.round(r.bytes.length / 1024) + ' KB)');
+            toast('Formato guardado en este equipo: ' + f.name + '.');
+        } catch (e) { toast('No se pudo usar ese formato: ' + e.message); }
+        finally { b.disabled = false; pintarFormatoConfig(); }
+    };
+    $('c-formato-quitar').onclick = function () { localStorage.removeItem(FORMATO); pintarFormatoConfig(); toast('Se volvió al formato predeterminado.'); };
+    $('c-formato-ver').onclick = function () {
+        var f = formatoWord();
+        if (f) descargar(f.bytes, f.nombre.replace(/\.docx$/i, '') + ' (formato).docx', DOCX);
     };
     $('c-cerrar').onclick = function () { $('dlg-config').close(); };
     $('c-firmas').addEventListener('input', pintarFirmasConfig);

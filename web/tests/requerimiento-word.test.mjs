@@ -3,7 +3,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { leerPlantillas, leerFilasNovedades, fechaIso, gruposEvidencia } from '../src/requerimiento/plantillas.js';
 import { armarPdf, filasNovedad, gruposPdf } from '../src/requerimiento/pdf.js';
-import { armarDocx, medidasImagen, xml } from '../src/requerimiento/word.js';
+import { armarDocx, medidasImagen, xml, prepararFormato, datosFormato } from '../src/requerimiento/word.js';
 
 // PNG de 1×1 y de 2×3 px (válidos) y cabecera JPG mínima con su SOF0 (3×2 px)
 const PNG = Uint8Array.from(atob('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=='), c => c.charCodeAt(0));
@@ -107,4 +107,41 @@ test('word: sin membrete, sin evidencias ni tabla', async () => {
     const doc = await z.file('word/document.xml').async('string');
     assert.ok(doc.includes('Sin evidencias adjuntas.') && !doc.includes('MICRORRUTA'));
     assert.ok(!(await z.file('word/header1.xml').async('string')).includes('<w:drawing>'));
+});
+
+test('formato: de un Word ya hecho quedan encabezado, pie y estilos; se quitan contenido, fotos y firmas', async () => {
+    const JSZip = (await import('jszip')).default;
+    // Un «requerimiento ya hecho» con membrete en el encabezado y fotos y firma en el cuerpo
+    const hecho = await armarDocx(REQ, { membrete: { bytes: PNG, tipo: 'png' } });
+    const f = await prepararFormato(hecho, { abajo: 2200 });
+    const z = await JSZip.loadAsync(f.bytes);
+    const doc = await z.file('word/document.xml').async('string');
+    assert.ok(!doc.includes('REQUERIMIENTO') && !doc.includes('r:embed'));            // sin contenido
+    assert.ok(doc.includes('w:bottom="2200"') && doc.includes('headerReference'));
+    const media = Object.keys(z.files).filter(n => n.startsWith('word/media/') && !z.files[n].dir);
+    assert.deepEqual(media, ['word/media/imagen5.png']);                              // solo el membrete del encabezado
+    assert.ok(!/image/.test(await z.file('word/_rels/document.xml.rels').async('string')));
+    assert.equal(f.datos.abajo, undefined);
+    assert.equal(f.datos.margenes.abajo, 2200);
+    // Escribir un requerimiento dentro del formato
+    const conFormato = await armarDocx(REQ, { formato: f.bytes });
+    const z2 = await JSZip.loadAsync(conFormato), doc2 = await z2.file('word/document.xml').async('string');
+    assert.ok(doc2.includes('REQUERIMIENTO DE INTERVENTORÍA') && doc2.includes('w:bottom="2200"'));
+    assert.equal((doc2.match(/<w:sectPr/g) || []).length, 1);
+    const rels2 = await z2.file('word/_rels/document.xml.rels').async('string');
+    const ids = [...doc2.matchAll(/r:embed="([^"]+)"/g)].map(m => m[1]);
+    assert.equal(ids.length, 4);
+    for (const id of ids) { const t = rels2.match(new RegExp('Id="' + id + '"[^>]*Target="([^"]+)"')); assert.ok(t && z2.file('word/' + t[1]), id); }
+    assert.ok(z2.file('word/media/imagen5.png') && z2.file('word/media/req-foto1.png'));   // el membrete sigue y las fotos no lo pisan
+    // Dos veces el mismo formato da lo mismo (se puede volver a subir un formato ya limpio)
+    const otra = await prepararFormato(f.bytes);
+    assert.deepEqual(otra.datos, f.datos);
+});
+test('formato: letra, tamaño y márgenes; archivo que no es Word', async () => {
+    const d = datosFormato('<w:document><w:body><w:p><w:r><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="22"/></w:rPr></w:r><w:r><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="22"/></w:rPr></w:r>' +
+        '<w:r><w:rPr><w:rFonts w:ascii="Calibri"/><w:sz w:val="18"/></w:rPr></w:r></w:p><w:sectPr><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1540" w:right="720" w:bottom="860" w:left="720"/></w:sectPr></w:body></w:document>');
+    assert.deepEqual(d, { fuente: 'Arial', tam: 11, ancho: 10800, margenes: { arriba: 1540, abajo: 860, izq: 720, der: 720 } });
+    await assert.rejects(prepararFormato(new Uint8Array([1, 2, 3])), /no es un Word/);
+    const JSZip = (await import('jszip')).default, z = new JSZip(); z.file('hola.txt', 'x');
+    await assert.rejects(prepararFormato(await z.generateAsync({ type: 'uint8array' })), /document\.xml/);
 });
