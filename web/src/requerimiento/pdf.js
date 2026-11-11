@@ -46,8 +46,25 @@ export function partir(texto, letra, tam, ancho) {
     return out;
 }
 
+// Filas de la tabla de microrrutas, listas para escribir: fecha dd/mm/aaaa y cada novedad con viñeta y punto final
+export function filasNovedad(novedades) {
+    return (novedades || []).filter(function (n) { return n && (n.micro || (n.tipos || []).length); }).map(function (n) {
+        var m = String(n.fecha || '').match(/^(\d{4})-(\d{2})-(\d{2})/);
+        return { micro: n.micro || '', fecha: m ? m[3] + '/' + m[2] + '/' + m[1] : n.fecha || '',
+            tipos: (n.tipos || []).filter(Boolean).map(function (t) { t = String(t).trim(); return '• ' + t + (/[.:!?]$/.test(t) ? '' : '.'); }) };
+    });
+}
+// Grupos de evidencia { titulo, texto, fotos }. Acepta el formato anterior (evidenciasTexto + todas las fotos juntas)
+export function gruposPdf(req) {
+    if (Array.isArray(req.gruposEvidencia)) return req.gruposEvidencia.filter(function (g) { return g.titulo || g.texto || (g.fotos || []).length; });
+    var g = (req.evidenciasTexto || []).filter(Boolean).map(function (t) { return { titulo: t, texto: '', fotos: [] }; });
+    if ((req.evidencias || []).length) g.push({ titulo: '', texto: '', fotos: req.evidencias });
+    return g;
+}
+
 // req: { radicado, contratista, contrato, servicio, zonas: [], asunto, ruta, fechaEvento, fechaRequerimiento, descripcion,
-//        evidencias: [{ bytes, tipo: 'jpg'|'png', pie }], evidenciasTexto: [], consideraciones, obligacionesIntro,
+//        novedades: [{ micro, fecha, tipos: [] }], constancia,
+//        gruposEvidencia: [{ titulo, texto, fotos: [{ bytes, tipo: 'jpg'|'png', pie }] }], consideraciones, obligacionesIntro,
 //        obligaciones: [{ ref, t }], ansIntro, ans: [{ clave, t }], solicitudes: [{ t, ej }], soportes, plazo,
 //        consideracionesRespuesta, preventivo, firmas: [{ nombre, cargo }], copias: [], codigo, pie }
 // opciones: { membrete: { bytes, tipo } }. Devuelve Uint8Array
@@ -124,7 +141,9 @@ export async function armarPdf(req, opciones) {
         function fila(valores, cab) {
             var lineas = columnas.map(function (c, i) { return partir(valores[i], cab ? negrita : normal, tam, c.ancho - pad * 2); });
             var h = Math.max.apply(null, lineas.map(function (l) { return l.length; })) * alto + pad * 2, x = M.izq;
-            espacio(h);
+            // Si la fila pasa a otra página, allá se repite el encabezado de la tabla
+            if (!cab && y - h < M.abajo) { nueva(); fila(columnas.map(function (c) { return c.titulo; }), true); }
+            espacio(cab ? h * 2.6 : h);   // el encabezado no queda solo al final de una página
             columnas.forEach(function (c, i) {
                 pag.drawRectangle({ x: x, y: y - h, width: c.ancho, height: h, color: cab ? col(TEAL) : undefined, borderColor: col([0.78, 0.82, 0.83]), borderWidth: 0.7 });
                 lineas[i].forEach(function (l, k) {
@@ -157,34 +176,52 @@ export async function armarPdf(req, opciones) {
 
     titulo('1.   DESCRIPCIÓN:');
     parrafo(req.descripcion || '');
+    // Tabla de microrrutas con sus novedades (si se llenó) y el párrafo de constancia
+    var novedades = filasNovedad(req.novedades);
+    if (novedades.length) {
+        y -= 4;
+        tablaColor([{ titulo: 'MICRORRUTA', ancho: 100, centrar: true }, { titulo: 'FECHA DE VERIFICACIÓN', ancho: 100, centrar: true }, { titulo: 'TIPOS DE NOVEDADES', ancho: ANCHO - 200 }],
+            novedades.map(function (n) { return [n.micro, n.fecha, n.tipos.join('\n')]; }));
+    }
+    if (req.constancia) parrafo(req.constancia);
 
     titulo('2.   EVIDENCIAS DEL SEGUIMIENTO');
-    (req.evidenciasTexto || []).filter(Boolean).forEach(function (t, i) { parrafo('Evidencia ' + (i + 1) + '. ' + t, { despues: 2, justificar: false }); });
-    var fotos = req.evidencias || [];
-    if (fotos.length) {
-        // Dos fotos por fila con su pie debajo
-        var gap = 14, wf = (ANCHO - gap) / 2, hf = wf * 0.75;
+    var grupos = gruposPdf(req), nFoto = 0;
+    for (var g = 0; g < grupos.length; g++) {
+        var gr = grupos[g];
+        if (gr.titulo) parrafo('Evidencia ' + (g + 1) + '. ' + gr.titulo, { letra: negrita, despues: 4, justificar: false });
+        if (gr.texto) parrafo(gr.texto, { despues: 4 });
+        var fotos = gr.fotos || [];
+        // Dos fotos por fila, cada una a su proporción (las capturas verticales de WhatsApp no quedan diminutas), con su pie
+        var gap = 14, wf = (ANCHO - gap) / 2, HMAX = 250;
         for (var i = 0; i < fotos.length; i += 2) {
             var par = fotos.slice(i, i + 2), imgs = [];
             for (var k = 0; k < par.length; k++) {
                 try { imgs.push(par[k].tipo === 'png' ? await pdf.embedPng(par[k].bytes) : await pdf.embedJpg(par[k].bytes)); } catch (e) { imgs.push(null); }
             }
-            var pies = par.map(function (f, k) { return partir('Foto ' + (i + k + 1) + (f.pie ? '. ' + f.pie : ''), cursiva, 8.5, wf); });
+            var cajas = imgs.map(function (img) {
+                if (!img) return { w: wf, h: wf * 0.75 };
+                var e = Math.min(wf / img.width, HMAX / img.height);
+                return { w: img.width * e, h: img.height * e };
+            });
+            var hf = Math.max.apply(null, cajas.map(function (c) { return c.h; }));
+            var pies = par.map(function (f, k) { return partir('Foto ' + (nFoto + k + 1) + (f.pie ? '. ' + f.pie : ''), cursiva, 8.5, wf); });
             var hp = Math.max.apply(null, pies.map(function (p) { return p.length; })) * 11;
             espacio(hf + hp + 14);
             par.forEach(function (f, k) {
-                var x = M.izq + k * (wf + gap), img = imgs[k];
-                pag.drawRectangle({ x: x, y: y - hf, width: wf, height: hf, color: col(FONDO) });
-                if (img) {
-                    var e = Math.min(wf / img.width, hf / img.height), w = img.width * e, h = img.height * e;
-                    pag.drawImage(img, { x: x + (wf - w) / 2, y: y - hf + (hf - h) / 2, width: w, height: h });
-                }
-                pies[k].forEach(function (l, n) { texto(l, x, y - hf - 11 - n * 11, { tam: 8.5, letra: cursiva, color: [0.3, 0.33, 0.36] }); });
+                var x = M.izq + k * (wf + gap), img = imgs[k], c = cajas[k], xi = x + (wf - c.w) / 2;
+                if (img) pag.drawImage(img, { x: xi, y: y - hf + (hf - c.h), width: c.w, height: c.h });
+                else pag.drawRectangle({ x: xi, y: y - c.h, width: c.w, height: c.h, color: col(FONDO) });
+                pies[k].forEach(function (l, n) {
+                    var w = cursiva.widthOfTextAtSize(limpiar(l), 8.5);
+                    texto(l, x + Math.max(0, (wf - w) / 2), y - hf - 11 - n * 11, { tam: 8.5, letra: cursiva, color: [0.3, 0.33, 0.36] });
+                });
             });
             y -= hf + hp + 14;
+            nFoto += par.length;
         }
     }
-    if (!fotos.length && !(req.evidenciasTexto || []).filter(Boolean).length) parrafo('Sin evidencias adjuntas.', { letra: cursiva, color: GRIS });
+    if (!grupos.length) parrafo('Sin evidencias adjuntas.', { letra: cursiva, color: GRIS });
 
     titulo('3.   CONSIDERACIONES');
     if (req.consideraciones) parrafo(req.consideraciones);

@@ -12,7 +12,7 @@
 <header>
     <div class="marca">
         <span class="logo" aria-hidden="true">📨</span>
-        <div class="nombre"><h1>Requerimientos</h1><div class="lema">Requerimientos de interventoría al contratista, en PDF para enviar por correo</div></div>
+        <div class="nombre"><h1>Requerimientos</h1><div class="lema">Requerimientos de interventoría al contratista, en Word o PDF para enviar por correo</div></div>
     </div>
     </div>
     <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
@@ -99,15 +99,36 @@
             <h2>1. Descripción</h2>
             <textarea id="f-descripcion" rows="12" aria-label="Descripción"></textarea>
             <p class="sub">Reemplace lo que está entre [corchetes] con los datos del caso. El PDF avisa si queda alguno.</p>
+
+            <h3>Microrrutas con novedades <span class="req-ans-cuenta" id="f-nov-cuenta"></span></h3>
+            <p class="sub">Tabla que va debajo de la descripción (microrruta, fecha de verificación y tipos de novedades). Si no tiene filas, no sale.</p>
+            <div id="f-novedades" class="req-novs"></div>
+            <div class="req-agregar">
+                <button type="button" class="secundario" id="f-nov-agregar">+ Agregar microrruta</button>
+                <button type="button" class="secundario" id="f-nov-pegar">📋 Pegar desde Excel o WhatsApp</button>
+                <button type="button" class="secundario" id="f-nov-fechas" hidden title="Poner en «Fecha del evento» la primera y la última fecha de la tabla">📅 Usar las fechas de la tabla</button>
+            </div>
+            <div class="req-pegar" id="f-pegar" hidden>
+                <label class="ancho">PEGUE AQUÍ LAS FILAS
+                    <textarea id="f-pegar-texto" rows="6" placeholder="Z4CC0159&#9;16/10/2026&#9;Limpieza previa; Barrido&#10;o el mensaje de WhatsApp:&#10;Z4CC0058 (603)&#10;• Barrido de zona verde.&#10;• Corte disparejo."></textarea>
+                </label>
+                <p class="sub">Cada renglón con el código de la microrruta (Z4CC0159) abre una fila. La fecha y las novedades pueden ir en el mismo renglón (columnas de Excel, «;») o debajo, con viñetas, como en el mensaje de WhatsApp.</p>
+                <div class="req-agregar">
+                    <button type="button" class="secundario" id="f-pegar-cancelar">Cancelar</button>
+                    <button type="button" class="primario" id="f-pegar-ok">Agregar estas filas</button>
+                    <span class="sub" id="f-pegar-estado"></span>
+                </div>
+            </div>
+            <label class="req-constancia">TEXTO DESPUÉS DE LA TABLA <textarea id="f-constancia" rows="3" placeholder="La Interventoría deja constancia de que las novedades identificadas fueron reportadas oportunamente al contratista…"></textarea></label>
         </section>
 
         <section class="panel req-panel">
             <h2>2. Evidencias del seguimiento</h2>
-            <label class="ancho">EVIDENCIAS (una por renglón) <textarea id="f-evid-texto" rows="3" placeholder="Fotografías / Correos / Despacho&#10;Evidencia inspección"></textarea></label>
+            <p class="sub">Cada evidencia lleva su título («Reportes de ejecución de las microrrutas», «Reporte por parte de la interventoría», «Anexos»…), un texto si hace falta y sus fotos o capturas, dos por fila.</p>
+            <div id="f-evidencias"></div>
             <input type="file" id="f-fotos" accept="image/*" multiple hidden>
-            <button type="button" class="secundario zip-elegir" id="f-fotos-elegir">🖼️ Agregar fotos</button>
-            <ol class="req-fotos" id="f-fotos-lista"></ol>
-            <p class="sub">Las fotos van dos por fila con su pie. No se guardan con el borrador: si cierra la página, vuelva a agregarlas.</p>
+            <button type="button" class="secundario" id="f-evid-agregar">+ Agregar evidencia</button>
+            <p class="sub">Las fotos no se guardan con el borrador: si cierra la página, vuelva a agregarlas. Los títulos y textos sí.</p>
         </section>
 
         <section class="panel req-panel">
@@ -134,6 +155,7 @@
             <button type="button" class="secundario" id="btn-guardar">💾 Guardar</button>
             <button type="button" class="secundario" id="btn-vista">👁 Vista previa</button>
             <button type="button" class="secundario" id="btn-pdf">⬇ PDF</button>
+            <button type="button" class="secundario" id="btn-word" title="Word para revisar y corregir antes del visto bueno">⬇ Word</button>
             <button type="button" class="primario" id="btn-correo">✉️ Enviar por correo</button>
         </div>
     </form>
@@ -176,6 +198,7 @@
                 <div class="req-firmas" id="c-firmas-img"></div>
             </div>
             <label class="ancho">CON COPIA A (una por renglón) <textarea id="c-copias" rows="3"></textarea></label>
+            <label class="ancho">CORREOS PARA REVISIÓN Y VISTO BUENO <input type="text" id="c-revision" placeholder="correos del equipo, separados por coma"></label>
             <label class="ancho">CORREO DEL CONTRATISTA (PARA) <input type="text" id="c-para" placeholder="correo@contratista.com"></label>
             <label class="ancho">CON COPIA (CC) <input type="text" id="c-cc" placeholder="correos separados por coma"></label>
         </div>
@@ -183,6 +206,25 @@
             <button type="button" class="secundario" id="c-restablecer">Restablecer</button>
             <button type="button" class="secundario" id="c-cerrar">Cancelar</button>
             <button type="button" class="primario" id="c-guardar">Guardar</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="dlg-correo">
+    <div class="cuerpo">
+        <h2>✉️ Enviar por correo</h2>
+        <div class="sub">Elija a quién va. Se prepara el archivo y se abre el correo con el texto listo.</div>
+        <div class="req-destinos" role="radiogroup" aria-label="Destino del correo">
+            <label class="req-destino"><input type="radio" name="co-destino" value="revision" checked>
+                <span><b>📝 A revisión y visto bueno</b><span class="sub">Va el Word, para que el equipo lo corrija. Para: los correos de revisión de ⚙️ Configuración.</span></span></label>
+            <label class="req-destino"><input type="radio" name="co-destino" value="contratista">
+                <span><b>📨 Al contratista</b><span class="sub">Va el PDF final y queda marcado como enviado. Para: el correo del contratista.</span></span></label>
+        </div>
+        <label class="req-casilla"><input type="checkbox" id="co-anexos"> El requerimiento lleva anexos (agrega la nota en el correo)</label>
+        <div class="sub" id="co-estado"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="co-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="co-enviar">Preparar correo</button>
         </div>
     </div>
 </dialog>

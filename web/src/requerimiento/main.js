@@ -8,12 +8,16 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
-import { leerPlantillas, firma, rellenar, pendientes, fechaEvento } from './plantillas.js';
+import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia } from './plantillas.js';
 import { armarPdf } from './pdf.js';
+import { armarDocx } from './word.js';
 
 var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete', FIRMAS_IMG = 'req_firmas_img';
 var ZONAS = ['1', '2', '3', '4', '5', '6', '7'];
-var P = { config: {}, ans: {}, plantillas: [], catalogo: [] }, fotos = [], editandoId = null, cambios = false;
+var DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
+// fotosGrupo[i]: fotos (en memoria) de la evidencia i, en el mismo orden de las tarjetas
+var P = { config: {}, ans: {}, plantillas: [], catalogo: [] }, fotosGrupo = [], grupoFotos = -1, editandoId = null, cambios = false;
+function todasLasFotos() { return fotosGrupo.reduce(function (a, g) { return a.concat(g || []); }, []); }
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
@@ -28,7 +32,7 @@ function configUsuario() {
     return {
         firmas: c.firmas || (P.config.firma || []).map(firma),
         copias: c.copias || (P.config.copia || []).slice(),
-        para: c.para || '', cc: c.cc || ''
+        para: c.para || '', cc: c.cc || '', revision: c.revision || ''
     };
 }
 // data:image/…;base64,… → { bytes, tipo }
@@ -50,7 +54,25 @@ function claveFirma(nombre) { return String(nombre || '').trim().toUpperCase(); 
 // ---------- Formulario ----------
 function vacio() {
     return { id: null, plantilla: '', radicado: '', tipo: 'Hallazgo', fecha: hoy(), eventoDesde: '', eventoHasta: '', zonas: [], ruta: '', asunto: '',
-        descripcion: '', evidenciasTexto: 'Fotografías / Correos / Despacho\nEvidencia inspección', obligaciones: [], ans: [], solicitudes: [], plazo: Number(cfg('plazo')) || 5 };
+        descripcion: '', novedades: [], constancia: '',
+        evidencias: [{ titulo: 'Fotografías / Correos / Despacho', texto: '' }, { titulo: 'Evidencia inspección', texto: '' }],
+        obligaciones: [], ans: [], solicitudes: [], plazo: Number(cfg('plazo')) || 5 };
+}
+// Filas de la tabla de microrrutas del formulario (las novedades marcadas con botón y las escritas en «Otras»)
+function novedadesForm() {
+    return Array.prototype.map.call(document.querySelectorAll('#f-novedades .req-nov'), function (f) {
+        var tipos = Array.prototype.filter.call(f.querySelectorAll('[data-tipo]'), function (b) { return b.getAttribute('aria-pressed') === 'true'; })
+            .map(function (b) { return b.dataset.tipo; });
+        f.querySelector('[data-n="otras"]').value.split(';').map(function (t) { return t.trim(); }).filter(Boolean)
+            .forEach(function (t) { if (tipos.indexOf(t) === -1) tipos.push(t); });
+        return { micro: f.querySelector('[data-n="micro"]').value.trim().toUpperCase(), fecha: f.querySelector('[data-n="fecha"]').value, tipos: tipos };
+    }).filter(function (n) { return n.micro || n.fecha || n.tipos.length; });
+}
+// Evidencias del formulario: todas las tarjetas, también las vacías (van alineadas con sus fotos en fotosGrupo)
+function evidenciasForm() {
+    return Array.prototype.map.call(document.querySelectorAll('#f-evidencias .req-evid'), function (c) {
+        return { titulo: c.querySelector('[data-e="titulo"]').value.trim(), texto: c.querySelector('[data-e="texto"]').value.trim() };
+    });
 }
 function datosForm() {
     return {
@@ -58,7 +80,7 @@ function datosForm() {
         eventoDesde: $('f-evento-desde').value, eventoHasta: $('f-evento-hasta').value,
         zonas: Array.prototype.map.call(document.querySelectorAll('#f-zonas input:checked'), function (i) { return i.value; }),
         ruta: $('f-ruta').value.trim(), asunto: $('f-asunto').value.trim(), descripcion: $('f-descripcion').value,
-        evidenciasTexto: $('f-evid-texto').value,
+        novedades: novedadesForm(), constancia: $('f-constancia').value.trim(), evidencias: evidenciasForm(),
         obligaciones: Array.prototype.map.call(document.querySelectorAll('#f-obligaciones .req-obl'), function (d) {
             return { ref: d.querySelector('[data-o="ref"]').value.trim(), t: d.querySelector('[data-o="t"]').value.trim() };
         }).filter(function (o) { return o.ref || o.t; }),
@@ -79,7 +101,47 @@ function filaSolicitud(s) {
         '<input type="text" data-s="ej" value="' + esc(s.ej) + '" placeholder="Soporte sugerido" aria-label="Soporte sugerido">' +
         '<button type="button" class="secundario pequeno" data-quitar title="Quitar esta fila">🗑</button></div>';
 }
-function ponerForm(d) {
+// Una fila de la tabla de microrrutas: código, fecha, botones de los tipos más comunes y «Otras» (separadas por «;»)
+function filaNovedad(n) {
+    var tipos = (n.tipos || []).map(function (t) { return String(t).trim().replace(/\.$/, ''); }), usados = [];
+    var botones = TIPOS_NOVEDAD.map(function (t) {
+        var si = tipos.some(function (x) { return x.toLowerCase() === t.toLowerCase(); });
+        if (si) usados.push(t.toLowerCase());
+        return '<button type="button" class="req-chip" data-tipo="' + esc(t) + '" aria-pressed="' + si + '">' + esc(t) + '</button>';
+    }).join('');
+    var otras = tipos.filter(function (x) { return x && usados.indexOf(x.toLowerCase()) === -1; }).join('; ');
+    return '<div class="req-nov"><div class="req-nov-cab">' +
+        '<input type="text" data-n="micro" value="' + esc(n.micro) + '" placeholder="Z4CC0159" aria-label="Microrruta">' +
+        '<input type="date" data-n="fecha" value="' + esc(n.fecha) + '" aria-label="Fecha de verificación">' +
+        '<button type="button" class="secundario pequeno" data-quitar title="Quitar esta microrruta">🗑</button></div>' +
+        '<div class="req-chips">' + botones + '</div>' +
+        '<input type="text" data-n="otras" value="' + esc(otras) + '" placeholder="Otras novedades (separadas por ;)" aria-label="Otras novedades"></div>';
+}
+function ponerNovedades(lista) {
+    $('f-novedades').innerHTML = (lista || []).map(filaNovedad).join('');
+}
+// Tarjeta de una evidencia: título, texto y sus fotos
+function tarjetaEvidencia(g, i) {
+    var fotos = fotosGrupo[i] || [];
+    return '<div class="req-evid" data-grupo="' + i + '"><div class="req-evid-cab"><b>Evidencia ' + (i + 1) + '.</b>' +
+        '<input type="text" data-e="titulo" value="' + esc(g.titulo) + '" placeholder="Título (p. ej. Reportes de ejecución de las microrrutas)" aria-label="Título de la evidencia ' + (i + 1) + '">' +
+        '<button type="button" class="secundario pequeno" data-quitar-evid="' + i + '" title="Quitar esta evidencia y sus fotos">🗑</button></div>' +
+        '<textarea data-e="texto" rows="2" placeholder="Texto (opcional; p. ej. «PDFs de los registros fotográficos de las verificaciones…»)" aria-label="Texto de la evidencia ' + (i + 1) + '">' + esc(g.texto) + '</textarea>' +
+        '<ol class="req-fotos">' + fotos.map(function (f, k) {
+            return '<li><img src="' + f.url + '" alt=""><div class="req-foto-datos"><span class="sub">' + esc(f.nombre) + '</span>' +
+                '<input type="text" data-foto="' + i + ':' + k + '" value="' + esc(f.pie) + '" placeholder="Pie de la foto (opcional)" aria-label="Pie de la foto ' + (k + 1) + '"></div>' +
+                '<div class="req-foto-acc"><button type="button" class="secundario pequeno" data-subir="' + i + ':' + k + '" title="Subir" ' + (k ? '' : 'disabled') + '>↑</button>' +
+                '<button type="button" class="secundario pequeno" data-quitar-foto="' + i + ':' + k + '" title="Quitar">🗑</button></div></li>';
+        }).join('') + '</ol>' +
+        '<button type="button" class="secundario zip-elegir" data-fotos-grupo="' + i + '">🖼️ Agregar fotos a la evidencia ' + (i + 1) + (fotos.length ? ' · ' + fotos.length + (fotos.length === 1 ? ' foto' : ' fotos') : '') + '</button></div>';
+}
+function ponerEvidencias(grupos) {
+    while (fotosGrupo.length < grupos.length) fotosGrupo.push([]);
+    $('f-evidencias').innerHTML = grupos.map(tarjetaEvidencia).join('');
+    avisos();
+}
+function soltarFotos() { todasLasFotos().forEach(function (f) { URL.revokeObjectURL(f.url); }); fotosGrupo = []; }
+function ponerForm(d, conservarFotos) {
     editandoId = d.id || null;
     $('f-titulo').textContent = editandoId ? 'Requerimiento ' + (d.radicado || 'sin radicado') : 'Nuevo requerimiento';
     $('f-plantilla').value = d.plantilla || '';
@@ -87,7 +149,9 @@ function ponerForm(d) {
     $('f-evento-desde').value = d.eventoDesde || ''; $('f-evento-hasta').value = d.eventoHasta || '';
     document.querySelectorAll('#f-zonas input').forEach(function (i) { i.checked = (d.zonas || []).indexOf(i.value) !== -1; });
     $('f-ruta').value = d.ruta || ''; $('f-asunto').value = d.asunto || ''; $('f-descripcion').value = d.descripcion || '';
-    $('f-evid-texto').value = d.evidenciasTexto || '';
+    ponerNovedades(d.novedades); $('f-constancia').value = d.constancia || '';
+    if (!conservarFotos) soltarFotos();
+    ponerEvidencias(gruposEvidencia(d));
     $('f-obligaciones').innerHTML = (d.obligaciones || []).map(filaObligacion).join('');
     document.querySelectorAll('#f-ans input').forEach(function (i) { i.checked = (d.ans || []).indexOf(i.value) !== -1; });
     $('f-solicitudes').innerHTML = (d.solicitudes || []).map(filaSolicitud).join('');
@@ -99,24 +163,37 @@ function aplicarPlantilla(id) {
     if (!p) return;
     var d = datosForm();
     d.plantilla = id; d.tipo = p.tipo || d.tipo; d.asunto = p.asunto; d.descripcion = p.descripcion;
+    if (p.constancia) d.constancia = p.constancia;
+    // Los títulos de evidencia de la plantilla reemplazan los actuales; las fotos ya cargadas siguen en su posición
+    if (p.evidencias) {
+        var titulos = p.evidencias.split('\n').map(function (t) { return t.trim(); }).filter(Boolean);
+        var antes = d.evidencias;
+        d.evidencias = titulos.map(function (t, i) { return { titulo: t, texto: (antes[i] && antes[i].texto) || '' }; });
+        for (var i = titulos.length; i < fotosGrupo.length; i++) if ((fotosGrupo[i] || []).length) d.evidencias.push({ titulo: (antes[i] && antes[i].titulo) || '', texto: '' });
+    }
     d.obligaciones = p.obligaciones.map(function (o) { return { ref: o.ref, t: o.t }; });
     d.ans = p.ans.slice(); d.solicitudes = p.solicitudes.map(function (s) { return { t: s.t, ej: s.ej }; });
     d.plazo = p.plazo || d.plazo;
-    ponerForm(d);
+    ponerForm(d, true);
     marcarCambio();
 }
 // Avisos antes de generar: corchetes sin llenar, campos clave vacíos
 function avisos() {
-    var d = datosForm(), faltan = [];
+    var d = datosForm(), faltan = [], nFotos = todasLasFotos().length;
     if (!d.radicado) faltan.push('radicado');
     if (!d.asunto) faltan.push('asunto');
     if (!d.eventoDesde) faltan.push('fecha del evento');
     if (!membrete()) faltan.push('membrete (⚙️ Configuración)');
-    var corchetes = pendientes([d.asunto, d.descripcion, d.ruta]);
+    var sinFecha = d.novedades.filter(function (n) { return !n.fecha; }).length, sinCodigo = d.novedades.filter(function (n) { return !n.micro; }).length;
+    if (sinCodigo) faltan.push(sinCodigo + (sinCodigo === 1 ? ' fila' : ' filas') + ' de la tabla sin microrruta');
+    if (sinFecha) faltan.push(sinFecha + (sinFecha === 1 ? ' microrruta' : ' microrrutas') + ' sin fecha de verificación');
+    var corchetes = pendientes([d.asunto, d.descripcion, d.ruta, d.constancia]);
     $('f-ans-cuenta').textContent = d.ans.length ? '· ' + d.ans.length + (d.ans.length === 1 ? ' marcado' : ' marcados') + ': ANS ' + d.ans.join(', ') : '· ninguno marcado';
+    $('f-nov-cuenta').textContent = d.novedades.length ? '· ' + d.novedades.length + (d.novedades.length === 1 ? ' microrruta' : ' microrrutas') + (sinFecha ? ', ' + sinFecha + ' sin fecha' : '') : '· sin filas';
+    $('f-nov-fechas').hidden = !d.novedades.some(function (n) { return n.fecha; });
     $('f-avisos').innerHTML = (faltan.length ? '⚠ Falta: ' + esc(faltan.join(', ')) + '. ' : '') +
         (corchetes.length ? '⚠ Sin llenar: ' + esc(corchetes.slice(0, 3).join(' ')) + (corchetes.length > 3 ? '…' : '') : '') ||
-        (fotos.length ? fotos.length + (fotos.length === 1 ? ' foto' : ' fotos') + ' de evidencia' : '');
+        (nFotos ? nFotos + (nFotos === 1 ? ' foto' : ' fotos') + ' de evidencia' : '');
     return { faltan: faltan, corchetes: corchetes };
 }
 var tBorrador = null;
@@ -135,15 +212,8 @@ async function prepararFoto(file) {
     var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
     return { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: 'jpg', url: URL.createObjectURL(blob), nombre: file.name, pie: '' };
 }
-function pintarFotos() {
-    $('f-fotos-lista').innerHTML = fotos.map(function (f, i) {
-        return '<li><img src="' + f.url + '" alt=""><div class="req-foto-datos"><span class="sub">' + esc(f.nombre) + '</span>' +
-            '<input type="text" data-foto="' + i + '" value="' + esc(f.pie) + '" placeholder="Pie de la foto (lote, fecha, qué se ve)" aria-label="Pie de la foto ' + (i + 1) + '"></div>' +
-            '<div class="req-foto-acc"><button type="button" class="secundario pequeno" data-subir="' + i + '" title="Subir" ' + (i ? '' : 'disabled') + '>↑</button>' +
-            '<button type="button" class="secundario pequeno" data-quitar-foto="' + i + '" title="Quitar">🗑</button></div></li>';
-    }).join('');
-    avisos();
-}
+// Vuelve a pintar las tarjetas de evidencia con lo que está escrito y las fotos de cada una
+function pintarFotos() { ponerEvidencias(evidenciasForm()); }
 
 // ---------- PDF y correo ----------
 function datosPdf(d) {
@@ -151,9 +221,11 @@ function datosPdf(d) {
     return {
         radicado: d.radicado, contratista: cfg('contratista'), contrato: cfg('contrato'), servicio: cfg('servicio'),
         zonas: d.zonas.map(function (z) { return 'Zona ' + z; }), asunto: d.asunto, ruta: d.ruta, fechaEvento: fechaEvento(d.eventoDesde, d.eventoHasta),
-        fechaRequerimiento: aTexto(d.fecha), descripcion: d.descripcion,
-        evidenciasTexto: d.evidenciasTexto.split('\n').map(function (t) { return t.trim(); }).filter(Boolean),
-        evidencias: fotos.map(function (f) { return { bytes: f.bytes, tipo: f.tipo, pie: f.pie }; }),
+        fechaRequerimiento: aTexto(d.fecha), descripcion: d.descripcion, novedades: d.novedades || [], constancia: d.constancia || '',
+        // Las fotos están en memoria solo mientras se edita (en el listado salen sin fotos)
+        gruposEvidencia: gruposEvidencia(d).map(function (g, i) {
+            return { titulo: g.titulo, texto: g.texto, fotos: (fotosGrupo[i] || []).map(function (f) { return { bytes: f.bytes, tipo: f.tipo, pie: f.pie }; }) };
+        }),
         consideraciones: cfg('consideraciones'), obligacionesIntro: cfg('obligaciones_intro'), obligaciones: d.obligaciones,
         ansIntro: cfg('ans_intro'), ans: d.ans.map(function (n) { return { clave: 'ANS ' + n, t: P.ans[n] || '' }; }).filter(function (a) { return a.t; }),
         solicitudes: d.solicitudes, soportes: cfg('soportes'), plazo: d.plazo,
@@ -162,28 +234,42 @@ function datosPdf(d) {
         copias: c.copias, codigo: cfg('codigo'), pie: cfg('pie')
     };
 }
-function nombreArchivo(d) {
-    return ('Requerimiento ' + (d.radicado || 'sin radicado') + ' ' + (d.asunto || '').slice(0, 60)).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() + '.pdf';
+function nombreArchivo(d, ext) {
+    return ('Requerimiento ' + (d.radicado || 'sin radicado') + ' ' + (d.asunto || '').slice(0, 60)).replace(/[\\/:*?"<>|]+/g, '-').replace(/\s+/g, ' ').trim() + '.' + (ext || 'pdf');
 }
-async function generar(conAvisos) {
-    var d = datosForm(), a = avisos();
+// formato: 'pdf' (para enviar) o 'docx' (Word, para revisar y corregir)
+async function generar(conAvisos, formato) {
+    var d = datosForm(), a = avisos(), word = formato === 'docx';
     if (conAvisos && (a.faltan.length || a.corchetes.length)) {
-        var seguir = await confirmar('¿Generar el PDF así?', (a.faltan.length ? 'Falta: ' + a.faltan.join(', ') + '.\n' : '') +
-            (a.corchetes.length ? 'Quedan textos sin llenar: ' + a.corchetes.join(' ') : ''), 'Generar igual', 'Volver a revisar');
+        var seguir = await confirmar(word ? '¿Generar el Word así?' : '¿Generar el PDF así?', (a.faltan.length ? 'Falta: ' + a.faltan.join(', ') + '.\n' : '') +
+            (a.corchetes.length ? 'Quedan textos sin llenar: ' + a.corchetes.join(' ') : '') + (word ? '\nEn el Word se puede completar después.' : ''), 'Generar igual', 'Volver a revisar');
         if (!seguir) return null;
     }
-    var bytes = await armarPdf(datosPdf(d), { membrete: membrete() });
-    return { d: d, bytes: bytes, nombre: nombreArchivo(d) };
+    var bytes = await (word ? armarDocx : armarPdf)(datosPdf(d), { membrete: membrete() });
+    return { d: d, bytes: bytes, nombre: nombreArchivo(d, word ? 'docx' : 'pdf'), tipo: word ? DOCX : 'application/pdf' };
 }
-function descargar(bytes, nombre) {
+function descargar(bytes, nombre, tipo) {
     var a = document.createElement('a');
-    a.href = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
+    a.href = URL.createObjectURL(new Blob([bytes], { type: tipo || 'application/pdf' }));
     a.download = nombre; document.body.appendChild(a); a.click();
     setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1500);
 }
-function textosCorreo(d) {
-    var datos = { radicado: d.radicado || '', asunto: d.asunto || '', plazo: d.plazo };
-    return { asunto: rellenar(cfg('correo_asunto') || 'Requerimiento de interventoría {radicado}', datos), cuerpo: rellenar(cfg('correo_cuerpo') || '', datos) };
+function saludo() { var h = new Date().getHours(); return h < 12 ? 'Buenos días' : h < 19 ? 'Buenas tardes' : 'Buenas noches'; }
+// destino: 'contratista' (textos de las plantillas) o 'revision' (al equipo, para el visto bueno)
+function textosCorreo(d, destino, anexos) {
+    var datos = { radicado: d.radicado || '', asunto: d.asunto || '', plazo: d.plazo, contrato: cfg('contrato'), ruta: d.ruta || '', saludo: saludo(),
+        nota_anexos: anexos ? 'Nota: Tener presente que el requerimiento contiene anexos.\n\n' : '' };
+    var limpio = function (t) { return t.replace(/[ \t]{2,}/g, ' ').replace(/ ([,.])/g, '$1'); };
+    if (destino === 'revision') {
+        return {
+            asunto: limpio(rellenar(cfg('correo_revision_asunto') || 'Requerimiento {radicado} · {asunto} · para revisión y visto bueno', datos)),
+            cuerpo: limpio(rellenar(cfg('correo_revision_cuerpo') || '{saludo}.\n\nSe adjunta el requerimiento {radicado} frente a: {asunto} ({ruta}), en el marco del contrato {contrato}, para su respectiva revisión y visto bueno.\n\n{nota_anexos}Quedamos atentos a sus comentarios.\n\nCordialmente', datos))
+                .replace(/ \(\)/, '')
+        };
+    }
+    var cuerpo = rellenar(cfg('correo_cuerpo') || '', datos);
+    if (anexos && cuerpo.indexOf('anexos') === -1) cuerpo += '\n\nNota: El requerimiento contiene anexos.';
+    return { asunto: rellenar(cfg('correo_asunto') || 'Requerimiento de interventoría {radicado}', datos), cuerpo: cuerpo };
 }
 
 // ---------- Historial en este equipo (sin fotos) ----------
@@ -205,17 +291,18 @@ function pintarHistorial() {
         (h.length ? h.map(function (x) {
             return '<tr><td data-et="Radicado"><b>' + esc(x.radicado || '—') + '</b></td><td data-et="Fecha">' + esc(aTexto(x.fecha)) + '</td><td data-et="Tipo">' + esc(x.tipo) + '</td>' +
                 '<td data-et="Asunto">' + esc((x.asunto || '').slice(0, 140)) + '</td><td data-et="Ruta">' + esc(x.ruta) + '</td><td data-et="Plazo">' + esc(x.plazo) + ' días háb.</td>' +
-                '<td data-et="Estado"><span class="req-est ' + (x.estado === 'Enviado' ? 'enviado' : 'borrador') + '">' + esc(x.estado) + '</span></td>' +
+                '<td data-et="Estado"><span class="req-est ' + (x.estado === 'Enviado' ? 'enviado' : x.estado === 'En revisión' ? 'revision' : 'borrador') + '">' + esc(x.estado) + '</span></td>' +
                 '<td class="acc"><button type="button" class="secundario pequeno" data-h="abrir" data-id="' + esc(x.id) + '" title="Abrir y editar">✎ Abrir</button>' +
                 '<button type="button" class="secundario pequeno" data-h="duplicar" data-id="' + esc(x.id) + '" title="Crear uno nuevo a partir de este">⧉</button>' +
-                '<button type="button" class="secundario pequeno" data-h="pdf" data-id="' + esc(x.id) + '" title="Descargar el PDF (sin las fotos)">⬇</button>' +
+                '<button type="button" class="secundario pequeno" data-h="pdf" data-id="' + esc(x.id) + '" title="Descargar el PDF (sin las fotos)">⬇ PDF</button>' +
+                '<button type="button" class="secundario pequeno" data-h="word" data-id="' + esc(x.id) + '" title="Descargar el Word (sin las fotos)">⬇ Word</button>' +
                 '<button type="button" class="secundario pequeno" data-h="enviado" data-id="' + esc(x.id) + '" title="' + (x.estado === 'Enviado' ? 'Volver a borrador' : 'Marcar como enviado') + '">' + (x.estado === 'Enviado' ? '↺' : '✉️✓') + '</button>' +
                 '<button type="button" class="secundario pequeno" data-h="eliminar" data-id="' + esc(x.id) + '" title="Eliminar">🗑</button></td></tr>';
         }).join('') : '<tr><td colspan="8" class="sub">' + (q ? 'Nada con «' + esc(q) + '».' : 'Todavía no hay requerimientos guardados en este equipo. Use «+ Nuevo requerimiento».') + '</td></tr>') + '</tbody>';
 }
 function verListado() {
     $('form-req').hidden = true; $('req-historial').hidden = false;
-    fotos.forEach(function (f) { URL.revokeObjectURL(f.url); }); fotos = []; pintarFotos();
+    soltarFotos(); $('f-evidencias').innerHTML = '';
     pintarHistorial();
     window.scrollTo(0, 0);
 }
@@ -254,10 +341,12 @@ async function cargarPlantillas() {
 // ---------- Eventos ----------
 function eventos() {
     $('f-zonas').innerHTML = ZONAS.map(function (z) { return '<label><input type="checkbox" value="' + z + '"> Zona ' + z + '</label>'; }).join('');
+    // «2:5» → [grupo 2, foto 5]
+    var gk = function (t) { var p = String(t).split(':'); return [+p[0], +p[1]]; };
     $('form-req').addEventListener('input', function (ev) {
         var f = ev.target.closest('[data-foto]');
-        if (f) { fotos[+f.dataset.foto].pie = f.value; return; }
-        if (ev.target.id !== 'f-plantilla') marcarCambio();
+        if (f) { var x = gk(f.dataset.foto); fotosGrupo[x[0]][x[1]].pie = f.value; return; }
+        if (ev.target.id !== 'f-plantilla' && ev.target.id !== 'f-pegar-texto') marcarCambio();
     });
     $('form-req').addEventListener('change', function (ev) { if (ev.target.type === 'checkbox' || ev.target.type === 'date') marcarCambio(); });
     $('f-plantilla').onchange = async function () {
@@ -271,24 +360,66 @@ function eventos() {
     };
     $('form-req').addEventListener('click', function (ev) {
         var q = ev.target.closest('[data-quitar]');
-        if (q) { q.parentNode.remove(); marcarCambio(); return; }
+        if (q) { q.closest('.req-nov, .req-obl, .req-sol').remove(); marcarCambio(); return; }
+        var chip = ev.target.closest('[data-tipo]');
+        if (chip) { chip.setAttribute('aria-pressed', chip.getAttribute('aria-pressed') === 'true' ? 'false' : 'true'); marcarCambio(); return; }
         var qf = ev.target.closest('[data-quitar-foto]');
-        if (qf) { var k = +qf.dataset.quitarFoto; URL.revokeObjectURL(fotos[k].url); fotos.splice(k, 1); pintarFotos(); return; }
+        if (qf) { var a = gk(qf.dataset.quitarFoto), g = fotosGrupo[a[0]]; URL.revokeObjectURL(g[a[1]].url); g.splice(a[1], 1); pintarFotos(); return; }
         var s = ev.target.closest('[data-subir]');
-        if (s) { var j = +s.dataset.subir, t = fotos[j]; fotos[j] = fotos[j - 1]; fotos[j - 1] = t; pintarFotos(); }
+        if (s) { var b2 = gk(s.dataset.subir), g2 = fotosGrupo[b2[0]], t = g2[b2[1]]; g2[b2[1]] = g2[b2[1] - 1]; g2[b2[1] - 1] = t; pintarFotos(); return; }
+        var fg = ev.target.closest('[data-fotos-grupo]');
+        if (fg) { grupoFotos = +fg.dataset.fotosGrupo; $('f-fotos').value = ''; $('f-fotos').click(); return; }
+        var qe = ev.target.closest('[data-quitar-evid]');
+        if (qe) {
+            var n = +qe.dataset.quitarEvid, grupos = evidenciasForm();
+            (fotosGrupo[n] || []).forEach(function (f) { URL.revokeObjectURL(f.url); });
+            grupos.splice(n, 1); fotosGrupo.splice(n, 1);
+            ponerEvidencias(grupos); marcarCambio();
+        }
     });
+    $('f-evid-agregar').onclick = function () {
+        var grupos = evidenciasForm(); grupos.push({ titulo: '', texto: '' });
+        ponerEvidencias(grupos); marcarCambio();
+        $('f-evidencias').lastElementChild.querySelector('[data-e="titulo"]').focus();
+    };
+    // Tabla de microrrutas
+    $('f-nov-agregar').onclick = function () {
+        $('f-novedades').insertAdjacentHTML('beforeend', filaNovedad({ micro: '', fecha: '', tipos: [] }));
+        $('f-novedades').lastElementChild.querySelector('[data-n="micro"]').focus();
+        marcarCambio();
+    };
+    var cerrarPegar = function () { $('f-pegar').hidden = true; $('f-pegar-texto').value = ''; $('f-pegar-estado').textContent = ''; };
+    $('f-nov-pegar').onclick = function () { $('f-pegar').hidden = false; $('f-pegar-texto').focus(); };
+    $('f-pegar-cancelar').onclick = cerrarPegar;
+    $('f-pegar-ok').onclick = function () {
+        var filas = leerFilasNovedades($('f-pegar-texto').value);
+        if (!filas.length) { $('f-pegar-estado').textContent = 'No se encontró ningún código de microrruta (p. ej. Z4CC0159). Revise el texto pegado.'; return; }
+        // Las filas vacías que había (sin nada escrito) se reemplazan; las llenas se conservan
+        var actuales = novedadesForm();
+        ponerNovedades(actuales.concat(filas));
+        cerrarPegar(); marcarCambio();
+        var sinF = filas.filter(function (f) { return !f.fecha; }).length;
+        toast(filas.length + (filas.length === 1 ? ' microrruta agregada' : ' microrrutas agregadas') + (sinF ? '; ' + sinF + ' sin fecha: póngala en la fila.' : '.'));
+    };
+    $('f-nov-fechas').onclick = function () {
+        var f = novedadesForm().map(function (n) { return n.fecha; }).filter(Boolean).sort();
+        if (!f.length) return;
+        $('f-evento-desde').value = f[0]; $('f-evento-hasta').value = f[f.length - 1] !== f[0] ? f[f.length - 1] : '';
+        marcarCambio(); toast('Fecha del evento: ' + fechaEvento(f[0], f[f.length - 1]) + '.');
+    };
     $('f-obl-agregar').onclick = function () {
         var o = P.catalogo[+$('f-obl-catalogo').value] || { ref: '', t: '' };
         $('f-obligaciones').insertAdjacentHTML('beforeend', filaObligacion(o));
         marcarCambio();
     };
     $('f-sol-agregar').onclick = function () { $('f-solicitudes').insertAdjacentHTML('beforeend', filaSolicitud({ t: '', ej: '' })); marcarCambio(); $('f-solicitudes').lastElementChild.querySelector('textarea').focus(); };
-    $('f-fotos-elegir').onclick = function () { $('f-fotos').value = ''; $('f-fotos').click(); };
     $('f-fotos').onchange = async function () {
-        var lista = Array.prototype.slice.call(this.files || []);
-        $('f-avisos').textContent = 'Preparando ' + lista.length + ' fotos…';
+        var lista = Array.prototype.slice.call(this.files || []), g = grupoFotos;
+        if (!lista.length || g < 0) return;
+        var destino = fotosGrupo[g] = fotosGrupo[g] || [], boton = document.querySelector('[data-fotos-grupo="' + g + '"]');
+        if (boton) { boton.disabled = true; boton.textContent = 'Preparando ' + lista.length + (lista.length === 1 ? ' foto…' : ' fotos…'); }
         for (var i = 0; i < lista.length; i++) {
-            try { fotos.push(await prepararFoto(lista[i])); } catch (e) { toast('No se pudo leer ' + lista[i].name + '.'); }
+            try { destino.push(await prepararFoto(lista[i])); } catch (e) { toast('No se pudo leer ' + lista[i].name + '.'); }
         }
         pintarFotos();
     };
@@ -315,23 +446,45 @@ function eventos() {
         catch (e) { toast('No se pudo generar el PDF: ' + e.message); }
         finally { b.disabled = false; }
     };
-    // Correo: en el celular se comparte el PDF directo (Gmail, Outlook…); en el computador se descarga y se abre el correo con el texto listo
-    $('btn-correo').onclick = async function () {
+    $('btn-word').onclick = async function () {
         var b = this; b.disabled = true;
-        try {
-            var r = await generar(true);
-            if (!r) return;
-            var t = textosCorreo(r.d), c = configUsuario(), archivo = new File([r.bytes], r.nombre, { type: 'application/pdf' });
-            guardarEnHistorial(r.d, 'Enviado');
-            if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
-                try { await navigator.share({ files: [archivo], title: t.asunto, text: t.cuerpo }); toast('Listo: marcado como enviado.'); return; }
-                catch (e) { if (e && e.name === 'AbortError') { guardarEnHistorial(r.d, 'Borrador'); return; } }
-            }
-            descargar(r.bytes, r.nombre);
-            location.href = 'mailto:' + encodeURIComponent(c.para) + '?subject=' + encodeURIComponent(t.asunto) + (c.cc ? '&cc=' + encodeURIComponent(c.cc) : '') + '&body=' + encodeURIComponent(t.cuerpo);
-            toast('Se descargó el PDF: adjúntelo en el correo que se abrió.');
-        } catch (e) { toast('No se pudo preparar el correo: ' + e.message); }
+        try { var r = await generar(true, 'docx'); if (r) { descargar(r.bytes, r.nombre, r.tipo); guardarEnHistorial(r.d); toast('Word descargado y guardado en el listado.'); } }
+        catch (e) { toast('No se pudo generar el Word: ' + e.message); }
         finally { b.disabled = false; }
+    };
+    // Correo: primero se elige a quién (revisión interna con el Word, o el contratista con el PDF)
+    $('btn-correo').onclick = function () {
+        var d = datosForm();
+        $('co-anexos').checked = d.evidencias.some(function (g) { return /anexo/i.test(g.titulo); });
+        $('co-estado').textContent = '';
+        $('dlg-correo').showModal();
+    };
+    $('co-cerrar').onclick = function () { $('dlg-correo').close(); };
+    var enviando = false;
+    $('dlg-correo').addEventListener('cancel', function (ev) { if (enviando) ev.preventDefault(); });
+    $('dlg-correo').addEventListener('close', function () { $('co-estado').textContent = ''; });
+    // En el celular se comparte el archivo directo (Gmail, Outlook…) si el teléfono lo permite; si no (o en el computador),
+    // se descarga y se abre el correo con el texto listo para adjuntarlo
+    $('co-enviar').onclick = async function () {
+        var b = this, destino = document.querySelector('input[name="co-destino"]:checked').value, revision = destino === 'revision';
+        b.disabled = true; enviando = true; $('co-estado').textContent = revision ? 'Preparando el Word…' : 'Preparando el PDF…';
+        try {
+            $('dlg-correo').close();
+            var r = await generar(true, revision ? 'docx' : 'pdf');
+            if (!r) return;
+            var t = textosCorreo(r.d, destino, $('co-anexos').checked), c = configUsuario(), para = revision ? c.revision : c.para;
+            var estado = revision ? 'En revisión' : 'Enviado', antes = (historial().find(function (x) { return x.id === r.d.id; }) || {}).estado || 'Borrador';
+            var archivo = new File([r.bytes], r.nombre, { type: r.tipo });
+            guardarEnHistorial(r.d, estado);
+            if (navigator.canShare && navigator.canShare({ files: [archivo] })) {
+                try { await navigator.share({ files: [archivo], title: t.asunto, text: t.cuerpo }); toast('Listo: marcado como «' + estado + '».'); return; }
+                catch (e) { if (e && e.name === 'AbortError') { guardarEnHistorial(r.d, antes); return; } }
+            }
+            descargar(r.bytes, r.nombre, r.tipo);
+            location.href = 'mailto:' + encodeURIComponent(para) + '?subject=' + encodeURIComponent(t.asunto) + (!revision && c.cc ? '&cc=' + encodeURIComponent(c.cc) : '') + '&body=' + encodeURIComponent(t.cuerpo);
+            toast('Se descargó el ' + (revision ? 'Word' : 'PDF') + ': adjúntelo en el correo que se abrió' + ($('co-anexos').checked ? ', con los anexos.' : '.'));
+        } catch (e) { toast('No se pudo preparar el correo: ' + e.message); }
+        finally { b.disabled = false; enviando = false; }
     };
     $('h-buscar').oninput = pintarHistorial;
     $('h-tabla').onclick = async function (ev) {
@@ -343,6 +496,8 @@ function eventos() {
         else if (b.dataset.h === 'duplicar') verForm(Object.assign({}, x, { id: null, radicado: '', fecha: hoy() }));
         else if (b.dataset.h === 'pdf') {
             try { descargar(await armarPdf(datosPdf(x), { membrete: membrete() }), nombreArchivo(x)); } catch (e) { toast('No se pudo generar: ' + e.message); }
+        } else if (b.dataset.h === 'word') {
+            try { descargar(await armarDocx(datosPdf(x), { membrete: membrete() }), nombreArchivo(x, 'docx'), DOCX); } catch (e) { toast('No se pudo generar: ' + e.message); }
         } else if (b.dataset.h === 'enviado') { x.estado = x.estado === 'Enviado' ? 'Borrador' : 'Enviado'; h[i] = x; guardar(HISTORIAL, h); pintarHistorial(); }
         else if (b.dataset.h === 'eliminar') {
             if (!(await confirmar('¿Eliminar el requerimiento ' + (x.radicado || 'sin radicado') + '?', 'Se borra de este equipo. No se puede deshacer.', '🗑 Eliminar'))) return;
@@ -353,7 +508,7 @@ function eventos() {
     $('btn-config').onclick = function () {
         var c = configUsuario(), m = leer(MEMBRETE, null);
         $('c-firmas').value = c.firmas.map(function (f) { return f.nombre + (f.cargo ? ' | ' + f.cargo : ''); }).join('\n');
-        $('c-copias').value = c.copias.join('\n'); $('c-para').value = c.para; $('c-cc').value = c.cc;
+        $('c-copias').value = c.copias.join('\n'); $('c-para').value = c.para; $('c-cc').value = c.cc; $('c-revision').value = c.revision;
         var deBase = cfg('membrete');
         $('c-membrete-ver').hidden = !(m || deBase); $('c-membrete-ver').src = m ? m.datos : deBase || '';
         $('c-membrete-quitar').hidden = !m;
@@ -385,7 +540,7 @@ function eventos() {
         guardar(CONFIG, {
             firmas: $('c-firmas').value.split('\n').map(function (l) { return firma(l); }).filter(function (f) { return f.nombre; }),
             copias: $('c-copias').value.split('\n').map(function (l) { return l.trim(); }).filter(Boolean),
-            para: $('c-para').value.trim(), cc: $('c-cc').value.trim()
+            para: $('c-para').value.trim(), cc: $('c-cc').value.trim(), revision: $('c-revision').value.trim()
         });
         $('dlg-config').close(); toast('Configuración guardada en este equipo.');
     };
