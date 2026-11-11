@@ -1201,7 +1201,7 @@
     // ---------- Guía de recorridos (cronogramas.html) ----------
     // Los corredores son privados: no vienen en data/, los guarda cronogramas.html en este equipo ('crono_guia') al abrirla con
     // sesión y permiso de contrato. Sin eso el grupo no aparece. Se prende y se apaga por cronograma; «Solo hoy» deja los del día.
-    var GUIA = leer('crono_guia', null), guiaPref = leer('rapido_guia', { on: [], hoy: false, dia: null }), capaGuia = null;
+    var GUIA = leer('crono_guia', null), guiaPref = leer('rapido_guia', { on: [], hoy: false, dia: null }), capaGuia = null, rendGuia = null;
     var COLOR_ZONA_GUIA = { 1: '#ea580c', 2: '#2563eb', 3: '#9333ea', 4: '#ca8a04', 5: '#0891b2', 6: '#16a34a', 7: '#be123c' };
     var DIAS_GUIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
     var guias = GUIA && Array.isArray(GUIA.cronogramas) ? GUIA.cronogramas : [];
@@ -1210,7 +1210,9 @@
         if (capaGuia) { map.removeLayer(capaGuia); capaGuia = null; }
         var on = guias.filter(function (g) { return guiaPref.on.indexOf(g.id) !== -1; });
         if (!on.length) return 0;
-        if (!map.getPane('guia')) map.createPane('guia').style.zIndex = 420;
+        // En SVG y con la capa sin clics: solo las líneas de la guía los reciben. En canvas (como los lotes) su lámina
+        // cubría todo el mapa y no se podían tocar los lotes de abajo
+        if (!map.getPane('guia')) { var pg = map.createPane('guia'); pg.style.zIndex = 420; pg.style.pointerEvents = 'none'; rendGuia = L.svg({ pane: 'guia' }); }
         capaGuia = L.featureGroup();
         var n = 0, d = diaGuia();
         on.forEach(function (g) {
@@ -1223,8 +1225,8 @@
                     (toca ? ' · <b>toca el ' + DIAS_GUIA[d] + '</b>' : '') + '<br>' + esc(l.t) +
                     (l.e !== 'calles' ? '<br><span style="color:#92400e;font-size:12px">≈ Trazo aproximado' + (l.n ? ': ' + esc(l.n) : '') + '. Revíselo en campo.</span>' : '') + '</div>';
                 l.g.forEach(function (tramo) {
-                    L.polyline(tramo, { pane: 'guia', color: '#fff', weight: 9, opacity: 0.85, interactive: false }).addTo(capaGuia);
-                    L.polyline(tramo, { pane: 'guia', color: color, weight: 5, opacity: toca || guiaPref.hoy ? 0.95 : 0.55, dashArray: l.e !== 'calles' ? '8 7' : null })
+                    L.polyline(tramo, { pane: 'guia', renderer: rendGuia, color: '#fff', weight: 9, opacity: 0.85, interactive: false }).addTo(capaGuia);
+                    L.polyline(tramo, { pane: 'guia', renderer: rendGuia, color: color, weight: 5, opacity: toca || guiaPref.hoy ? 0.95 : 0.55, dashArray: l.e !== 'calles' ? '8 7' : null })
                         .bindTooltip('Zona ' + esc(l.z) + ' · ' + esc(l.t), { sticky: true }).bindPopup(ficha, { maxWidth: 300 }).addTo(capaGuia);
                 });
             });
