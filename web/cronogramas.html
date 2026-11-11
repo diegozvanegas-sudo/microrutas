@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Cronogramas</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🗓️</span>
+        <div class="nombre"><h1>Cronogramas</h1><div class="lema">Recorridos y frecuencias por zona, con su guía en el mapa</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" aria-current="page" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar cronogramas</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="crono">
+    <div id="estado" class="crono-estado">Cargando…</div>
+
+    <section class="panel crono-panel" id="crono-filtros" hidden>
+        <div class="crono-cab">
+            <label class="crono-elegir">CRONOGRAMA <select id="c-cual" aria-label="Cronograma"></select></label>
+            <input type="search" id="c-buscar" placeholder="Buscar vía, sector o zona" aria-label="Buscar en el cronograma" autocomplete="off">
+        </div>
+        <div class="crono-dias" id="c-dias" role="group" aria-label="Día"></div>
+        <div class="crono-resumen" id="c-resumen"></div>
+        <div class="crono-acciones">
+            <button type="button" class="secundario" id="c-copiar" title="Copiar lo que toca el día elegido, para pegarlo en WhatsApp">📋 Copiar para WhatsApp</button>
+            <a class="boton primario" id="c-mapa" href="mapa_rapido.html?guia=1" title="Abrir el mapa con los corredores del cronograma">🗺️ Ver la guía en el mapa</a>
+        </div>
+    </section>
+
+    <section class="panel crono-panel" id="crono-tabla" hidden>
+        <h2 id="c-titulo"></h2>
+        <div class="crono-zonas" id="c-zonas"></div>
+    </section>
+
+    <section class="panel crono-panel" id="crono-directrices" hidden>
+        <h2>📌 Directrices y condiciones generales del servicio</h2>
+        <ul class="crono-dir" id="c-directrices"></ul>
+    </section>
+
+    <p class="nota-privada">🔒 El cronograma sale de documentos del contrato y solo se ve con sesión y permiso. Al abrir esta página, los corredores quedan guardados en este equipo para que el mapa muestre la guía; al salir de la sesión se borran.</p>
+</main>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/cronogramas/main.js"></script>
+</body>
+</html>

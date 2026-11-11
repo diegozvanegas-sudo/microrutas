@@ -2,6 +2,7 @@
 // en public.convenio_secciones, cada uno con su código:
 //   GUIA-CAMPO      ← datos/contrato/guia_campo.json       (guía de revisión en campo, página Contrato)
 //   REQ-PLANTILLAS  ← datos/contrato/requerimientos.json   (plantillas, ANS y datos fijos de requerimiento.html)
+//   CRONOGRAMAS     ← datos/contrato/cronogramas.json      (recorridos por zona de cronogramas.html; trazos con web/tools/generar_cronograma.mjs)
 // Solo toca las filas de esos documentos: los convenios y el PPSA quedan como están. No aplica migraciones
 // (la tabla es de 0014_convenios.sql). Se carga cada archivo que exista.
 // Uso: npm run guia                 (carga)
@@ -13,6 +14,7 @@ import { conectar } from './db.mjs';
 const DOCS = [
   { doc: 'GUIA-CAMPO', archivo: 'guia_campo.json', icono: '🧭', prefijo: 'Guía actualizada el ' },
   { doc: 'REQ-PLANTILLAS', archivo: 'requerimientos.json', icono: '📨', prefijo: 'Plantillas actualizadas el ' },
+  { doc: 'CRONOGRAMAS', archivo: 'cronogramas.json', icono: '🗓️', prefijo: 'Cronogramas actualizados el ' },
 ];
 const TIPOS = ['lista', 'cifras', 'tabla', 'alerta', 'chequeo', 'pasos', 'plantilla', 'config'];
 const soloDoc = (() => { const i = process.argv.indexOf('--doc'); return i !== -1 ? process.argv[i + 1] : ''; })();

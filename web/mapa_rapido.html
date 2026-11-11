@@ -1198,6 +1198,42 @@
         hoja.addEventListener('pointercancel', soltar);
     });
 
+    // ---------- Guía de recorridos (cronogramas.html) ----------
+    // Los corredores son privados: no vienen en data/, los guarda cronogramas.html en este equipo ('crono_guia') al abrirla con
+    // sesión y permiso de contrato. Sin eso el grupo no aparece. Se prende y se apaga por cronograma; «Solo hoy» deja los del día.
+    var GUIA = leer('crono_guia', null), guiaPref = leer('rapido_guia', { on: [], hoy: false, dia: null }), capaGuia = null;
+    var COLOR_ZONA_GUIA = { 1: '#ea580c', 2: '#2563eb', 3: '#9333ea', 4: '#ca8a04', 5: '#0891b2', 6: '#16a34a', 7: '#be123c' };
+    var DIAS_GUIA = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
+    var guias = GUIA && Array.isArray(GUIA.cronogramas) ? GUIA.cronogramas : [];
+    function diaGuia() { return guiaPref.dia != null ? guiaPref.dia : new Date().getDay(); }
+    function pintarGuia(encuadrar) {
+        if (capaGuia) { map.removeLayer(capaGuia); capaGuia = null; }
+        var on = guias.filter(function (g) { return guiaPref.on.indexOf(g.id) !== -1; });
+        if (!on.length) return 0;
+        if (!map.getPane('guia')) map.createPane('guia').style.zIndex = 420;
+        capaGuia = L.featureGroup();
+        var n = 0, d = diaGuia();
+        on.forEach(function (g) {
+            g.lineas.forEach(function (l) {
+                var toca = (l.d || []).indexOf(d) !== -1;
+                if (guiaPref.hoy && !toca) return;
+                n++;
+                var color = COLOR_ZONA_GUIA[l.z] || '#475569';
+                var ficha = '<div><b>' + esc((g.icono ? g.icono + ' ' : '') + g.titulo) + '</b><br><b style="color:' + color + '">Zona ' + esc(l.z) + '</b> · ' + esc(l.f) +
+                    (toca ? ' · <b>toca el ' + DIAS_GUIA[d] + '</b>' : '') + '<br>' + esc(l.t) +
+                    (l.e !== 'calles' ? '<br><span style="color:#92400e;font-size:12px">≈ Trazo aproximado' + (l.n ? ': ' + esc(l.n) : '') + '. Revíselo en campo.</span>' : '') + '</div>';
+                l.g.forEach(function (tramo) {
+                    L.polyline(tramo, { pane: 'guia', color: '#fff', weight: 9, opacity: 0.85, interactive: false }).addTo(capaGuia);
+                    L.polyline(tramo, { pane: 'guia', color: color, weight: 5, opacity: toca || guiaPref.hoy ? 0.95 : 0.55, dashArray: l.e !== 'calles' ? '8 7' : null })
+                        .bindTooltip('Zona ' + esc(l.z) + ' · ' + esc(l.t), { sticky: true }).bindPopup(ficha, { maxWidth: 300 }).addTo(capaGuia);
+                });
+            });
+        });
+        capaGuia.addTo(map);
+        if (encuadrar && n) map.fitBounds(capaGuia.getBounds(), { padding: [20, 20] });
+        return n;
+    }
+
     // Secciones de la hoja de capas (celular): cada una se contrae tocando su título, que dice lo que tiene puesto.
     // En el computador el título no se ve y los botones siguen en la barra (antes: el separador o la etiqueta "antes").
     var plegadas = leer('rapido_secciones', { capas: true });
@@ -1230,6 +1266,13 @@
                 '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>') +
             seccion('capas', 'Capas', puestas(ksOtras).join(', ') || 'ninguna', '<span class="separador"></span>', ksOtras.map(capaChip).join('')) +
             seccion('rutas', 'Microrrutas', puestas(ksRuta).join(', ') || 'ninguna', '<span class="separador"></span>', ksRuta.map(capaChip).join('')) +
+            (guias.length ? seccion('guia', '🗓️ Guía de recorridos', guias.filter(function (g) { return guiaPref.on.indexOf(g.id) !== -1; }).map(function (g) { return g.titulo.split(' · ')[0]; })
+                .concat(guiaPref.hoy ? ['solo el ' + DIAS_GUIA[diaGuia()]] : []).join(', ') || 'apagada', '<span class="separador"></span>',
+                guias.map(function (g) {
+                    return '<button type="button" class="chip capa" data-guia="' + esc(g.id) + '" aria-pressed="' + (guiaPref.on.indexOf(g.id) !== -1) + '" title="Corredores de ' + esc(g.titulo) + ' (guardados en este equipo desde Cronogramas)">' +
+                        esc((g.icono ? g.icono + ' ' : '') + g.titulo.split(' · ')[0]) + '</button>';
+                }).join('') +
+                '<button type="button" class="chip capa" data-guia-hoy aria-pressed="' + !!guiaPref.hoy + '" title="Mostrar solo los corredores que tocan ese día">📅 Solo el ' + DIAS_GUIA[diaGuia()] + '</button>') : '') +
             // Con alguna capa de rutas puesta: filtro por zona (Z1, Z2...) y por jornada; sin ninguno marcado salen todas
             (puestas(ksRuta).length ?
                 seccion('filtro', 'Filtrar rutas por zona y jornada', filtroTxt.join(', ') || 'todas', '<span class="salto"></span><span class="et-grupo">Rutas por zona y jornada:</span>',
@@ -1309,6 +1352,16 @@
             guardar('rapido_capas', capasActivas);
             mostrarCapa(k, j === -1);
             pintarChips();
+        }
+        if (b.dataset.guia || b.hasAttribute('data-guia-hoy')) {
+            if (b.dataset.guia) {
+                var gi = guiaPref.on.indexOf(b.dataset.guia);
+                if (gi === -1) guiaPref.on.push(b.dataset.guia); else guiaPref.on.splice(gi, 1);
+            } else guiaPref.hoy = !guiaPref.hoy;
+            guardar('rapido_guia', guiaPref);
+            var ng = pintarGuia(!!b.dataset.guia && guiaPref.on.indexOf(b.dataset.guia) !== -1);
+            pintarChips();
+            return toast(guiaPref.on.length ? 'Guía de recorridos: ' + ng + (ng === 1 ? ' corredor' : ' corredores') + (guiaPref.hoy ? ' del ' + DIAS_GUIA[diaGuia()] : '') : 'Guía de recorridos apagada');
         }
         if (b.dataset.fzona || b.dataset.fjor) {
             var lista = b.dataset.fzona ? filtroRutas.z : filtroRutas.j, v = b.dataset.fzona || b.dataset.fjor, i2 = lista.indexOf(v);
@@ -1839,6 +1892,20 @@
     // Al abrir no se encuadran todas las cuadrillas guardadas (alejaba el mapa a todo el valle); solo si vienen en el enlace (?c=)
     mostrarCuadrillas(!!q.get('c') && !q.get('lote') && !q.get('mr'));
     capasActivas.forEach(function (k) { mostrarCapa(k, true); });
+    // ?guia=llantas&dia=1 (desde cronogramas.html): prende esa guía, para ese día (sin día: hoy) y la encuadra
+    var guiaUrl = q.get('guia');
+    guiaPref.on = guiaPref.on.filter(function (id) { return guias.some(function (g) { return g.id === id; }); });
+    if (guiaUrl) {
+        if (!guias.length) toast('La guía no está en este equipo: abra Cronogramas con su sesión y vuelva a intentarlo.');
+        else {
+            if (guiaUrl !== '1' && guias.some(function (g) { return g.id === guiaUrl; }) && guiaPref.on.indexOf(guiaUrl) === -1) guiaPref.on.push(guiaUrl);
+            if (guiaUrl === '1' && !guiaPref.on.length) guiaPref.on = guias.map(function (g) { return g.id; });
+            guiaPref.dia = q.has('dia') && /^[0-6]$/.test(q.get('dia')) ? +q.get('dia') : null;
+            guiaPref.hoy = q.has('dia');
+            guardar('rapido_guia', guiaPref);
+        }
+    } else if (guiaPref.dia != null) { guiaPref.dia = null; guardar('rapido_guia', guiaPref); }   // el día elegido vale solo para ese enlace
+    if (guias.length) { pintarGuia(!!guiaUrl && !q.get('lote') && !q.get('mr')); pintarChips(); }
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
     var llUrl = q.get('ll') && window.leerCoordenadas(q.get('ll'));
     if (llUrl) ubicarPunto(llUrl);

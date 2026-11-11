@@ -1,0 +1,40 @@
+/* cronogramas.html (usa también los estilos generales de subsanaciones) */
+main.crono { max-width: 1100px; margin: 0 auto; padding: 14px 16px 40px; }
+.crono-estado { margin: 12px 0; padding: 14px 16px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; line-height: 1.5; }
+.crono-estado[hidden], .crono-panel[hidden] { display: none; }
+.crono-panel { padding: 16px 18px; margin-bottom: 14px; }
+.crono-panel h2 { margin: 0 0 12px; font-size: 17px; }
+.crono-cab { display: flex; flex-wrap: wrap; gap: 10px; align-items: flex-end; margin-bottom: 12px; }
+.crono-elegir { display: flex; flex-direction: column; gap: 5px; font-size: 12px; font-weight: 700; color: var(--muted); flex: 1 1 260px; min-width: 0; }
+.crono-elegir[hidden] { display: none; }
+.crono-elegir select { min-height: 38px; font-size: 14px; color: var(--ink); }
+.crono-cab input[type="search"] { flex: 1 1 220px; min-width: 0; min-height: 38px; padding: 7px 12px; border: 1px solid var(--line); border-radius: 10px; font: inherit; font-size: 14px; background: #fff; color: var(--ink); }
+.crono-dias { display: flex; flex-wrap: wrap; gap: 6px; }
+.crono-dia { min-height: 38px; padding: 4px 12px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; }
+.crono-dia:hover { border-color: #9fd3bd; }
+.crono-dia[aria-pressed="true"] { border-color: var(--brand); background: #edf8f3; color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.crono-n { display: inline-block; min-width: 18px; padding: 0 5px; border-radius: 999px; background: #e2e8f0; color: #334155; font-size: 11.5px; font-weight: 700; text-align: center; }
+.crono-dia[aria-pressed="true"] .crono-n { background: var(--brand); color: #fff; }
+.crono-resumen { margin: 12px 0 0; line-height: 1.5; }
+.crono-acciones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.crono-acciones > * { min-height: 40px; }
+.crono-zonas { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 10px; }
+.crono-zona { border: 1px solid var(--line); border-left: 5px solid var(--zona); border-radius: 10px; padding: 10px 12px; background: #fff; min-width: 0; }
+.crono-zona-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 10px; margin-bottom: 6px; }
+.crono-zona-cab b { color: var(--zona); font-size: 15px; }
+.crono-zona-cab span { font-size: 13px; font-weight: 650; color: var(--muted); }
+.crono-zona ul { margin: 0; padding-left: 18px; display: grid; gap: 6px; }
+.crono-zona li { line-height: 1.4; }
+.crono-zona li > span:first-child { margin-right: 6px; }
+.crono-ins { display: inline-block; padding: 0 8px; border-radius: 999px; font-size: 11.5px; font-weight: 700; white-space: nowrap; cursor: help; }
+.crono-ins.ok { background: #dcfce7; color: #166534; }
+.crono-ins.aprox { background: #fef3c7; color: #92400e; }
+.crono-ins.sin { background: #f1f5f9; color: #475569; }
+.crono-dir { margin: 0; padding-left: 18px; display: grid; gap: 8px; line-height: 1.5; }
+@media (max-width: 640px) {
+    .crono-dia { padding: 4px 10px; }
+    main.crono { padding: 10px 10px 40px; }
+    .crono-panel { padding: 14px; }
+    .crono-zonas { grid-template-columns: 1fr; }
+    .crono-acciones > * { flex: 1 1 100%; text-align: center; }
+}
