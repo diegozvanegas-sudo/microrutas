@@ -377,3 +377,18 @@ test('PQR: sin dirección ni contacto, aviso de seguimiento sin cierre', () => {
     assert.doesNotMatch(completa.texto, /favor dar cierre|monitoreo permanente/);
     assert.match(armarRespuestas({ id: '442733 y 442734', resultado: 'sindireccion' })[1].texto, /los ID 442733 y 442734 no presentan dirección/);
 });
+
+test('PQR: residuos de una poda de árboles se remiten al contratista de poda', () => {
+    // Queja real (443157): material de una poda acumulado en la zona verde
+    const queja = 'HACE 8 DÍAS REALIZARON UNA PODA EN EL SECTOR Y EL MATERIAL VEGETAL SE ENCUENTRA ACUMULADO EN LA ZONA VERDE. HAY 5 MONTONES DE RESIDUOS.';
+    const temas = temasDeQueja(queja).map(t => t.id);
+    assert.ok(temas.includes('residuospoda'));
+    assert.equal(temasDeQueja('Solicito la poda del árbol de la esquina').some(t => t.id === 'residuospoda'), false);
+    const r = armarRespuestas({ id: '443157', resultado: 'residuospoda', direccion: 'CL 81 CR68', barrio: 'Córdoba', fechaVisita: '2026-11-11', hora: 15 });
+    assert.deepEqual(r.map(x => x.titulo), ['Completa', 'Breve']);
+    assert.match(r[0].texto, /^Buenas tardes, favor dar cierre al ID 443157\.\n\n/);
+    assert.match(r[0].texto, /11 de noviembre de 2026 se realizó verificación en la dirección de su solicitud \(CL 81 CR68, Córdoba\)/);
+    assert.match(r[0].texto, /provienen de la poda de árboles[\s\S]*DVB Ingeniería S\.A\.S\.[\s\S]*se remite al contratista de poda/);
+    assert.doesNotMatch(r[0].texto, /monitoreo permanente/);
+    assert.match(r[1].texto, /se remite al contratista de poda/);
+});

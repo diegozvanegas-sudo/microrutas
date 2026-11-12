@@ -103,6 +103,9 @@ export var TEMAS = [
       clausula: /quincenal|programaci[oó]n es/i },
     { id: 'arboles', titulo: 'Árboles, jardines o plantas', queja: /[aá]rbol|planta|jard[ií]n|matas|flores|ornato|sembr/i,
       clausula: /[aá]rboles|plateo|ornato|jardiner/i, sugerencia: 'jardin' },
+    // Lo que dejó una poda de árboles (ramas, montones): va antes de «poda», que es pedir que poden
+    { id: 'residuospoda', titulo: 'Residuos de una poda de árboles', queja: /\b(pod(a|aron)|talaron)\b[\s\S]*(residuo|material|ramas|mont[oó]n|acumulad|recog)|(residuo|material|ramas|mont[oó]n|acumulad|recog)[\s\S]*\b(pod(a|aron)|talaron)\b/i,
+      clausula: /[aá]rboles/i, sugerencia: 'residuospoda' },
     { id: 'poda', titulo: 'Poda o tala de árboles', queja: /\bpod(a|ar|en)\b|\btala(r|n)?\b|cortar (el|los|un) [aá]rbol/i,
       clausula: /[aá]rboles/i, sugerencia: 'arbol' },
     { id: 'agua', titulo: 'Quebrada, río o canal', queja: /quebrada|\br[ií]o\b|caño|canal|retiro/i, clausula: /quebradas/i, sugerencia: 'ambiental' },
@@ -486,6 +489,14 @@ var CASOS = {
             informar(c, p);
             b.push(c.enVisita + 'se verificó que los residuos vegetales en ' + c.laDir + ' no son de la operación de corte de césped; su gestión corresponde a la Secretaría de Infraestructura Física.');
         } },
+    // Ramas o material de una poda de árboles: no es del corte de césped; se remite al contratista de poda para que lo recoja
+    residuospoda: { titulo: 'Residuos de poda (remitir a poda)', seguimiento: false, armar: function (c, p, b) {
+        p.push(c.marco + ', se informa que ' + c.elDia + 'se realizó verificación ' + c.enDir + ' y se evidenció que los residuos vegetales acumulados provienen de la poda de árboles, ' +
+            'actividad que no hace parte del componente de corte de césped de EMVARIAS S.A. E.S.P.');
+        p.push('EMVARIAS realiza la poda de árboles a través del contratista DVB Ingeniería S.A.S.; por lo tanto, la solicitud se remite al contratista de poda para que realice la recolección de los residuos en el sector.');
+        informar(c, p);
+        b.push(c.enVisita + 'se verificó que los residuos vegetales en ' + c.laDir + ' provienen de la poda de árboles, no del corte de césped; se remite al contratista de poda (DVB Ingeniería S.A.S.) para su recolección.');
+    } },
     contingencia: { titulo: 'Contingencia: sin contrato vigente', seguimiento: false,
         oficial: function () {
             return 'El área referida en su solicitud hace parte de la base de datos de corte de césped aprobada por el Distrito de Medellín. Actualmente, se encuentra en verificación el sector para establecer el cronograma y frecuencia eficiente del servicio con el fin de dar cumplimiento al Decreto 1077 de 2015 en Fenómeno Niño y Niña y así garantizar optimización en los recorridos de la operación en el marco de la tarifa pública de aseo. Nos estaremos comunicando con usted a través de los medios de contacto que usted aprobó, cuando se identifique la nueva frecuencia del servicio.';

@@ -18,7 +18,7 @@ function fechaLocal(t) {
 }
 
 // Resultados de la visita que son una novedad del servicio (queja) y no una solicitud de corte
-var NOVEDAD = { residuos: 1, sinresiduos: 1, incompleto: 1, calidad: 1, metodo: 1, subsanado: 1, parcial: 1, danos: 1, terceros: 1, seguimientopqr: 1, escombros: 1 };
+var NOVEDAD = { residuos: 1, sinresiduos: 1, incompleto: 1, calidad: 1, metodo: 1, subsanado: 1, parcial: 1, danos: 1, terceros: 1, seguimientopqr: 1, escombros: 1, residuospoda: 1 };
 // La queja misma dice que es una queja (y no una solicitud de corte)
 var DICE_QUEJA = /\bqueja\b|inconform|reclam|mal (hecho|cortad|realizad)|a medias|dejaron|no (lo |la |los |las )?(cortaron|hicieron|recogieron|terminaron|han (cortado|podado|recogido|venido|vuelto))|hace (meses|mucho|rato|tiempo)|residuo|basura|da[ñn]o|golpe|rompi/i;
 
@@ -45,6 +45,7 @@ var DESCRIPCION = {
     parcial: 'Novedad por falencias en el servicio de corte de césped',
     terceros: 'Novedad por cerramiento o intervención de terceros en el área',
     arbol: 'Solicitud de poda de árboles',
+    residuospoda: 'Novedad por residuos de poda de árboles',
     jardin: 'Solicitud de jardinería u ornato',
     zonadura: 'Solicitud de retiro de maleza en zona dura',
 };
@@ -76,6 +77,7 @@ var PROCEDE = {
     zonadura: NO_ALCANCE + ' (maleza en zona dura)',
     arbol: 'No, la poda de árboles no hace parte del contrato de corte de césped; se traslada al contratista de poda',
     escombros: 'No, son residuos no vegetales; se traslada la novedad al componente de recolección',
+    residuospoda: 'No, los residuos son de la poda de árboles y no del corte de césped; se remite al contratista de poda para su recolección',
     pendiente: SI_BASE + ' y se interviene según la programación',
     lluvia: SI_BASE + '; la programación se retrasó por las lluvias',
     restriccion: SI_BASE + '; la intervención queda sujeta a que se levante la restricción de acceso',
