@@ -4,9 +4,10 @@ import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegis
 import { $, toast, aviso, confirmar } from './ui.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
-import { textoVisita, FORMATOS_VISITA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
+import { textoVisita, FORMATOS_VISITA, FORMATOS_DIA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
+import { textoSupervisores } from './supervisores.js';
 import { exportarExcel, hojasExcel, htmlHoja, filasParaCopiar } from './excel.js';
 import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
 import { BUENAS, buscarBuenas, mensaje as mensajeBuena, mensajeVarios } from './buenaoperacion.js';
@@ -417,9 +418,8 @@ export function iniciar(api, CFG) {
         if (!lista.length) return toast(elegido ? 'El ' + dia + ' no hay visitas registradas.' : 'Hoy (' + dia + ') aún no hay visitas registradas.');
         // Con novedades: el formato de interventoría (NOVEDADES POSOPERACION + requerimientos); sin novedades, el conteo del día
         var novedades = textoNovedadesDia(lista, dia, menciones());
-        $('wa-texto').value = novedades || textoDia(lista, dia);
-        actualizarEnlaceWa();
-        $('dlg-wa').showModal();
+        if (novedades) mostrarWaDia(lista, dia);
+        else { $('wa-texto').value = textoDia(lista, dia); actualizarEnlaceWa(); $('dlg-wa').showModal(); }
         toast(novedades ? 'Novedades del ' + dia + '. Escriba la @mención debajo de "Cuadrilla" una vez y queda recordada.' : 'El ' + dia + ' no quedaron novedades: ' + lista.length + (lista.length === 1 ? ' visita' : ' visitas') + ' en el resumen.');
     };
     // Cumplimiento por cuadrilla contra la frecuencia de cada lote: en el mes elegido y al día de hoy
@@ -488,6 +488,20 @@ export function iniciar(api, CFG) {
         $('dlg-venc').showModal();
     };
     $('venc-cerrar').onclick = function () { $('dlg-venc').close(); };
+    // Plazos para los supervisores (supervisores.js): todo lo pendiente con plazo, por cuadrilla y urgencia, listo para
+    // copiar en WhatsApp. No usa el filtro de fecha ni el de estado: lo pendiente de días anteriores también cuenta
+    $('btn-sup').onclick = function () {
+        var zona = $('f-zona').value, cuad = $('f-cuadrilla').value, tipo = $('f-tipo').value;
+        var lista = registros.filter(function (r) {
+            return filtroUsuario(r) && (!tipo || r.TIPO === tipo) && (!zona || String(r.ZONA).trim() === zona) && (!cuad || String(r.CUADRILLA).trim() === cuad);
+        });
+        var texto = textoSupervisores(lista, hoy(), menciones());
+        if (!texto) return toast('No hay novedades pendientes con plazo' + (zona || cuad || tipo ? ' con la zona, cuadrilla o tipo elegidos.' : '.'));
+        $('wa-texto').value = texto;
+        actualizarEnlaceWa();
+        $('dlg-wa').showModal();
+        toast('Plazos al ' + aTexto(hoy()) + (cuad ? ' de la cuadrilla ' + cuad : ' de todas las cuadrillas') + '. Revise y copie para WhatsApp.');
+    };
     $('venc-wa').onclick = function () {
         if (!ultimoVenc) return;
         $('dlg-venc').close();
@@ -511,36 +525,52 @@ export function iniciar(api, CFG) {
         abrirProgramar({ texto: texto, origen: 'Subsanaciones', avisar: toast });
     };
     function actualizarEnlaceWa() { $('wa-abrir').href = 'https://wa.me/?text=' + encodeURIComponent($('wa-texto').value); }
-    // Mensaje de una visita: se elige el formato y si va el plazo (preferencias del equipo). Los demás resúmenes que usan
-    // esta ventana no muestran estas opciones
-    var waVisita = null, PREF_WA = 'subsanaciones_wa_formato';
-    function prefWa() { try { return JSON.parse(localStorage.getItem(PREF_WA)) || {}; } catch (e) { return {}; } }
-    $('wa-formato').innerHTML = Object.keys(FORMATOS_VISITA).map(function (k) { return '<option value="' + k + '">' + esc(FORMATOS_VISITA[k]) + '</option>'; }).join('');
-    function pintarWaVisita() {
-        var cuad = String(waVisita.CUADRILLA || '').trim().replace(/^C\s*/i, '');
-        $('wa-texto').value = textoVisita(waVisita, { formato: $('wa-formato').value, plazo: $('wa-plazo').checked, mencion: menciones()[cuad] || '' });
+    // Mensaje de una visita y resumen del día: se elige el formato y si va el plazo (preferencias del equipo, cada uno
+    // con las suyas). Los demás resúmenes que usan esta ventana no muestran estas opciones
+    // waModo: { tipo: 'visita', r } o { tipo: 'dia', lista, dia }
+    var waModo = null, PREF_WA = { visita: 'subsanaciones_wa_formato', dia: 'subsanaciones_wa_formato_dia' };
+    var FORMATOS_WA = { visita: FORMATOS_VISITA, dia: FORMATOS_DIA }, FORMATO_INICIAL = { visita: 'corto', dia: 'formal' };
+    function prefWa(tipo) { try { return JSON.parse(localStorage.getItem(PREF_WA[tipo])) || {}; } catch (e) { return {}; } }
+    function pintarWa() {
+        var o = { formato: $('wa-formato').value, plazo: $('wa-plazo').checked };
+        if (waModo.tipo === 'visita') {
+            var cuad = String(waModo.r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
+            o.mencion = menciones()[cuad] || '';
+            $('wa-texto').value = textoVisita(waModo.r, o);
+        } else {
+            // «Conteo» no lleva plazos: la casilla se apaga mientras esté elegido
+            $('wa-plazo').disabled = o.formato === 'conteo';
+            $('wa-texto').value = o.formato === 'conteo' ? textoDia(waModo.lista, waModo.dia) : textoNovedadesDia(waModo.lista, waModo.dia, menciones(), o);
+        }
         actualizarEnlaceWa();
     }
-    function mostrarWhatsapp(r) {
-        var p = prefWa();
-        waVisita = r;
-        $('wa-formato').value = FORMATOS_VISITA[p.formato] ? p.formato : 'corto';
+    function abrirWaConFormatos(modo) {
+        var formatos = FORMATOS_WA[modo.tipo], p = prefWa(modo.tipo);
+        waModo = modo;
+        $('wa-formato').innerHTML = Object.keys(formatos).map(function (k) { return '<option value="' + k + '">' + esc(formatos[k]) + '</option>'; }).join('');
+        $('wa-formato').value = formatos[p.formato] ? p.formato : FORMATO_INICIAL[modo.tipo];
         $('wa-plazo').checked = p.plazo !== false;
+        $('wa-plazo').disabled = false;
         $('wa-formatos').hidden = false;
         $('wa-ayuda').textContent = 'Puede ajustar el texto antes de copiarlo. Si cambia el formato o el plazo, el texto se vuelve a armar.';
-        pintarWaVisita();
+        pintarWa();
         $('dlg-wa').showModal();
     }
+    function mostrarWhatsapp(r) { abrirWaConFormatos({ tipo: 'visita', r: r }); }
+    function mostrarWaDia(lista, dia) { abrirWaConFormatos({ tipo: 'dia', lista: lista, dia: dia }); }
     function cambioWa() {
-        if (!waVisita) return;
-        try { localStorage.setItem(PREF_WA, JSON.stringify({ formato: $('wa-formato').value, plazo: $('wa-plazo').checked })); } catch (e) {}
-        pintarWaVisita();
+        if (!waModo) return;
+        try { localStorage.setItem(PREF_WA[waModo.tipo], JSON.stringify({ formato: $('wa-formato').value, plazo: $('wa-plazo').checked })); } catch (e) {}
+        // Antes de rearmar, se guardan las @menciones que se hayan escrito a mano
+        recordarMenciones();
+        pintarWa();
     }
     $('wa-formato').addEventListener('change', cambioWa);
     $('wa-plazo').addEventListener('change', cambioWa);
     // Al cerrar se esconden las opciones: la ventana la usan también los otros resúmenes
     $('dlg-wa').addEventListener('close', function () {
-        waVisita = null;
+        waModo = null;
+        $('wa-plazo').disabled = false;
         $('wa-formatos').hidden = true;
         $('wa-ayuda').textContent = 'Puede ajustar el texto antes de copiarlo.';
     });

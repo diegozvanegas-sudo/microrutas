@@ -74,8 +74,19 @@ export var REQUERIMIENTOS = 'REQUERIMIENTOS:\n\n' +
     'como incumplimiento de las obligaciones establecidas en el contrato y habilitará a la gestoría del contrato para hacer efectivos los descuentos ' +
     'o imposición de medidas coercitivas que el contrato establece, garantizando en todo caso el debido proceso y derecho a la contradicción; ' +
     'de acuerdo con lo establecido en las Condiciones Particulares del proceso contractual.';
-export function textoNovedadesDia(lista, dia, menciones) {
-    var h = new Date().getHours();
+// Formatos del resumen del día (misma ventana, mismo selector que el de una visita). «conteo» lo arma textoDia
+export var FORMATOS_DIA = {
+    formal: 'Formal: novedades y requerimientos',
+    corto: 'Corto: solo las novedades',
+    requerimiento: 'Solicitud formal de subsanación',
+    reiteracion: 'Reiteración: siguen sin subsanar',
+    conteo: 'Conteo de lotes revisados',
+};
+// o: { formato (FORMATOS_DIA, menos conteo), plazo (false = sin el plazo de cada novedad), hora (para probar el saludo) }
+export function textoNovedadesDia(lista, dia, menciones, o) {
+    o = o || {};
+    var h = o.hora != null ? o.hora : new Date().getHours(), conP = o.plazo !== false;
+    var formato = FORMATOS_DIA[o.formato] && o.formato !== 'conteo' ? o.formato : 'formal';
     var saludo = h < 12 ? '¡Buenos días!' : h < 19 ? '¡Buenas tardes!' : '¡Buenas noches!';
     var grupos = {}, orden = [];
     lista.filter(function (r) { return r.ESTADO === 'PENDIENTE' || (esOp(r) && itemsEnNo(r).length); }).sort(porHora).forEach(function (r) {
@@ -91,11 +102,27 @@ export function textoNovedadesDia(lista, dia, menciones) {
         var cab = ['NOVEDADES ' + (g.op ? 'EN OPERACION' : 'POSOPERACION'), 'Fecha: ' + dia]
             .concat(g.cuad ? ['Cuadrilla: ' + g.cuad] : []).concat(m ? [m] : []).join('\n');
         var lotes = g.rs.map(function (r) {
-            return (r.MICRORRUTA || '') + (r.LOTE && r.LOTE !== 'NA' ? ' (' + r.LOTE + ')' : '') + ':\n\n' + lineasNovedad(r).join('\n');
+            return (r.MICRORRUTA || '') + (r.LOTE && r.LOTE !== 'NA' ? ' (' + r.LOTE + ')' : '') + ':\n\n' + lineasNovedad(r, conP).join('\n');
         });
         return cab + '\n\n' + lotes.join('\n\n');
     });
-    return saludo + '\n\n' + bloques.join('\n\n\n') + '\n\n\n' + REQUERIMIENTOS;
+    var cuerpo = bloques.join('\n\n\n');
+    if (formato === 'corto') return saludo + '\n\n' + cuerpo;
+    if (formato === 'requerimiento') {
+        return saludo + '\n\nSOLICITUD DE SUBSANACIÓN\n\n' +
+            'En las visitas de verificación realizadas el ' + dia + ' se evidenciaron las siguientes novedades:\n\n' + cuerpo + '\n\n' +
+            'Se solicita realizar la subsanación correspondiente ' + (conP ? 'dentro del plazo indicado para cada novedad' : 'a la mayor brevedad') +
+            ' y remitir el registro fotográfico que la soporte, citando el número de la microrruta.\n\n' +
+            'Quedamos atentos.\nInterventoría del Área de Servicios de Aseo';
+    }
+    if (formato === 'reiteracion') {
+        return saludo + '\n\nREITERACIÓN DE NOVEDADES\n\n' +
+            'Se reiteran las novedades reportadas el ' + dia + ', las cuales a la fecha continúan sin subsanar:\n\n' + cuerpo + '\n\n' +
+            'Se solicita atenderlas de manera prioritaria y enviar el registro fotográfico de la corrección. De no subsanarse' +
+            (conP ? ' dentro del plazo establecido' : '') + ', se procederá con el descuento correspondiente en la factura, conforme a lo establecido en el contrato.\n\n' +
+            'Quedamos atentos.\nInterventoría del Área de Servicios de Aseo';
+    }
+    return saludo + '\n\n' + cuerpo + '\n\n\n' + REQUERIMIENTOS;
 }
 // Lee las menciones escritas a mano debajo de "Cuadrilla: N" para recordarlas la próxima vez
 export function leerMenciones(texto) {
@@ -138,12 +165,13 @@ export function textoDia(lista, dia) {
 
 // Resumen de todas las novedades pendientes de lo filtrado, por tipo y cuadrilla:
 // "Novedades posoperación cuadrilla 4 \n\n Z1CC0096 lote 106 \n * No realizado"
-function lineasNovedad(r) {
+// plazo === false: sin el «(Plazo: …)» de cada novedad (opción del resumen del día)
+function lineasNovedad(r, plazo) {
     var obs = String(r['OBSERVACIONES NOVEDADES'] || '').trim();
-    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '* ' + conPlazo(frase(i), r); });
+    var lineas = norm(obs).indexOf(NO_REALIZADO) !== -1 ? [] : itemsEnNo(r).map(function (i) { return '* ' + (plazo === false ? frase(i) : conPlazo(frase(i), r)); });
     // "LOTE NO REALIZADO" queda "* No realizado" (el lote ya va en el renglón de arriba); el plazo se mira con el texto original
     if (obs && norm(obs) !== 'SIN NOVEDAD') {
-        var p = plazoNovedad(obs, esOp(r)), t = frase(obs.replace(/^lote\s+(?=no realizado)/i, '')).replace(/\.$/, '');
+        var p = plazo === false ? '' : plazoNovedad(obs, esOp(r)), t = frase(obs.replace(/^lote\s+(?=no realizado)/i, '')).replace(/\.$/, '');
         lineas.push('* ' + (p ? t + ' (' + p + ')' : t));
     }
     return lineas;
