@@ -113,6 +113,8 @@ export function procedePqr(p) {
 export function resueltaPqr(p) {
     var r = (p.visita || {}).resultado;
     if (p.estado === 'trasladado') return 'PARCIAL';
+    // Remitido a poda: se le dio cierre con la respuesta
+    if (p.estado === 'trasladopoda') return 'SI';
     if (p.estado !== 'respondido') return '';
     return r === 'parcial' || r === 'seguimientopqr' ? 'PARCIAL' : 'SI';
 }
@@ -123,7 +125,7 @@ export function fechaRecepcion(p) { return fechaLocal(p.creado) || p.fecha_pqr |
 export function fechaAtencion(p) {
     var v = p.visita || {};
     if (v.fechaCierre) return v.fechaCierre;
-    return p.estado === 'respondido' || p.estado === 'trasladado' ? fechaLocal(p.actualizado) : '';
+    return p.estado === 'respondido' || p.estado === 'trasladado' || p.estado === 'trasladopoda' ? fechaLocal(p.actualizado) : '';
 }
 
 var CAB = ['INSPECTOR', 'ID PQRS', 'FECHA PQRS', 'ZONA', 'CUADRILLA', 'FECHA RECEPCIÓN', 'FECHA ATENCIÓN', 'TIPO DE PQRS', 'DESCRIPCIÓN PQRS', '¿PROCEDE? SI - NO - DETALLE', 'RESUELTA SI - NO - PARCIAL'];

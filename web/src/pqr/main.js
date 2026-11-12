@@ -12,8 +12,11 @@ import { htmlHoja, filasParaCopiar } from '../subsanaciones/excel.js';
 var CACHE = 'pqr_cache';
 var $ = function (id) { return document.getElementById(id); };
 var pqrs = [], actual = null, filtro = '', posLista = 0;
-// abierto · respondido · trasladado (daño durante el corte: lo gestiona el grupo de Precoodes)
-var ESTADOS = { abierto: 'Abierto', respondido: '✓ Respondido', trasladado: '↪ Trasladado a Precoodes' };
+// abierto · respondido · trasladado (daño durante el corte: lo gestiona el grupo de Precoodes) ·
+// trasladopoda (poda de árboles o sus residuos: se remite al contratista de poda y se le da cierre con la respuesta)
+var ESTADOS = { abierto: 'Abierto', respondido: '✓ Respondido', trasladado: '↪ Trasladado a Precoodes', trasladopoda: '↪ Trasladado a poda' };
+// Ya tiene su respuesta de cierre (respondido, o remitido a poda con la respuesta)
+function cerrado(p) { return p.estado === 'respondido' || p.estado === 'trasladopoda'; }
 // Cláusulas del contrato (contrato_secciones, mismo permiso y copia que contrato.html) y las elegidas para citar: { k: { k, t, ref } }
 var CACHE_CONTRATO = 'contrato_cache', contrato = null, elegidas = {};
 
@@ -85,7 +88,7 @@ function pintarLista() {
             '<span class="dir">' + esc([p.direccion, p.barrio].filter(Boolean).join(' · ') || 'Sin dirección') + '</span>' +
             '<span class="sub">' + esc((p.queja || '').slice(0, 140)) + (p.queja && p.queja.length > 140 ? '…' : '') + '</span>' +
             (res ? '<span class="sub">Visita: ' + esc(res) + '</span>' : '') +
-            '<span class="acciones-item"><button type="button" class="primario pequeno" data-responder>' + (p.estado === 'respondido' ? '📄 Ver respuesta' : '✍️ Responder') + '</button>' +
+            '<span class="acciones-item"><button type="button" class="primario pequeno" data-responder>' + (cerrado(p) ? '📄 Ver respuesta' : '✍️ Responder') + '</button>' +
             '<button type="button" class="secundario pequeno" data-editar>✏️ Editar</button>' +
             (p.direccion ? '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="mapa_rapido.html?q=' + encodeURIComponent(p.direccion) +
                 '" title="Abre el mapa con el pin en la dirección">🗺️ Ver en el mapa</a>' : '') +
@@ -275,7 +278,7 @@ function revisarRepetido() {
     $('ya-existe').hidden = !p;
     $('vista-pqr').classList.toggle('duplicado', bloquea);
     if (p) $('ya-existe').innerHTML = '⚠ <b>El ID ' + esc(p.radicado) + (bloquea ? ' ya se encuentra guardado</b>' : ' está guardado dos veces</b>') +
-        (p.estado === 'respondido' ? ' (el otro ya está respondido)' : '') + (p.nombre && bloquea ? ' (' + esc(p.nombre) + ')' : '') +
+        (cerrado(p) ? ' (el otro ya está respondido)' : '') + (p.nombre && bloquea ? ' (' + esc(p.nombre) + ')' : '') +
         (bloquea ? '. No se puede registrar otra vez.' : '. Puede seguir con este y borrar el que sobra.') +
         '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(p.id) + '">' + (bloquea ? 'Abrir el guardado' : 'Abrir el otro') + '</button>';
     return bloquea ? p : null;
@@ -477,7 +480,7 @@ function leerTexto() {
     yaLeido = '';
     var ya = !actual && r.id && pqrs.find(function (p) { return String(p.radicado || '').replace(/\D/g, '') === r.id; });
     if (ya) {
-        yaLeido = '⚠ <b>El ID ' + esc(ya.radicado) + ' ya existe</b>' + (ya.estado === 'respondido' ? ' y ya está respondido' : '') +
+        yaLeido = '⚠ <b>El ID ' + esc(ya.radicado) + ' ya existe</b>' + (cerrado(ya) ? ' y ya está respondido' : '') +
             '. No se copió: lea o pegue la siguiente queja.' +
             '<button type="button" class="secundario pequeno" data-abrir-repetido="' + esc(ya.id) + '">Abrir el guardado</button>';
         $('texto').value = '';
@@ -553,19 +556,20 @@ async function guardar(estado) {
     var f = fila(estado);
     if (!f.radicado && !f.direccion && !f.queja) return toast('Escriba o lea la queja antes de guardar.');
     if (revisarRepetido()) return toast('El ID ' + f.radicado + ' ya se encuentra guardado: abra ese PQR.');
-    if (estado === 'respondido' && !f.respuesta) return toast('Falta la respuesta final: toque «Usar esta» en una propuesta.');
+    if ((estado === 'respondido' || estado === 'trasladopoda') && !f.respuesta) return toast('Falta la respuesta final: toque «Usar esta» en una propuesta.');
     // El día en que se atendió (FECHA ATENCIÓN del Excel): la primera vez que se responde o se traslada
-    if ((estado === 'respondido' || estado === 'trasladado') && !f.visita.fechaCierre) f.visita.fechaCierre = hoy();
-    ['btn-guardar', 'btn-respondido', 'btn-trasladado'].forEach(function (id) { $(id).disabled = true; });
+    if ((estado === 'respondido' || estado === 'trasladado' || estado === 'trasladopoda') && !f.visita.fechaCierre) f.visita.fechaCierre = hoy();
+    ['btn-guardar', 'btn-respondido', 'btn-trasladado', 'btn-poda'].forEach(function (id) { $(id).disabled = true; });
     var res = actual ? await supabase.from('pqrs').update(f).eq('id', actual.id).select().single()
                      : await supabase.from('pqrs').insert(f).select().single();
-    ['btn-guardar', 'btn-respondido', 'btn-trasladado'].forEach(function (id) { $(id).disabled = false; });
+    ['btn-guardar', 'btn-respondido', 'btn-trasladado', 'btn-poda'].forEach(function (id) { $(id).disabled = false; });
     if (res.error) return toast('No se guardó: ' + res.error.message);
     actual = res.data;
     pqrs = [actual].concat(pqrs.filter(function (p) { return p.id !== actual.id; }));
     try { localStorage.setItem(CACHE, JSON.stringify(pqrs)); } catch (e) {}
     $('btn-eliminar').hidden = false;
-    toast(estado === 'respondido' ? '✓ PQR respondido y guardado.' : estado === 'trasladado' ? '↪ PQR guardado como trasladado a Precoodes.' : 'PQR guardado.');
+    toast(estado === 'respondido' ? '✓ PQR respondido y guardado.' : estado === 'trasladado' ? '↪ PQR guardado como trasladado a Precoodes.' :
+        estado === 'trasladopoda' ? '↪ PQR guardado como trasladado a poda.' : 'PQR guardado.');
     cerrarPqr();   // vuelve a la lista con el mismo filtro (Todos, Abiertos…)
 }
 async function eliminar() {
@@ -585,9 +589,9 @@ async function borrar(p) {
 // ---------- Llamado de atención a la cuadrilla (llamados.js) ----------
 // Salen marcadas las quejas abiertas; la cuadrilla, la que se anotó en la visita si todas dicen la misma
 function abrirLlamado() {
-    var abiertos = pqrs.filter(function (p) { return p.estado !== 'respondido'; });
+    var abiertos = pqrs.filter(function (p) { return !cerrado(p); });
     $('ll-quejas').innerHTML = pqrs.length ? pqrs.map(function (p) {
-        return '<label><input type="checkbox" data-ll-pqr="' + esc(p.id) + '"' + (p.estado !== 'respondido' ? ' checked' : '') + '> ' +
+        return '<label><input type="checkbox" data-ll-pqr="' + esc(p.id) + '"' + (!cerrado(p) ? ' checked' : '') + '> ' +
             esc((p.radicado || 's/n') + ' · ' + ([p.direccion, p.barrio].filter(Boolean).join(', ') || 'sin dirección')) + '</label>';
     }).join('') : '<span class="sub">No hay PQR guardados: el mensaje sale sin barrios.</span>';
     $('ll-puntos').innerHTML = Object.keys(PUNTOS).map(function (k) {
@@ -788,6 +792,7 @@ async function arrancar() {
     $('btn-guardar').onclick = function () { guardar(); };
     $('btn-respondido').onclick = function () { guardar('respondido'); };
     $('btn-trasladado').onclick = function () { guardar('trasladado'); };
+    $('btn-poda').onclick = function () { guardar('trasladopoda'); };
     // Mensajes del traslado: lo escrito a mano se respeta; Copiar y WhatsApp llevan lo que esté en el cuadro
     ['tr-precoodes', 'tr-grupo'].forEach(function (id) {
         $(id).addEventListener('input', function () { this.dataset.mano = '1'; armarTraslado(); });

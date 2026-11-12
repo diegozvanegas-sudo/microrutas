@@ -76,13 +76,14 @@
             <button type="button" class="filtro" data-estado="abierto">Abiertos</button>
             <button type="button" class="filtro" data-estado="respondido">Respondidos</button>
             <button type="button" class="filtro" data-estado="trasladado">↪ Trasladados</button>
+            <button type="button" class="filtro" data-estado="trasladopoda">↪ A poda</button>
             <button type="button" class="filtro hoy" data-estado="hoy">🆕 Hoy</button>
         </div>
         <!-- Recorrido: los PQR de la lista (con el filtro y la búsqueda) en el mapa, numerados en el orden de visita -->
         <div id="recorrido" hidden>
             <div id="rec-estado" class="sub"></div>
             <div id="rec-mapa"></div>
-            <div class="rec-leyenda sub"><span class="punto hoy"></span> De hoy <span class="punto abierto"></span> Abierto <span class="punto respondido"></span> Respondido <span class="punto trasladado"></span> Trasladado</div>
+            <div class="rec-leyenda sub"><span class="punto hoy"></span> De hoy <span class="punto abierto"></span> Abierto <span class="punto respondido"></span> Respondido <span class="punto trasladado"></span> Trasladado <span class="punto trasladopoda"></span> A poda</div>
             <a class="boton primario" id="rec-google" target="_blank" rel="noopener" hidden>🧭 Abrir el recorrido en Google Maps</a>
             <ol id="rec-lista"></ol>
         </div>
@@ -179,6 +180,13 @@
                     <label class="campo ancho"><span>CÓMO TERMINÓ <span class="sub" id="desenlace-auto"></span></span>
                         <select id="v-desenlace"></select></label>
                 </div>
+            </div>
+            <!-- Poda de árboles o sus residuos: no es del corte de césped; se remite al contratista de poda y se le da cierre con la respuesta -->
+            <div class="tr-poda" data-si="arbol residuospoda">
+                <h3>↪ Remitir al contratista de poda</h3>
+                <p class="sub">Use la respuesta de abajo (paso 3) y guárdelo aquí: queda como «Trasladado a poda» y en el Excel sale resuelto.</p>
+                <div class="acciones"><span class="espacio"></span>
+                    <button type="button" class="primario pequeno" id="btn-poda">↪ Guardar como trasladado a poda</button></div>
             </div>
         </div>
 

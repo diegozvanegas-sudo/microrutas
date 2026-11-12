@@ -392,3 +392,12 @@ test('PQR: residuos de una poda de árboles se remiten al contratista de poda', 
     assert.doesNotMatch(r[0].texto, /monitoreo permanente/);
     assert.match(r[1].texto, /se remite al contratista de poda/);
 });
+
+test('PQR: trasladado a poda sale resuelto en el Excel, con su fecha de atención', async () => {
+    const { resueltaPqr, procedePqr, tipoPqr } = await import('../src/pqr/excel.js');
+    const p = { radicado: '443157', estado: 'trasladopoda', queja: 'material de una poda acumulado', actualizado: '2026-11-12T20:00:00Z', visita: { resultado: 'residuospoda' } };
+    assert.equal(resueltaPqr(p), 'SI');
+    assert.equal(tipoPqr(p), 'Queja');   // no es un daño (el «trasladado» a Precoodes sí)
+    assert.match(procedePqr(p), /contratista de poda/);
+    assert.equal(resueltaPqr({ ...p, estado: 'trasladado' }), 'PARCIAL');
+});

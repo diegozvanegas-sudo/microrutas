@@ -151,6 +151,14 @@ html:has(dialog[open]) { overflow: hidden; }
 .traslado textarea { font-size: 14px; }
 .pin-rec.trasladado { background: #7c3aed; }
 .rec-leyenda .punto.trasladado { background: #7c3aed; }
+/* Remitido al contratista de poda */
+.badge.trasladopoda { background: #ecfccb; color: #3f6212; }
+.pin-rec.trasladopoda { background: #65a30d; }
+.rec-leyenda .punto.trasladopoda { background: #65a30d; }
+.tr-poda { margin-top: 14px; padding: 12px; border: 1px solid #d9f99d; background: #f7fee7; border-radius: 12px; }
+.tr-poda h3 { margin: 0; font-size: 15px; color: #3f6212; }
+.tr-poda .sub { margin: 4px 0 0; }
+.tr-poda .acciones { margin: 6px 0 0; align-items: center; }
 /* Conteo en los filtros y páginas de la lista */
 .filtros { flex-wrap: wrap; }
 .filtro .n { display: inline-block; min-width: 18px; margin-left: 5px; padding: 0 5px; border-radius: 99px; background: #eef2f1; color: var(--muted); font-size: 11px; font-weight: 700; text-align: center; }
