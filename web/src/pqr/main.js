@@ -4,7 +4,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga, DESENLACES, desenlaceDe } from './plantillas.js';
+import { leerPqr, hablaDeCobro, hablaDeBarrido, armarRespuestas, RESULTADOS, temasDeQueja, fechaLarga, fechaCorta, DESENLACES, desenlaceDe } from './plantillas.js';
 import { textoLlamado, PUNTOS } from './llamados.js';
 import { hojaPqr, descargarPqr } from './excel.js';
 import { htmlHoja, filasParaCopiar } from '../subsanaciones/excel.js';
@@ -225,7 +225,10 @@ function abrir(p) {
     $('v-desenlace').value = v.desenlace || '';
     delete $('v-desenlace').dataset.mano;
     $('respuesta').value = p.respuesta || '';
-    ['tr-precoodes', 'tr-grupo'].forEach(function (id) { delete $(id).dataset.mano; });
+    ['tr-precoodes', 'tr-grupo', 'tr-poda'].forEach(function (id) { delete $(id).dataset.mano; });
+    // Remitido a poda: el mensaje que quedó guardado se muestra tal cual (no se rehace)
+    $('tr-poda').value = v.mensajePoda || '';
+    if (v.mensajePoda) $('tr-poda').dataset.mano = '1';
     elegidas = {};
     (v.clausulas || []).forEach(function (c) { if (c && c.k) elegidas[c.k] = c; });
     $('contrato-buscar').value = '';
@@ -250,6 +253,7 @@ function marcarResultado(r) {
     $('resultados').querySelectorAll('[data-r]').forEach(function (b) { b.setAttribute('aria-checked', b.dataset.r === r); });
     document.querySelectorAll('[data-si]').forEach(function (el) { el.hidden = el.dataset.si.split(' ').indexOf(r) === -1; });
 }
+var ES_PODA = /^(arbol|residuospoda)$/;
 function resultado() { var b = $('resultados').querySelector('[aria-checked="true"]'); return b ? b.dataset.r : 'ejecutado'; }
 
 function datos() {
@@ -261,6 +265,8 @@ function datos() {
         contacto: $('v-contacto').value, cobro: $('v-cobro').checked, area: $('v-area').value.trim(), observacion: $('v-obs').value.trim(),
         // Daño trasladado: lo que contestó Precoodes y cómo terminó
         respuestaPrecoodes: $('v-precoodes').value.trim(), desenlace: $('v-desenlace').value,
+        // Poda de árboles o sus residuos: el aviso al grupo, como constancia de que se remitió al equipo de poda
+        mensajePoda: ES_PODA.test(resultado()) ? $('tr-poda').value.trim() : '',
         clausulas: Object.keys(elegidas).map(function (k) { return elegidas[k]; }),
         // Para el Excel de seguimiento: la zona EMV y el día en que se respondió o se trasladó (lo pone guardar)
         zona: $('v-zona').value.trim(), fechaCierre: (actual && actual.visita && actual.visita.fechaCierre) || '',
@@ -320,6 +326,7 @@ function leerDesenlace() {
 function armarTraslado() {
     var id = $('f-id').value.trim(), barrio = $('f-barrio').value.trim(), visita = $('v-visita').value, obs = $('v-obs').value.trim();
     var queja = $('texto').value.trim().replace(/\s+/g, ' ');
+    var dir = [$('f-direccion').value.trim(), barrio].filter(Boolean).join(', ');
     var textos = {
         'tr-precoodes': ['🚨 *Traslado de PQR: daño durante el corte de césped*',
             '*ID:* ' + (id || 's/n') + ($('f-fecha').value ? ' · ' + fechaLarga($('f-fecha').value) : ''),
@@ -331,6 +338,12 @@ function armarTraslado() {
             .filter(function (l, i, a) { return l || a[i - 1]; }).join('\n'),
         'tr-grupo': '📌 *PQR ' + (id || 's/n') + '*' + (barrio ? ' (' + barrio + ')' : '') + ': daño durante el corte. Se trasladó el ' + fechaLarga(hoy()) +
             ' al grupo *PQR corte césped Precoodes*, quienes siguen con la gestión.',
+        // Poda: se remite al equipo de poda porque la queja llegó por error al corte de césped
+        'tr-poda': '📌 *PQR ' + (id || 's/n') + '*' + (dir ? ' (' + dir + ')' : '') + '\n\n' +
+            'Se remite la queja al equipo de poda de árboles. Por la descripción de la queja y lo verificado en campo' + (visita ? ' el ' + fechaCorta(visita) : '') +
+            ', se evidencia que fue asignada por error al servicio de corte de césped: ' +
+            (resultado() === 'residuospoda' ? 'los residuos acumulados corresponden a una poda de árboles y no a la operación de corte de césped.'
+                : 'lo solicitado corresponde a la poda o tala de árboles, que no hace parte del corte de césped.'),
     };
     Object.keys(textos).forEach(function (k) {
         if (!$(k).dataset.mano) $(k).value = textos[k];
@@ -742,7 +755,7 @@ async function arrancar() {
         Object.keys(DESENLACES).map(function (k) { return '<option value="' + k + '">' + esc(DESENLACES[k]) + '</option>'; }).join('');
     $('v-desenlace').addEventListener('change', function () { this.dataset.mano = '1'; });
     $('resultados').onclick = function (ev) { var b = ev.target.closest('[data-r]'); if (b) { marcarResultado(b.dataset.r); actualizar(); } };
-    var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1, 'tr-precoodes': 1, 'tr-grupo': 1 };
+    var SIN_ACTUALIZAR = { respuesta: 1, foto: 1, 'contrato-buscar': 1, 'tr-precoodes': 1, 'tr-grupo': 1, 'tr-poda': 1 };
     $('vista-pqr').addEventListener('input', function (ev) {
         if (ev.target.id === 'v-zona') delete ev.target.dataset.auto;   // escrita a mano: ya no se cambia con la dirección
         if (ev.target.id === 'texto') leerTexto(); else if (!SIN_ACTUALIZAR[ev.target.id]) actualizar();
@@ -794,7 +807,7 @@ async function arrancar() {
     $('btn-trasladado').onclick = function () { guardar('trasladado'); };
     $('btn-poda').onclick = function () { guardar('trasladopoda'); };
     // Mensajes del traslado: lo escrito a mano se respeta; Copiar y WhatsApp llevan lo que esté en el cuadro
-    ['tr-precoodes', 'tr-grupo'].forEach(function (id) {
+    ['tr-precoodes', 'tr-grupo', 'tr-poda'].forEach(function (id) {
         $(id).addEventListener('input', function () { this.dataset.mano = '1'; armarTraslado(); });
     });
     $('vista-pqr').addEventListener('click', function (ev) {
