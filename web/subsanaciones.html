@@ -396,7 +396,8 @@
 <!-- Programación del día (src/subsanaciones/programacion.js): el Excel se lee en este equipo y queda guardado aquí -->
 <dialog id="dlg-prog">
     <div class="cuerpo">
-        <h2>📅 Programación del día</h2>
+        <h2>📅 Programación del día
+            <button type="button" class="cerrar-dlg" id="prog-x" aria-label="Cerrar" title="Cerrar (Esc)">×</button></h2>
         <div class="sub">Suba el Excel de programación del mes (p. ej. 2026_11_Noviembre_Programacion_CW394406.xlsx). Se leen todas las filas,
             también las ocultas por el filtro. <b>Queda cargado en este equipo</b> (aunque cierre la ventana o la página) hasta que suba otro.
             Las visitas registradas en la app cuentan como hechas aunque el Excel no tenga la X.</div>
@@ -413,6 +414,7 @@
             <div class="prog-consulta-fila">
                 <input type="search" id="prog-buscar-lote" placeholder="Lote o microrruta: 524, Z1CC0127" autocomplete="off" enterkeyhint="search">
                 <button type="button" class="primario" id="prog-buscar-btn">🔎 Consultar</button>
+                <button type="button" class="secundario" id="prog-buscar-limpiar" hidden>✕ Limpiar</button>
             </div>
             <div class="sub">Varios a la vez separados por coma. Busca en las dos quincenas y en todas las cuadrillas.</div>
             <div id="prog-consulta-res" aria-live="polite"></div>

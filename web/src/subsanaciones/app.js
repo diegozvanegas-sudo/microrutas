@@ -2643,6 +2643,7 @@ export function iniciar(api, CFG) {
     function consultarLoteProg() {
         var caja = $('prog-consulta-res'), texto = $('prog-buscar-lote').value.trim();
         pcFichas = [];
+        $('prog-buscar-limpiar').hidden = !texto;
         if (!texto || !progDatos) { caja.innerHTML = ''; return; }
         var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), vis = visitasPorQuincena(prog.mes);
         var res = consultarLotes(prog, texto, fecha, function (x, q) {
@@ -2721,6 +2722,7 @@ export function iniciar(api, CFG) {
         return '❌ No se ha hecho: le tocaba el ' + esc(diaLargo(v.plan)) + (dias > 0 ? ' (' + dias + (dias === 1 ? ' día' : ' días') + ' de atraso)' : '') + '.';
     }
     $('prog-buscar-btn').onclick = consultarLoteProg;
+    $('prog-buscar-limpiar').onclick = function () { $('prog-buscar-lote').value = ''; consultarLoteProg(); $('prog-buscar-lote').focus(); };
     $('prog-buscar-lote').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); consultarLoteProg(); } });
     $('prog-buscar-lote').addEventListener('input', function () { if (!this.value.trim()) consultarLoteProg(); });
     $('prog-consulta-res').onclick = function (ev) {
@@ -2935,6 +2937,13 @@ export function iniciar(api, CFG) {
         $('dlg-prog').showModal();
     };
     $('prog-cerrar').onclick = function () { $('dlg-prog').close(); };
+    $('prog-x').onclick = function () { $('dlg-prog').close(); };
+    // Tocar afuera de la ventana (en el fondo oscuro) también la cierra; arrastrar desde adentro no
+    (function () {
+        var d = $('dlg-prog'), desdeFondo = false;
+        d.addEventListener('pointerdown', function (ev) { desdeFondo = ev.target === d; });
+        d.addEventListener('click', function (ev) { if (ev.target === d && desdeFondo) d.close(); desdeFondo = false; });
+    })();
     $('prog-elegir').onclick = function () { $('prog-archivo').value = ''; $('prog-archivo').click(); };
     $('prog-archivo').onchange = function () { cargarProg(this.files && this.files[0]); };
     $('prog-fecha').onchange = pintarProg;

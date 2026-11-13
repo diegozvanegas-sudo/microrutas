@@ -802,3 +802,17 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
     .prog-av-dia { grid-template-columns: 62px 1fr; gap: 2px 6px; }
     .prog-avq, .prog-vamos { padding: 6px 8px; }
 }
+/* Programación del día: título con la × arriba y el pie (Cerrar / WhatsApp) abajo, siempre a la vista aunque la consulta sea larga */
+#dlg-prog h2 { position: sticky; top: 0; z-index: 5; background: var(--surface); margin: -18px -18px 12px; padding: 14px 18px 12px; border-bottom: 1px solid var(--line); }
+#dlg-prog .pie { position: sticky; bottom: 0; z-index: 5; margin: 16px -18px -18px; padding: 10px 18px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
+#dlg-prog .pie button { min-height: 42px; }
+.prog-consulta-fila #prog-buscar-limpiar[hidden] { display: none; }
+@media (max-width: 560px) {
+    #dlg-prog h2 { margin: -14px -14px 10px; padding: 12px 14px 10px; }
+    #dlg-prog .pie { margin: 16px -14px -14px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); }
+    #dlg-prog .pie button { flex: 1 1 auto; }
+}
+@media (max-width: 430px) {
+    .prog-av-dia { grid-template-columns: 1fr; gap: 0; margin: 6px 0; }
+    .prog-av-fecha { font-size: 11.5px; }
+}
