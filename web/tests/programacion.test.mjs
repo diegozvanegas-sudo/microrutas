@@ -163,3 +163,43 @@ test('operación especial: mapa rápido si la dirección es de nomenclatura, Goo
     assert.match(decodeURIComponent(rural.google), /La Granja", Vía al Mar Km 7, Medellín/);
     assert.deepEqual(enlacesEspecial({ ruta: '', dir: '' }), { mapa: '', google: '' });
 });
+
+import { terminosConsulta, consultarLotes, quincenaVigente, avanceCuadrilla } from '../src/subsanaciones/programacion.js';
+test('consulta: lo escrito se vuelve lotes y microrrutas', () => {
+    assert.deepEqual(terminosConsulta('lote 524, z1cc127; Z2CC0085 524').map(t => t.tipo + ':' + t.valor), ['lote:524', 'mr:Z1CC0127', 'mr:Z2CC0085']);
+    assert.deepEqual(terminosConsulta('#0035.'), [{ tipo: 'lote', valor: '35', texto: '0035' }]);
+    assert.deepEqual(terminosConsulta('hola'), []);
+});
+test('consulta: si se hizo, qué día le toca y en qué quincenas está', () => {
+    const q2 = leerLotes([CAB, L(1, 'Z2CC0327', 1105, 3, 1), L(1, 'Z2CC0252', 472, 3, 4)]);
+    const prog = { mes: '2026-11', q1: leerLotes(Q1), q2, especiales: [] };
+    // Hecho con X en Q1 y pendiente en Q2; el 09/11 (Q1) responde la Q1
+    let [r] = consultarLotes(prog, '1105', '2026-11-09');
+    assert.equal(r.fichas.length, 1);
+    const f = r.fichas[0];
+    assert.equal(f.cuad, '1');
+    assert.deepEqual(f.quincenas.map(e => [e.q, e.plan, e.estado]), [[1, '2026-11-02', 'hecho'], [2, '2026-11-16', 'pendiente']]);
+    assert.equal(quincenaVigente(f, prog, '2026-11-09').q, 1);
+    assert.equal(quincenaVigente(f, prog, '2026-11-18').q, 2);
+    // Atrasado en Q1; con visita en la app pasa a «app» y trae la fecha
+    [r] = consultarLotes(prog, '472', '2026-11-09');
+    assert.equal(r.fichas[0].quincenas[0].estado, 'atrasado');
+    [r] = consultarLotes(prog, '472', '2026-11-09', (x, q) => q === 1 && x.lote === '472' ? '2026-11-06' : '');
+    assert.equal(r.fichas[0].quincenas[0].estado, 'app');
+    assert.equal(r.fichas[0].quincenas[0].app, '2026-11-06');
+    // Por microrruta, y por número de microrruta cuando ningún lote tiene ese número
+    assert.equal(consultarLotes(prog, 'Z2CC0085', '2026-11-09')[0].fichas[0].lote, '282');
+    assert.equal(consultarLotes(prog, '85', '2026-11-09')[0].fichas[0].mr, 'Z2CC0085');
+    // No está
+    assert.deepEqual(consultarLotes(prog, '77777', '2026-11-09')[0].fichas, []);
+    // Varios a la vez
+    assert.equal(consultarLotes(prog, '488, 493', '2026-11-09').length, 2);
+});
+test('avance de la cuadrilla: cuáles lleva y cuáles faltan, por día', () => {
+    const prog = { mes: '2026-11', q1: leerLotes(Q1), q2: [], especiales: [] };
+    const c1 = prog.q1.filter(x => x.cuad === '1');
+    const av = avanceCuadrilla(c1, prog, '2026-11-09', x => x.lote === '1168' ? '2026-11-07' : '');
+    assert.deepEqual(av.cuenta, { llevan: 3, faltan: 4, atrasado: 1, hoy: 2, pendiente: 0, sin: 1 });
+    assert.deepEqual(av.llevan.map(g => [g.fecha, g.lotes.map(x => x.lote)]), [['2026-11-03', ['1105']], ['2026-11-04', ['1113']], ['2026-11-07', ['1168']]]);
+    assert.deepEqual(av.faltan.map(g => [g.fecha, g.estado, g.lotes.map(x => x.lote)]), [['2026-11-05', 'atrasado', ['472']], ['2026-11-09', 'hoy', ['488', '493']], ['', 'sin', ['NA']]]);
+});

@@ -759,3 +759,31 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
     font: 12px/1.45 Consolas, "Cascadia Mono", monospace; white-space: pre-wrap; overflow-wrap: anywhere; overscroll-behavior: contain; }
 .aud-consola .acciones { padding: 8px 12px; background: #0f172a; }
 @media (max-width: 560px) { .aud-fuente .aud-consola pre { max-height: 220px; font-size: 11px; } .aud-op-rejilla { grid-template-columns: 1fr 1fr; } }
+
+/* Programación del día · consultar un lote y avance por cuadrilla (llevan / faltan) */
+.prog-consulta { margin-top: 12px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 12px; background: #f8fafb; }
+.prog-consulta[hidden] { display: none; }
+.prog-consulta > label { font-size: 12px; font-weight: 700; color: var(--muted); }
+.prog-consulta-fila { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0; }
+.prog-consulta-fila input { flex: 1 1 200px; min-width: 0; min-height: 40px; }
+.prog-consulta-fila button { min-height: 40px; }
+#prog-consulta-res:empty { display: none; }
+#prog-consulta-res { display: grid; gap: 8px; margin-top: 8px; }
+.prog-ficha { border: 1px solid var(--line); border-left: 5px solid var(--c, #64748b); border-radius: 10px; padding: 10px 12px; background: var(--surface); font-size: 13.5px; }
+.prog-ficha-tit { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; font-size: 15px; }
+.prog-ficha-veredicto { margin: 6px 0 4px; font-size: 14.5px; font-weight: 700; }
+.prog-ficha-veredicto.hecho, .prog-ficha-veredicto.app { color: #166534; }
+.prog-ficha-veredicto.atrasado { color: #991b1b; }
+.prog-ficha-veredicto.hoy { color: #92400e; }
+.prog-ficha-q { margin: 6px 0 0; padding-left: 18px; line-height: 1.6; }
+.prog-ficha-obs { margin-top: 4px; font-size: 12.5px; color: #9a3412; }
+.prog-ficha-acc { margin-top: 8px; display: flex; flex-wrap: wrap; gap: 6px; }
+.prog-ficha-acc .boton, .prog-ficha-acc button { min-height: 36px; display: inline-flex; align-items: center; }
+.prog-ficha-nada { padding: 8px 10px; border-radius: 10px; background: #fff7ed; color: #9a3412; font-size: 13.5px; }
+.prog-cuad details.prog-av.llevan summary { color: #166534; }
+.prog-cuad details.prog-av.faltan summary { color: #92400e; }
+.prog-av-dia { display: grid; grid-template-columns: 92px 1fr; align-items: baseline; gap: 4px; margin: 4px 0; }
+.prog-av-lotes { min-width: 0; }
+.prog-av-fecha { font-size: 12px; font-weight: 700; color: var(--muted); }
+.prog-av-fecha.atrasado { color: #991b1b; }
+.prog-av-fecha.hoy { color: #92400e; }

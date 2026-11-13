@@ -407,6 +407,16 @@
             <label>DÍA <input type="date" id="prog-fecha"></label>
             <label>CUADRILLA <select id="prog-cuad"><option value="">Todas</option></select></label>
         </div>
+        <!-- Consultar un lote: si se hizo, qué día le toca, de qué cuadrilla es (busca en Q1 y Q2, sin importar la cuadrilla elegida) -->
+        <div class="prog-consulta" id="prog-consulta" hidden>
+            <label for="prog-buscar-lote">CONSULTAR UN LOTE</label>
+            <div class="prog-consulta-fila">
+                <input type="search" id="prog-buscar-lote" placeholder="Lote o microrruta: 524, Z1CC0127" autocomplete="off" enterkeyhint="search">
+                <button type="button" class="primario" id="prog-buscar-btn">🔎 Consultar</button>
+            </div>
+            <div class="sub">Varios a la vez separados por coma. Busca en las dos quincenas y en todas las cuadrillas.</div>
+            <div id="prog-consulta-res" aria-live="polite"></div>
+        </div>
         <div class="prog-pestanas" id="prog-pestanas" role="tablist" aria-label="Vista de la programación" hidden>
             <button type="button" role="tab" data-prog-vista="dia" aria-selected="true">📅 Resumen del día</button>
             <button type="button" role="tab" data-prog-vista="lista" aria-selected="false">📋 Listado</button>

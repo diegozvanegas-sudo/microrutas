@@ -223,3 +223,80 @@ export function lotesDeQuincena(prog, fecha) {
 }
 // Zona operativa de la microrruta: Z1CC0100 → '1'
 export function zonaDe(mr) { var m = String(mr || '').match(/^Z(\d+)CC/i); return m ? m[1] : ''; }
+
+// ---------- Consultar un lote: si se hizo, qué día le toca y en qué quincenas está ----------
+// Lo escrito → términos: «524», «lote 524», «Z1CC0127», «z1cc127», varios con coma o espacio.
+// → [{ tipo: 'mr' | 'lote', valor, texto }]
+export function terminosConsulta(texto) {
+    var out = [], vistos = {};
+    String(texto || '').toUpperCase().split(/[\s,;/]+/).forEach(function (t) {
+        t = t.replace(/^[#.·-]+|[#.·-]+$/g, '');
+        var m = t.match(/^Z(\d+)CC(\d+)$/), item = null;
+        if (m) item = { tipo: 'mr', valor: 'Z' + Number(m[1]) + 'CC' + ('000' + Number(m[2])).slice(-4), texto: t };
+        else if (/^\d+$/.test(t)) item = { tipo: 'lote', valor: String(Number(t)), texto: t };
+        if (item && !vistos[item.tipo + item.valor]) { vistos[item.tipo + item.valor] = 1; out.push(item); }
+    });
+    return out;
+}
+// Busca los términos en Q1 y Q2. enApp(x, quincena) → fecha (o true) si la app tiene visita de ese lote en esa quincena.
+// Un número busca el LOTE; si ningún lote tiene ese número, la microrruta con ese número (Z?CC0035 para «35»).
+// → [{ termino, fichas: [{ mr, lote, cuad, dir, area, frec, obs, quincenas: [{ q, x, plan, estado, app }] }] }]
+export function consultarLotes(prog, texto, fecha, enApp) {
+    var todos = [];
+    prog.q1.forEach(function (x) { todos.push({ q: 1, x: x }); });
+    (prog.q2 || []).forEach(function (x) { todos.push({ q: 2, x: x }); });
+    return terminosConsulta(texto).map(function (t) {
+        var hallados = todos.filter(function (e) { return t.tipo === 'mr' ? e.x.mr === t.valor : e.x.lote === t.valor; });
+        if (!hallados.length && t.tipo === 'lote') hallados = todos.filter(function (e) { return Number(e.x.mr.replace(/^Z\d+CC/, '')) === Number(t.valor); });
+        var porLote = {}, fichas = [];
+        hallados.forEach(function (e) {
+            var k = e.x.mr + '|' + e.x.lote, f = porLote[k];
+            if (!f) {
+                f = porLote[k] = { mr: e.x.mr, lote: e.x.lote, cuad: e.x.cuad, dir: e.x.dir, area: e.x.area, frec: e.x.frec, obs: e.x.obs, quincenas: [] };
+                fichas.push(f);
+            }
+            var app = enApp ? enApp(e.x, e.q) || '' : '';
+            f.quincenas.push({
+                q: e.q, x: e.x, app: app,
+                plan: e.x.semana != null && e.x.dia != null ? fechaPlan(prog.mes, e.x.semana, e.x.dia) : '',
+                estado: estadoLote(e.x, prog, fecha, function () { return !!app; })
+            });
+            if (!f.obs && e.x.obs) f.obs = e.x.obs;
+        });
+        return { termino: t, fichas: fichas };
+    });
+}
+// La quincena que responde «¿se hizo?» en la fecha: la de la fecha si el lote está en ella; si no, la última que tiene
+export function quincenaVigente(ficha, prog, fecha) {
+    var sd = semanaDia(prog.mes, fecha) || { semana: 1 }, q = quincenaDe(sd.semana);
+    return ficha.quincenas.filter(function (e) { return e.q === q; })[0] || ficha.quincenas[ficha.quincenas.length - 1];
+}
+
+// ---------- Avance de una cuadrilla: cuáles lleva y cuáles le faltan, agrupados por día ----------
+// lotes: los de la cuadrilla en la quincena. enApp(x) → fecha (o true) de la visita en la app.
+// → { llevan: [{ fecha, lotes }] por fecha de ejecución (la X o la visita; '' = sin fecha, al final),
+//     faltan: [{ fecha, estado, lotes }] por fecha programada ('' = sin día en el Excel, al final),
+//     cuenta: { llevan, faltan, atrasado, hoy, pendiente, sin } }
+export function avanceCuadrilla(lotes, prog, fecha, enApp) {
+    enApp = enApp || function () { return ''; };
+    var llevan = {}, faltan = {}, cuenta = { llevan: 0, faltan: 0, atrasado: 0, hoy: 0, pendiente: 0, sin: 0 };
+    lotes.forEach(function (x) {
+        var app = x.hecho ? '' : enApp(x), est = estadoLote(x, prog, fecha, function () { return !!app; });
+        if (est === 'hecho' || est === 'app') {
+            var f = x.hecho ? x.fecha : (typeof app === 'string' ? app : '');
+            (llevan[f] = llevan[f] || []).push(x);
+            cuenta.llevan++;
+        } else {
+            var p = est === 'sin' ? '' : fechaPlan(prog.mes, x.semana, x.dia);
+            (faltan[p] = faltan[p] || { estado: est, lotes: [] }).lotes.push(x);
+            cuenta.faltan++; cuenta[est]++;
+        }
+    });
+    var orden = function (a, b) { return (a === '') - (b === '') || a.localeCompare(b); };
+    var porFila = function (a, b) { return a.fila - b.fila; };
+    return {
+        llevan: Object.keys(llevan).sort(orden).map(function (f) { return { fecha: f, lotes: llevan[f].sort(porFila) }; }),
+        faltan: Object.keys(faltan).sort(orden).map(function (f) { return { fecha: f, estado: faltan[f].estado, lotes: faltan[f].lotes.sort(porFila) }; }),
+        cuenta: cuenta
+    };
+}

@@ -17,7 +17,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
-import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE } from './programacion.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2524,9 +2524,10 @@ export function iniciar(api, CFG) {
             var sd = semanaProg(mes, f);
             if (!sd) return;
             var k = mes + '|' + quincenaProg(sd.semana), s = out[k] = out[k] || {};
+            // Se guarda la fecha de la última visita (sirve como «sí» y para decir cuándo se hizo)
             var lote = String(r.LOTE || '').trim(), mr = String(r.MICRORRUTA || '').trim().toUpperCase();
-            if (lote && !/^N\/?A$/i.test(lote)) s['L' + lote] = 1;
-            if (mr) s['M' + mr] = 1;
+            if (lote && !/^N\/?A$/i.test(lote) && !(s['L' + lote] >= f)) s['L' + lote] = f;
+            if (mr && !(s['M' + mr] >= f)) s['M' + mr] = f;
         });
         return out;
     }
@@ -2540,6 +2541,7 @@ export function iniciar(api, CFG) {
         var hay = !!(progDatos && progDatos.prog);
         $('prog-controles').hidden = !hay;
         $('prog-pestanas').hidden = !hay;
+        $('prog-consulta').hidden = !hay;
         $('prog-texto').disabled = !hay;
         if (!hay) { $('prog-dia').innerHTML = $('prog-cuadrillas').innerHTML = $('prog-especiales').innerHTML = ''; return; }
         var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy();
@@ -2551,6 +2553,11 @@ export function iniciar(api, CFG) {
         var enApp = function (x) {
             var s = vis[prog.mes + '|' + est.quincena] || {};
             return !x.hecho && !!(s['L' + x.lote] || s['M' + x.mr]);
+        };
+        // Fecha de la visita en la app ('' si no hay o si ya tiene la X)
+        var appFecha = function (x) {
+            var s = vis[prog.mes + '|' + est.quincena] || {};
+            return x.hecho ? '' : s['L' + x.lote] || s['M' + x.mr] || '';
         };
         var fueraMes = fecha.slice(0, 7) !== prog.mes;
         $('prog-estado').innerHTML = '📄 ' + esc(progDatos.archivo) + ' · ' + prog.q1.length + ' lotes en Q1, ' + prog.q2.length + ' en Q2 · cargado ' + esc(progDatos.cargado) +
@@ -2577,6 +2584,7 @@ export function iniciar(api, CFG) {
                     : '<div class="fila"><b>Va en:</b> <span class="sub">sin nada marcado con X en el Excel' + (c.soloApp ? '; ' + c.soloApp + ' con visita en la app' : '') + '</span></div>') +
                 (c.atrasados.length ? '<details><summary>Atrasados (' + c.atrasados.length + ' de ' + c.debian + ' que ya debían estar)</summary>' +
                     c.atrasados.map(function (x) { return chipLote(x, enApp); }).join('') + '</details>' : '') +
+                detallesAvance(prog, fecha, c.cuad, appFecha, enApp) +
                 (c.obs.length ? c.obs.slice(0, 4).map(function (x) { return '<div class="obs">⚠ ' + esc((x.lote || x.mr) + ': ' + x.obs) + '</div>'; }).join('') : '') +
                 '<div class="acciones">' + (ids.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.join(',')) + '">🗺️ Lo de hoy en el mapa</a>' : '') +
                     (c.atrasados.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + c.atrasados.map(idMapaProg).join(',')) + '">🗺️ Atrasados en el mapa</a>' : '') +
@@ -2591,7 +2599,90 @@ export function iniciar(api, CFG) {
         }).join('') + '</ul>' + (prog.sif && prog.sif.cc ? '<div class="sub">Rutas SIF de corte: ' + prog.sif.cc.q1 + ' de ' + prog.sif.cc.total + ' con ejecución en Q1' +
             (prog.sif.esp ? ' · espartillos: ' + prog.sif.esp.q1 + ' de ' + prog.sif.esp.total : '') + '</div>' : '') : '';
         if (progVista === 'lista') pintarListaProg();
+        if ($('prog-buscar-lote').value.trim()) consultarLoteProg();
     }
+    // «vie 13/11» de una fecha aaaa-mm-dd
+    var DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    function diaCorto(f) { return f ? DIAS_CORTOS[new Date(f + 'T12:00:00Z').getUTCDay()] + ' ' + aTexto(f).slice(0, 5) : ''; }
+    function diaLargo(f) { var n = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][new Date(f + 'T12:00:00Z').getUTCDay()]; return n + ' ' + aTexto(f); }
+    // Tarjeta de la cuadrilla: cuáles lleva (por fecha en que se hicieron) y cuáles le faltan (por día programado)
+    function detallesAvance(prog, fecha, cuad, appFecha, enApp) {
+        var lotes = lotesDeQuincena(prog, fecha).filter(function (x) { return x.cuad === cuad; });
+        var av = avanceCuadrilla(lotes, prog, fecha, appFecha), k = av.cuenta;
+        if (!lotes.length) return '';
+        var chips = function (L) { return L.map(function (x) { return chipLote(x, enApp); }).join(''); };
+        var partes = [k.atrasado && k.atrasado + ' atrasados', k.hoy && k.hoy + ' de hoy', k.pendiente && k.pendiente + ' por venir', k.sin && k.sin + ' sin día'].filter(Boolean);
+        return '<details class="prog-av llevan"><summary>Llevan ' + k.llevan + ' de ' + lotes.length + '</summary>' +
+                (av.llevan.length ? av.llevan.map(function (g) {
+                    return '<div class="prog-av-dia"><span class="prog-av-fecha">' + (g.fecha ? esc(diaCorto(g.fecha)) : 'sin fecha') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
+                }).join('') : '<div class="sub">Todavía ninguno.</div>') + '</details>' +
+            '<details class="prog-av faltan"><summary>Faltan ' + k.faltan + (partes.length ? ' · ' + partes.join(' · ') : '') + '</summary>' +
+                (av.faltan.length ? av.faltan.map(function (g) {
+                    return '<div class="prog-av-dia"><span class="prog-av-fecha ' + g.estado + '">' + (g.fecha ? esc(diaCorto(g.fecha)) + (g.estado === 'hoy' ? ' · hoy' : '') : 'sin día') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
+                }).join('') : '<div class="sub">No le falta ninguno. 🎉</div>') + '</details>';
+    }
+
+    // ---------- Consultar un lote: ¿se hizo?, ¿qué día le toca?, ¿de qué cuadrilla es? ----------
+    var pcFichas = [];
+    function consultarLoteProg() {
+        var caja = $('prog-consulta-res'), texto = $('prog-buscar-lote').value.trim();
+        pcFichas = [];
+        if (!texto || !progDatos) { caja.innerHTML = ''; return; }
+        var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy(), vis = visitasPorQuincena(prog.mes);
+        var res = consultarLotes(prog, texto, fecha, function (x, q) {
+            var s = vis[prog.mes + '|' + q] || {};
+            return x.hecho ? '' : s['L' + x.lote] || s['M' + x.mr] || '';
+        });
+        if (!res.length) { caja.innerHTML = '<div class="prog-ficha-nada">Escriba el número del lote (p. ej. 524) o la microrruta (Z1CC0127).</div>'; return; }
+        caja.innerHTML = res.map(function (r) {
+            if (!r.fichas.length) return '<div class="prog-ficha-nada">«' + esc(r.termino.texto) + '» no está en la programación de ' + esc(prog.mes) +
+                ' (ni en Q1 ni en Q2). Revise el número; si es nuevo, agréguelo desde la pestaña «Listado».</div>';
+            return r.fichas.map(function (f) {
+                var v = quincenaVigente(f, prog, fecha), i = pcFichas.push(v.x) - 1;
+                return '<article class="prog-ficha" style="--c:' + colorCuadrilla(f.cuad) + '">' +
+                    '<div class="prog-ficha-tit"><b>' + esc(f.mr + (f.lote && !/^N\/?A$/i.test(f.lote) ? ' · lote ' + f.lote : '')) + '</b>' +
+                        '<span class="prog-est ' + v.estado + '">' + esc(ESTADOS_LOTE[v.estado]) + '</span></div>' +
+                    '<div class="prog-ficha-veredicto ' + v.estado + '">' + veredictoLote(v, fecha) + '</div>' +
+                    '<div class="sub">Cuadrilla ' + esc(f.cuad) + (f.dir ? ' · ' + esc(f.dir) : '') + (f.area ? ' · ' + Math.round(f.area).toLocaleString('es-CO') + ' m²' : '') +
+                        (f.frec === 1 ? ' · mensual' : f.frec === 2 ? ' · quincenal' : '') + '</div>' +
+                    '<ul class="prog-ficha-q">' + f.quincenas.map(function (e) {
+                        return '<li><b>Q' + e.q + ':</b> ' + (e.plan ? 'programado el ' + esc(diaLargo(e.plan)) + ' (semana ' + e.x.semana + ', día ' + e.x.dia + ')' : 'sin día en el Excel') +
+                            ' · <span class="prog-est ' + e.estado + '">' + esc(ESTADOS_LOTE[e.estado]) + '</span>' +
+                            (e.x.hecho && e.x.fecha ? ' el ' + esc(aTexto(e.x.fecha)) : '') + (!e.x.hecho && typeof e.app === 'string' && e.app ? ' el ' + esc(aTexto(e.app)) : '') + '</li>';
+                    }).join('') + '</ul>' +
+                    (f.obs ? '<div class="prog-ficha-obs">⚠ ' + esc(f.obs) + '</div>' : '') +
+                    '<div class="prog-ficha-acc"><a class="boton secundario pequeno" href="' + esc(urlMapa(f.mr, f.lote)) + '">🗺️ Ver en el mapa</a>' +
+                        '<button type="button" class="secundario pequeno" data-pc="visita" data-i="' + i + '">📋 Registrar visita</button>' +
+                        '<button type="button" class="secundario pequeno" data-pc="editar" data-i="' + i + '">✎ Editar</button></div>' +
+                    '</article>';
+            }).join('');
+        }).join('');
+    }
+    // La respuesta corta: sí / no / todavía no, con la fecha
+    function veredictoLote(v, fecha) {
+        var x = v.x;
+        if (v.estado === 'hecho') return '✅ Sí se hizo' + (x.fecha ? ' el ' + esc(diaLargo(x.fecha)) : '') + ' (X en el Excel, Q' + v.q + ').';
+        if (v.estado === 'app') return '✅ Sí se hizo' + (typeof v.app === 'string' && v.app ? ' el ' + esc(diaLargo(v.app)) : '') + ': hay visita en la app, pero el Excel no tiene la X (Q' + v.q + ').';
+        if (v.estado === 'sin') return '❔ No se ha hecho y el Excel no dice qué día le toca (Q' + v.q + ').';
+        if (v.estado === 'hoy') return '🕒 Todavía no: le toca hoy, ' + esc(diaLargo(v.plan)) + '.';
+        if (v.estado === 'pendiente') return '🕒 Todavía no: le toca el ' + esc(diaLargo(v.plan)) + '.';
+        var dias = Math.round((new Date(fecha + 'T00:00:00Z') - new Date(v.plan + 'T00:00:00Z')) / 864e5);
+        return '❌ No se ha hecho: le tocaba el ' + esc(diaLargo(v.plan)) + (dias > 0 ? ' (' + dias + (dias === 1 ? ' día' : ' días') + ' de atraso)' : '') + '.';
+    }
+    $('prog-buscar-btn').onclick = consultarLoteProg;
+    $('prog-buscar-lote').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); consultarLoteProg(); } });
+    $('prog-buscar-lote').addEventListener('input', function () { if (!this.value.trim()) consultarLoteProg(); });
+    $('prog-consulta-res').onclick = function (ev) {
+        var b = ev.target.closest('[data-pc]'), x = b && pcFichas[+b.dataset.i];
+        if (!x) return;
+        if (b.dataset.pc === 'editar') abrirLoteProg(x);
+        else {
+            $('dlg-prog').close();
+            abrir({ MICRORRUTA: x.mr, LOTE: /^N\/?A$/i.test(x.lote) ? 'NA' : x.lote, CUADRILLA: x.cuad, ZONA: zonaDe(x.mr), 'FECHA DE EJECUCIÓN': x.fecha ? aTexto(x.fecha) : '' });
+        }
+    };
+    // Al cerrar la ventana se borra la consulta (la programación sí queda guardada en el equipo)
+    $('dlg-prog').addEventListener('close', function () { $('prog-buscar-lote').value = ''; $('prog-consulta-res').innerHTML = ''; pcFichas = []; });
     // Botones para ubicar la operación especial (las rurales sin nomenclatura solo en Google Maps)
     function accionesEspecial(e) {
         var en = enlacesEspecial(e);
