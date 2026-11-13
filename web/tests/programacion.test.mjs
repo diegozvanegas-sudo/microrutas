@@ -226,3 +226,10 @@ test('vamos en este lote: el orden es el de la fecha programada, no el de las fi
     assert.deepEqual(d.siguen.map(y => y.lote), ['15', '35', 'NA']);
     assert.equal(d.posicion, 3);
 });
+test('fechas de cada quincena', async () => {
+    const { rangoQuincena } = await import('../src/subsanaciones/programacion.js');
+    const prog = { mes: '2026-11', q1: [], q2: leerLotes([CAB, L(1, 'Z2CC0327', 1105, 3, 1), L(1, 'Z2CC0328', 1113, 5, 1)]) };
+    assert.deepEqual(rangoQuincena(prog, 1), { desde: '2026-11-02', hasta: '2026-11-14' });
+    assert.deepEqual(rangoQuincena(prog, 2), { desde: '2026-11-16', hasta: '2026-12-05' });
+    assert.deepEqual(rangoQuincena({ mes: '2026-11', q2: [] }, 2), { desde: '2026-11-16', hasta: '2026-11-28' });
+});

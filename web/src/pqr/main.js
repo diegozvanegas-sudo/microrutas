@@ -1,5 +1,6 @@
 // pqr.html: la queja (foto leída con OCR o texto pegado), lo que se encontró en la visita y la respuesta de cierre.
 // Se guarda en Supabase (public.pqrs, 0009_pqr.sql), cada quien los suyos; la última lista queda en el equipo.
+/* global L -- Leaflet: lo carga pqr.html con <script src="js/leaflet.js"> antes de este módulo */
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';

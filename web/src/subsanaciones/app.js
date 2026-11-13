@@ -17,7 +17,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
-import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote } from './programacion.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote, rangoQuincena } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2554,18 +2554,13 @@ export function iniciar(api, CFG) {
             var s = vis[prog.mes + '|' + est.quincena] || {};
             return !x.hecho && !!(s['L' + x.lote] || s['M' + x.mr]);
         };
-        // Fecha de la visita en la app ('' si no hay o si ya tiene la X)
-        var appFecha = function (x) {
-            var s = vis[prog.mes + '|' + est.quincena] || {};
-            return x.hecho ? '' : s['L' + x.lote] || s['M' + x.mr] || '';
-        };
         var fueraMes = fecha.slice(0, 7) !== prog.mes;
         $('prog-estado').innerHTML = '📄 ' + esc(progDatos.archivo) + ' · ' + prog.q1.length + ' lotes en Q1, ' + prog.q2.length + ' en Q2 · cargado ' + esc(progDatos.cargado) +
             (fueraMes ? '<br><span class="aviso-fotos">⚠ El día elegido no es del mes de este Excel (' + esc(prog.mes) + '): suba la programación de ese mes.</span>' : '');
         var tot = est.cuadrillas.reduce(function (a, c) { a.l += c.total; a.h += c.hechos; a.at += c.atrasados.length; a.app += c.soloApp; return a; }, { l: 0, h: 0, at: 0, app: 0 });
         $('prog-dia').innerHTML = '<b>' + (est.domingo ? 'Domingo' : nombreDia(est.dia).replace(/^./, function (l) { return l.toUpperCase(); })) + ' ' + aTexto(fecha) +
             '</b> · semana ' + est.semana + (est.dia ? ', día ' + est.dia : '') + ' · quincena ' + est.quincena +
-            '<div class="chips"><span class="prog-chip">' + tot.h + ' de ' + tot.l + ' lotes hechos</span>' +
+            '<div class="chips">' + chipsQuincenas(prog, fecha, est.quincena, vis) +
             (tot.at ? '<span class="prog-chip atraso">' + tot.at + ' atrasados</span>' : '<span class="prog-chip ok">sin atrasos</span>') +
             (tot.app ? '<span class="prog-chip" title="Sin X en el Excel pero con visita registrada en la app">◉ ' + tot.app + ' solo en la app</span>' : '') + '</div>';
         // Selector de cuadrilla (se conserva la elegida)
@@ -2577,14 +2572,14 @@ export function iniciar(api, CFG) {
             var estado = c.atrasados.length ? '<span class="prog-chip atraso">' + c.atrasados.length + ' atrasados</span>' : c.adelantados ? '<span class="prog-chip ok">adelantada</span>' : '<span class="prog-chip ok">al día</span>';
             var ids = c.hoy.map(idMapaProg);
             return '<section class="prog-cuad" style="--c:' + colorCuadrilla(c.cuad) + '"><h3>Cuadrilla ' + esc(c.cuad) + ' ' + estado +
-                '<span class="barra" title="' + pct + ' %"><i style="width:' + pct + '%"></i></span><small>' + c.hechos + ' de ' + c.total + '</small></h3>' +
+                '<span class="barra" title="' + pct + ' %"><i style="width:' + pct + '%"></i></span><small>Q' + est.quincena + ': ' + c.hechos + ' de ' + c.total + '</small></h3>' +
                 '<div class="fila"><b>Hoy le toca:</b> ' + (c.hoy.length ? c.hoy.map(function (x) { return chipLote(x, enApp); }).join('') : (est.domingo ? 'domingo, sin programación' : 'nada programado para este día')) + '</div>' +
                 (c.ultimo ? '<div class="fila"><b>Va en:</b> ' + (c.siguen.length ? c.siguen.map(function (x) { return chipLote(x, enApp); }).join('') : 'terminó lo programado') +
                     ' <span class="sub">(último marcado ' + aTexto(c.ultimo.fecha) + ': ' + esc(c.ultimo.lotes.slice(-2).map(function (x) { return x.lote || x.mr; }).join(', ')) + ')</span></div>'
                     : '<div class="fila"><b>Va en:</b> <span class="sub">sin nada marcado con X en el Excel' + (c.soloApp ? '; ' + c.soloApp + ' con visita en la app' : '') + '</span></div>') +
                 (c.atrasados.length ? '<details><summary>Atrasados (' + c.atrasados.length + ' de ' + c.debian + ' que ya debían estar)</summary>' +
                     c.atrasados.map(function (x) { return chipLote(x, enApp); }).join('') + '</details>' : '') +
-                detallesAvance(prog, fecha, c.cuad, appFecha, enApp) +
+                detallesAvance(prog, fecha, c.cuad, vis, est.quincena) +
                 (c.obs.length ? c.obs.slice(0, 4).map(function (x) { return '<div class="obs">⚠ ' + esc((x.lote || x.mr) + ': ' + x.obs) + '</div>'; }).join('') : '') +
                 '<div class="acciones">' + (ids.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.join(',')) + '">🗺️ Lo de hoy en el mapa</a>' : '') +
                     (c.atrasados.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + c.atrasados.map(idMapaProg).join(',')) + '">🗺️ Atrasados en el mapa</a>' : '') +
@@ -2605,21 +2600,42 @@ export function iniciar(api, CFG) {
     var DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
     function diaCorto(f) { return f ? DIAS_CORTOS[new Date(f + 'T12:00:00Z').getUTCDay()] + ' ' + aTexto(f).slice(0, 5) : ''; }
     function diaLargo(f) { var n = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'][new Date(f + 'T12:00:00Z').getUTCDay()]; return n + ' ' + aTexto(f); }
-    // Tarjeta de la cuadrilla: cuáles lleva (por fecha en que se hicieron) y cuáles le faltan (por día programado)
-    function detallesAvance(prog, fecha, cuad, appFecha, enApp) {
-        var lotes = lotesDeQuincena(prog, fecha).filter(function (x) { return x.cuad === cuad; });
-        var av = avanceCuadrilla(lotes, prog, fecha, appFecha), k = av.cuenta;
-        if (!lotes.length) return '';
-        var chips = function (L) { return L.map(function (x) { return chipLote(x, enApp); }).join(''); };
-        var partes = [k.atrasado && k.atrasado + ' atrasados', k.hoy && k.hoy + ' de hoy', k.pendiente && k.pendiente + ' por venir', k.sin && k.sin + ' sin día'].filter(Boolean);
-        return '<details class="prog-av llevan"><summary>Llevan ' + k.llevan + ' de ' + lotes.length + '</summary>' +
-                (av.llevan.length ? av.llevan.map(function (g) {
-                    return '<div class="prog-av-dia"><span class="prog-av-fecha">' + (g.fecha ? esc(diaCorto(g.fecha)) : 'sin fecha') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
-                }).join('') : '<div class="sub">Todavía ninguno.</div>') + '</details>' +
-            '<details class="prog-av faltan"><summary>Faltan ' + k.faltan + (partes.length ? ' · ' + partes.join(' · ') : '') + '</summary>' +
-                (av.faltan.length ? av.faltan.map(function (g) {
-                    return '<div class="prog-av-dia"><span class="prog-av-fecha ' + g.estado + '">' + (g.fecha ? esc(diaCorto(g.fecha)) + (g.estado === 'hoy' ? ' · hoy' : '') : 'sin día') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
-                }).join('') : '<div class="sub">No le falta ninguno. 🎉</div>') + '</details>';
+    // Visitas de la app de una quincena: fecha ('' si no hay o si el lote ya tiene la X)
+    function appDeQuincena(prog, vis, q) {
+        var s = vis[prog.mes + '|' + q] || {};
+        return function (x) { return x.hecho ? '' : s['L' + x.lote] || s['M' + x.mr] || ''; };
+    }
+    function quincenasConLotes(prog) { return [1, 2].filter(function (q) { return (q === 1 ? prog.q1 : prog.q2 || []).length; }); }
+    function textoRango(prog, q) { var r = rangoQuincena(prog, q); return aTexto(r.desde).slice(0, 5) + ' – ' + aTexto(r.hasta).slice(0, 5); }
+    // Arriba: cuántos van hechos en cada quincena (de la otra: lo que quedó sin hacer o cuándo empieza)
+    function chipsQuincenas(prog, fecha, qHoy, vis) {
+        return quincenasConLotes(prog).map(function (q) {
+            var L = q === 1 ? prog.q1 : prog.q2, app = appDeQuincena(prog, vis, q);
+            var h = L.filter(function (x) { return x.hecho || app(x); }).length, r = rangoQuincena(prog, q);
+            var extra = q === qHoy ? '' : fecha < r.desde ? ' · empieza ' + diaCorto(r.desde) : L.length > h ? ' · ' + (L.length - h) + ' sin hacer' : '';
+            return '<span class="prog-chip' + (q === qHoy ? '' : ' prog-chip-otra') + '" title="Q' + q + ': ' + esc(textoRango(prog, q)) + '">Q' + q + ': ' + h + ' de ' + L.length + ' hechos' + esc(extra) + '</span>';
+        }).join('');
+    }
+    // Tarjeta de la cuadrilla: por quincena, cuáles lleva (por fecha en que se hicieron) y cuáles le faltan (por día programado)
+    function detallesAvance(prog, fecha, cuad, vis, qHoy) {
+        return quincenasConLotes(prog).map(function (q) {
+            var lotes = (q === 1 ? prog.q1 : prog.q2).filter(function (x) { return x.cuad === cuad; });
+            if (!lotes.length) return '';
+            var appF = appDeQuincena(prog, vis, q), enApp = function (x) { return !!appF(x); };
+            var av = avanceCuadrilla(lotes, prog, fecha, appF), k = av.cuenta, r = rangoQuincena(prog, q);
+            var chips = function (L) { return L.map(function (x) { return chipLote(x, enApp); }).join(''); };
+            var partes = [k.atrasado && k.atrasado + (q === qHoy ? ' atrasados' : ' sin hacer'), k.hoy && k.hoy + ' de hoy', k.pendiente && k.pendiente + ' por venir', k.sin && k.sin + ' sin día'].filter(Boolean);
+            return '<div class="prog-avq' + (q === qHoy ? ' actual' : '') + '"><div class="prog-avq-tit"><b>Q' + q + '</b> ' + esc(textoRango(prog, q)) +
+                    (q === qHoy ? ' <span class="prog-chip">en curso</span>' : fecha < r.desde ? ' <span class="sub">(todavía no empieza)</span>' : ' <span class="sub">(ya pasó)</span>') + '</div>' +
+                '<details class="prog-av llevan"><summary>Llevan ' + k.llevan + ' de ' + lotes.length + '</summary>' +
+                    (av.llevan.length ? av.llevan.map(function (g) {
+                        return '<div class="prog-av-dia"><span class="prog-av-fecha">' + (g.fecha ? esc(diaCorto(g.fecha)) : 'sin fecha') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
+                    }).join('') : '<div class="sub">Todavía ninguno.</div>') + '</details>' +
+                '<details class="prog-av faltan"><summary>Faltan ' + k.faltan + (partes.length ? ' · ' + partes.join(' · ') : '') + '</summary>' +
+                    (av.faltan.length ? av.faltan.map(function (g) {
+                        return '<div class="prog-av-dia"><span class="prog-av-fecha ' + g.estado + '">' + (g.fecha ? esc(diaCorto(g.fecha)) + (g.estado === 'hoy' ? ' · hoy' : '') : 'sin día') + '</span><span class="prog-av-lotes">' + chips(g.lotes) + '</span></div>';
+                    }).join('') : '<div class="sub">No le falta ninguno. 🎉</div>') + '</details></div>';
+        }).join('');
     }
 
     // ---------- Consultar un lote: ¿se hizo?, ¿qué día le toca?, ¿de qué cuadrilla es? ----------
@@ -2651,7 +2667,7 @@ export function iniciar(api, CFG) {
                             (e.x.hecho && e.x.fecha ? ' el ' + esc(aTexto(e.x.fecha)) : '') + (!e.x.hecho && typeof e.app === 'string' && e.app ? ' el ' + esc(aTexto(e.app)) : '') + '</li>';
                     }).join('') + '</ul>' +
                     (f.obs ? '<div class="prog-ficha-obs">⚠ ' + esc(f.obs) + '</div>' : '') +
-                    vamosEnLote(prog, v, vis) +
+                    f.quincenas.map(function (e) { return vamosEnLote(prog, e, vis, f.quincenas.length > 1, fecha); }).join('') +
                     '<div class="prog-ficha-acc"><a class="boton secundario pequeno" href="' + esc(urlMapa(f.mr, f.lote)) + '">🗺️ Ver en el mapa</a>' +
                         '<button type="button" class="secundario pequeno" data-pc="visita" data-i="' + i + '">📋 Registrar visita</button>' +
                         '<button type="button" class="secundario pequeno" data-pc="editar" data-i="' + i + '">✎ Editar</button></div>' +
@@ -2660,7 +2676,9 @@ export function iniciar(api, CFG) {
         }).join('');
     }
     // «Si van en este lote»: lo que quedó atrás sin hacer y lo que sigue, por fecha programada de su cuadrilla (misma quincena)
-    function vamosEnLote(prog, v, vis) {
+    // Si la quincena del lote todavía no empieza, lo de antes no está atrasado: es lo que hay que hacer antes de llegar a él
+    function vamosEnLote(prog, v, vis, variasQ, fecha) {
+        var r = rangoQuincena(prog, v.q), futura = fecha < r.desde;
         var s = vis[prog.mes + '|' + v.q] || {}, lotes = v.q === 2 ? prog.q2 : prog.q1;
         var enApp = function (y) { return !y.hecho && !!(s['L' + y.lote] || s['M' + y.mr]); };
         var d = desdeLote(lotes, v.x, function (y) { return y.hecho || enApp(y); });
@@ -2679,15 +2697,16 @@ export function iniciar(api, CFG) {
             }).join('');
         };
         var mapa = function (L, txt) { return L.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + L.map(idMapaProg).join(',')) + '">🗺️ ' + txt + '</a>' : ''; };
-        return '<details class="prog-vamos"><summary>📍 Si van en este lote: ' + (d.antes.length ? d.antes.length + ' quedaron atrás sin hacer · ' : 'nada atrás sin hacer · ') +
-                (d.siguen.length ? d.siguen.length + ' siguen' : 'es el último') + '</summary>' +
+        return '<details class="prog-vamos"><summary>📍 ' + (variasQ ? 'Q' + v.q + ' (' + esc(textoRango(prog, v.q)) + ') · ' : '') + 'Si van en este lote: ' + (futura ? d.antes.length + ' antes de este · ' : d.antes.length ? d.antes.length + ' quedaron atrás sin hacer · ' : 'nada atrás sin hacer · ') +
+                (d.siguen.length ? d.siguen.length + ' siguen' : 'es el último') + (futura ? ' (empieza ' + esc(diaCorto(r.desde)) + ')' : '') + '</summary>' +
             '<div class="sub">Cuadrilla ' + esc(d.cuad) + ', Q' + v.q + ': es el ' + d.posicion + ' de ' + d.total + ' por fecha programada' +
                 (d.hechosDespues ? ' · ' + d.hechosDespues + ' de los siguientes ya están hechos (adelantados)' : '') + '.</div>' +
-            '<div class="prog-vamos-grupo"><b class="atras">Quedaron atrás sin hacer (' + d.antes.length + ')</b>' +
+            '<div class="prog-vamos-grupo">' + (futura ? '<b>Antes de este, por hacer (' + d.antes.length + ')</b> <span class="sub">la Q' + v.q + ' todavía no empieza: no están atrasados</span>'
+                : '<b class="atras">Quedaron atrás sin hacer (' + d.antes.length + ')</b>') +
                 (d.antes.length ? '<div>' + chips(d.antes) + '</div>' : '<div class="sub">Ninguno: todo lo anterior está hecho' + (d.hechosAntes ? ' (' + d.hechosAntes + ')' : '') + '.</div>') + '</div>' +
             '<div class="prog-vamos-grupo"><b>Siguen (' + d.siguen.length + ')</b>' +
                 (d.siguen.length ? '<div>' + chips(d.siguen) + '</div>' : '<div class="sub">No falta nada después de este.</div>') + '</div>' +
-            '<div class="prog-ficha-acc">' + mapa(d.antes, 'Los de atrás en el mapa') + mapa(d.siguen.slice(0, 10), 'Los próximos ' + Math.min(10, d.siguen.length) + ' en el mapa') + '</div>' +
+            '<div class="prog-ficha-acc">' + mapa(d.antes, futura ? 'Los de antes en el mapa' : 'Los de atrás en el mapa') + mapa(d.siguen.slice(0, 10), 'Los próximos ' + Math.min(10, d.siguen.length) + ' en el mapa') + '</div>' +
             '</details>';
     }
     // La respuesta corta: sí / no / todavía no, con la fecha

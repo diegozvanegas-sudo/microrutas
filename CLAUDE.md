@@ -12,7 +12,7 @@ Responder siempre en español. La app la usa la interventoría del corte de cés
 
 Nada se sube (commit ni push) sin haber pasado por esto, y al usuario se le dice qué se verificó y qué no:
 1. **Pruebas:** `npm test` en `web/` (todas en verde) y pruebas nuevas para la lógica que se agregó o cambió.
-2. **Lint:** `npx eslint src` sin errores nuevos (los 7 de `src/pqr/main.js` con `L` ya existían).
+2. **Lint:** `npx eslint src` sin errores (queda en 0; las globales de scripts clásicos como Leaflet `L` se declaran con `/* global L */`).
 3. **Compilar:** `npx vite build` (a una carpeta temporal) sin errores.
 4. **Con datos reales** cuando el usuario los dio (Excel, .zip, PDF): correr la lógica con ellos y revisar que el resultado tenga sentido (cuántas filas, qué quedó vacío y por qué).
 5. **Ver la pantalla** de lo que cambió, en computador (1280 px) y celular (390 px): `node tools/captura.mjs <página o copia .html> <salida>` hace las dos capturas y avisa si algo se sale del ancho. Si la página pide sesión, se arma una copia con sus estilos y datos de ejemplo. Mirar las capturas, no solo generarlas.

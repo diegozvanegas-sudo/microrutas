@@ -1,14 +1,23 @@
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import { dirname, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+// Raíz con la letra de la unidad en mayúscula: en Windows, si la consola entra a la carpeta como «c:\…» (VS Code, Git Bash),
+// vite guarda el <style> de index.html con una ruta y lo busca con otra («C:\…») y la compilación falla con
+// «No matching HTML proxy module found». Con la raíz fija sale igual desde cualquier consola.
+const raiz = dirname(fileURLToPath(import.meta.url)).replace(/^[a-z]:/, (u) => u.toUpperCase());
 
 export default defineConfig({
   // Rutas relativas: funciona igual en la raíz de un dominio o en una subcarpeta (GitHub Pages)
   base: './',
+  root: raiz,
   build: {
     // ExcelJS (~940 kB) solo se descarga al pulsar "Descargar Excel"
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
-      input: { index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html', horas: 'horas.html', horarios: 'horarios.html', whatsapp: 'whatsapp.html', revision: 'revision.html', despacho: 'despacho.html', pdf: 'pdf.html', buscar: 'buscar.html', diagnostico: 'diagnostico.html', requerimiento: 'requerimiento.html', radicar: 'radicar.html', cronogramas: 'cronogramas.html', programados: 'programados.html' },
+      // Con ruta completa desde la raíz (ver «raiz» arriba)
+      input: Object.fromEntries(Object.entries({ index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html', horas: 'horas.html', horarios: 'horarios.html', whatsapp: 'whatsapp.html', revision: 'revision.html', despacho: 'despacho.html', pdf: 'pdf.html', buscar: 'buscar.html', diagnostico: 'diagnostico.html', requerimiento: 'requerimiento.html', radicar: 'radicar.html', cronogramas: 'cronogramas.html', programados: 'programados.html' }).map(([k, f]) => [k, resolve(raiz, f)])),
     },
   },
   plugins: [

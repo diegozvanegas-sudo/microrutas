@@ -318,3 +318,11 @@ export function desdeLote(lotes, x, hecho) {
         hechosAntes: antes.length - antes.filter(sin).length, hechosDespues: despues.length - despues.filter(sin).length
     };
 }
+
+// Fechas de una quincena del Excel: Q1 = semanas 1 y 2 (lunes a sábado); Q2 = de la semana 3 hasta la última semana que
+// trae la hoja Q2 (si no trae semanas, hasta la semana 4). → { desde, hasta } (aaaa-mm-dd)
+export function rangoQuincena(prog, q) {
+    if (q === 1) return { desde: fechaPlan(prog.mes, 1, 1), hasta: fechaPlan(prog.mes, 2, 6) };
+    var ult = (prog.q2 || []).reduce(function (m, x) { return x.semana != null && x.semana > m ? x.semana : m; }, 0) || 4;
+    return { desde: fechaPlan(prog.mes, 3, 1), hasta: fechaPlan(prog.mes, Math.max(ult, 3), 6) };
+}
