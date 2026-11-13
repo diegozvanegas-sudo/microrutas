@@ -300,3 +300,21 @@ export function avanceCuadrilla(lotes, prog, fecha, enApp) {
         cuenta: cuenta
     };
 }
+
+// ---------- «Vamos en este lote»: qué quedó atrás sin hacer y qué sigue, en el orden de la programación de la cuadrilla ----------
+// El orden es el de la fecha programada (semana y día) y, dentro del mismo día, el de las filas del Excel; los lotes sin
+// día van al final. (Las filas del Excel vienen por número de lote, no en el orden de la ruta: no sirven solas.)
+// lotes: los de la quincena (de todas las cuadrillas); x: el lote en que van; hecho(y) → true si ya se hizo (X o app).
+// → { cuad, antes: [sin hacer antes de x], siguen: [sin hacer después de x], hechosAntes, hechosDespues, total, posicion }
+export function desdeLote(lotes, x, hecho) {
+    hecho = hecho || function (y) { return y.hecho; };
+    var clave = function (y) { return y.semana == null || y.dia == null ? 999 : y.semana * 10 + y.dia; };
+    var L = lotes.filter(function (y) { return y.cuad === x.cuad; }).sort(function (a, b) { return clave(a) - clave(b) || a.fila - b.fila; });
+    var i = L.indexOf(x), antes = L.slice(0, Math.max(i, 0)), despues = i === -1 ? [] : L.slice(i + 1);
+    var sin = function (y) { return !hecho(y); };
+    return {
+        cuad: x.cuad, total: L.length, posicion: i + 1,
+        antes: antes.filter(sin), siguen: despues.filter(sin),
+        hechosAntes: antes.length - antes.filter(sin).length, hechosDespues: despues.length - despues.filter(sin).length
+    };
+}

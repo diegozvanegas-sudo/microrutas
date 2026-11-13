@@ -787,3 +787,9 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .prog-av-fecha { font-size: 12px; font-weight: 700; color: var(--muted); }
 .prog-av-fecha.atrasado { color: #991b1b; }
 .prog-av-fecha.hoy { color: #92400e; }
+.prog-vamos { margin-top: 8px; padding: 8px 10px; border: 1px dashed #cbd5e1; border-radius: 10px; background: #f8fafb; }
+.prog-vamos summary { cursor: pointer; font-weight: 700; color: var(--brand); min-height: 28px; }
+.prog-vamos-grupo { margin-top: 8px; }
+.prog-vamos-grupo b.atras { color: #991b1b; }
+.prog-vamos .lote { display: inline-block; margin: 2px 4px 2px 0; padding: 1px 8px; border-radius: 8px; background: #f1f8f4; border: 1px solid #cfe7da; font-size: 12.5px; white-space: nowrap; }
+.prog-vamos .lote.app { background: #e0e7ff; border-color: #a5b4fc; }

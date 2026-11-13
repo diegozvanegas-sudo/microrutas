@@ -17,7 +17,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
-import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla } from './programacion.js';
+import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
@@ -2651,12 +2651,44 @@ export function iniciar(api, CFG) {
                             (e.x.hecho && e.x.fecha ? ' el ' + esc(aTexto(e.x.fecha)) : '') + (!e.x.hecho && typeof e.app === 'string' && e.app ? ' el ' + esc(aTexto(e.app)) : '') + '</li>';
                     }).join('') + '</ul>' +
                     (f.obs ? '<div class="prog-ficha-obs">⚠ ' + esc(f.obs) + '</div>' : '') +
+                    vamosEnLote(prog, v, vis) +
                     '<div class="prog-ficha-acc"><a class="boton secundario pequeno" href="' + esc(urlMapa(f.mr, f.lote)) + '">🗺️ Ver en el mapa</a>' +
                         '<button type="button" class="secundario pequeno" data-pc="visita" data-i="' + i + '">📋 Registrar visita</button>' +
                         '<button type="button" class="secundario pequeno" data-pc="editar" data-i="' + i + '">✎ Editar</button></div>' +
                     '</article>';
             }).join('');
         }).join('');
+    }
+    // «Si van en este lote»: lo que quedó atrás sin hacer y lo que sigue, por fecha programada de su cuadrilla (misma quincena)
+    function vamosEnLote(prog, v, vis) {
+        var s = vis[prog.mes + '|' + v.q] || {}, lotes = v.q === 2 ? prog.q2 : prog.q1;
+        var enApp = function (y) { return !y.hecho && !!(s['L' + y.lote] || s['M' + y.mr]); };
+        var d = desdeLote(lotes, v.x, function (y) { return y.hecho || enApp(y); });
+        if (!d.posicion) return '';
+        // Por día programado (los lotes ya vienen en ese orden): «jue 12/11  chip chip»
+        var chips = function (L) {
+            var grupos = [];
+            L.forEach(function (y) {
+                var f = y.semana != null && y.dia != null ? fechaPlanProg(prog.mes, y.semana, y.dia) : '', g = grupos[grupos.length - 1];
+                if (!g || g.f !== f) grupos.push(g = { f: f, L: [] });
+                g.L.push(y);
+            });
+            return grupos.map(function (g) {
+                return '<div class="prog-av-dia"><span class="prog-av-fecha">' + (g.f ? esc(diaCorto(g.f)) : 'sin día') + '</span><span class="prog-av-lotes">' +
+                    g.L.map(function (y) { return chipLote(y, enApp); }).join('') + '</span></div>';
+            }).join('');
+        };
+        var mapa = function (L, txt) { return L.length ? '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + L.map(idMapaProg).join(',')) + '">🗺️ ' + txt + '</a>' : ''; };
+        return '<details class="prog-vamos"><summary>📍 Si van en este lote: ' + (d.antes.length ? d.antes.length + ' quedaron atrás sin hacer · ' : 'nada atrás sin hacer · ') +
+                (d.siguen.length ? d.siguen.length + ' siguen' : 'es el último') + '</summary>' +
+            '<div class="sub">Cuadrilla ' + esc(d.cuad) + ', Q' + v.q + ': es el ' + d.posicion + ' de ' + d.total + ' por fecha programada' +
+                (d.hechosDespues ? ' · ' + d.hechosDespues + ' de los siguientes ya están hechos (adelantados)' : '') + '.</div>' +
+            '<div class="prog-vamos-grupo"><b class="atras">Quedaron atrás sin hacer (' + d.antes.length + ')</b>' +
+                (d.antes.length ? '<div>' + chips(d.antes) + '</div>' : '<div class="sub">Ninguno: todo lo anterior está hecho' + (d.hechosAntes ? ' (' + d.hechosAntes + ')' : '') + '.</div>') + '</div>' +
+            '<div class="prog-vamos-grupo"><b>Siguen (' + d.siguen.length + ')</b>' +
+                (d.siguen.length ? '<div>' + chips(d.siguen) + '</div>' : '<div class="sub">No falta nada después de este.</div>') + '</div>' +
+            '<div class="prog-ficha-acc">' + mapa(d.antes, 'Los de atrás en el mapa') + mapa(d.siguen.slice(0, 10), 'Los próximos ' + Math.min(10, d.siguen.length) + ' en el mapa') + '</div>' +
+            '</details>';
     }
     // La respuesta corta: sí / no / todavía no, con la fecha
     function veredictoLote(v, fecha) {

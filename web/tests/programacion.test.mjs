@@ -203,3 +203,26 @@ test('avance de la cuadrilla: cuáles lleva y cuáles faltan, por día', () => {
     assert.deepEqual(av.llevan.map(g => [g.fecha, g.lotes.map(x => x.lote)]), [['2026-11-03', ['1105']], ['2026-11-04', ['1113']], ['2026-11-07', ['1168']]]);
     assert.deepEqual(av.faltan.map(g => [g.fecha, g.estado, g.lotes.map(x => x.lote)]), [['2026-11-05', 'atrasado', ['472']], ['2026-11-09', 'hoy', ['488', '493']], ['', 'sin', ['NA']]]);
 });
+
+import { desdeLote } from '../src/subsanaciones/programacion.js';
+test('vamos en este lote: lo que quedó atrás sin hacer y lo que sigue, en el orden del Excel', () => {
+    const q1 = leerLotes(Q1), x = q1.find(y => y.lote === '472');
+    const d = desdeLote(q1, x);
+    assert.equal(d.cuad, '1');
+    assert.equal(d.total, 7);
+    assert.equal(d.posicion, 4);
+    assert.deepEqual(d.antes.map(y => y.lote), ['1168']);            // 1105 y 1113 tienen X
+    assert.equal(d.hechosAntes, 2);
+    assert.deepEqual(d.siguen.map(y => y.lote), ['488', '493', 'NA']); // solo de la cuadrilla 1
+    // Con visita en la app cuenta como hecho
+    assert.deepEqual(desdeLote(q1, x, y => y.hecho || y.lote === '1168').antes, []);
+    assert.equal(desdeLote(q1, q1.find(y => y.lote === '1105')).posicion, 1);
+});
+test('vamos en este lote: el orden es el de la fecha programada, no el de las filas del Excel', () => {
+    // Filas por número de lote, como viene el Excel real: el 503 está abajo pero le tocaba el lunes
+    const l = leerLotes([CAB, L(4, 'Z1CC0013', 13, 2, 4), L(4, 'Z1CC0014', 14, 2, 1), L(4, 'Z1CC0015', 15, 2, 4), L(4, 'Z1CC0035', 35, 2, 5), L(4, 'Z2CC0283', 503, 1, 1), L(4, 'Z1CC0099', 'NA', null, null)]);
+    const d = desdeLote(l, l[0]);
+    assert.deepEqual(d.antes.map(y => y.lote), ['503', '14']);
+    assert.deepEqual(d.siguen.map(y => y.lote), ['15', '35', 'NA']);
+    assert.equal(d.posicion, 3);
+});
