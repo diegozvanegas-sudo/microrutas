@@ -255,9 +255,36 @@ export function completarTripulantes(filas, tolerancia) {
         }).sort(function (a, b) { return esConductor(b) - esConductor(a); })[0];
         if (!c) return f;
         var dif = diferencia(f.hi, f.extra, c.real);
+        // La hora sale de la fila del compañero: la ruta y el control se comparan con esa misma fila
         return Object.assign({}, f, {
+            rutaReal: c.rutaReal, controlReal: c.controlReal, difRuta: c.difRuta, difControl: !!c.controlReal && !mismoControl(c.controlReal, f.control),
             real: c.real, como: esConductor(c) ? 'conductor' : 'companero', conductor: c.nombre, diferencia: dif, extraReal: extra(f.hi, f.hf, c.real),
             estado: Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos'
+        });
+    });
+}
+
+// Tripulante que el cumplimiento pone ese día en la dotación de otra ruta o de otro camión (los tripulantes salen en varias
+// dotaciones el mismo día): se compara con la fila del cumplimiento de SU CONDUCTOR, el del mismo turno del reporte (misma
+// fecha, misma ruta y mismo control), y toma la hora real de ese turno. Solo si así cuadra mejor que con su propia fila
+// (menos casillas distintas). Queda en otraFila dónde lo ponía el cumplimiento, para avisarlo.
+function distintas(f) { return (f.difRuta ? 1 : 0) + (f.difControl ? 1 : 0); }
+export function tripulanteConSuConductor(filas, tolerancia) {
+    tolerancia = tolerancia == null ? 5 : tolerancia;
+    var conductores = filas.filter(function (f) { return esConductor(f) && (f.como === 'cedula' || f.como === 'nombre') && f.candidatos && f.candidatos.length; });
+    return filas.map(function (f) {
+        if (esConductor(f) || !distintas(f) || ['cedula', 'nombre'].indexOf(f.como) < 0) return f;
+        var c = conductores.filter(function (k) { return k.fecha === f.fecha && !!k.ruta && k.ruta === f.ruta && mismoControl(k.control, f.control); })[0];
+        if (!c) return f;
+        var conEl = { difRuta: c.difRuta, difControl: !mismoControl(c.controlReal, f.control) };
+        if (distintas(conEl) >= distintas(f)) return f;
+        var dif = diferencia(f.hi, f.extra, c.real);
+        return Object.assign({}, f, conEl, {
+            real: c.real, como: 'conductor', conductor: c.nombre, porTurno: true, varias: false,
+            otraFila: { ruta: f.rutaReal, control: f.controlReal },
+            rutaReal: c.rutaReal, controlReal: c.controlReal,
+            diferencia: dif, extraReal: extra(f.hi, f.hf, c.real),
+            estado: c.real == null ? 'sinhora' : Math.abs(dif) <= tolerancia ? 'ok' : dif < 0 ? 'mas' : 'menos'
         });
     });
 }

@@ -173,3 +173,39 @@ test('horas: el tripulante que no cuadra se revisa con la ruta de su conductor d
     assert.deepEqual([r[1].difHi, r[1].rutaHorario, r[1].horarioDe], [false, '0118919', 'Conductor A']);
     assert.equal(r[2].difHi, true);      // otro control: no es su tripulación
 });
+
+import { tripulanteConSuConductor } from '../src/horas/cruce.js';
+test('tripulante que el cumplimiento pone en la dotación de otra ruta: se compara con la fila de su conductor', () => {
+    const base = { hi: 300, hf: 540, extra: 600 };
+    const extras = [
+        { ...base, fila: 2, fecha: '2026-10-26', cargo: 'CONDUCTOR', cedula: '71000001', nombre: 'CONDUCTOR UNO', ruta: '118919', control: '668' },
+        { ...base, fila: 3, fecha: '2026-10-26', cargo: 'TRIPULANTE', cedula: '10000002', nombre: 'TRIPULANTE DOS', ruta: '118919', control: '668' },
+        // Tripulante de otra ruta sin conductor en el reporte: queda como estaba
+        { ...base, fila: 4, fecha: '2026-10-26', cargo: 'TRIPULANTE', cedula: '10000003', nombre: 'TRIPULANTE TRES', ruta: '500001', control: '700' },
+    ];
+    const cumplimiento = [
+        { fecha: '2026-10-26', real: 579, codigo: '118919', codigoVer: '0118919', control: '668', camion: '668 - KTN193', dotacion: '71000001 - UNO, CONDUCTOR - 1 OTRO, PEPE' },
+        // El cumplimiento lo pone en otra ruta y otro camión ese mismo día (llegó a las 06:02)
+        { fecha: '2026-10-26', real: 362, codigo: '316101', codigoVer: '0316101', control: '626', camion: '626 - KTM948', dotacion: '2 POSADA, HECTOR - 10000002 - DOS, TRIPULANTE - 10000003 - TRES, TRIPULANTE' },
+    ];
+    const antes = completarTripulantes(cruzar(extras, cumplimiento, 5), 5);
+    assert.deepEqual([antes[1].difRuta, antes[1].difControl, antes[1].real], [true, true, 362]);   // lo que salía en rojo
+    const [c, t, otro] = tripulanteConSuConductor(antes, 5);
+    assert.deepEqual([c.difRuta, c.difControl], [false, false]);
+    assert.deepEqual([t.difRuta, t.difControl, t.real, t.como, t.conductor, t.porTurno], [false, false, 579, 'conductor', 'CONDUCTOR UNO', true]);
+    assert.deepEqual(t.otraFila, { ruta: '0316101', control: '626 - KTM948' });
+    assert.equal(t.rutaReal, '0118919');
+    assert.equal(otro, antes[2]);   // sin conductor en su turno: igual
+    // Si su conductor tampoco cuadra, el tripulante queda igual que él (no peor)
+    const c2 = { ...antes[0], difRuta: true, rutaReal: '0118901' };
+    const [, t2] = tripulanteConSuConductor([c2, antes[1]], 5);
+    assert.deepEqual([t2.difRuta, t2.difControl, t2.rutaReal], [true, false, '0118901']);
+});
+test('tripulante que toma la hora del conductor se compara con la fila del conductor', () => {
+    const base = { fecha: '2026-10-26', hi: 480, hf: 960, extra: 1005, ruta: '114801', control: '640' };
+    const r = completarTripulantes([
+        { ...base, cargo: 'CONDUCTOR', nombre: 'Conductor A', real: 1010, como: 'cedula', estado: 'ok', rutaReal: '0114801', controlReal: '640 - FWM262', difRuta: false, difControl: false },
+        { ...base, cargo: 'TRIPULANTE', nombre: 'Tripulante B', real: null, como: 'cedula', estado: 'sinhora', rutaReal: '0190121', controlReal: '507 - WDY207', difRuta: true, difControl: true },
+    ], 5);
+    assert.deepEqual([r[1].real, r[1].rutaReal, r[1].difRuta, r[1].difControl], [1010, '0114801', false, false]);
+});

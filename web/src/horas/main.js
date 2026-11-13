@@ -6,7 +6,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, completarTripulantes, esConductor, fechasSinCumplimiento } from './cruce.js';
+import { leerExtras, leerCumplimiento, cruzar, resumen, hhmm, minutos, duracion, diferencia, extra, completarTripulantes, tripulanteConSuConductor, esConductor, fechasSinCumplimiento } from './cruce.js';
 import { conHorario, horarioTripulacion } from './horario.js';
 import { distribuir, enHoras, MINIMO } from './distribucion.js';
 import { hojaVista, COLOR_REAL, COLOR_REPORTADA, COLOR_COINCIDE, COLOR_DISTINTO } from './vista.js';
@@ -98,11 +98,12 @@ async function procesar() {
         var cumplimiento = [].concat.apply([], leidos);
         sinDia = fechasSinCumplimiento(extras.filas, cumplimiento);
         // Conductores y tripulantes, cada uno por su cédula. El tripulante sin hora propia toma la del conductor de su
-        // ruta y control (queda para revisar)
+        // ruta y control (queda para revisar). El que el cumplimiento pone en la dotación de otra ruta o camión ese día
+        // se compara con la fila de su conductor del mismo turno (y esa hora sí se escribe: es la del turno que reportaron)
         var tol = +$('tolerancia').value || 0;
-        filas = horarioTripulacion(completarTripulantes(cruzar(extras.filas, cumplimiento, tol), tol).map(function (f) {
+        filas = horarioTripulacion(tripulanteConSuConductor(completarTripulantes(cruzar(extras.filas, cumplimiento, tol), tol), tol).map(function (f) {
             // Se escribe por defecto lo encontrado por cédula; lo encontrado por ruta o por el conductor queda para revisar
-            return Object.assign(f, { usar: f.real != null && f.como === 'cedula' }, conHorario(f, horarios));
+            return Object.assign(f, { usar: f.real != null && (f.como === 'cedula' || !!f.porTurno) }, conHorario(f, horarios));
         }), horarios);
         $('estado').hidden = true;
         $('resultado').hidden = false;
@@ -162,7 +163,9 @@ function pintar() {
         '<th class="centro"><label class="todas" title="Marcar o desmarcar todas las filas que se ven">Escribir<input type="checkbox" data-todas' + (todas ? ' checked' : '') + (marcables.length ? '' : ' disabled') + ' aria-label="Seleccionar todas"></label></th></tr></thead><tbody>' +
         vis.map(function (f) {
             var i = filas.indexOf(f), est = ESTADOS[f.estado];
-            var notas = [SIN_CEDULA[f.como] || '', f.como === 'conductor' ? 'hora del conductor de la ruta (' + f.conductor + '): revísela' : '',
+            var notas = [SIN_CEDULA[f.como] || '',
+                f.porTurno ? 'el cumplimiento lo pone ese día en la ruta ' + f.otraFila.ruta + ' (' + f.otraFila.control + '): se comparó con la fila de su conductor ' + f.conductor
+                    : f.como === 'conductor' ? 'hora del conductor de la ruta (' + f.conductor + '): revísela' : '',
                 f.como === 'companero' ? 'hora del compañero de la ruta (' + f.conductor + '): revísela' : '',
                 f.otrosDias && f.otrosDias.length ? 'aparece el ' + f.otrosDias.map(fechaVer).join(', ') + ', no el ' + fechaVer(f.fecha) : '', f.varias ? 'varias ese día: se tomó la más tarde' : '',
                 f.fueraDeDia ? 'la ruta no sale los ' + NOMBRES_DIAS[f.dia] + ' (sale ' + textoDias(f.horario.dias) + ')' : '',
