@@ -23,6 +23,9 @@ import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada 
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 import { leerImagenes, ordenarPorNombre } from './ocr.js';
 import { mezclarRutas, tocaReleer } from './prerutas.js';
+import { iniciarUbicar } from './ubicar_ui.js';
+import { crearLibreta } from './lugares.js';
+import { supabase } from '../supabase.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -3343,10 +3346,43 @@ export function iniciar(api, CFG) {
           });
     };
 
+    // ---------- 📍 Ubicar direcciones (ubicar_ui.js): direcciones de un mensaje → lotes cercanos, ¿le tocaba? y mapa ----------
+    // Lo escrito («386», «lote 386», «z2cc188») → { lote, mr } si está en los lotes de la app
+    function loteEscrito(v) {
+        var t = String(v || '').trim().toUpperCase().replace(/^LOTE\s*/, ''), m = t.match(/^Z(\d+)CC0*(\d+)$/);
+        if (m) {
+            var mr = 'Z' + Number(m[1]) + 'CC' + ('000' + Number(m[2])).slice(-4), l = LOTES[mr];
+            return l ? { lote: l.lote && !/^N\/?A$/i.test(l.lote) ? String(l.lote) : '', mr: mr } : null;
+        }
+        if (!/^\d+$/.test(t)) return null;
+        var n = String(Number(t)), k = Object.keys(LOTES).filter(function (x) { return String(LOTES[x].lote) === n; })[0];
+        return k ? { lote: n, mr: k } : null;
+    }
+    iniciarUbicar({
+        libreta: CFG.url && supabase ? crearLibreta(supabase) : null,
+        existeLote: loteEscrito,
+        infoLote: function (l) { var x = LOTES[l.mr]; return x ? { dir: String(x.d || '').slice(0, 160), frec: x.frec || '', cuad: x.cuad || '' } : null; },
+        hayProgramacion: function () { return !!progDatos; },
+        // Lo mismo que responde «Consultar un lote» en 📅 Programación del día, para hoy
+        veredicto: function (l) {
+            if (!progDatos) return null;
+            var prog = progDatos.prog, fecha = hoy(), vis = visitasPorQuincena(prog.mes);
+            var res = consultarLotes(prog, l.mr || l.lote, fecha, function (x, q) {
+                var s = vis[prog.mes + '|' + q] || {};
+                return x.hecho ? '' : s['L' + x.lote] || s['M' + x.mr] || '';
+            });
+            var f = res[0] && res[0].fichas[0];
+            if (!f) return { estado: 'sin', html: '❔ No está en la programación de ' + esc(prog.mes) + '.' };
+            var v = quincenaVigente(f, prog, fecha);
+            return { estado: v.estado, html: veredictoLote(v, fecha) };
+        },
+        copiar: copiarTexto
+    });
+
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|fotolote|prog)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|fotolote|prog|ubicar)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         btn.onclick();

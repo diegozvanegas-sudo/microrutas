@@ -48,6 +48,9 @@
                   display: grid; place-items: center; font-weight: 700; font-size: 13px; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
     /* Pre-ruta: revisados en verde, pendientes en rojo, cerrados en gris */
     .parada-num.pendiente { background: #dc2626; }
+    /* Direcciones de un mensaje (?puntos=, desde 📍 Ubicar direcciones): cuadro morado con su número, distinto de los círculos de los lotes */
+    .dir-num { background: #7c3aed; color: #fff; border: 2px solid #fff; border-radius: 8px 8px 8px 2px; min-width: 30px; width: auto !important; height: 28px !important;
+        padding: 0 6px; display: flex; align-items: center; justify-content: center; font: 700 13px/1 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 5px rgba(0,0,0,.5); }
     .parada-num.hecho { background: #16a34a; }
     .parada-num.cerrado { background: #64748b; font-size: 12px; }
     .parada-num.subsanar { background: #ea580c; }
@@ -1422,7 +1425,7 @@
                 if (claves.length > 1 && cs.length) {
                     // El número va en el pedazo más grande del lote: el mismo punto con que la pre-ruta mide distancias
                     var mayor = cs.reduce(function (m, c) { return areaMayor(c) > areaMayor(m) ? c : m; });
-                    var html =est === 'hecho' ? '✓' : est === 'cerrado' ? '🔒' : est === 'subsanar' ? '!' : est === 'curso' ? '▶' : String(k.n);
+                    var html =est === 'hecho' ? '✓' : est === 'cerrado' ? '🔒' : est === 'subsanar' ? '!' : est === 'curso' ? '▶' : dirCapa.getLayers().length && !k.esMr ? k.v : String(k.n);   // con direcciones marcadas, el círculo dice el lote (el número es de la dirección)
                     L.marker(puntoLote(mayor), { icon: L.divIcon({ className: 'parada-num' + (est ? ' ' + est : ''), html: html }),
                         title: (k.esMr ? '' : 'Lote ') + k.v + (est ? ' · ' + TEXTO_RUTA[est] : ''), zIndexOffset: est === 'pendiente' ? 1000 : 0 })
                         .on('click', function () { if (seleccion) alternarSel(cs[0]); else verLote(cs[0]); }).addTo(marcadores);
@@ -1436,7 +1439,9 @@
             if (movil.matches) plegarBarra(true);
             // Celular: primero el panel, porque su alto dice cuánto mapa queda a la vista para el lote
             if (abrir && movil.matches) verLote(cual);
-            encuadrar(unico ? L.featureGroup((porLote[clave(abrirId)] || porMr[clave(abrirId)])).getBounds() : L.featureGroup(capas).getBounds(), abrir);
+            var caja = unico ? L.featureGroup((porLote[clave(abrirId)] || porMr[clave(abrirId)])).getBounds() : L.featureGroup(capas).getBounds();
+            if (!unico && dirCapa.getLayers().length) caja.extend(cajaPuntosUrl());
+            encuadrar(caja, abrir);
             if (abrir && !movil.matches) verLote(cual);
         }
     }
@@ -1511,6 +1516,21 @@
 
     // ---------- Ubicar el lote por coordenadas (escritas o leídas de una foto) ----------
     var puntoCapa = L.layerGroup().addTo(map);
+    // ?puntos=6.28025,-75.59179,1|6.27992,-75.59245,2: direcciones ubicadas en 📍 Ubicar direcciones (Subsanaciones), cada una con su número.
+    // Solo se aceptan puntos del valle (un enlace mal copiado no manda el mapa a otro lado). Devuelve cuántos pintó
+    var dirCapa = L.layerGroup().addTo(map);
+    function pintarPuntosUrl(txt) {
+        dirCapa.clearLayers();
+        String(txt || '').split('|').slice(0, 40).forEach(function (p) {
+            var a = p.split(','), lat = +a[0], lng = +a[1], etq = String(a[2] || '').replace(/[^\w .#-]/g, '').slice(0, 12);
+            if (!(lat > 5.9 && lat < 6.6 && lng > -75.9 && lng < -75.2)) return;
+            L.marker([lat, lng], { icon: L.divIcon({ className: 'dir-num', html: esc(etq) || '•', iconSize: [30, 28], iconAnchor: [0, 28] }), zIndexOffset: 2000, title: 'Dirección ' + etq })
+                .bindPopup('<div><b>Dirección ' + esc(etq) + '</b><br>' + lat.toFixed(5) + ', ' + lng.toFixed(5) + '<br><span style="color:#64748b">Ubicación aproximada (cruce + placa)</span></div>')
+                .addTo(dirCapa);
+        });
+        return dirCapa.getLayers().length;
+    }
+    function cajaPuntosUrl() { return L.latLngBounds(dirCapa.getLayers().map(function (m) { return m.getLatLng(); })); }
     // Metros aproximados en la zona (proyección plana local: sobra para distancias de cientos de metros)
     function plano(ll, lat0) { return { x: ll.lng * 111320 * Math.cos(lat0 * Math.PI / 180), y: ll.lat * 110540 }; }
     function anillos(capa) {
@@ -1908,6 +1928,8 @@
         }
     } else if (guiaPref.dia != null) { guiaPref.dia = null; guardar('rapido_guia', guiaPref); }   // el día elegido vale solo para ese enlace
     if (guias.length) { pintarGuia(!!guiaUrl && !q.get('lote') && !q.get('mr')); pintarChips(); }
+    // ?puntos=…: las direcciones de un mensaje, numeradas (solas o junto con ?lote=)
+    if (q.get('puntos') && pintarPuntosUrl(q.get('puntos')) && !q.get('lote') && !q.get('mr')) map.fitBounds(cajaPuntosUrl().pad(0.3), { maxZoom: 18 });
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
     var llUrl = q.get('ll') && window.leerCoordenadas(q.get('ll'));
     if (llUrl) ubicarPunto(llUrl);

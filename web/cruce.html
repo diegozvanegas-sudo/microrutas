@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Cruce programado / realizado</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">📊</span>
+        <div class="nombre"><h1>Cruce programado / realizado</h1><div class="lema">Zonas verdes · lo que tocaba por quincena y día contra lo reportado</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" aria-current="page" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+                <a href="programados.html" title="Mensajes de WhatsApp que salen solos a la hora elegida">⏰ Envíos programados</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="cz">
+    <div id="estado" class="cz-estado">Cargando…</div>
+    <section class="panel cz-panel" id="cz-datos" hidden>
+        <h2>📊 Cruce programado / realizado</h2>
+        <p class="sub">Lo que cada cuadrilla tenía que hacer según la quincena y el día (Excel de programación) contra lo que reportó como hecho
+            (los «REPORTE MICRORRUTAS EJECUTADAS» de WhatsApp y la X del Excel). Cambie el día de corte para ver dónde iba cada una ese día.</p>
+        <div class="cz-dos">
+            <div class="cz-caja">
+                <h3>1. Programación del mes</h3>
+                <div id="cz-prog-estado" class="cz-linea" role="status"></div>
+                <input type="file" id="cz-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+                <button type="button" class="secundario cz-ancho" id="cz-elegir">📁 Elegir el Excel de programación</button>
+                <div class="sub">Es la misma de 📅 Programación del día (Subsanaciones): <b>queda guardada en este equipo</b> hasta que suba otra.</div>
+            </div>
+            <div class="cz-caja">
+                <h3>2. Reportes de las cuadrillas</h3>
+                <textarea id="cz-texto" rows="5" aria-label="Reportes de WhatsApp" placeholder="Pegue aquí uno o varios reportes de WhatsApp:&#10;&#10;REPORTE MICRORRUTAS EJECUTADAS CW394406&#10;Fecha: 28-10-2026&#10;Cuadrilla: 4&#10;Z1cc0125 (98)&#10;Z3cc0006 (57)"></textarea>
+                <div class="cz-fila">
+                    <button type="button" class="primario" id="cz-cargar">➕ Cargar reportes</button>
+                    <button type="button" class="secundario" id="cz-limpiar" hidden>Limpiar</button>
+                </div>
+                <div id="cz-rep-estado" class="cz-linea" role="status"></div>
+                <details id="cz-reportes" class="cz-plegable">
+                    <summary><span id="cz-rep-resumen">Reportes guardados</span></summary>
+                    <div id="cz-rep-lista" class="cz-rep-lista"></div>
+                </details>
+                <div class="sub" id="cz-donde"></div>
+            </div>
+        </div>
+    </section>
+    <section class="panel cz-panel" id="cz-cruce" hidden>
+        <div class="cz-corte">
+            <label for="cz-fecha">Corte al día</label>
+            <div class="cz-fechas">
+                <button type="button" class="secundario" id="cz-antes" aria-label="Día anterior" title="Día anterior">◀</button>
+                <input type="date" id="cz-fecha">
+                <button type="button" class="secundario" id="cz-despues" aria-label="Día siguiente" title="Día siguiente">▶</button>
+                <button type="button" class="secundario" id="cz-hoy">Hoy</button>
+            </div>
+            <span id="cz-quincena" class="sub"></span>
+            <button type="button" class="secundario cz-copiar" id="cz-copiar">📋 Copiar resumen</button>
+        </div>
+        <div id="cz-cuenta" class="cz-cuenta"></div>
+        <details id="cz-avisos" class="cz-plegable cz-avisos" hidden>
+            <summary id="cz-avisos-tit"></summary>
+            <div id="cz-avisos-lista"></div>
+        </details>
+        <div class="cz-pestanas" id="cz-pestanas" role="tablist" aria-label="Cómo ver el cruce">
+            <button type="button" role="tab" data-vista="dia" aria-selected="true">Por cuadrilla</button>
+            <button type="button" role="tab" data-vista="cal" aria-selected="false">Calendario</button>
+            <button type="button" role="tab" data-vista="lista" aria-selected="false">Listado</button>
+        </div>
+        <div id="cz-vista"></div>
+    </section>
+    <p class="nota-privada">Los reportes pegados quedan guardados para cruzarlos cualquier día; el texto del cuadro se borra al cargarlos.</p>
+</main>
+<div class="toast" id="toast"></div>
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="primario" id="conf-si">Aceptar</button>
+        </div>
+    </div>
+</dialog>
+<script src="data/direcciones_lotes.js"></script>
+<script type="module" src="/src/cruce/main.js"></script>
+</body>
+</html>

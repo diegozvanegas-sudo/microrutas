@@ -24,6 +24,7 @@
                 <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
                 <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
                 <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
                 <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
                 <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
             </div>
@@ -58,6 +59,7 @@
             <button type="button" class="item-menu" id="btn-hallazgos" title="Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen">📋 Posibles hallazgos</button>
             <button type="button" class="item-menu" id="btn-buenas" title="Mensajes de lo que se ve bien en campo (correcta operación), listos para el grupo">✅ Buena operación</button>
             <button type="button" class="item-menu" id="btn-prog" title="Subir el Excel de programación del mes y ver qué lote le toca hoy a cada cuadrilla y dónde va">📅 Programación del día</button>
+            <button type="button" class="item-menu" id="btn-ubicar" title="Pegar un mensaje con direcciones y ver qué lotes quedan cerca, si ya les tocaba y el mapa con todo marcado">📍 Ubicar direcciones</button>
             <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
             <hr>
@@ -509,6 +511,38 @@
         </div>
         <div class="pie">
             <button type="button" class="secundario" id="tabla-cerrar">Cerrar</button>
+        </div>
+    </div>
+</dialog>
+<!-- Ubicar direcciones (src/subsanaciones/ubicar_ui.js): de un mensaje pegado a los lotes, la programación y el mapa -->
+<dialog id="dlg-ubicar">
+    <div class="cuerpo">
+        <h2>📍 Ubicar direcciones
+            <button type="button" class="cerrar-dlg" id="ud-x" aria-label="Cerrar" title="Cerrar (Esc)">×</button></h2>
+        <div class="sub">Pegue el mensaje tal como llegó (WhatsApp, PQR, correo): se sacan las direcciones, se ubican en el mapa y sale qué lotes
+            quedan cerca de cada una. La ubicación es <b>aproximada</b> (el cruce más los metros de la placa): confírmela en el mapa.
+            Lo pegado se borra al cerrar; la <b>libreta de nombres</b> queda guardada para todo el equipo.</div>
+        <textarea id="ud-texto" rows="6" placeholder="CRA 85 76-c18 segundo parqueadero de villa flora&#10;CL 76 AD 85 C 11&#10;Toda la calle 76cc"></textarea>
+        <div class="ud-acciones">
+            <button type="button" class="primario" id="ud-ubicar">📍 Ubicar</button>
+            <button type="button" class="secundario" id="ud-limpiar" hidden>Limpiar</button>
+        </div>
+        <div class="fotos-resumen" id="ud-estado" role="status"></div>
+        <div id="ud-contadores" hidden>
+            <div class="ud-cuenta" id="ud-cuenta"></div>
+            <label class="fotos-check" id="ud-solo-caja" hidden><input type="checkbox" id="ud-solo"> Ver solo las que hay que revisar</label>
+            <div class="ud-nota" id="ud-sin-prog" hidden>Para saber si a cada lote ya le tocaba o si está atrasado, suba el Excel del mes en
+                📅 Programación del día (queda guardado en este equipo).</div>
+        </div>
+        <div id="ud-lista"></div>
+        <details class="ud-libreta" id="ud-libreta">
+            <summary>📒 Libreta de nombres <span id="ud-libreta-n"></span></summary>
+            <div id="ud-libreta-lista"></div>
+        </details>
+        <div class="pie">
+            <button type="button" class="secundario" id="ud-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="ud-copiar" disabled>📋 Copiar resumen</button>
+            <a class="boton primario" id="ud-mapa" target="_blank" rel="noopener" hidden>🗺️ Ver todo en el mapa</a>
         </div>
     </div>
 </dialog>

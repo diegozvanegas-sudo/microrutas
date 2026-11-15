@@ -1,0 +1,120 @@
+/* 📊 Cruce programado / realizado (cruce.html). Clases con prefijo cz- para no chocar con las de Subsanaciones */
+.cz { display: grid; gap: 14px; }
+.cz-estado { padding: 30px; text-align: center; color: var(--muted); }
+.cz-panel { padding: 16px; overflow: visible; display: grid; gap: 12px; min-width: 0; }
+.cz-panel h2 { margin: 0; font-size: 18px; }
+.cz-panel h3 { margin: 0; font-size: 15px; }
+.cz-panel > .sub { margin: 0; font-size: 13px; }
+.cz-dos { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr); gap: 12px; }
+.cz-caja { border: 1px solid var(--line); border-radius: 10px; padding: 12px; display: grid; gap: 8px; align-content: start; min-width: 0; }
+.cz-caja textarea { width: 100%; min-height: 110px; resize: vertical; }
+.cz-ancho { width: 100%; min-height: 44px; border: 2px dashed #9fd3bd; }
+.cz-fila { display: flex; flex-wrap: wrap; gap: 8px; }
+.cz-fila button { min-height: 42px; }
+.cz-fila .primario { flex: 1 1 180px; }
+.cz-linea { font-size: 14px; overflow-wrap: anywhere; }
+.cz-linea:empty { display: none; }
+.cz-falta { color: #9a3412; font-weight: 600; }
+.cz-plegable { border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; }
+.cz-plegable summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 32px; display: flex; align-items: center; }
+.cz-rep-lista { max-height: 260px; overflow: auto; }
+.cz-rep { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 7px 0; border-top: 1px solid var(--line); font-size: 13px; }
+.cz-rep button { min-width: 36px; min-height: 34px; }
+
+.cz-corte { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.cz-corte label { font-weight: 700; margin: 0; }
+.cz-fechas { display: flex; align-items: center; gap: 6px; }
+.cz-fechas button { min-width: 42px; min-height: 42px; padding: 8px 12px; }
+.cz-fechas input { min-height: 42px; width: auto; }
+.cz-copiar { margin-left: auto; min-height: 42px; }
+.cz-cuenta { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 8px; }
+.cz-dato { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; background: #f8fafc; }
+.cz-dato b { font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.cz-dato span { font-size: 12px; color: var(--muted); }
+.cz-dato.bien b { color: #166534; }
+.cz-dato.mal b { color: #b91c1c; }
+.cz-dato.ojo b { color: #b45309; }
+.cz-avisos { background: #fffbeb; border-color: #fde68a; }
+.cz-avisos > div { display: grid; gap: 10px; padding: 6px 0 4px; font-size: 13px; }
+
+.cz-pestanas { display: flex; gap: 6px; border-bottom: 1px solid var(--line); overflow-x: auto; }
+.cz-pestanas button { background: none; color: var(--muted); border-radius: 8px 8px 0 0; padding: 10px 14px; min-height: 42px; border-bottom: 3px solid transparent; white-space: nowrap; }
+.cz-pestanas button[aria-selected="true"] { color: var(--brand-dark); border-bottom-color: var(--brand); background: #edf8f3; }
+
+.cz-cuadrillas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 330px), 1fr)); gap: 12px; }
+.cz-cuad { border: 1px solid var(--line); border-left: 5px solid #94a3b8; border-radius: 10px; padding: 12px; display: grid; gap: 10px; align-content: start; min-width: 0; }
+.cz-cuad.atrasada { border-left-color: #dc2626; }
+.cz-cuad.aldia, .cz-cuad.terminada { border-left-color: #16a34a; }
+.cz-cuad.adelantada { border-left-color: #2563eb; }
+.cz-cuad-cab { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; font-size: 16px; }
+.cz-pct { margin-left: auto; font-weight: 700; font-size: 18px; font-variant-numeric: tabular-nums; }
+.cz-situacion { font-size: 14px; font-weight: 600; line-height: 1.4; }
+.cz-cuad.atrasada .cz-situacion { color: #991b1b; }
+.cz-bloque { display: grid; gap: 5px; }
+.cz-bloque-tit { font-size: 12px; font-weight: 700; color: var(--muted); text-transform: uppercase; letter-spacing: .03em; }
+.cz-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.cz-chip { display: inline-flex; align-items: center; gap: 5px; padding: 5px 9px; border-radius: 8px; font-size: 13px; font-weight: 700; text-decoration: none; background: #f1f5f9; color: #334155; min-height: 30px; }
+.cz-chip small { font-weight: 500; font-size: 11.5px; opacity: .9; }
+.cz-chip.atiempo, .cz-chip.hechosf { background: #dcfce7; color: #166534; }
+.cz-chip.tarde { background: #fef3c7; color: #92400e; }
+.cz-chip.antes { background: #dbeafe; color: #1e40af; }
+.cz-chip.atrasado { background: #fee2e2; color: #991b1b; }
+.cz-chip.hoy { background: #fff7ed; color: #9a3412; box-shadow: inset 0 0 0 1px #fdba74; }
+.cz-acc { display: flex; flex-wrap: wrap; gap: 8px; }
+.cz-acc > * { min-height: 36px; display: inline-flex; align-items: center; }
+
+.cz-tabla-caja { overflow-x: auto; border: 1px solid var(--line); border-radius: 10px; }
+.cz-cal { border-collapse: collapse; width: 100%; font-size: 13px; font-variant-numeric: tabular-nums; }
+.cz-cal th, .cz-cal td { border: 1px solid var(--line); text-align: center; padding: 0; min-width: 58px; }
+.cz-cal thead th { background: #f8fafc; font-weight: 600; }
+.cz-cal thead th:first-child, .cz-cal tbody th { position: sticky; left: 0; background: #f8fafc; z-index: 1; padding: 8px 10px; min-width: 48px; }
+.cz-cal thead button { background: none; color: var(--ink); font-weight: 600; font-size: 12px; padding: 6px 4px; width: 100%; min-height: 44px; border-radius: 0; line-height: 1.25; }
+.cz-cal th.corte button { background: #edf8f3; color: var(--brand-dark); box-shadow: inset 0 -3px 0 var(--brand); }
+.cz-cal td { padding: 6px 4px; }
+.cz-cal td b { display: block; font-size: 14px; }
+.cz-cal td small { display: block; font-size: 10.5px; color: #475569; }
+.cz-cal td.bien { background: #dcfce7; color: #166534; }
+.cz-cal td.mal { background: #fee2e2; color: #991b1b; }
+.cz-cal td.hoy { background: #fff7ed; color: #9a3412; }
+.cz-cal td.falta { background: #fff; color: #475569; }
+.cz-cal td.vacio { background: #f8fafc; color: #cbd5e1; }
+.cz-cal td.corte { box-shadow: inset 2px 0 0 var(--brand), inset -2px 0 0 var(--brand); }
+.cz-leyenda { display: flex; flex-wrap: wrap; gap: 8px; font-size: 12px; margin-top: 8px; }
+.cz-leyenda span { padding: 2px 8px; border-radius: 6px; border: 1px solid var(--line); }
+.cz-leyenda .bien { background: #dcfce7; } .cz-leyenda .mal { background: #fee2e2; } .cz-leyenda .hoy { background: #fff7ed; } .cz-leyenda .falta { background: #fff; }
+
+.cz-filtros { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin-bottom: 10px; }
+.cz-filtros label { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; }
+.cz-filtros select { min-height: 40px; width: auto; max-width: 100%; }
+.cz-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cz-lista li { display: grid; grid-template-columns: minmax(110px, 1fr) minmax(170px, 1.2fr) minmax(0, 2fr); gap: 6px 14px; align-items: center; padding: 8px 10px; border: 1px solid var(--line); border-left: 4px solid #cbd5e1; border-radius: 8px; font-size: 13px; }
+.cz-lista li.atrasado { border-left-color: #dc2626; }
+.cz-lista li.tarde { border-left-color: #d97706; }
+.cz-lista li.atiempo, .cz-lista li.hechosf { border-left-color: #16a34a; }
+.cz-lista li.antes { border-left-color: #2563eb; }
+.cz-l-lote { display: grid; }
+.cz-l-fechas { display: grid; }
+.cz-l-est { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-width: 0; }
+.cz-est { padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; white-space: nowrap; background: #f1f5f9; color: #334155; }
+.cz-est.atiempo, .cz-est.hechosf { background: #dcfce7; color: #166534; }
+.cz-est.tarde { background: #fef3c7; color: #92400e; }
+.cz-est.antes { background: #dbeafe; color: #1e40af; }
+.cz-est.atrasado { background: #fee2e2; color: #991b1b; }
+.cz-est.hoy { background: #fff7ed; color: #9a3412; }
+.cz-vacio { padding: 16px; text-align: center; }
+
+@media (max-width: 720px) {
+    .cz-dos { grid-template-columns: 1fr; }
+    .cz-panel { padding: 12px; }
+    .cz-copiar { margin-left: 0; flex: 1 1 100%; }
+    .cz-cuenta { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .cz-lista li { grid-template-columns: 1fr 1fr; }
+    .cz-l-est { grid-column: 1 / -1; }
+    .cz-acc > * { flex: 1 1 auto; justify-content: center; }
+    .cz-pestanas button { flex: 1 1 auto; padding: 10px 8px; }
+}
+.cz-cuad.huecos { border-left-color: #d97706; }
+.cz-cuad.huecos .cz-situacion { color: #92400e; }
+/* La tabla del calendario se desplaza dentro de su caja: nada empuja la página a lo ancho */
+.cz > *, .cz-panel > *, #cz-vista > * { min-width: 0; }
+.cz-tabla-caja { max-width: 100%; }

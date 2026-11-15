@@ -10,6 +10,7 @@ function ubicar(menu) {
 
 // Herramientas del menú Más de Subsanaciones, también en las demás secciones: abren Subsanaciones con la herramienta lista
 var HERRAMIENTAS = [
+    ['ubicar', '📍 Ubicar direcciones', 'Pegar un mensaje con direcciones y ver qué lotes quedan cerca y si ya les tocaba'],
     ['hallazgos', '📋 Posibles hallazgos', 'Mensajes de interventoría listos para el grupo: escriba qué vio y aparecen'],
     ['buenas', '✅ Buena operación', 'Mensajes de lo que se ve bien en campo (correcta operación), listos para el grupo'],
     ['fotos', '🖼️ Fotos a PDF', 'Una o muchas fotos en un solo PDF'],

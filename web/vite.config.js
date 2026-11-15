@@ -17,7 +17,7 @@ export default defineConfig({
     chunkSizeWarningLimit: 1000,
     rollupOptions: {
       // Con ruta completa desde la raíz (ver «raiz» arriba)
-      input: Object.fromEntries(Object.entries({ index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html', horas: 'horas.html', horarios: 'horarios.html', whatsapp: 'whatsapp.html', revision: 'revision.html', despacho: 'despacho.html', pdf: 'pdf.html', buscar: 'buscar.html', diagnostico: 'diagnostico.html', requerimiento: 'requerimiento.html', radicar: 'radicar.html', cronogramas: 'cronogramas.html', programados: 'programados.html' }).map(([k, f]) => [k, resolve(raiz, f)])),
+      input: Object.fromEntries(Object.entries({ index: 'index.html', mapa_rapido: 'mapa_rapido.html', subsanaciones: 'subsanaciones.html', contrato: 'contrato.html', usuarios: 'usuarios.html', pqr: 'pqr.html', pendientes: 'pendientes.html', informe: 'informe.html', horas: 'horas.html', horarios: 'horarios.html', whatsapp: 'whatsapp.html', revision: 'revision.html', despacho: 'despacho.html', pdf: 'pdf.html', buscar: 'buscar.html', diagnostico: 'diagnostico.html', requerimiento: 'requerimiento.html', radicar: 'radicar.html', cronogramas: 'cronogramas.html', programados: 'programados.html', cruce: 'cruce.html' }).map(([k, f]) => [k, resolve(raiz, f)])),
     },
   },
   plugins: [
