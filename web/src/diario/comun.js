@@ -179,3 +179,13 @@ export var FRASES_RECORRIDO = [
     { t: 'Recorrido por la zona', texto: 'Durante el recorrido por la zona se reportaron los voluminosos, RCD y llantas a sus respectivos grupos.' },
     { t: 'Vías principales', texto: 'Se hizo recorrido en vías principales y se visitaron puntos críticos.' },
 ];
+
+// Reporte parcial de domingos y festivos (turno tarde, centro): por zona, rutas de limpieza vial (terminan en DOM),
+// rutas de recolección y transporte (números) y recorrido de vías y parques; cada lista va renglón por renglón con «* ».
+export var FRASES_DOMINGO = [
+    { t: 'Zona', texto: 'ZONA …' },
+    { t: 'Rutas limpieza vial', texto: 'Se realiza verificación de las siguientes rutas de limpieza vial en operación:\n\n* …' },
+    { t: 'Rutas recolección y transporte', texto: 'Se realiza verificación de las siguientes rutas de recolección y transporte en operación:\n\n* …' },
+    { t: 'Recorrido vías y parques', texto: 'Se realiza recorrido en vías principales, vías secundarias y parques:\n\n* …' },
+    { t: 'Jornada sin novedad', texto: 'Hasta el momento transcurre la jornada sin novedad.' },
+];

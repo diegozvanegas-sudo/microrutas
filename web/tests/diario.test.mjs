@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leerPendientes, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, diaPorDefecto, nombreDia } from '../src/diario/comun.js';
+import { leerPendientes, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, diaPorDefecto, nombreDia, FRASES_DOMINGO } from '../src/diario/comun.js';
 
 // Lunes 26 de octubre de 2026, 7:43 p. m.
 const AHORA = new Date(2026, 9, 26, 19, 43);
@@ -58,4 +58,22 @@ test('informe: cuántas visitas de cada tipo, subsanaciones verificadas y PQR re
     assert.equal(fraseSubsanadas([]), '');
     assert.equal(frasePqrRespondidas(['440515', '440600', '440637']), 'Se dio respuesta y cierre a las PQRS con ID 440515, 440600 y 440637.');
     assert.equal(frasePqrRespondidas(['']), 'Se dio respuesta y cierre a una PQRS.');
+});
+
+test('domingos y festivos: las frases arman el reporte parcial por zona, con sus listas renglón por renglón', () => {
+    const f = Object.fromEntries(FRASES_DOMINGO.map((x) => [x.t, x.texto]));
+    const llenar = (t, ...cosas) => t.replace('…', cosas.join('\n* '));
+    const txt = textoInforme([
+        llenar(f['Zona'], '5'),
+        llenar(f['Rutas limpieza vial'], 'Z5R01DOM', 'Z5R02DOM'),
+        llenar(f['Recorrido vías y parques'], 'Parque Poblado', 'CL 10'),
+        llenar(f['Zona'], '7'),
+        llenar(f['Rutas recolección y transporte'], '703519'),
+        f['Jornada sin novedad'],
+    ]);
+    assert.match(txt, /✅ ZONA 5\n\n✅ Se realiza verificación de las siguientes rutas de limpieza vial en operación:\n\n\* Z5R01DOM\n\* Z5R02DOM\n\n/);
+    assert.match(txt, /vías secundarias y parques:\n\n\* Parque Poblado\n\* CL 10\n\n✅ ZONA 7/);
+    assert.match(txt, /recolección y transporte en operación:\n\n\* 703519\n\n✅ Hasta el momento transcurre la jornada sin novedad\.$/);
+    // Cada frase trae su «…» para escribir encima (menos el cierre)
+    FRASES_DOMINGO.filter((x) => x.t !== 'Jornada sin novedad').forEach((x) => assert.ok(x.texto.includes('…'), x.t));
 });
