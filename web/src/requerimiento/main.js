@@ -11,12 +11,16 @@ import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia } from './plantillas.js';
 import { armarPdf } from './pdf.js';
 import { armarDocx, prepararFormato } from './word.js';
+import { iniciarListos } from './listos_ui.js';
+import { EVID_ENVIO } from './listos.js';
 
 var CACHE = 'req_plantillas_cache', BORRADOR = 'req_borrador', HISTORIAL = 'req_historial', CONFIG = 'req_config', MEMBRETE = 'req_membrete', FIRMAS_IMG = 'req_firmas_img', FORMATO = 'req_formato';
 var ZONAS = ['1', '2', '3', '4', '5', '6', '7'];
 var DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 // fotosGrupo[i]: fotos (en memoria) de la evidencia i, en el mismo orden de las tarjetas
 var P = { config: {}, ans: {}, plantillas: [], catalogo: [] }, fotosGrupo = [], grupoFotos = -1, editandoId = null, cambios = false;
+// visitasReq: visitas (ID) que cubre el requerimiento abierto, cuando se armó desde ⏰ «Listos para requerimiento»
+var visitasReq = [], listos = null;
 function todasLasFotos() { return fotosGrupo.reduce(function (a, g) { return a.concat(g || []); }, []); }
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -128,7 +132,7 @@ function datosForm() {
         solicitudes: Array.prototype.map.call(document.querySelectorAll('#f-solicitudes .req-sol'), function (d) {
             return { t: d.querySelector('[data-s="t"]').value.trim(), ej: d.querySelector('[data-s="ej"]').value.trim() };
         }).filter(function (s) { return s.t || s.ej; }),
-        plazo: Number($('f-plazo').value) || 5
+        plazo: Number($('f-plazo').value) || 5, visitas: visitasReq.slice()
     };
 }
 function filaObligacion(o) {
@@ -183,6 +187,7 @@ function ponerEvidencias(grupos) {
 function soltarFotos() { todasLasFotos().forEach(function (f) { URL.revokeObjectURL(f.url); }); fotosGrupo = []; }
 function ponerForm(d, conservarFotos) {
     editandoId = d.id || null;
+    visitasReq = (d.visitas || []).slice();
     $('f-titulo').textContent = editandoId ? 'Requerimiento ' + (d.radicado || 'sin radicado') : 'Nuevo requerimiento';
     $('f-plantilla').value = d.plantilla || '';
     $('f-radicado').value = d.radicado || ''; $('f-tipo').value = d.tipo || 'Hallazgo'; $('f-fecha').value = d.fecha || hoy();
@@ -341,16 +346,38 @@ function pintarHistorial() {
         }).join('') : '<tr><td colspan="8" class="sub">' + (q ? 'Nada con «' + esc(q) + '».' : 'Todavía no hay requerimientos guardados en este equipo. Use «+ Nuevo requerimiento».') + '</td></tr>') + '</tbody>';
 }
 function verListado() {
-    $('form-req').hidden = true; $('req-historial').hidden = false;
+    $('form-req').hidden = true; $('req-historial').hidden = false; $('req-listos').hidden = false;
+    if (listos) listos.pintar();
     soltarFotos(); $('f-evidencias').innerHTML = '';
     pintarHistorial();
     window.scrollTo(0, 0);
 }
 function verForm(d) {
-    $('req-historial').hidden = true; $('form-req').hidden = false;
+    $('req-historial').hidden = true; $('req-listos').hidden = true; $('form-req').hidden = false;
     ponerForm(d || vacio());
     cambios = false;
     window.scrollTo(0, 0);
+}
+
+// Desde ⏰ «Listos para requerimiento»: abre el requerimiento ya lleno, le pone la plantilla del caso, mete los pantallazos
+// guardados de cada visita en la evidencia del envío y lo deja guardado como borrador (así queda en la lista)
+async function abrirAutomatico(d, plantilla, archivos) {
+    localStorage.removeItem(BORRADOR);
+    verForm(d);
+    if (plantilla) aplicarPlantilla(plantilla);
+    var grupos = evidenciasForm(), g = grupos.findIndex(function (x) { return x.titulo === EVID_ENVIO; });
+    if (g === -1) g = Math.min(1, grupos.length - 1);
+    for (var i = 0; g >= 0 && i < archivos.length; i++) {
+        try {
+            var f = await prepararFoto(archivos[i].file);
+            f.pie = archivos[i].pie;
+            (fotosGrupo[g] = fotosGrupo[g] || []).push(f);
+        } catch (e) { toast('No se pudo leer el pantallazo ' + archivos[i].file.name + '.'); }
+    }
+    pintarFotos();
+    guardarEnHistorial(datosForm());
+    localStorage.removeItem(BORRADOR);
+    toast('Requerimiento armado y guardado como borrador: elija el tipo de falencia si falta, revise y ponga el radicado.');
 }
 
 // ---------- Plantillas desde la base ----------
@@ -666,6 +693,12 @@ async function arrancar() {
         return;
     }
     if (!(await cargarPlantillas())) return;
+    listos = iniciarListos({
+        supabase: supabase, historial: historial, plantillas: function () { return P.plantillas; }, vacio: vacio, abrir: abrirAutomatico,
+        // El pantallazo se reduce igual que las fotos del requerimiento antes de subirlo
+        prepararImagen: async function (file) { var f = await prepararFoto(file); URL.revokeObjectURL(f.url); return { blob: new Blob([f.bytes], { type: 'image/jpeg' }) }; }
+    });
+    listos.cargar();
     var url = desdeUrl(), borrador = leer(BORRADOR, null);
     if (url) { verForm(url.d); if (url.plantilla) aplicarPlantilla(url.plantilla); }
     else if (borrador && (borrador.descripcion || borrador.asunto) && await confirmar('¿Seguir con el borrador?', 'Hay un requerimiento sin terminar en este equipo' + (borrador.radicado ? ' (' + borrador.radicado + ')' : '') + '.', 'Seguir', 'Ver el listado')) verForm(borrador);

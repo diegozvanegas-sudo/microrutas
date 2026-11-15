@@ -139,3 +139,42 @@ main.req label input[type="checkbox"], #dlg-config label input[type="checkbox"] 
 .req-formato-acc { display: flex; flex-wrap: wrap; gap: 8px; }
 .req-formato-acc button { min-height: 38px; }
 .req-formato-acc button[hidden] { display: none; }
+
+/* ---------- ⏰ Listos para requerimiento (listos_ui.js) ---------- */
+#req-listos > .sub { margin: 0 0 12px; font-size: 13px; line-height: 1.5; }
+.rl-estado { padding: 10px 12px; border-radius: 8px; background: #f1f5f9; color: #475569; font-size: 13px; margin-bottom: 10px; }
+.rl-estado[hidden], .rl-aviso[hidden], .rl-pie[hidden] { display: none; }
+.rl-aviso { padding: 10px 12px; border-radius: 8px; background: #fff7ed; color: #9a3412; font-size: 13px; margin-bottom: 10px; }
+.rl-cuenta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
+.rl-dato { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; background: #f8fafc; min-width: 0; }
+.rl-dato b { font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.rl-dato span { font-size: 12px; color: var(--muted); }
+.rl-dato.mal b { color: #b91c1c; }
+.rl-lista { display: grid; gap: 10px; }
+.rl-cuad { border: 1px solid var(--line); border-radius: 10px; overflow: hidden; }
+.rl-cuad-cab { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; padding: 10px 12px; background: #f8fafc; margin: 0; font-size: 15px; cursor: pointer; }
+div.rl-cuad-cab { cursor: default; }
+.rl-cuad-cab input, .rl-visita > input { width: 22px; height: 22px; flex: 0 0 22px; margin: 0; }
+.rl-visita { display: flex; gap: 10px; padding: 10px 12px; border-top: 1px solid var(--line); align-items: flex-start; }
+.rl-visita.ya { background: #f8fafc; }
+.rl-datos { display: grid; gap: 4px; min-width: 0; flex: 1; }
+.rl-tit { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px; }
+.rl-dias { padding: 1px 8px; border-radius: 999px; font-size: 12px; font-weight: 700; background: #f1f5f9; color: #334155; white-space: nowrap; }
+.rl-dias.listo { background: #fee2e2; color: #991b1b; }
+.rl-dias.pronto { background: #fef3c7; color: #92400e; }
+.rl-nov { font-size: 13px; overflow-wrap: anywhere; }
+.rl-ya { font-size: 13px; font-weight: 600; color: #166534; }
+.rl-anexos { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 2px; }
+.rl-anexos > button { min-height: 36px; }
+.rl-anexo { display: inline-flex; align-items: center; gap: 6px; padding: 3px 4px 3px 9px; border-radius: 8px; background: #edf8f3; font-size: 12.5px; max-width: 100%; overflow-wrap: anywhere; }
+.rl-anexo button { background: rgba(0, 0, 0, .08); color: inherit; padding: 0; width: 28px; height: 28px; border-radius: 6px; flex: 0 0 28px; }
+.rl-pie { position: sticky; bottom: 0; z-index: 3; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; margin: 12px -18px 0; padding: 10px 18px calc(10px + env(safe-area-inset-bottom)); background: var(--surface); border-top: 1px solid var(--line); }
+.rl-pie button { min-height: 44px; }
+.rl-plegable { border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; margin-top: 12px; }
+.rl-plegable summary { cursor: pointer; font-weight: 600; font-size: 14px; min-height: 34px; display: flex; align-items: center; }
+.rl-plegable .rl-lista { margin: 6px 0; }
+.rl-vacio { padding: 12px; text-align: center; }
+@media (max-width: 560px) {
+    .rl-pie button { flex: 1 1 100%; }
+    .rl-anexos > button { flex: 1 1 auto; }
+}
