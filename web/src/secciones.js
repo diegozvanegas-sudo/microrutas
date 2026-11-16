@@ -47,8 +47,13 @@ var porClave = {};
 SECCIONES.forEach(function (s) { porClave[s.clave] = s; });
 export function seccion(clave) { return porClave[clave] || null; }
 
+// ¿La cuenta entra a Microrrutas? (0025: Microrrutas y Rutina comparten las cuentas). Sin el dato (permisos de antes de
+// 0025, o sin conexión la primera vez) se toma que sí: la base igual no le entrega nada a quien no tiene acceso
+export function entra(permisos) { return !permisos || permisos.microrutas !== false; }
+
 export function puede(permisos, clave) {
     var s = porClave[clave], p = permisos || {};
+    if (!entra(p)) return false;
     if (!s) return true;                      // lo que no está en la lista no se controla aquí
     if (p.admin) return true;
     if (s.contrato && !p.contrato) return false;

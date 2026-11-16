@@ -65,10 +65,13 @@
     <div class="filtros" id="filtros" hidden>
         <input type="search" id="f-texto" placeholder="Buscar por nombre o correo" aria-label="Buscar usuario">
         <select id="f-rol" aria-label="Rol"><option value="">Rol: todos</option><option value="admin">Administrador</option><option value="interventor">Interventor</option></select>
+        <select id="f-app" aria-label="Aplicación"><option value="">App: todas</option><option value="microrutas">Entran a Microrrutas</option><option value="rutina">Entran a Rutina</option><option value="solo-rutina">Solo Rutina</option><option value="ninguna">Sin ninguna app</option></select>
     </div>
     <div class="panel" id="lista"><div class="cargando">Cargando…</div></div>
     <p class="nota">Las visitas quedan a nombre del usuario que inició sesión: “Registrado por” al crearla y “Subsanado por” al pasarla a subsanada.
         Desactivar bloquea el ingreso y conserva sus visitas; eliminar borra el usuario, y sus visitas quedan con el nombre que tenían.</p>
+    <p class="nota">Microrrutas y Rutina usan las mismas cuentas: aquí se crea la cuenta y se decide a qué aplicación entra.
+        Desactivar o eliminar una cuenta la afecta en las dos; para que no entre solo a una, quítele esa aplicación.</p>
 </main>
 
 <dialog id="dlg">
@@ -87,7 +90,12 @@
                 </span>
                 <small id="clave-ayuda">Mínimo 8 caracteres. Cópiela antes de guardar para pasársela al usuario.</small>
             </label>
-            <label class="ancho activo" id="campo-activo"><input type="checkbox" name="activo"> Activo (puede ingresar)</label>
+            <fieldset class="ancho us-apps" id="campo-apps">
+                <legend>APLICACIONES A LAS QUE ENTRA</legend>
+                <label class="us-app"><input type="checkbox" name="app_microrutas"> <span>🌿 Microrrutas<small id="app-ayuda-microrutas"></small></span></label>
+                <label class="us-app"><input type="checkbox" name="app_rutina"> <span>💪 Rutina<small>Lo que ve dentro de Rutina (rol, entrenador, cliente) se maneja en ⚙️ Administrar de Rutina.</small></span></label>
+            </fieldset>
+            <label class="ancho activo" id="campo-activo"><input type="checkbox" name="activo"> Activo (puede ingresar a las aplicaciones que tenga)</label>
             <label class="ancho activo" id="campo-contrato"><input type="checkbox" name="contrato"> Puede ver el contrato <small id="contrato-ayuda"></small></label>
             <fieldset class="ancho us-secciones" id="campo-secciones">
                 <legend>SECCIONES Y HERRAMIENTAS QUE VE</legend>

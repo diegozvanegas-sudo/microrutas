@@ -42,23 +42,41 @@ async function cargar() {
     }
 }
 
+// ---------- A qué aplicación entra cada cuenta (0025_accesos_por_app.sql) ----------
+// Microrrutas y Rutina comparten las cuentas. Antes de 0025 no viene el dato: todos entraban a Microrrutas
+var APPS = { microrutas: '🌿 Microrrutas', rutina: '💪 Rutina' };
+function appsDe(u) { return u.apps || ['microrutas']; }
+function tieneApp(u, a) { return appsDe(u).indexOf(a) !== -1; }
+function filtroApp(u, f) {
+    if (f === 'solo-rutina') return tieneApp(u, 'rutina') && !tieneApp(u, 'microrutas');
+    if (f === 'ninguna') return !appsDe(u).length;
+    return !f || tieneApp(u, f);
+}
+function chipsApps(u) {
+    var a = appsDe(u);
+    return a.length ? a.map(function (x) { return '<span class="us-chip us-chip-' + esc(x) + '">' + esc(APPS[x] || x) + '</span>'; }).join(' ')
+        : '<span class="sub">Ninguna (no entra)</span>';
+}
+
 function pintar() {
-    var q = plano($('f-texto').value.trim()), rol = $('f-rol').value;
+    var q = plano($('f-texto').value.trim()), rol = $('f-rol').value, app = $('f-app').value;
     var filas = usuarios.filter(function (u) {
-        return (!rol || u.rol === rol) && (!q || plano(u.nombre + ' ' + u.correo).indexOf(q) !== -1);
+        return (!rol || u.rol === rol) && filtroApp(u, app) && (!q || plano(u.nombre + ' ' + u.correo).indexOf(q) !== -1);
     });
     if (!filas.length) { $('lista').innerHTML = '<div class="vacio">' + (usuarios.length ? 'Nadie coincide con la búsqueda.' : 'No hay usuarios.') + '</div>'; return; }
-    $('lista').innerHTML = '<table class="tabla-usuarios"><thead><tr><th>Usuario</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th>Visitas</th><th>Contrato</th><th>Secciones</th><th></th></tr></thead><tbody>' +
+    $('lista').innerHTML = '<table class="tabla-usuarios"><thead><tr><th>Usuario</th><th>Apps</th><th>Rol</th><th>Estado</th><th>Último ingreso</th><th>Visitas</th><th>Contrato</th><th>Secciones</th><th></th></tr></thead><tbody>' +
         filas.map(function (u) {
             var propio = u.id === yo;
             return '<tr' + (u.activo ? '' : ' class="inactivo"') + '>' +
                 '<td data-label="Usuario"><b>' + esc(u.nombre || '—') + '</b>' + (propio ? ' <span class="tu">usted</span>' : '') + '<div class="sub">' + esc(u.correo) + '</div></td>' +
-                '<td data-label="Rol"><span class="rol rol-' + esc(u.rol) + '">' + (u.rol === 'admin' ? 'Administrador' : 'Interventor') + '</span></td>' +
+                '<td data-label="Apps">' + chipsApps(u) + '</td>' +
+                '<td data-label="Rol">' + (tieneApp(u, 'microrutas') ? '<span class="rol rol-' + esc(u.rol) + '">' + (u.rol === 'admin' ? 'Administrador' : 'Interventor') + '</span>'
+                    : '<span class="sub">— (no entra a Microrrutas)</span>') + '</td>' +
                 '<td data-label="Estado"><span class="estado ' + (u.activo ? 'e-SUBSANADO">Activo' : 'e-CERRADO">Desactivado') + '</span></td>' +
                 '<td data-label="Último ingreso">' + esc(cuando(u.ultimo_ingreso)) + '</td>' +
                 '<td data-label="Visitas">' + u.visitas + ' registradas<div class="sub">' + u.subsanadas + ' subsanadas</div></td>' +
                 '<td data-label="Contrato">' + (u.ver_contrato ? '📜 Puede verlo' : '<span class="sub">No</span>') + '</td>' +
-                '<td data-label="Secciones">' + resumenSecciones(u) + '</td>' +
+                '<td data-label="Secciones">' + (tieneApp(u, 'microrutas') ? resumenSecciones(u) : '<span class="sub">—</span>') + '</td>' +
                 '<td class="acciones">' +
                     '<button type="button" class="secundario pequeno" data-editar="' + esc(u.id) + '">Editar</button> ' +
                     (propio ? '' : '<button type="button" class="secundario pequeno" data-activar="' + esc(u.id) + '">' + (u.activo ? 'Desactivar' : 'Activar') + '</button> ' +
@@ -83,6 +101,9 @@ function abrir(u) {
     // Su propio usuario: no puede quitarse el rol de administrador ni desactivarse
     var propio = u && u.id === yo;
     form.rol.disabled = form.activo.disabled = !!propio;
+    // Nueva: entra a Microrrutas (se puede cambiar); las de siempre, con lo que tienen
+    form.app_microrutas.checked = u ? tieneApp(u, 'microrutas') : true;
+    form.app_rutina.checked = !!u && tieneApp(u, 'rutina');
     ajustarContrato();
     pintarSecciones(u ? u.ocultas || [] : []);
     dlg.showModal();
@@ -94,7 +115,28 @@ function ajustarContrato() {
     form.contrato.disabled = admin;
     form.contrato.checked = admin || !!(editando && editando.rol !== 'admin' && editando.ver_contrato);
     $('contrato-ayuda').textContent = admin ? '(los administradores siempre lo ven)' : '';
+    ajustarApps();
     ajustarSecciones();
+}
+// Administrador (o usted mismo): siempre entra a Microrrutas. Sin Microrrutas no hay contrato ni secciones que elegir
+function ajustarApps() {
+    var admin = form.rol.value === 'admin', propio = !!editando && editando.id === yo;
+    if (admin || propio) form.app_microrutas.checked = true;
+    form.app_microrutas.disabled = admin || propio;
+    $('app-ayuda-microrutas').textContent = admin ? 'Los administradores siempre entran.' : propio ? 'Usted no se puede quitar el acceso.'
+        : form.app_microrutas.checked ? '' : 'Sin acceso: no ve nada de Microrrutas (ni el contrato ni las secciones).';
+    $('campo-contrato').hidden = $('campo-secciones').hidden = !form.app_microrutas.checked;
+}
+function appsDelFormulario() {
+    return Object.keys(APPS).filter(function (a) { return form['app_' + a].checked; });
+}
+async function guardarApps(id, apps) {
+    try { await llamar('admin_apps', { usuario: id, apps: apps }); }
+    catch (e) {
+        throw new Error(/admin_apps|function|schema cache/i.test(e.message)
+            ? 'Lo demás quedó guardado, pero las aplicaciones no: falta aplicar la migración 0025_accesos_por_app.sql en Supabase.'
+            : 'Lo demás quedó guardado, pero las aplicaciones no: ' + e.message);
+    }
 }
 
 // ---------- Secciones que ve cada usuario (0024_secciones_por_usuario.sql; la lista está en secciones.js) ----------
@@ -183,6 +225,8 @@ async function guardar(ev) {
                 ver_contrato: form.contrato.disabled ? null : form.contrato.checked,
             };
             await llamar('admin_editar_usuario', cambio);
+            var apps = appsDelFormulario();
+            if (!mismas(apps, appsDe(editando))) await guardarApps(editando.id, apps);
             if (datos.rol !== 'admin' || form.rol.disabled) {
                 var ocultas = ocultasDelFormulario(editando.ocultas);
                 if (!mismas(ocultas, editando.ocultas)) await guardarSecciones(editando.id, ocultas);
@@ -193,6 +237,9 @@ async function guardar(ev) {
             if (!form.contrato.disabled && form.contrato.checked) await llamar('admin_editar_usuario', { usuario: nuevo, ver_contrato: true });
             var apagadas = datos.rol === 'admin' ? [] : ocultasDelFormulario([]);
             if (apagadas.length) await guardarSecciones(nuevo, apagadas);
+            // La base ya la deja entrando a Microrrutas (la creó un administrador); solo se cambia si se pidió otra cosa
+            var elegidas = appsDelFormulario();
+            if (!mismas(elegidas, ['microrutas'])) await guardarApps(nuevo, elegidas);
             toast('Usuario creado: ' + datos.correo);
         }
         dlg.close();
@@ -216,7 +263,9 @@ async function guardarSecciones(id, ocultas) {
 
 async function activar(u) {
     var si = await confirmar(u.activo ? '¿Desactivar a ' + (u.nombre || u.correo) + '?' : '¿Activar a ' + (u.nombre || u.correo) + '?',
-        u.activo ? 'No podrá ingresar y se cierran sus sesiones abiertas. Sus visitas se conservan.' : 'Podrá ingresar de nuevo con su contraseña.',
+        u.activo ? 'No podrá ingresar y se cierran sus sesiones abiertas. Sus visitas se conservan.' +
+            (tieneApp(u, 'rutina') ? '\nTambién queda por fuera de Rutina (es la misma cuenta). Para quitarle solo una aplicación, use Editar.' : '')
+            : 'Podrá ingresar de nuevo con su contraseña, a las aplicaciones que tenga.',
         u.activo ? 'Desactivar' : 'Activar');
     if (!si) return;
     try {
@@ -229,6 +278,7 @@ async function activar(u) {
 async function eliminar(u) {
     var si = await confirmar('¿Eliminar a ' + (u.nombre || u.correo) + '?',
         'Se borra el usuario y no se puede deshacer. Sus ' + u.visitas + ' visitas se conservan con el nombre que tenían.\n' +
+        (tieneApp(u, 'rutina') ? 'También se borra su cuenta de Rutina, con todo lo que tiene guardado allá.\n' : '') +
         'Si solo quiere que no entre, mejor desactívelo.', 'Eliminar');
     if (!si) return;
     try {
@@ -260,6 +310,8 @@ async function arrancar() {
     $('btn-generar').onclick = function () { form.clave.value = generarClave(); form.clave.select(); };
     $('f-texto').addEventListener('input', pintar);
     $('f-rol').addEventListener('change', pintar);
+    $('f-app').addEventListener('change', pintar);
+    form.app_microrutas.addEventListener('change', ajustarApps);
     form.addEventListener('submit', guardar);
     form.rol.addEventListener('change', ajustarContrato);
     form.contrato.addEventListener('change', ajustarSecciones);

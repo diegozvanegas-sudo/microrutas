@@ -43,3 +43,14 @@ label.us-sec span { min-width: 0; overflow-wrap: anywhere; }
 label.us-sec small { display: block; margin: 1px 0 0; font-size: 11px; color: var(--warn, #b45309); }
 label.us-sec-off { color: var(--muted); cursor: default; }
 @media (max-width: 560px) { .us-sec-lista { grid-template-columns: minmax(0, 1fr); max-height: 34vh; } }
+
+/* A qué aplicación entra cada cuenta (Microrrutas y Rutina comparten las cuentas) */
+.us-apps { border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px 10px; margin: 4px 0 0; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.us-apps legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+label.us-app { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 600; color: var(--ink); min-height: 36px; padding: 6px 0; cursor: pointer; }
+label.us-app input { width: 18px; height: 18px; min-height: 0; margin: 1px 0 0; flex: none; }
+label.us-app span { min-width: 0; overflow-wrap: anywhere; }
+label.us-app small { margin-top: 2px; font-size: 12px; }
+.us-chip { display: inline-block; padding: 2px 8px; margin: 1px 0; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
+.us-chip-microrutas { color: var(--brand); background: #edf8f3; }
+.us-chip-rutina { color: #9a3412; background: #ffedd5; }

@@ -3,7 +3,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
-import { SECCIONES, GRUPOS, puede, claveDeEnlace, clavePagina, primeraPermitida, seccion } from '../src/secciones.js';
+import { SECCIONES, GRUPOS, puede, entra, claveDeEnlace, clavePagina, primeraPermitida, seccion } from '../src/secciones.js';
 
 const raiz = new URL('../', import.meta.url);
 const interventor = { admin: false, contrato: false, ocultas: [] };
@@ -99,6 +99,19 @@ test('secciones: sin Subsanaciones no hay sus herramientas ni Auditar ZIP, pero 
     assert.equal(puede({ ...p, ocultas: ['subsanaciones', 'zip'] }, 'zip'), false);
     assert.equal(puede(p, 'buscar'), true);
     assert.equal(puede(p, 'pqr'), true);
+});
+
+test('secciones: una cuenta sin acceso a Microrrutas (solo Rutina) no ve nada', () => {
+    const fuera = { admin: false, contrato: true, ocultas: [], microrutas: false };
+    assert.equal(entra(fuera), false);
+    SECCIONES.forEach((s) => assert.equal(puede(fuera, s.clave), false, s.clave));
+    assert.equal(puede(fuera, 'desconocida'), false);
+    assert.equal(primeraPermitida(fuera), null);
+    // Con acceso, o con permisos de antes de 0025 (sin el dato), sigue como siempre
+    assert.equal(entra({ ...fuera, microrutas: true }), true);
+    assert.equal(entra({ admin: false, contrato: false }), true);
+    assert.equal(entra(null), true);
+    assert.equal(puede({ ...fuera, microrutas: true }, 'pqr'), true);
 });
 
 test('secciones: a dónde mandarlo cuando abre una apagada', () => {

@@ -1,9 +1,9 @@
 // Inicio de sesión con correo y contraseña (usuarios creados por el administrador en Supabase).
 // Componente propio: arma su ventana, no necesita nada en el HTML.
 import { almacenSesion, cierrePedido } from './almacen.js';
-import { puede, seccion, claveDeEnlace, clavePagina, primeraPermitida } from './secciones.js';
+import { puede, entra, seccion, claveDeEnlace, clavePagina, primeraPermitida } from './secciones.js';
 
-var ventana = null;
+var ventana = null, cliente = null;
 
 function crearVentana() {
     var d = document.createElement('dialog');
@@ -72,12 +72,14 @@ export async function esAdmin(supabase) {
     return !res.error && res.data === true;
 }
 
-// Permisos de la sesión ({ admin, contrato, horarios, ocultas }: 0007, 0012 y 0024). Deja en los menús solo las secciones
-// y herramientas que el administrador le dejó encendidas (secciones.js), "Usuarios" y "WhatsApp" solo al administrador, y si
-// la página abierta está apagada para este usuario la tapa con el aviso «No tiene acceso».
+// Permisos de la sesión ({ microrutas, admin, contrato, horarios, ocultas }: 0007, 0012, 0024 y 0025). Deja en los menús
+// solo las secciones y herramientas que el administrador le dejó encendidas (secciones.js), "Usuarios" y "WhatsApp" solo
+// al administrador, y si la página abierta está apagada para este usuario la tapa con el aviso «No tiene acceso».
+// Una cuenta que no entra a Microrrutas (por ejemplo, solo de Rutina) ve toda la página tapada y el botón Salir.
 // Se aplica al instante con los últimos permisos que recibió este usuario en el equipo y otra vez cuando responde la base;
 // sin conexión se queda con esos últimos.
 export async function aplicarPermisos(supabase, usuario) {
+    cliente = supabase;
     var clave = 'permisos_' + usuario.id, p = { admin: false, contrato: false }, guardados = null;
     try { guardados = JSON.parse(localStorage.getItem(clave)); } catch (e) { guardados = null; }
     if (guardados) mostrarPermisos(guardados);
@@ -151,21 +153,27 @@ function volverAlCerrar(herr, p) {
     });
 }
 
-// La página abierta está apagada para este usuario: se tapa el contenido (no el encabezado) y se le ofrece otra
+// La página abierta está apagada para este usuario: se tapa el contenido (no el encabezado) y se le ofrece otra.
+// Si la cuenta no entra a Microrrutas se tapa todo, encabezado incluido, y solo queda Salir
+function destapar(aviso) {
+    aviso.remove();
+    document.querySelectorAll('[' + CLASE_OCULTO + ']').forEach(function (el) { el.hidden = false; el.removeAttribute(CLASE_OCULTO); });
+}
 function bloquearPagina(p) {
-    var k = clavePagina(location.href), aviso = document.getElementById('sp-bloqueo'), herr = k && !puede(p, k) ? soloHerramienta(p, k) : '';
+    var fuera = !entra(p), k = clavePagina(location.href), aviso = document.getElementById('sp-bloqueo');
+    var herr = !fuera && k && !puede(p, k) ? soloHerramienta(p, k) : '';
     if (herr) volverAlCerrar(herr, p);
-    if (!k || puede(p, k)) {
-        if (aviso) {
-            aviso.remove();
-            document.querySelectorAll('[' + CLASE_OCULTO + ']').forEach(function (el) { el.hidden = false; el.removeAttribute(CLASE_OCULTO); });
-        }
+    if (!fuera && (!k || puede(p, k))) {
+        if (aviso) destapar(aviso);
         return;
     }
+    // Cambió el motivo (p. ej. los permisos guardados decían una cosa y la base otra): se arma de nuevo
+    var motivo = fuera ? 'app' : herr ? 'herr:' + herr : 'sec:' + k;
+    if (aviso && aviso.dataset.motivo !== motivo) { destapar(aviso); aviso = null; }
     document.querySelectorAll('dialog[open]').forEach(function (d) { if (d.id !== 'dlg-ingreso' && d.id !== 'dlg-' + herr) d.close(); });
     if (aviso) return;
     Array.prototype.forEach.call(document.body.children, function (el) {
-        if (el.tagName === 'HEADER' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'DIALOG' || el.hidden) return;
+        if ((el.tagName === 'HEADER' && !fuera) || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'DIALOG' || el.hidden) return;
         el.hidden = true;
         el.setAttribute(CLASE_OCULTO, '');
     });
@@ -174,21 +182,36 @@ function bloquearPagina(p) {
         st.id = 'sp-bloqueo-estilo';
         st.textContent = '#sp-bloqueo{max-width:560px;margin:40px auto;padding:24px 20px;background:var(--surface,#fff);border:1px solid var(--line,#dfe7e3);border-radius:14px;text-align:center}' +
             '#sp-bloqueo h2{margin:0 0 8px;font-size:19px}#sp-bloqueo p{margin:0 0 16px;color:var(--muted,#5b6b64);line-height:1.5}' +
-            '#sp-bloqueo a{display:inline-flex;align-items:center;min-height:42px;padding:0 18px;border-radius:10px;background:var(--brand,#1a7f5a);color:#fff;font-weight:700;text-decoration:none}' +
+            '#sp-bloqueo a,#sp-bloqueo button{display:inline-flex;align-items:center;min-height:42px;padding:0 18px;border:0;border-radius:10px;background:var(--brand,#1a7f5a);color:#fff;font:inherit;font-weight:700;text-decoration:none;cursor:pointer}' +
+            '#sp-bloqueo .sp-cuenta{font-size:13px;margin:-8px 0 16px}' +
             '@media (max-width:560px){#sp-bloqueo{margin:20px 16px;padding:20px 14px}}';
         document.head.appendChild(st);
     }
     var s = seccion(k), otra = primeraPermitida(p);
     aviso = document.createElement('div');
     aviso.id = 'sp-bloqueo';
+    aviso.dataset.motivo = motivo;
     aviso.setAttribute('role', 'alert');
-    aviso.innerHTML = herr
+    aviso.innerHTML = fuera
+        ? '<h2>🔒 Esta cuenta no tiene acceso a Microrrutas</h2>' +
+          '<p>La cuenta existe, pero el administrador no le dio acceso a esta aplicación (puede ser una cuenta de otra app, como Rutina). ' +
+          'Si la necesita, pídale que se la active en 👥 Usuarios.</p><p class="sp-cuenta" data-cuenta></p>' +
+          '<button type="button" data-salir>⎋ Salir y entrar con otra cuenta</button>'
+        : herr
         ? '<h2>🧰 ' + seccion(herr).nombre.replace(/^\S+\s/, '') + '</h2><p>Al cerrar la herramienta vuelve a la página donde estaba.</p>'
         : '<h2>🔒 No tiene acceso a ' + s.nombre.replace(/^\S+\s/, '') + '</h2>' +
         '<p>El administrador no le activó esta sección. Si la necesita, pídale que se la encienda en 👥 Usuarios.</p>' +
         (otra ? '<a href="' + otra.pagina + (otra.doc ? '?doc=' + otra.doc : '') + '">Ir a ' + otra.nombre + '</a>' : '');
+    if (fuera) {
+        var boton = aviso.querySelector('[data-salir]');
+        boton.onclick = function () { boton.disabled = true; boton.textContent = 'Saliendo…'; if (cliente) cerrarSesion(cliente); else location.reload(); };
+        if (cliente) cliente.auth.getSession().then(function (r) {
+            var u = r.data.session && r.data.session.user, cuenta = aviso.querySelector('[data-cuenta]');
+            if (u && cuenta) cuenta.textContent = 'Cuenta: ' + u.email;
+        }).catch(function () {});
+    }
     var cabeza = document.querySelector('body > header');
-    if (cabeza) cabeza.after(aviso); else document.body.prepend(aviso);
+    if (cabeza && !fuera) cabeza.after(aviso); else document.body.prepend(aviso);
 }
 
 export async function cerrarSesion(supabase) {
