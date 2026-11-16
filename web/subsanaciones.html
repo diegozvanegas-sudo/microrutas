@@ -61,19 +61,22 @@
             <button type="button" class="item-menu" id="btn-prog" title="Subir el Excel de programación del mes y ver qué lote le toca hoy a cada cuadrilla y dónde va">📅 Programación del día</button>
             <button type="button" class="item-menu" id="btn-ubicar" title="Pegar un mensaje con direcciones y ver qué lotes quedan cerca, si ya les tocaba y el mapa con todo marcado">📍 Ubicar direcciones</button>
             <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
-            <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
-            <hr>
-            <div class="titulo-menu">Crear archivos</div>
-            <button type="button" class="item-menu" id="btn-fotos" title="Una o muchas fotos en un solo PDF">🖼️ Fotos a PDF</button>
-            <button type="button" class="item-menu" id="btn-zip" title="Pasar uno o varios .zip de fotos a PDF (una foto por página)">🗜️ ZIP a PDF</button>
             <button type="button" class="item-menu" id="btn-fotolote" title="Fotos, carpeta o .zip a PDF con la microrruta y el lote de cada foto según su GPS">📍 Fotos con su lote</button>
-            <button type="button" class="item-menu" id="btn-nota" title="Escribir un texto y guardarlo como imagen en el celular">🖊️ Texto a imagen</button>
-            <button type="button" class="item-menu" id="btn-ocr" title="Sacar el texto de una o muchas imágenes o pantallazos">🔤 Imágenes a texto</button>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
+            <!-- Crear archivos: se abren desde la pestaña 🧰 Crear archivos (encabezado.js), igual en todas las páginas.
+                 Los botones se quedan aquí, escondidos, porque app.js los usa para abrir cada herramienta -->
+            <div class="herr-crear" hidden>
+                <button type="button" class="item-menu" id="btn-fotos">🖼️ Fotos a PDF</button>
+                <button type="button" class="item-menu" id="btn-zip">🗜️ ZIP a PDF</button>
+                <button type="button" class="item-menu" id="btn-nota">🖊️ Texto a imagen</button>
+                <button type="button" class="item-menu" id="btn-ocr">🔤 Imágenes a texto</button>
+            </div>
             <hr>
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
-            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
             <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
             <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <hr>
             <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
         </div>
     </details>

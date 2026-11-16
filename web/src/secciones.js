@@ -27,20 +27,20 @@ export var SECCIONES = [
     { clave: 'horarios', nombre: '🕒 Horarios de rutas', grupo: 'LV y RyT', pagina: 'horarios.html' },
     { clave: 'revision', nombre: '✅ Revisión', grupo: 'LV y RyT', pagina: 'revision.html' },
     { clave: 'despacho', nombre: '🚦 Despacho', grupo: 'LV y RyT', pagina: 'despacho.html' },
-    { clave: 'buscar', nombre: '🔎 Buscar en todo', grupo: 'Herramientas', pagina: 'buscar.html' },
-    { clave: 'pdf', nombre: '📎 Unir y comprimir PDF', grupo: 'Herramientas', pagina: 'pdf.html' },
-    { clave: 'hallazgos', nombre: '📋 Posibles hallazgos', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'buenas', nombre: '✅ Buena operación', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'prog', nombre: '📅 Programación del día', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'ubicar', nombre: '📍 Ubicar direcciones', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'tabla', nombre: '📥 Informes desde una tabla', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'fotos', nombre: '🖼️ Fotos a PDF', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'zip', nombre: '🗜️ ZIP a PDF', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'fotolote', nombre: '📍 Fotos con su lote', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'nota', nombre: '🖊️ Texto a imagen', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'ocr', nombre: '🔤 Imágenes a texto', grupo: 'Herramientas', herramienta: true, dentro: 'subsanaciones' }
+    { clave: 'buscar', nombre: '🔎 Buscar en todo', grupo: 'Menú Más', pagina: 'buscar.html' },
+    { clave: 'pdf', nombre: '📎 Unir y comprimir PDF', grupo: 'Crear archivos', pagina: 'pdf.html' },
+    { clave: 'hallazgos', nombre: '📋 Posibles hallazgos', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'buenas', nombre: '✅ Buena operación', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'prog', nombre: '📅 Programación del día', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'ubicar', nombre: '📍 Ubicar direcciones', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'tabla', nombre: '📥 Informes desde una tabla', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'fotos', nombre: '🖼️ Fotos a PDF', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'zip', nombre: '🗜️ ZIP a PDF', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'fotolote', nombre: '📍 Fotos con su lote', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'nota', nombre: '🖊️ Texto a imagen', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'ocr', nombre: '🔤 Imágenes a texto', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' }
 ];
-export var GRUPOS = ['Zonas verdes', 'General', 'LV y RyT', 'Herramientas'];
+export var GRUPOS = ['Zonas verdes', 'General', 'LV y RyT', 'Crear archivos', 'Menú Más'];
 
 var porClave = {};
 SECCIONES.forEach(function (s) { porClave[s.clave] = s; });
