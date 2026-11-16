@@ -85,10 +85,18 @@ test('secciones: lo apagado no se ve; el administrador ve todo', () => {
     assert.equal(puede(p, 'desconocida'), true);
 });
 
-test('secciones: sin Subsanaciones no hay herramientas ni Auditar ZIP (se abren adentro)', () => {
+test('secciones: sin Subsanaciones no hay sus herramientas ni Auditar ZIP, pero sí Crear archivos', () => {
     const p = { ...interventor, ocultas: ['subsanaciones'] };
-    assert.equal(puede(p, 'fotos'), false);
+    assert.equal(puede(p, 'hallazgos'), false);
+    assert.equal(puede(p, 'fotolote'), false);
     assert.equal(puede(p, 'auditar'), false);
+    // 🧰 Crear archivos es de todos: vive en Subsanaciones pero no depende de ella
+    ['fotos', 'zip', 'nota', 'ocr', 'pdf'].forEach((k) => {
+        assert.equal(puede(p, k), true, k);
+        assert.equal(seccion(k).grupo, 'Crear archivos', k);
+        assert.equal(seccion(k).dentro, undefined, k);
+    });
+    assert.equal(puede({ ...p, ocultas: ['subsanaciones', 'zip'] }, 'zip'), false);
     assert.equal(puede(p, 'buscar'), true);
     assert.equal(puede(p, 'pqr'), true);
 });

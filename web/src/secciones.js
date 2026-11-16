@@ -8,7 +8,8 @@
 //   clavePagina(href)          -> la clave de la página abierta (sin contar #auditar ni ?herramienta)
 //   primeraPermitida(permisos) -> la primera página que sí puede abrir (para mandarlo allá)
 
-// contrato: además pide «Puede ver el contrato». dentro: se abre dentro de otra sección y sin ella no se ve
+// contrato: además pide «Puede ver el contrato». dentro: se abre dentro de otra sección y sin ella no se ve.
+// enPagina: vive en esa página pero es de todos (🧰 Crear archivos): se abre aunque esa sección esté apagada
 export var SECCIONES = [
     { clave: 'subsanaciones', nombre: '📋 Subsanaciones', grupo: 'Zonas verdes', pagina: 'subsanaciones.html' },
     { clave: 'mapa', nombre: '🗺️ Mapa', grupo: 'Zonas verdes', pagina: 'mapa_rapido.html', otras: ['index.html'] },
@@ -34,11 +35,11 @@ export var SECCIONES = [
     { clave: 'prog', nombre: '📅 Programación del día', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
     { clave: 'ubicar', nombre: '📍 Ubicar direcciones', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
     { clave: 'tabla', nombre: '📥 Informes desde una tabla', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'fotos', nombre: '🖼️ Fotos a PDF', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'zip', nombre: '🗜️ ZIP a PDF', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
+    { clave: 'fotos', nombre: '🖼️ Fotos a PDF', grupo: 'Crear archivos', herramienta: true, enPagina: 'subsanaciones' },
+    { clave: 'zip', nombre: '🗜️ ZIP a PDF', grupo: 'Crear archivos', herramienta: true, enPagina: 'subsanaciones' },
     { clave: 'fotolote', nombre: '📍 Fotos con su lote', grupo: 'Menú Más', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'nota', nombre: '🖊️ Texto a imagen', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' },
-    { clave: 'ocr', nombre: '🔤 Imágenes a texto', grupo: 'Crear archivos', herramienta: true, dentro: 'subsanaciones' }
+    { clave: 'nota', nombre: '🖊️ Texto a imagen', grupo: 'Crear archivos', herramienta: true, enPagina: 'subsanaciones' },
+    { clave: 'ocr', nombre: '🔤 Imágenes a texto', grupo: 'Crear archivos', herramienta: true, enPagina: 'subsanaciones' }
 ];
 export var GRUPOS = ['Zonas verdes', 'General', 'LV y RyT', 'Crear archivos', 'Menú Más'];
 

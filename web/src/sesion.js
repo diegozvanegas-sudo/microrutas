@@ -127,9 +127,34 @@ function ordenarMenu(lista) {
     return visibles;
 }
 
+// Herramienta pedida al abrir la página (subsanaciones.html?herramienta=fotos). Se lee al cargar, porque la página la
+// quita de la dirección apenas la abre
+var PEDIDA = (function () {
+    try { return new URLSearchParams(location.search).get('herramienta') || ''; } catch (e) { return ''; }
+})();
+// 🧰 Crear archivos vive en Subsanaciones pero es de todos: si a este usuario le apagaron Subsanaciones y llegó a abrir una
+// de esas herramientas, se le deja abrir sobre la página tapada y, al cerrarla, vuelve a la página de donde venía
+function soloHerramienta(p, k) {
+    var h = seccion(PEDIDA);
+    return h && h.enPagina === k && puede(p, PEDIDA) ? PEDIDA : '';
+}
+function volverAlCerrar(herr, p) {
+    var dlg = document.getElementById('dlg-' + herr);
+    if (!dlg || dlg.dataset.spVolver) return;
+    dlg.dataset.spVolver = '1';
+    dlg.addEventListener('close', function () {
+        var antes = '';
+        try { var r = new URL(document.referrer); if (r.origin === location.origin && r.pathname !== location.pathname) antes = document.referrer; } catch (e) { antes = ''; }
+        var otra = primeraPermitida(p);
+        if (antes) location.href = antes;
+        else if (otra) location.href = otra.pagina + (otra.doc ? '?doc=' + otra.doc : '');
+    });
+}
+
 // La página abierta está apagada para este usuario: se tapa el contenido (no el encabezado) y se le ofrece otra
 function bloquearPagina(p) {
-    var k = clavePagina(location.href), aviso = document.getElementById('sp-bloqueo');
+    var k = clavePagina(location.href), aviso = document.getElementById('sp-bloqueo'), herr = k && !puede(p, k) ? soloHerramienta(p, k) : '';
+    if (herr) volverAlCerrar(herr, p);
     if (!k || puede(p, k)) {
         if (aviso) {
             aviso.remove();
@@ -137,7 +162,7 @@ function bloquearPagina(p) {
         }
         return;
     }
-    document.querySelectorAll('dialog[open]').forEach(function (d) { if (d.id !== 'dlg-ingreso') d.close(); });
+    document.querySelectorAll('dialog[open]').forEach(function (d) { if (d.id !== 'dlg-ingreso' && d.id !== 'dlg-' + herr) d.close(); });
     if (aviso) return;
     Array.prototype.forEach.call(document.body.children, function (el) {
         if (el.tagName === 'HEADER' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'DIALOG' || el.hidden) return;
@@ -157,7 +182,9 @@ function bloquearPagina(p) {
     aviso = document.createElement('div');
     aviso.id = 'sp-bloqueo';
     aviso.setAttribute('role', 'alert');
-    aviso.innerHTML = '<h2>🔒 No tiene acceso a ' + s.nombre.replace(/^\S+\s/, '') + '</h2>' +
+    aviso.innerHTML = herr
+        ? '<h2>🧰 ' + seccion(herr).nombre.replace(/^\S+\s/, '') + '</h2><p>Al cerrar la herramienta vuelve a la página donde estaba.</p>'
+        : '<h2>🔒 No tiene acceso a ' + s.nombre.replace(/^\S+\s/, '') + '</h2>' +
         '<p>El administrador no le activó esta sección. Si la necesita, pídale que se la encienda en 👥 Usuarios.</p>' +
         (otra ? '<a href="' + otra.pagina + (otra.doc ? '?doc=' + otra.doc : '') + '">Ir a ' + otra.nombre + '</a>' : '');
     var cabeza = document.querySelector('body > header');
