@@ -1,5 +1,5 @@
 // ⏰ Listos para requerimiento: las visitas de posoperación que se mandaron a corregir y, pasados 8 días hábiles
-// (lunes a sábado) desde la visita, siguen sin subsanar; y los lotes que se encontraron sin realizar y nadie volvió a
+// (lunes a sábado, sin contar festivos) desde la visita, siguen sin subsanar; y los lotes que se encontraron sin realizar y nadie volvió a
 // revisar. Aquí va solo la lógica (sin pantalla): qué visitas ya cumplieron el plazo, cómo se agrupan por cuadrilla y
 // cómo queda el requerimiento ya lleno.
 //
@@ -10,6 +10,8 @@
 
 // Días hábiles desde la visita para que el requerimiento quede listo (lo fijó la interventoría); AVISO: desde cuándo se
 // muestra como «por vencer»
+import { esFestivo } from '../horas/distribucion.js';
+
 export var PLAZO_REQ = 8, AVISO = 6;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
 
@@ -24,16 +26,18 @@ export function aIso(s) {
     return m ? m[0] : '';
 }
 export function aTexto(f) { var m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : ''; }
-// Días hábiles (lunes a sábado) transcurridos después de `desde` y hasta `hasta`. No descuenta festivos
+// Día hábil: de lunes a sábado y que no sea festivo de Colombia (la misma lista de Horas extras: Emiliani y Pascua)
+export function esHabil(f) { return !esFestivo(f); }
+// Días hábiles transcurridos después de `desde` y hasta `hasta`
 export function habiles(desde, hasta) {
     var n = 0;
-    for (var f = mas(desde, 1); f <= hasta; f = mas(f, 1)) if (utc(f).getUTCDay() !== 0) n++;
+    for (var f = mas(desde, 1); f <= hasta; f = mas(f, 1)) if (esHabil(f)) n++;
     return n;
 }
 // El día en que se cumplen los `n` días hábiles
 export function fechaListo(desde, n) {
     var f = desde, van = 0;
-    while (van < (n == null ? PLAZO_REQ : n)) { f = mas(f, 1); if (utc(f).getUTCDay() !== 0) van++; }
+    while (van < (n == null ? PLAZO_REQ : n)) { f = mas(f, 1); if (esHabil(f)) van++; }
     return f;
 }
 function esOp(r) { return r.TIPO === 'OPERACIÓN' || /^OPE-/.test(r.ID || ''); }

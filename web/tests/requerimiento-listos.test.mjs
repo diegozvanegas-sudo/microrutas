@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { nombreSeguro, nombreVisible, carpeta, crearAnexos, SIN_ACTIVAR } from '../src/requerimiento/anexos.js';
-import { PLAZO_REQ, habiles, fechaListo, aIso, candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, rotuloVisita, EVID_ENVIO } from '../src/requerimiento/listos.js';
+import { PLAZO_REQ, habiles, fechaListo, esHabil, aIso, candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, rotuloVisita, EVID_ENVIO } from '../src/requerimiento/listos.js';
 
 const visita = (id, mr, lote, cuad, fecha, estado, extra) => Object.assign({ ID: id, MICRORRUTA: mr, LOTE: lote, CUADRILLA: cuad, ZONA: 'Zona 1',
     'FECHA DE LA VISITA': fecha, ESTADO: estado, 'OBSERVACIONES NOVEDADES': '', BORDEO: 'SI' }, extra);
@@ -14,8 +14,26 @@ test('habiles: de lunes a sábado, el domingo no cuenta', () => {
     assert.equal(habiles('2026-11-06', '2026-11-14'), 7);
     assert.equal(habiles('2026-11-14', '2026-11-14'), 0);
     assert.equal(fechaListo('2026-11-05'), '2026-11-14');
-    assert.equal(fechaListo('2026-11-07'), '2026-11-17');   // sábado 7 → martes 17
+    assert.equal(fechaListo('2026-11-07'), '2026-11-18');   // sábado 7 → miércoles 18 (el lunes 16 es festivo)
     assert.equal(aIso('05/11/2026'), '2026-11-05');
+});
+
+test('habiles: los festivos de Colombia no cuentan', () => {
+    // Lunes 2/11/2026 (Todos los Santos, corrido) y lunes 16/11/2026 (Independencia de Cartagena, corrido)
+    assert.equal(esHabil('2026-11-02'), false);
+    assert.equal(esHabil('2026-11-16'), false);
+    assert.equal(esHabil('2026-11-15'), false);   // domingo
+    assert.equal(esHabil('2026-11-14'), true);    // sábado
+    assert.equal(esHabil('2026-11-11'), true);    // el 11 se corrió al lunes 16
+    // Visita del sábado 31/10: el lunes 2 no cuenta → del 3 al 7 y del 9 al 11 son 8 → miércoles 11 (antes martes 10)
+    assert.equal(habiles('2026-10-31', '2026-11-15'), 11);
+    assert.equal(fechaListo('2026-10-31'), '2026-11-11');
+    // Visita del miércoles 4/11: 5, 6, 7, 9, 10, 11, 12, 13 → viernes 13 (no hay festivo en medio)
+    assert.equal(fechaListo('2026-11-04'), '2026-11-13');
+    // Visita del lunes 9/11: el lunes 16 no cuenta → jueves 19 (antes miércoles 18)
+    assert.equal(fechaListo('2026-11-09'), '2026-11-19');
+    // Fin de año: 25/12 y 1/1 no cuentan
+    assert.equal(fechaListo('2026-12-22'), '2027-01-02');
 });
 
 test('candidatas: pendientes de posoperación con sus días hábiles; a los 8 quedan listas', () => {
@@ -30,7 +48,7 @@ test('candidatas: pendientes de posoperación con sus días hábiles; a los 8 qu
     const c = candidatas(regs, HOY, itemsNo);
     assert.deepEqual(c.map((v) => v.id), ['SUB-1', 'SUB-2']);
     assert.deepEqual([c[0].dias, c[0].listo, c[0].faltan], [8, true, 0]);
-    assert.deepEqual([c[1].dias, c[1].listo, c[1].faltan, c[1].cumple], [7, false, 1, '2026-11-16']);
+    assert.deepEqual([c[1].dias, c[1].listo, c[1].faltan, c[1].cumple], [7, false, 1, '2026-11-17']);   // el lunes 16 es festivo
     assert.equal(c[0].cuad, '6');
     assert.equal(c[0].zona, '1');
     assert.deepEqual(c[0].novedades, ['BORDEO', 'césped disparejo']);
