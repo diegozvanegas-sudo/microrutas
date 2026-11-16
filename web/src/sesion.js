@@ -1,6 +1,7 @@
 // Inicio de sesión con correo y contraseña (usuarios creados por el administrador en Supabase).
 // Componente propio: arma su ventana, no necesita nada en el HTML.
 import { almacenSesion, cierrePedido } from './almacen.js';
+import { puede, seccion, claveDeEnlace, clavePagina, primeraPermitida } from './secciones.js';
 
 var ventana = null;
 
@@ -71,26 +72,96 @@ export async function esAdmin(supabase) {
     return !res.error && res.data === true;
 }
 
-// Permisos de la sesión ({ admin, contrato }, 0007_contrato_permiso.sql). Muestra "Contrato" en las secciones y
-// "Usuarios" y "WhatsApp" en el menú Más solo a quien puede. Sin conexión usa los últimos que recibió este usuario en el equipo.
+// Permisos de la sesión ({ admin, contrato, horarios, ocultas }: 0007, 0012 y 0024). Deja en los menús solo las secciones
+// y herramientas que el administrador le dejó encendidas (secciones.js), "Usuarios" y "WhatsApp" solo al administrador, y si
+// la página abierta está apagada para este usuario la tapa con el aviso «No tiene acceso».
+// Se aplica al instante con los últimos permisos que recibió este usuario en el equipo y otra vez cuando responde la base;
+// sin conexión se queda con esos últimos.
 export async function aplicarPermisos(supabase, usuario) {
-    var clave = 'permisos_' + usuario.id, p = { admin: false, contrato: false };
+    var clave = 'permisos_' + usuario.id, p = { admin: false, contrato: false }, guardados = null;
+    try { guardados = JSON.parse(localStorage.getItem(clave)); } catch (e) { guardados = null; }
+    if (guardados) mostrarPermisos(guardados);
     var res = await supabase.rpc('mis_permisos');
     if (!res.error && res.data) {
         p = res.data;
         try { localStorage.setItem(clave, JSON.stringify(p)); } catch (e) {}
-    } else {
-        try { p = JSON.parse(localStorage.getItem(clave)) || p; } catch (e) {}
-    }
-    var nav = document.getElementById('nav-contrato'), menu = document.getElementById('menu-usuarios'), wa = document.getElementById('menu-whatsapp');
-    if (nav) nav.hidden = !p.contrato;
-    var guia = document.getElementById('nav-guia');
-    if (guia) guia.hidden = !p.contrato;
-    var req = document.getElementById('nav-req');
-    if (req) req.hidden = !p.contrato;
+    } else if (guardados) p = guardados;
+    mostrarPermisos(p);
+    return p;
+}
+
+var CLASE_OCULTO = 'data-sin-permiso';
+function mostrarPermisos(p) {
+    var menu = document.getElementById('menu-usuarios'), wa = document.getElementById('menu-whatsapp');
     if (menu) menu.hidden = !p.admin;
     if (wa) wa.hidden = !p.admin;
-    return p;
+    // Enlaces de los desplegables de secciones y del menú Más, y los botones de herramientas de Subsanaciones (btn-fotos, …)
+    document.querySelectorAll('.nav-menu-lista a[href], .menu-mas .menu-lista a[href], .menu-mas .menu-lista button[id^="btn-"], #btn-auditoria').forEach(function (el) {
+        var k = el.tagName === 'A' ? claveDeEnlace(el.getAttribute('href')) : el.id === 'btn-auditoria' ? 'auditar' : el.id.slice(4);
+        if (!seccion(k)) return;
+        el.hidden = !puede(p, k);
+    });
+    // Un desplegable sin nada que mostrar se quita; en el menú Más, los títulos y rayas que quedan solos
+    document.querySelectorAll('.nav-app .nav-menu').forEach(function (d) {
+        d.hidden = !Array.prototype.some.call(d.querySelectorAll('.nav-menu-lista a'), function (a) { return !a.hidden; });
+    });
+    document.querySelectorAll('.menu-mas .menu-lista').forEach(ordenarMenu);
+    // Auditar ZIP abierto por el enlace (#auditar) antes de saber que está apagada para este usuario
+    var aud = document.getElementById('dlg-auditoria');
+    if (aud && aud.open && !puede(p, 'auditar')) aud.close();
+    bloquearPagina(p);
+}
+function ordenarMenu(lista) {
+    var hijos = Array.prototype.slice.call(lista.children), visibles = false;
+    // Cada grupo va de una raya a la otra: si no le queda nada visible, se esconden su título y su raya
+    var grupo = [];
+    function cerrar(raya) {
+        var alguno = grupo.some(function (el) { return !el.classList.contains('titulo-menu') && !el.hidden; });
+        grupo.forEach(function (el) { if (el.classList.contains('titulo-menu')) el.hidden = !alguno; });
+        if (raya) raya.hidden = !alguno;
+        visibles = visibles || alguno;
+        grupo = [];
+    }
+    hijos.forEach(function (el) { if (el.tagName === 'HR') cerrar(el); else grupo.push(el); });
+    cerrar(null);
+    return visibles;
+}
+
+// La página abierta está apagada para este usuario: se tapa el contenido (no el encabezado) y se le ofrece otra
+function bloquearPagina(p) {
+    var k = clavePagina(location.href), aviso = document.getElementById('sp-bloqueo');
+    if (!k || puede(p, k)) {
+        if (aviso) {
+            aviso.remove();
+            document.querySelectorAll('[' + CLASE_OCULTO + ']').forEach(function (el) { el.hidden = false; el.removeAttribute(CLASE_OCULTO); });
+        }
+        return;
+    }
+    document.querySelectorAll('dialog[open]').forEach(function (d) { if (d.id !== 'dlg-ingreso') d.close(); });
+    if (aviso) return;
+    Array.prototype.forEach.call(document.body.children, function (el) {
+        if (el.tagName === 'HEADER' || el.tagName === 'SCRIPT' || el.tagName === 'STYLE' || el.tagName === 'DIALOG' || el.hidden) return;
+        el.hidden = true;
+        el.setAttribute(CLASE_OCULTO, '');
+    });
+    if (!document.getElementById('sp-bloqueo-estilo')) {
+        var st = document.createElement('style');
+        st.id = 'sp-bloqueo-estilo';
+        st.textContent = '#sp-bloqueo{max-width:560px;margin:40px auto;padding:24px 20px;background:var(--surface,#fff);border:1px solid var(--line,#dfe7e3);border-radius:14px;text-align:center}' +
+            '#sp-bloqueo h2{margin:0 0 8px;font-size:19px}#sp-bloqueo p{margin:0 0 16px;color:var(--muted,#5b6b64);line-height:1.5}' +
+            '#sp-bloqueo a{display:inline-flex;align-items:center;min-height:42px;padding:0 18px;border-radius:10px;background:var(--brand,#1a7f5a);color:#fff;font-weight:700;text-decoration:none}' +
+            '@media (max-width:560px){#sp-bloqueo{margin:20px 16px;padding:20px 14px}}';
+        document.head.appendChild(st);
+    }
+    var s = seccion(k), otra = primeraPermitida(p);
+    aviso = document.createElement('div');
+    aviso.id = 'sp-bloqueo';
+    aviso.setAttribute('role', 'alert');
+    aviso.innerHTML = '<h2>🔒 No tiene acceso a ' + s.nombre.replace(/^\S+\s/, '') + '</h2>' +
+        '<p>El administrador no le activó esta sección. Si la necesita, pídale que se la encienda en 👥 Usuarios.</p>' +
+        (otra ? '<a href="' + otra.pagina + (otra.doc ? '?doc=' + otra.doc : '') + '">Ir a ' + otra.nombre + '</a>' : '');
+    var cabeza = document.querySelector('body > header');
+    if (cabeza) cabeza.after(aviso); else document.body.prepend(aviso);
 }
 
 export async function cerrarSesion(supabase) {

@@ -544,6 +544,9 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
     // Subsanaciones, al tocarlo. Al cerrarla se quita el #auditar, para que el menú la vuelva a abrir
     function porEnlace() {
         if (location.hash !== '#auditar') return;
+        // El administrador se la apagó a este usuario: el enlace del menú queda escondido (sesion.js)
+        var enlace = document.querySelector('.nav-menu-lista a[href$="#auditar"]');
+        if (enlace && enlace.hidden) return;
         document.querySelectorAll('details.nav-menu[open]').forEach(function (d) { d.open = false; });
         abrir();
     }

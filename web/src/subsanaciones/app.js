@@ -3385,7 +3385,8 @@ export function iniciar(api, CFG) {
         var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|fotolote|prog|ubicar)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
-        btn.onclick();
+        // Se espera a saber los permisos: si el administrador se la apagó a este usuario, el botón queda escondido (sesion.js)
+        Promise.resolve(CFG && CFG.permisos).catch(function () {}).then(function () { if (!btn.hidden) btn.onclick(); });
     })();
     cargar();
     return {

@@ -26,3 +26,20 @@ label.activo input { width: auto; min-height: 0; margin: 0; }
     .tabla-usuarios td.acciones { padding-top: 8px; white-space: normal; }
     .tabla-usuarios td.acciones button { padding: 8px 12px; }
 }
+
+/* Secciones y herramientas que ve el usuario (prefijo us-: no chocar con clases generales) */
+.us-secciones { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px 12px; margin: 4px 0 0; min-width: 0; }
+.us-secciones legend { padding: 0 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.us-sec-cabeza { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 8px; }
+.us-sec-cabeza small { flex: 1 1 240px; margin: 0; }
+.us-sec-botones { display: flex; gap: 6px; }
+.us-sec-botones button { min-height: 36px; }
+.us-sec-lista { max-height: 38vh; overflow-y: auto; overscroll-behavior: contain; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 16px; padding-right: 4px; }
+.us-sec-grupo { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.us-sec-grupo > b { font-size: 12px; color: var(--brand); margin: 2px 0 2px; }
+label.us-sec { display: flex; align-items: flex-start; gap: 8px; font-size: 14px; font-weight: 500; color: var(--ink); min-height: 34px; padding: 6px 0; cursor: pointer; }
+label.us-sec input { width: 18px; height: 18px; min-height: 0; margin: 1px 0 0; flex: none; }
+label.us-sec span { min-width: 0; overflow-wrap: anywhere; }
+label.us-sec small { display: block; margin: 1px 0 0; font-size: 11px; color: var(--warn, #b45309); }
+label.us-sec-off { color: var(--muted); cursor: default; }
+@media (max-width: 560px) { .us-sec-lista { grid-template-columns: minmax(0, 1fr); max-height: 34vh; } }

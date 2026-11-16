@@ -89,6 +89,17 @@
             </label>
             <label class="ancho activo" id="campo-activo"><input type="checkbox" name="activo"> Activo (puede ingresar)</label>
             <label class="ancho activo" id="campo-contrato"><input type="checkbox" name="contrato"> Puede ver el contrato <small id="contrato-ayuda"></small></label>
+            <fieldset class="ancho us-secciones" id="campo-secciones">
+                <legend>SECCIONES Y HERRAMIENTAS QUE VE</legend>
+                <div class="us-sec-cabeza">
+                    <small id="secciones-ayuda">Lo que apague desaparece de sus menús y, si abre el enlace, le sale «No tiene acceso».</small>
+                    <span class="us-sec-botones">
+                        <button type="button" class="secundario pequeno" id="sec-todas">Todas</button>
+                        <button type="button" class="secundario pequeno" id="sec-ninguna">Ninguna</button>
+                    </span>
+                </div>
+                <div class="us-sec-lista" id="sec-lista"></div>
+            </fieldset>
         </div>
         <div class="aviso error" id="form-error" hidden></div>
         <div class="pie">

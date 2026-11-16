@@ -25,11 +25,15 @@ async function arrancar() {
     // Nombre con el que la base firma las visitas; mientras llega (o sin conexión) se muestra el correo
     var cfg = { url: true, usuario: usuario.email };
     supabase.rpc('nombre_usuario').then(function (res) { if (!res.error && res.data) cfg.usuario = res.data; });
+    // Antes de arrancar la página, para que con los permisos guardados en el equipo un enlace directo
+    // (?herramienta=…, #auditar) no abra lo que el administrador le apagó a este usuario
+    var permisos = aplicarPermisos(supabase, usuario);
+    cfg.permisos = permisos;
     var pagina = iniciar(crearApi(supabase), cfg);
     // 🔍 Auditar ZIP: el motor del PC hace la auditoría; los resultados quedan en Supabase para el celular
     iniciarAuditoria(supabase, usuario);
     // "Contrato" y "Usuarios" según el permiso; el administrador además filtra por usuario (ve las visitas de todos)
-    if ((await aplicarPermisos(supabase, usuario)).admin) {
+    if ((await permisos).admin) {
         var res = await supabase.from('perfiles').select('id, nombre').order('nombre');
         if (!res.error) pagina.mostrarUsuarios(res.data.map(function (p) { return { id: p.id, nombre: p.nombre || 'Sin nombre' }; }));
     }
