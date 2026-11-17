@@ -13,6 +13,7 @@ import { hojaVista, COLOR_REAL, COLOR_REPORTADA, COLOR_COINCIDE, COLOR_DISTINTO 
 import { textoDias, NOMBRES_DIAS, TURNO } from '../horarios/horarios.js';
 import { horariosGuardados, textoGuardados } from '../horarios/guardado.js';
 import { htmlHoja } from '../subsanaciones/excel.js';
+import { sinFormulasCompartidas } from './libro.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var archivos = { extras: null, cumplimiento: null };   // extras: { nombre, buffer }; cumplimiento: [{ nombre, buffer }] (uno o varios)
@@ -224,6 +225,8 @@ function cambiarHora(f, valor) {
 // El consolidado: el mismo libro de horas extras con la H. REAL escrita y coloreada (lo usan la vista previa y la descarga)
 async function armarLibro() {
     var b = await hoja(archivos.extras.buffer), col = extras.cols.real;
+    // Antes de escribir encima: las fórmulas compartidas de Excel se vuelven fórmulas de cada fila (si no, no se puede guardar)
+    sinFormulasCompartidas(b.ws);
     if (col == null) {
         // Sin columna H. REAL: se agrega al final
         col = b.ws.columnCount + 1;
