@@ -1,7 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nombreSeguro, nombreVisible, carpeta, crearAnexos, SIN_ACTIVAR } from '../src/requerimiento/anexos.js';
-import { PLAZO_REQ, habiles, fechaListo, esHabil, aIso, candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, rotuloVisita, EVID_ENVIO } from '../src/requerimiento/listos.js';
+import { nombreSeguro, nombreVisible, carpeta, crearAnexos, SIN_ACTIVAR, tipoDe, paraBorrar, seBorra } from '../src/requerimiento/anexos.js';
+import { AVISO, textoPreaviso, PLAZO_REQ, habiles, fechaListo, esHabil, aIso, candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, rotuloVisita, EVID_ENVIO } from '../src/requerimiento/listos.js';
 
 const visita = (id, mr, lote, cuad, fecha, estado, extra) => Object.assign({ ID: id, MICRORRUTA: mr, LOTE: lote, CUADRILLA: cuad, ZONA: 'Zona 1',
     'FECHA DE LA VISITA': fecha, ESTADO: estado, 'OBSERVACIONES NOVEDADES': '', BORDEO: 'SI' }, extra);
@@ -101,6 +101,17 @@ test('armar: el requerimiento sale con cuadrillas, zonas, fechas, microrrutas y 
     assert.match(nr.evidencias[1].texto, /reportado como no realizado el 02\/11\/2026/);
 });
 
+test('armar: el de una visita antes del plazo (📨 Crear requerimiento) no dice «sin corrección»', () => {
+    const hoyTxt = HOY.slice(8, 10) + '/' + HOY.slice(5, 7) + '/' + HOY.slice(0, 4);
+    const c = candidatas([visita('SUB-9', 'Z2CC0300', '521', '2', hoyTxt, 'PENDIENTE', { 'AFECTACIÓN A ÁRBOLES': 'NO' })], HOY, itemsNo);
+    assert.equal(c.length, 1);
+    assert.equal(c[0].listo, false);
+    const d = armar(c, {}, HOY);
+    assert.match(d.evidencias[1].texto, /Z2CC0300 \(521\): novedades enviadas el \d\d\/\d\d\/\d{4} \(0 días hábiles desde la visita\)\./);
+    assert.doesNotMatch(d.evidencias[1].texto, /sin corrección/);
+    assert.deepEqual(d.visitas, ['SUB-9']);
+});
+
 test('anexos: nombres de archivo y carpetas que acepta el almacenamiento; lo que pasa si falta la migración', async () => {
     assert.equal(nombreSeguro('Captura de pantalla 2026-11-05 (envío).PNG', 1000), 'rs-Captura-de-pantalla-2026-11-05-envio.jpg');
     assert.equal(nombreSeguro('', 1000), 'rs-anexo.jpg');
@@ -109,10 +120,48 @@ test('anexos: nombres de archivo y carpetas que acepta el almacenamiento; lo que
     assert.equal(carpeta('../otra visita'), '_otra_visita');
     const con = (r) => crearAnexos({ storage: { from: () => ({ list: async () => r, remove: async () => r }) } });
     assert.deepEqual(await con({ data: [{ name: 'rs-pantallazo.jpg', id: '1' }, { name: '.emptyFolderPlaceholder', id: '2' }] }).listar(['SUB-1']),
-        { 'SUB-1': [{ nombre: 'pantallazo', ruta: 'SUB-1/rs-pantallazo.jpg' }] });
+        { 'SUB-1': [{ nombre: 'pantallazo', ruta: 'SUB-1/rs-pantallazo.jpg', tipo: 'envio', fecha: '' }] });
     await assert.rejects(con({ error: { message: 'Bucket not found' } }).listar(['SUB-1']), new RegExp('0023_anexos_visitas'));
     await assert.rejects(con({ data: [] }).borrar('SUB-1/x.jpg'), /Solo quien subió/);
     assert.match(SIN_ACTIVAR, /0023/);
+});
+
+test('anexos: cada imagen guarda su tipo (reporte, envío, pre aviso) y se borra al mes salvo si la visita espera requerimiento', async () => {
+    assert.equal(nombreSeguro('Recorte 2026-11-17.png', 1000, 'reporte'), 'rs-reporte_Recorte-2026-11-17.jpg');
+    assert.equal(tipoDe('rs-reporte_Recorte.jpg'), 'reporte');
+    assert.equal(tipoDe('rs-preaviso_x.jpg'), 'preaviso');
+    assert.equal(tipoDe('rs-pantallazo-viejo.jpg'), 'envio');   // los de antes cuentan como envío
+    assert.equal(nombreVisible('rs-reporte_Recorte-de-pantalla.jpg'), 'Recorte de pantalla');
+    assert.equal(nombreSeguro('x', 1000, 'otro'), 'rs-x.jpg');   // tipo desconocido: sin tipo
+    assert.equal(seBorra('2026-11-01T10:00:00Z'), '2026-12-01');
+    const ahora = Date.parse('2026-12-17T12:00:00Z'), viejo = '2026-11-10T00:00:00Z', nuevo = '2026-12-10T00:00:00Z';
+    const por = { 'SUB-1': [{ ruta: 'SUB-1/a.jpg', fecha: viejo }, { ruta: 'SUB-1/b.jpg', fecha: nuevo }], 'SUB-2': [{ ruta: 'SUB-2/c.jpg', fecha: viejo }], 'SUB-3': [{ ruta: 'SUB-3/d.jpg', fecha: '' }] };
+    assert.deepEqual(paraBorrar(por, ahora, { 'SUB-2': true }), ['SUB-1/a.jpg']);
+    // limpiar: lista las carpetas, borra lo vencido y cuenta lo que no dejó borrar (de otra persona)
+    const quitados = [];
+    const sb = { storage: { from: () => ({
+        list: async (dir) => dir === '' ? { data: [{ name: 'SUB-1', id: null }, { name: 'SUB-2', id: null }] } : { data: por[dir].map((a) => ({ name: a.ruta.split('/')[1], id: '1', created_at: a.fecha })) },
+        remove: async (rutas) => { quitados.push(...rutas); return { data: rutas.slice(0, 1).map((r) => ({ name: r })) }; }
+    }) } };
+    assert.deepEqual(await crearAnexos(sb).limpiar({}, ahora), { borrados: 1, sinPermiso: 1 });
+    assert.deepEqual(quitados, ['SUB-1/a.jpg', 'SUB-2/c.jpg']);
+});
+
+test('pre aviso: a los 5 días hábiles sin corregir, con el día en que pasa a requerimiento', () => {
+    assert.equal(AVISO, 5);
+    // HOY sábado 14/11: el 06/11 (viernes) lleva 6 días hábiles (pre aviso); el 03/11, 10 (ya listo); el 12/11, 2 (en plazo)
+    const c = candidatas([
+        visita('SUB-1', 'Z2CC0300', '521', '2', '06/11/2026', 'PENDIENTE', { BORDEO: 'NO' }),
+        visita('SUB-2', 'Z3CC0006', '57', '2', '03/11/2026', 'PENDIENTE', { BORDEO: 'NO' }),
+        visita('SUB-3', 'Z3CC0007', '58', '2', '12/11/2026', 'PENDIENTE', { BORDEO: 'NO' })
+    ], HOY, itemsNo);
+    const por = Object.fromEntries(c.map((v) => [v.id, v]));
+    assert.deepEqual([por['SUB-1'].preaviso, por['SUB-2'].preaviso, por['SUB-3'].preaviso], [true, false, false]);
+    assert.equal(por['SUB-2'].listo, true);
+    const t = textoPreaviso('2', [por['SUB-1']]);
+    assert.match(t, /PRE AVISO · Cuadrilla 2/);
+    assert.match(t, /• Lote 521 \(Z2CC0300\) · visita del 06\/11\/2026: BORDEO · pasa a requerimiento el \d\d\/11\/2026/);
+    assert.match(t, /5 días hábiles o más sin corregir/);
 });
 
 test('plantillaPara: elige la plantilla del caso si existe', () => {

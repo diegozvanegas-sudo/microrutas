@@ -178,3 +178,31 @@ div.rl-cuad-cab { cursor: default; }
     .rl-pie button { flex: 1 1 100%; }
     .rl-anexos > button { flex: 1 1 auto; }
 }
+
+/* ⚠️ Pre aviso (5 días hábiles) y 📎 Agregar imagen (listos_ui.js) */
+.rl-cuenta { grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); }
+.rl-dato.aviso b { color: #b45309; }
+.rl-preaviso { border-color: #f59e0b; background: #fffbeb; }
+.rl-preaviso .rl-cuad { background: var(--surface); }
+.rl-pre-acc { display: flex; flex-wrap: wrap; gap: 8px; padding: 10px 12px; border-top: 1px solid var(--line); }
+.rl-pre-acc button { min-height: 40px; }
+.rl-pre-estado { font-size: 13px; font-weight: 600; }
+.rl-pre-estado.ok { color: #166534; }
+.rl-pre-estado.falta { color: #b45309; }
+.rl-anexo .rl-borra { color: var(--muted); font-size: 11.5px; }
+.an-tipos { display: grid; gap: 8px; margin: 12px 0; }
+.an-tipo { display: grid; grid-template-columns: auto 1fr; gap: 10px; align-items: start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 10px; cursor: pointer; }
+.an-tipo:has(input:checked) { border-color: var(--brand); background: #edf8f3; box-shadow: inset 0 0 0 1px var(--brand); }
+.an-tipo > span { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.an-tipo input { width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; accent-color: var(--brand); }
+.an-zona { border: 2px dashed #9fb4ad; border-radius: 12px; padding: 16px 14px; text-align: center; color: var(--ink); background: #f8fafc; }
+.an-zona:focus, .an-zona.encima { outline: none; border-color: var(--brand); background: #edf8f3; }
+.an-botones { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px; margin-top: 10px; }
+.an-botones button { min-height: 42px; }
+.an-lista { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 8px; margin: 12px 0; max-height: 40vh; overflow-y: auto; }
+.an-lista:empty { display: none; }
+.an-img { position: relative; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
+.an-img img { display: block; width: 100%; height: 96px; object-fit: cover; }
+.an-img button { position: absolute; top: 4px; right: 4px; width: 30px; height: 30px; padding: 0; border-radius: 50%; background: rgba(15, 23, 42, .75); color: #fff; }
+.an-estado:empty { display: none; }
+.an-estado { margin-top: 6px; color: #9a3412; }

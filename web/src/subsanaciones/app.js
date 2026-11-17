@@ -332,6 +332,11 @@ export function iniciar(api, CFG) {
             '</summary>' + detalle(r, true) + '</details>';
     }
 
+    // Visitas al lote ejecutado que pueden ir a requerimiento: sin subsanar o encontradas sin realizar (como «Listos para requerimiento»)
+    function paraRequerimiento(r) {
+        if (esOp(r) || !r.ID) return false;
+        return r.ESTADO === 'PENDIENTE' || (String(r['OBSERVACIONES NOVEDADES'] || '').toUpperCase().indexOf(NO_REALIZADO) !== -1 && r.ESTADO !== 'SUBSANADO');
+    }
     // Ficha completa de la visita (la usan la lista del celular y la fila desplegable de la tabla)
     function detalle(r, conEditar) {
         var enNo = itemsEnNo(r), d = r.ESTADO === 'PENDIENTE' ? dias(r['FECHA DE LA VISITA']) : null;
@@ -354,6 +359,8 @@ export function iniciar(api, CFG) {
             (conEditar ? '<div class="fila-btn"><button type="button" class="primario editar" data-editar="' + esc(r.ID) + '">Editar</button>' +
                 '<button type="button" class="peligro" data-eliminar="' + esc(r.ID) + '">🗑 Eliminar</button></div>' : '') +
             (enNo.length ? '<button type="button" class="wa' + (conEditar ? ' wa-btn' : ' pequeno') + '" data-wa="' + esc(r.ID) + '">Resumen WhatsApp</button>' : '') +
+            // De una: abre Requerimientos con esta visita y la deja armada (no espera los 8 días hábiles de «Listos»)
+            (paraRequerimiento(r) ? ' <a class="boton secundario req-btn' + (conEditar ? '' : ' pequeno') + '" href="requerimiento.html?visita=' + encodeURIComponent(r.ID) + '" title="Armar el requerimiento de esta visita (con sus pantallazos guardados)">📨 Crear requerimiento</a>' : '') +
             (conEditar ? '' : ' <button type="button" class="peligro pequeno" data-eliminar="' + esc(r.ID) + '" style="margin-top:8px">🗑 Eliminar</button>') + '</div>';
     }
 

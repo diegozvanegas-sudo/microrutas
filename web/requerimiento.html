@@ -74,7 +74,8 @@
         </div>
         <p class="sub">Novedades de posoperación que se mandaron a corregir y, pasados <b>8 días hábiles</b> (lunes a sábado, sin contar festivos) desde la visita, siguen sin subsanar;
             y lotes vistos sin realizar que nadie ha vuelto a revisar. Marque las visitas y «Crear requerimiento» lo deja lleno y guardado como borrador:
-            <b>no se envía nada</b>.</p>
+            <b>no se envía nada</b>. A los <b>5 días hábiles</b> salen en «Para pre aviso» con el mensaje listo para el contratista.
+            Las imágenes (📋 reporte de ejecución, 📤 envío, ⚠️ pre aviso) se guardan en la base de datos y <b>se borran a los 30 días</b>, salvo las de visitas que siguen esperando requerimiento.</p>
         <div id="rl-estado" class="rl-estado" role="status">Buscando las visitas sin corregir…</div>
         <div id="rl-cuenta" class="rl-cuenta"></div>
         <div id="rl-aviso" class="rl-aviso" hidden></div>
@@ -83,6 +84,12 @@
             <span class="sub" id="rl-marcadas"></span>
             <button type="button" class="primario" id="rl-crear" disabled>📨 Crear requerimiento</button>
         </div>
+        <!-- ⚠️ Pre aviso: 5 días hábiles sin corregir; el mensaje por cuadrilla y el pantallazo de cuando se mandó -->
+        <details id="rl-preaviso" class="rl-plegable rl-preaviso" open hidden>
+            <summary id="rl-preaviso-tit"></summary>
+            <p class="sub">Copie el mensaje de la cuadrilla y mándelo al contratista. Después agregue el pantallazo del envío como «⚠️ Pre aviso»: queda como prueba y entra al requerimiento si no corrigen.</p>
+            <div id="rl-preaviso-lista" class="rl-lista"></div>
+        </details>
         <details id="rl-plazo" class="rl-plegable" hidden>
             <summary id="rl-plazo-tit"></summary>
             <div id="rl-plazo-lista" class="rl-lista"></div>
@@ -246,6 +253,30 @@
             <button type="button" class="secundario" id="c-restablecer">Restablecer</button>
             <button type="button" class="secundario" id="c-cerrar">Cancelar</button>
             <button type="button" class="primario" id="c-guardar">Guardar</button>
+        </div>
+    </div>
+</dialog>
+
+<!-- 📎 Agregar imagen a una visita (src/requerimiento/listos_ui.js): recorte pegado con Ctrl+V, o imágenes elegidas -->
+<dialog id="dlg-anexo">
+    <div class="cuerpo">
+        <h2>📎 Agregar imagen</h2>
+        <div class="sub" id="an-para"></div>
+        <div class="an-tipos" role="radiogroup" aria-label="Qué es la imagen">
+            <label class="an-tipo"><input type="radio" name="an-tipo" value="reporte"><span><b>📋 Reporte de ejecución</b><span class="sub">Cuando la cuadrilla dice que ya ejecutó</span></span></label>
+            <label class="an-tipo"><input type="radio" name="an-tipo" value="envio"><span><b>📤 Envío de la novedad</b><span class="sub">Cuando se le mandó a corregir</span></span></label>
+            <label class="an-tipo"><input type="radio" name="an-tipo" value="preaviso"><span><b>⚠️ Pre aviso</b><span class="sub">El aviso de los 5 días hábiles</span></span></label>
+        </div>
+        <div class="an-zona" id="an-zona" tabindex="0" aria-label="Pegue aquí el recorte">
+            <b>Pegue aquí el recorte</b> (Ctrl+V) o
+            <div class="an-botones"><button type="button" class="secundario" id="an-pegar">📋 Pegar recorte</button><button type="button" class="secundario" id="an-elegir">🖼️ Elegir imágenes</button></div>
+        </div>
+        <div class="an-lista" id="an-lista"></div>
+        <div class="sub">Se guardan en la base de datos y se borran solas a los 30 días (las de visitas que siguen esperando requerimiento se guardan hasta entonces). Antes de eso, descargue el PDF o Word del requerimiento con las fotos.</div>
+        <div class="sub an-estado" id="an-estado" role="status"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="an-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="an-guardar" disabled>Guardar</button>
         </div>
     </div>
 </dialog>

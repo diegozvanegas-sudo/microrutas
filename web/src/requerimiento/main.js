@@ -365,9 +365,12 @@ async function abrirAutomatico(d, plantilla, archivos) {
     localStorage.removeItem(BORRADOR);
     verForm(d);
     if (plantilla) aplicarPlantilla(plantilla);
-    var grupos = evidenciasForm(), g = grupos.findIndex(function (x) { return x.titulo === EVID_ENVIO; });
-    if (g === -1) g = Math.min(1, grupos.length - 1);
-    for (var i = 0; g >= 0 && i < archivos.length; i++) {
+    // Cada imagen a su evidencia: el reporte de la cuadrilla a «Reportes de ejecución», el envío y el pre aviso a «Envío…»
+    var grupos = evidenciasForm(), envio = grupos.findIndex(function (x) { return x.titulo === EVID_ENVIO; });
+    if (envio === -1) envio = Math.min(1, grupos.length - 1);
+    for (var i = 0; envio >= 0 && i < archivos.length; i++) {
+        var g = archivos[i].grupo ? grupos.findIndex(function (x) { return x.titulo === archivos[i].grupo; }) : -1;
+        if (g === -1) g = envio;
         try {
             var f = await prepararFoto(archivos[i].file);
             f.pie = archivos[i].pie;
@@ -695,10 +698,19 @@ async function arrancar() {
     if (!(await cargarPlantillas())) return;
     listos = iniciarListos({
         supabase: supabase, historial: historial, plantillas: function () { return P.plantillas; }, vacio: vacio, abrir: abrirAutomatico,
+        abrirGuardado: function (id) { var x = historial().find(function (h) { return h.id === id; }); if (x) verForm(x); },
         // El pantallazo se reduce igual que las fotos del requerimiento antes de subirlo
         prepararImagen: async function (file) { var f = await prepararFoto(file); URL.revokeObjectURL(f.url); return { blob: new Blob([f.bytes], { type: 'image/jpeg' }) }; }
     });
-    listos.cargar();
+    var carga = listos.cargar();
+    // ?visita=SUB-00042 (📨 Crear requerimiento de la visita en Subsanaciones): se arma de una con esa visita
+    var visita = new URLSearchParams(location.search).get('visita');
+    if (visita) {
+        try { history.replaceState(null, '', location.pathname); } catch (e) {}
+        verListado();
+        await carga;
+        return listos.crearDe(visita);
+    }
     var url = desdeUrl(), borrador = leer(BORRADOR, null);
     if (url) { verForm(url.d); if (url.plantilla) aplicarPlantilla(url.plantilla); }
     else if (borrador && (borrador.descripcion || borrador.asunto) && await confirmar('¿Seguir con el borrador?', 'Hay un requerimiento sin terminar en este equipo' + (borrador.radicado ? ' (' + borrador.radicado + ')' : '') + '.', 'Seguir', 'Ver el listado')) verForm(borrador);

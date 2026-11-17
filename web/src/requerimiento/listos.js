@@ -7,12 +7,13 @@
 //   porCuadrilla(lista)                  -> [{ cuad, visitas, listas }]
 //   yaRequeridas(historial)              -> { idVisita: { id, radicado, estado } }
 //   armar(visitas, base, hoy)            -> el requerimiento (mismo objeto del formulario) con sus microrrutas y evidencias
+//   textoPreaviso(cuad, visitas)         -> el mensaje del pre aviso al contratista (a los 5 días hábiles)
 
-// Días hábiles desde la visita para que el requerimiento quede listo (lo fijó la interventoría); AVISO: desde cuándo se
-// muestra como «por vencer»
+// Días hábiles desde la visita para que el requerimiento quede listo (lo fijó la interventoría); AVISO: a los 5 días
+// hábiles sin corregir se le manda al contratista el pre aviso (lo fijó la interventoría el 17/11/2026)
 import { esFestivo } from '../horas/distribucion.js';
 
-export var PLAZO_REQ = 8, AVISO = 6;
+export var PLAZO_REQ = 8, AVISO = 5;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
 
 function plano(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/\s+/g, ' ').trim().toUpperCase(); }
@@ -70,7 +71,7 @@ export function candidatas(registros, hoy, itemsNo) {
         var nota = quitarEstado(obs), novedades = tipo === 'norealizado' ? ['Lote no realizado'] : (itemsNo ? itemsNo(r) : []).concat(nota && plano(nota) !== 'SIN NOVEDAD' ? [nota] : []);
         var dias = habiles(fecha, hoy), mr = String(r.MICRORRUTA || '').trim().toUpperCase(), z = mr.match(/^Z(\d+)/);
         out.push({ id: String(r.ID || ''), tipo: tipo, mr: mr, lote: loteDe(r), cuad: cuadDe(r), zona: z ? z[1] : String(r.ZONA || '').replace(/\D/g, ''),
-            fecha: fecha, dias: dias, listo: dias >= PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
+            fecha: fecha, dias: dias, listo: dias >= PLAZO_REQ, preaviso: dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
     });
     // Las que más días llevan, primero
     return out.sort(function (a, b) { return b.dias - a.dias || a.fecha.localeCompare(b.fecha) || a.mr.localeCompare(b.mr); });
@@ -113,13 +114,27 @@ export function armar(visitas, base, hoy) {
         evidencias: [
             { titulo: EVID_REPORTE, texto: '' },
             { titulo: EVID_ENVIO, texto: visitas.map(function (v) {
-                return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? 'reportado como no realizado el ' : 'novedades enviadas el ') + aTexto(v.fecha) + ', ' + v.dias + ' días hábiles sin corrección.';
+                // Antes del plazo (📨 Crear requerimiento de una visita, p. ej. un daño no subsanable) no se dice «sin corrección»
+                return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? 'reportado como no realizado el ' : 'novedades enviadas el ') + aTexto(v.fecha) +
+                    (v.listo ? ', ' + v.dias + ' días hábiles sin corrección.' : ' (' + v.dias + (v.dias === 1 ? ' día hábil' : ' días hábiles') + ' desde la visita).');
             }).join('\n') },
             { titulo: EVID_INSPECCION, texto: '' }
         ],
         visitas: visitas.map(function (v) { return v.id; }).filter(Boolean)
     });
     return d;
+}
+// Pre aviso al contratista (a los AVISO días hábiles): qué sigue sin corregir y el día en que pasa a requerimiento.
+// visitas: las de una cuadrilla, con la novedad de cada una para que la puedan ubicar
+export function textoPreaviso(cuad, visitas) {
+    var lineas = visitas.map(function (v) {
+        return '• ' + (v.lote ? 'Lote ' + v.lote + ' (' + v.mr + ')' : v.mr) + ' · visita del ' + aTexto(v.fecha) + ': ' +
+            (v.tipo === 'norealizado' ? 'lote no realizado' : v.novedades.length ? v.novedades.join(', ') : 'novedades sin corregir') +
+            ' · pasa a requerimiento el ' + aTexto(v.cumple);
+    });
+    return '⚠️ PRE AVISO · Cuadrilla ' + (cuad || '?') + '\n' +
+        'Las siguientes novedades llevan ' + AVISO + ' días hábiles o más sin corregir. Si no se subsanan y se envía el registro fotográfico antes de cumplir ' +
+        PLAZO_REQ + ' días hábiles, pasan a requerimiento:\n' + lineas.join('\n');
 }
 // La plantilla que corresponde, si existe una para esto (por su nombre o su asunto)
 export function plantillaPara(visitas, plantillas) {

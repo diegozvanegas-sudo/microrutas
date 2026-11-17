@@ -194,6 +194,25 @@
     .halo-lote { animation: halo-lote 1.4s ease-in-out infinite; }
     @keyframes halo-lote { 50% { stroke-opacity: .25; } }
     @media (prefers-reduced-motion: reduce) { .halo-lote { animation: none; } }
+    /* Revisión de predios (catastro de Medellín, js/predios.js): opcional, se prende en Capas › Revisión de predios */
+    .chip.pred[aria-pressed="true"] { border-color: #b45309; background: #fef3c7; box-shadow: inset 0 0 0 1px #b45309; }
+    .ficha-lote .pred-area { margin: 0 0 10px; padding: 7px 10px; border-radius: 8px; background: #f8fafc; border-left: 3px solid #94a3b8; font-size: 13px; }
+    .ficha-lote .pred-area.mal { border-left-color: #d97706; background: #fffbeb; }
+    .ficha-lote .pred-res { margin: 10px 0; padding: 10px 12px; border-radius: 10px; background: #f8fafc; border-left: 3px solid #b45309; }
+    .ficha-lote .pred-res.limpio { border-left-color: #15803d; }
+    .ficha-lote .pred-barra { display: flex; height: 10px; border-radius: 5px; overflow: hidden; margin: 6px 0 4px; background: #e2e8f0; }
+    .ficha-lote .pred-barra i { display: block; height: 100%; }
+    .ficha-lote .pred-ley { display: flex; flex-wrap: wrap; gap: 2px 10px; font-size: 12px; }
+    .ficha-lote .pred-ley span::before { content: ""; display: inline-block; width: 9px; height: 9px; border-radius: 2px; margin-right: 4px; background: var(--c); }
+    .ficha-lote .pred-nota { font-size: 12px; color: var(--muted); margin: 6px 0 10px; }
+    .ficha-lote .pred-lista { display: grid; gap: 6px; margin-top: 8px; }
+    .ficha-lote .pred-lista .boton { white-space: normal; text-align: left; font-weight: 600; font-size: 13px; padding: 9px 11px; min-height: 40px; }
+    .ficha-lote .pred-lista .sub { display: block; font-weight: 500; color: #6b7c75; font-size: 12px; }
+    .ficha-lote .pred-filtros { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; }
+    .ficha-lote .pred-filtros button { font-size: 12px; padding: 7px 10px; min-height: 34px; border: 1px solid var(--line); background: #fff; color: var(--ink); border-radius: 999px; }
+    .ficha-lote .pred-filtros button[aria-pressed="true"] { border-color: #b45309; background: #fef3c7; }
+    .ficha-lote .acciones button:disabled { opacity: .6; cursor: default; }
+    .herramientas a.pred-revisar { font-size: 16px; }
     </style>
 </head>
 <body>
@@ -893,6 +912,7 @@
             bloqueSector(p.x) +
             bloqueDesc('Dirección', p.d) +
             bloqueDesc(p.x ? 'Descripción de toda la microrruta' : 'Descripción', p.s, !!p.x) +
+            bloquesPredio(capa) +
             '<div class="acciones">' +
                 (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
@@ -1274,6 +1294,13 @@
                 '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
                 '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
                 '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>') +
+            // Revisión de predios (catastro de Medellín): cada una se prende y se apaga sola; todas arrancan apagadas
+            seccion('predios', '🏛️ Revisión de predios', OPC_PREDIOS.filter(function (o) { return predPref[o[0]]; }).map(function (o) { return o[1]; }).join(', ') || 'apagada', '<span class="separador"></span>',
+                OPC_PREDIOS.map(function (o) {
+                    return '<button type="button" class="chip modo pred" data-pred="' + o[0] + '" aria-pressed="' + !!predPref[o[0]] + '" title="' + esc(o[2]) + '">' + o[1] + '</button>';
+                }).join('') +
+                (predPref.areas ? '<button type="button" class="chip modo" data-pred-lista="areas" title="Abrir la lista de fichas con el área descuadrada">📐 Ver lista</button>' : '') +
+                (predPref.privados ? '<button type="button" class="chip modo" data-pred-lista="privados" title="Revisar los lotes que se ven en el mapa">🔎 Revisar lo que se ve</button>' : '')) +
             seccion('capas', 'Capas', puestas(ksOtras).join(', ') || 'ninguna', '<span class="separador"></span>', ksOtras.map(capaChip).join('')) +
             seccion('rutas', 'Microrrutas', puestas(ksRuta).join(', ') || 'ninguna', '<span class="separador"></span>', ksRuta.map(capaChip).join('')) +
             (guias.length ? seccion('guia', '🗓️ Guía de recorridos', guias.filter(function (g) { return guiaPref.on.indexOf(g.id) !== -1; }).map(function (g) { return g.titulo.split(' · ')[0]; })
@@ -1349,6 +1376,8 @@
             if (!vencidos && !estadoRuta) $('leyenda').hidden = true;
             return pintarChips();
         }
+        if (b.dataset.pred) return alternarPredio(b.dataset.pred);
+        if (b.dataset.predLista) { if (movil.matches) plegarBarra(true); return b.dataset.predLista === 'areas' ? verAreas() : revisarVista(); }
         if (b.hasAttribute('data-sel')) return modoSel(!seleccion);
         if (b.hasAttribute('data-precision')) {
             verPrecision = !verPrecision;
@@ -1726,6 +1755,13 @@
     function buscar() {
         var v = $('buscar').value.trim();
         if (!v) return;
+        // CBML (11 cifras): solo con «🔢 Buscar CBML» prendido; si no, se dice cómo prenderlo
+        var cb = cbmlDe(v);
+        if (cb) {
+            $('buscar').blur();
+            if (!predPref.cbml) return toast('Eso parece un CBML. Para buscarlo, prenda «🔢 Buscar CBML» en 🗂 Capas › 🏛️ Revisión de predios.');
+            return buscarCbml(cb);
+        }
         var coord = window.leerCoordenadas(v);
         if (coord) { ubicarPunto(coord); $('buscar').blur(); return; }
         var dir = window.leerDireccion(v);
@@ -1766,7 +1802,7 @@
     $('buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscar(); } });
     map.on('click', function (e) {
         if (modoPin) return ponerPin(e.latlng);
-        limpiarResaltado(); cerrarFicha(); quitarBarridoSel();
+        limpiarResaltado(); cerrarFicha(); quitarBarridoSel(); capaPredios.clearLayers();
         if (movil.matches && !plegada) plegarBarra(true);
     });
 
@@ -1897,6 +1933,316 @@
         }
     });
     map.addControl(new Herramientas());
+
+    // ---------- 🏛️ Revisión de predios (catastro de Medellín, js/predios.js) ----------
+    // Cuatro opciones que se prenden y se apagan por separado en 🗂 Capas › Revisión de predios; todas arrancan apagadas
+    // y se recuerdan en este equipo. Consultan en vivo la Alcaldía: solo se envía el CBML o el recuadro del mapa.
+    // El catastro no dice quién es el dueño: «no figura como bien del municipio» es un indicio, nunca «es privado».
+    var OPC_PREDIOS = [
+        ['publico', '🏛️ ¿Es público?', 'En la ficha del lote: cuánto cae sobre bienes del municipio y cuánto sobre predios que no figuran como del municipio'],
+        ['cbml', '🔢 Buscar CBML', 'El buscador acepta el CBML (11 cifras): dibuja el predio, dice si figura como bien del municipio y qué lotes toca'],
+        ['areas', '📐 Áreas descuadradas', 'Lista de microrrutas cuya área de la ficha no cuadra con la dibujada en el mapa (y el dato en cada ficha)'],
+        ['privados', '🔎 Posibles privados', 'Revisa de una vez los lotes que se ven en el mapa contra el catastro y marca los que caen sobre predios no municipales']
+    ];
+    var predPref = leer('rapido_predios', {});
+    if (!predPref || typeof predPref !== 'object') predPref = {};
+    map.createPane('predios').style.zIndex = 440;
+    map.getPane('predios').style.pointerEvents = 'none';
+    var rendPredios = L.svg({ pane: 'predios' }), capaPredios = L.layerGroup().addTo(map);
+    var ESTILO_DUDOSO = { pane: 'predios', renderer: rendPredios, interactive: false, color: '#dc2626', weight: 3, dashArray: '6 4', fillColor: '#dc2626', fillOpacity: .18 };
+    var ESTILO_BIEN = { pane: 'predios', renderer: rendPredios, interactive: false, color: '#15803d', weight: 2, fill: false };
+    var ESTILO_CBML = { pane: 'predios', renderer: rendPredios, interactive: false, color: '#7c3aed', weight: 4, fillColor: '#8b5cf6', fillOpacity: .15 };
+    var ESTILO_MARCADO = { pane: 'predios', renderer: rendPredios, interactive: false, color: '#f97316', weight: 4, fill: false };
+    function cbmlDe(v) { var s = String(v || '').toUpperCase().replace(/^\s*CBML\s*:?\s*/, '').replace(/[\s.-]/g, ''); return /^\d{11}$/.test(s) ? s : null; }
+    function m2(n) { return Math.round(n).toLocaleString('es-CO') + ' m²'; }
+    var motorPredios = null;
+    function conPredios() { return motorPredios || (motorPredios = window.predios ? Promise.resolve(window.predios) : cargarScript('js/predios.js').then(function () { return window.predios; }, function (e) { motorPredios = null; throw e; })); }
+    // Los polígonos sin lote ni microrruta (cuadrilla «sin») no tienen número: cada uno va por su cuenta, no todos juntos
+    function idPoligono(c) { return idCapa(c) || 'pol:' + L.stamp(c); }
+    function tituloPoligono(l, conMr) {
+        if (l.l && l.l !== 'NA') return 'Lote ' + l.l + (conMr && l.m ? ' · ' + l.m : '');
+        return l.m || 'Polígono sin lote ni microrruta' + (l.a ? ' (' + Number(l.a).toLocaleString('es-CO') + ' m²)' : '');
+    }
+    var ERROR_CATASTRO ='No se pudo consultar el catastro de Medellín (sin conexión o el servicio de la Alcaldía no responde). Intente de nuevo en un rato; el resto del mapa sigue funcionando.';
+    // Falla de la conexión o del servicio (e.red, js/predios.js) o de la app: se dicen distinto para no esconder un error propio
+    function avisoCatastro(e) {
+        if (e && e.red) return toast(ERROR_CATASTRO);
+        if (window.console) console.error(e);
+        toast('La revisión de predios falló en la app: ' + (e && e.message || e) + '. Avísele a quien mantiene la app.');
+    }
+    // Lote de Leaflet -> polígonos [[anillo, hueco...]] con puntos [lng, lat] (como GeoJSON)
+    function polysDe(capa) {
+        var ll = capa.getLatLngs(), ps = ll.length && ll[0].length && ll[0][0] instanceof L.LatLng ? [ll] : ll;
+        return ps.map(function (pol) { return pol.map(function (r) { var a = r.map(function (p) { return [p.lng, p.lat]; }); if (a.length) a.push(a[0]); return a; }); });
+    }
+    function cajaDeBounds(b) { return [b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]; }
+    // Consultas por recuadro guardadas mientras la página esté abierta (volver a tocar el mismo lote no consulta otra vez)
+    var cachePredios = {};
+    function prediosEn(bounds) {
+        var caja = cajaDeBounds(bounds).map(function (v) { return Math.round(v * 1e5) / 1e5; }), k = caja.join(',');
+        if (cachePredios[k]) return cachePredios[k];
+        return (cachePredios[k] = conPredios().then(function (P) {
+            return P.porCaja(caja).then(function (r) { return { lotes: P.preparar(r.lotes), bienes: P.preparar(r.bienes), crudo: r, incompleto: r.incompleto }; });
+        }).catch(function (e) { delete cachePredios[k]; throw e; }));
+    }
+    function alternarPredio(k) {
+        predPref[k] = !predPref[k];
+        guardar('rapido_predios', predPref);
+        var o = OPC_PREDIOS.filter(function (x) { return x[0] === k; })[0];
+        if (k === 'cbml') pintarBuscador();
+        if (k === 'privados') pintarControlPrivados();
+        if (!predPref[k]) capaPredios.clearLayers();
+        pintarChips();
+        toast(predPref[k] ? o[1] + ' prendido. ' + ({ publico: 'Toque un lote: en su ficha sale «¿Es público? Revisar en catastro».',
+            cbml: 'Escriba el CBML (11 cifras) en el buscador.', areas: 'En cada ficha sale ficha contra dibujo; la lista está en «📐 Ver lista».',
+            privados: 'Acérquese a la zona, ponga su cuadrilla y toque 🔎 (debajo del zoom).' })[k] : o[1] + ' apagado.');
+        if (k === 'areas' && predPref.areas) cargarAreas().then(function () { if (movil.matches) plegarBarra(true); verAreas(); }, function () { toast('No se pudo cargar la lista de áreas. Revise la conexión.'); });
+    }
+    function pintarBuscador() {
+        var b = $('buscar'), base = b.dataset.base || (b.dataset.base = b.placeholder);
+        b.placeholder = predPref.cbml ? base.replace(/\)$/, ' · CBML 07240010011)') : base;
+    }
+
+    // ---- 1 y 4: cuánto de una zona verde cae sobre predios que no figuran como del municipio ----
+    function bloquesPredio(capa) {
+        var html = '';
+        if (predPref.areas) html += areasPorMr ? lineaArea(capa.lote.m) : '<div data-pred-area="' + esc(capa.lote.m || '') + '"></div>';
+        if (predPref.publico) html += '<div class="acciones"><button type="button" class="boton secundario ancho" data-predio-revisar>🏛️ ¿Es público? Revisar en catastro</button></div><div data-predio-res></div>';
+        return html;
+    }
+    function resultadoHtml(nombre, r, P) {
+        var t = r.total || 1, d = r.m2Dudoso, mun = r.municipal, via = r.via, otros = Math.max(0, r.noMunicipal - d);
+        var barra = [[mun, '#16a34a'], [via, '#94a3b8'], [otros, '#fcd34d'], [d, '#dc2626']].map(function (x) { return x[0] ? '<i style="width:' + (100 * x[0] / t).toFixed(1) + '%;background:' + x[1] + '"></i>' : ''; }).join('');
+        return '<div class="pred-res' + (d ? '' : ' limpio') + '">' +
+            '<span class="et">Catastro de Medellín · ' + m2(r.total) + ' revisados</span>' +
+            '<div class="pred-barra">' + barra + '</div>' +
+            '<div class="pred-ley"><span style="--c:#16a34a">Bien del municipio ' + P.pct(mun, t) + ' %</span><span style="--c:#94a3b8">Vía o sin predio ' + P.pct(via, t) + ' %</span>' +
+                (otros ? '<span style="--c:#fcd34d">Bordes ' + P.pct(otros, t) + ' %</span>' : '') + '<span style="--c:#dc2626">No figura como del municipio ' + P.pct(d, t) + ' %</span></div>' +
+            (d ? '<div class="pred-lista">' + r.dudosos.map(function (p) {
+                return '<button type="button" class="boton secundario" data-predio-cbml="' + esc(p.cbml) + '">CBML ' + esc(p.cbml) + ' · ' + m2(p.m2) + ' dentro' +
+                    '<span class="sub">Predio de ' + (p.area ? m2(p.area) : '?') + ' · no figura como bien del municipio · toque para verlo</span></button>';
+            }).join('') + '</div>' : '<div class="pred-nota">✓ No se encontró parte del lote sobre predios que no figuren como del municipio.</div>') +
+            '<div class="pred-nota">El catastro público no dice quién es el dueño: «no figura» es un indicio para pedir que se evalúe, no una prueba de que sea privado. Los bordes (menos de 50 m² o del 2 %) suelen ser linderos que no cuadran exacto.</div>' +
+            '<div class="acciones"><button type="button" class="boton secundario ancho" data-predio-copiar="' + esc(P.textoReporte(nombre, r)) + '">📋 Copiar texto para el reporte</button></div>' +
+            '</div>';
+    }
+    function nombreLote(capa) { var p = capa.lote; return p.l && p.l !== 'NA' ? (p.m ? p.m + ' (lote ' + p.l + ')' : 'Lote ' + p.l) : p.m || 'Lote'; }
+    function dibujarDudosos(r, datos) {
+        var cbmls = r.dudosos.map(function (p) { return p.cbml; });
+        datos.crudo.lotes.forEach(function (f) { if (cbmls.indexOf(f.properties.cbml) !== -1) L.geoJSON(f, { style: function () { return ESTILO_DUDOSO; }, pane: 'predios', interactive: false }).addTo(capaPredios); });
+    }
+    function revisarLote(boton) {
+        var capa = capaFicha;
+        if (!capa) return;
+        var partes = (capa.lote.m && porMr[String(capa.lote.m).toUpperCase()]) || [capa];
+        var caja = L.featureGroup(partes).getBounds().pad(0.05), destino = boton.closest('.ficha-lote').querySelector('[data-predio-res]');
+        boton.disabled = true; boton.textContent = 'Consultando el catastro…';
+        conPredios().then(function (P) {
+            return prediosEn(caja).then(function (datos) {
+                var polys = [].concat.apply([], partes.map(polysDe)), r = P.analizar(polys, datos.lotes, datos.bienes);
+                capaPredios.clearLayers();
+                dibujarDudosos(r, datos);
+                destino.innerHTML = resultadoHtml(nombreLote(capa), r, P) + (datos.incompleto ? '<div class="pred-nota">⚠ El catastro no entregó todos los predios de la zona: el resultado puede quedar corto.</div>' : '');
+                boton.textContent = '↻ Revisar otra vez';
+            });
+        }).catch(function (e) { avisoCatastro(e); boton.textContent = '🏛️ ¿Es público? Revisar en catastro'; })
+          .then(function () { boton.disabled = false; reacomodar(); });
+    }
+    // La ventana del computador se reacomoda al nuevo tamaño (sin volver a pintar el contenido)
+    function reacomodar() { var p = map._popup; if (p && map.hasLayer(p)) try { p._updateLayout(); p._updatePosition(); } catch (e) {} }
+
+    // ---- 2: buscar por CBML ----
+    function buscarCbml(cbml) {
+        $('estado').textContent = 'Buscando el CBML ' + cbml + ' en el catastro…';
+        $('btn-buscar').disabled = true;
+        conPredios().then(function (P) {
+            return P.porCbml(cbml).then(function (res) {
+                if (!res) return toast('El CBML ' + cbml + ' no está en el catastro de Medellín. Revise las cifras.');
+                capaPredios.clearLayers();
+                var capaCb = L.geoJSON(res.lote, { style: function () { return ESTILO_CBML; }, pane: 'predios', interactive: false }).addTo(capaPredios);
+                res.bienes.forEach(function (f) { L.geoJSON(f, { style: function () { return ESTILO_BIEN; }, pane: 'predios', interactive: false }).addTo(capaPredios); });
+                var b = capaCb.getBounds(), polys = P.poligonos(res.lote.geometry);
+                // ¿Es bien del municipio? Por su CBML o porque un bien lo cubre casi todo
+                var propio = res.bienes.filter(function (f) { return f.properties.cbml === cbml; })[0];
+                var cubierto = P.analizar(polys, [], res.bienes);
+                var esBien = propio || cubierto.municipal >= 0.5 * cubierto.total;
+                encuadrar(b, false);
+                // Lotes del contrato que lo tocan: se cargan las cuadrillas de esa zona
+                var cuads = ordenCuad.filter(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b).intersects(b); });
+                cuads.forEach(function (k) { if (activas.indexOf(k) === -1) activas.push(k); });
+                mostrarCuadrillas(false);
+                var faltan = cuads.length;
+                var listo = function () {
+                    var toca = {};
+                    cuads.forEach(function (k) {
+                        grupos[k].eachLayer(function (c) {
+                            if (!c.getBounds().intersects(b)) return;
+                            var r = P.analizar(polysDe(c), [res.lote], []);
+                            if (r.noMunicipal < 20) return;
+                            var id = idPoligono(c);
+                            if (!toca[id]) toca[id] = { id: id, capa: c, m2: 0, total: 0 };
+                            toca[id].m2 += r.noMunicipal; toca[id].total += r.total;
+                        });
+                    });
+                    fichaCbml(cbml, res, esBien, propio, Object.keys(toca).map(function (k) { return toca[k]; }).sort(function (x, y) { return y.m2 - x.m2; }), b);
+                };
+                if (!faltan) listo(); else cuads.forEach(function (k) { asegurarCuadrilla(k, function () { if (--faltan === 0) listo(); }); });
+            });
+        }).catch(avisoCatastro).then(function () { $('btn-buscar').disabled = false; pintarChips(); });
+    }
+    var lotesCbml = [];
+    function fichaCbml(cbml, res, esBien, propio, toca, b) {
+        var p = res.lote.properties, dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
+        lotesCbml = toca;
+        if (movil.matches) plegarBarra(true);
+        abrirPanel('<div class="ficha-lote"><div class="cab"><span class="titulo">CBML ' + esc(cbml) + '</span></div>' +
+            '<div class="mr">' + esc(res.direcciones.join(' · ') || 'Sin dirección en el catastro') + '</div>' +
+            '<div class="datos">' + dato('Área del predio', m2(p.area_lote || 0)) + dato('Bien del municipio', esBien ? 'Sí' : 'No figura') + '</div>' +
+            (propio && propio.properties.observaciones ? '<div class="bloque"><span class="et">Bienes Inmuebles</span><div class="txt">' + esc(propio.properties.observaciones) + '</div></div>' : '') +
+            (!esBien ? '<div class="pred-nota">No figura como bien inmueble del municipio: puede ser privado, de otra entidad o no estar cedido. El catastro público no dice el dueño.</div>' : '') +
+            '<div class="bloque"><span class="et">Lotes del contrato que lo tocan</span>' + (toca.length ? '<div class="pred-lista">' + toca.map(function (t, i) {
+                var l = t.capa.lote;
+                return '<button type="button" class="boton secundario" data-predio-lote="' + i + '">' + esc(tituloPoligono(l, false)) + ' · ' + m2(t.m2) + ' dentro del predio' +
+                    '<span class="sub">' + esc([l.l && l.l !== 'NA' ? l.m : '', l.c ? 'Cuadrilla ' + l.c : 'Sin cuadrilla'].filter(Boolean).join(' · ')) + ' · ' + Math.round(100 * t.m2 / (t.total || 1)) + ' % del polígono</span></button>';
+            }).join('') + '</div>' : '<div class="txt">Ningún lote del contrato cae dentro de este predio.</div>') + '</div>' +
+            '<div class="pred-nota">En el mapa: morado = el predio; verde = bienes del municipio alrededor.</div>' +
+            '<div class="acciones"><button type="button" class="boton secundario ancho" data-predio-copiar="' + esc(cbml) + '">📋 Copiar CBML</button></div></div>', b.getCenter());
+    }
+
+    // ---- 3: fichas con el área descuadrada (data/rapido/areas.js, tools/generar_areas.mjs) ----
+    var areasPorMr = null, cargandoAreas = null, filtroAreas = { tipo: 'todas', mias: true };
+    function cargarAreas() {
+        if (areasPorMr) return Promise.resolve();
+        return cargandoAreas || (cargandoAreas = cargarScript('data/rapido/areas.js').then(function () {
+            areasPorMr = {};
+            (window.areasLotes || []).forEach(function (a) { areasPorMr[a.m] = a; });
+            // La ficha que se abrió antes de que llegara la lista se completa ahí mismo
+            document.querySelectorAll('[data-pred-area]').forEach(function (d) { d.outerHTML = lineaArea(d.dataset.predArea); });
+            reacomodar();
+        }, function (e) { cargandoAreas = null; throw e; }));
+    }
+    function difArea(a) { return a.f ? (a.d - a.f) / a.f : 0; }
+    function signo(n) { return n > 0 ? '+' + n : n < 0 ? '−' + Math.abs(n) : '0'; }
+    function descuadrada(a) { return Math.abs(a.d - a.f) >= 200 && Math.abs(difArea(a)) >= 0.2; }
+    function lineaArea(mr) {
+        var a = areasPorMr && mr && areasPorMr[String(mr).toUpperCase()];
+        if (!a) return '';
+        var dif = Math.round(100 * difArea(a));
+        return '<div class="pred-area' + (descuadrada(a) ? ' mal' : '') + '">📐 Ficha <b>' + m2(a.f) + '</b> · dibujado <b>' + m2(a.d) + '</b> (' + signo(dif) + ' %)' +
+            (a.r ? ' · ' + m2(a.r) + ' retirados' : '') + (descuadrada(a) ? '<br><span style="color:#92400e">No cuadra: revise el área antes de usarla para un descuento.</span>' : '') + '</div>';
+    }
+    var areasVistas = [];
+    function verAreas() {
+        if (!areasPorMr) return cargarAreas().then(verAreas, function () { toast('No se pudo cargar la lista de áreas. Revise la conexión.'); });
+        var todas = Object.keys(areasPorMr).map(function (k) { return areasPorMr[k]; }).filter(descuadrada);
+        var mias = filtroAreas.mias && activas.length;
+        var lista = todas.filter(function (a) {
+            return (!mias || activas.indexOf(a.c) !== -1) && (filtroAreas.tipo === 'todas' || (filtroAreas.tipo === 'falta' ? a.d < a.f : a.d > a.f));
+        });
+        areasVistas = lista.slice(0, 80);
+        var boton = function (k, v, txt) { return '<button type="button" data-area-filtro="' + k + ':' + v + '" aria-pressed="' + (filtroAreas[k] === v) + '">' + txt + '</button>'; };
+        abrirPanel('<div class="ficha-lote"><div class="cab"><span class="titulo">📐 Áreas descuadradas</span></div>' +
+            '<div class="mr">' + lista.length + ' de ' + Object.keys(areasPorMr).length + ' microrrutas con 20 % (y 200 m²) o más de diferencia' + (mias ? ' · cuadrillas puestas' : '') + '</div>' +
+            '<div class="pred-filtros">' + boton('tipo', 'todas', 'Todas') + boton('tipo', 'falta', 'Falta dibujo') + boton('tipo', 'sobra', 'Sobra dibujo') +
+                (activas.length ? boton('mias', true, 'Solo cuadrillas puestas') + boton('mias', false, 'Todas las cuadrillas') : '') + '</div>' +
+            '<div class="pred-nota" style="margin-top:0">Ficha = área de la programación; dibujado = suma de sus polígonos en el mapa. No siempre es error: la ficha puede incluir sardineles o vías que no se dibujan. Revíselo antes de usar el área para un descuento.</div>' +
+            '<div class="pred-lista">' + areasVistas.map(function (a, i) {
+                var dif = Math.round(100 * difArea(a));
+                return '<button type="button" class="boton secundario" data-area-ir="' + i + '">' + esc(a.l ? 'Lote ' + a.l + ' · ' + a.m : a.m) + ' · ' + signo(dif) + ' %' +
+                    '<span class="sub">Ficha ' + m2(a.f) + ' · dibujado ' + m2(a.d) + ' en ' + a.n + (a.n === 1 ? ' polígono' : ' polígonos') + (a.c ? ' · C' + esc(a.c) : '') + '</span></button>';
+            }).join('') + '</div>' +
+            (lista.length > areasVistas.length ? '<div class="pred-nota">Se ven las primeras ' + areasVistas.length + ' (las de más diferencia en m²). Use los filtros o ponga solo una cuadrilla para ver otras.</div>' : '') +
+            '</div>', map.getCenter(), true);
+    }
+
+    // ---- 4: posibles privados en lo que se ve ----
+    var ControlPrivados = L.Control.extend({
+        options: { position: 'topleft' },
+        onAdd: function () {
+            var div = L.DomUtil.create('div', 'leaflet-bar herramientas');
+            div.innerHTML = '<a href="#" role="button" class="pred-revisar" title="Revisar posibles privados en lo que se ve (catastro)" aria-label="Revisar posibles privados en lo que se ve">🔎</a>';
+            L.DomEvent.disableClickPropagation(div);
+            div.firstChild.onclick = function (ev) { ev.preventDefault(); revisarVista(); };
+            return div;
+        }
+    });
+    var controlPrivados = null;
+    function pintarControlPrivados() {
+        if (predPref.privados && !controlPrivados) map.addControl(controlPrivados = new ControlPrivados());
+        else if (!predPref.privados && controlPrivados) { map.removeControl(controlPrivados); controlPrivados = null; }
+    }
+    var turnoRevision = 0, halladosPrivados = [];
+    function revisarVista() {
+        if (map.getZoom() < 16) return toast('Acérquese más (que se vean pocas cuadras) para revisar: así la consulta al catastro es pequeña.');
+        var vista = map.getBounds(), capas = [];
+        Object.keys(grupos).forEach(function (k) { if (map.hasLayer(grupos[k])) grupos[k].eachLayer(function (c) { if (vista.intersects(c.getBounds())) capas.push(c); }); });
+        if (!capas.length) return toast('No hay lotes a la vista. Ponga la cuadrilla de la zona en 🗂 Capas y vuelva a tocar 🔎.');
+        var turno = ++turnoRevision, caja = L.featureGroup(capas).getBounds().pad(0.02);
+        $('estado').textContent = 'Consultando el catastro para ' + capas.length + ' polígonos…';
+        conPredios().then(function (P) {
+            return prediosEn(caja).then(function (datos) {
+                var hallados = {}, i = 0;
+                return new Promise(function (fin) {
+                    // Por partes, para no trabar el celular
+                    (function tanda() {
+                        if (turno !== turnoRevision) return fin(null);
+                        var hasta = Math.min(capas.length, i + 25);
+                        for (; i < hasta; i++) {
+                            var c = capas[i], r = P.analizar(polysDe(c), datos.lotes, datos.bienes);
+                            if (r.m2Dudoso < 100) continue;
+                            var id = idPoligono(c);
+                            if (!hallados[id]) hallados[id] = { id: id, capa: c, m2: 0, total: 0, cbmls: [] };
+                            hallados[id].m2 += r.m2Dudoso; hallados[id].total += r.total;
+                            r.dudosos.forEach(function (d) { if (hallados[id].cbmls.indexOf(d.cbml) === -1) hallados[id].cbmls.push(d.cbml); });
+                            L.polygon(c.getLatLngs(), ESTILO_MARCADO).addTo(capaPredios);
+                            dibujarDudosos(r, datos);
+                        }
+                        $('estado').textContent = 'Revisando ' + i + ' de ' + capas.length + ' polígonos…';
+                        if (i < capas.length) setTimeout(tanda, 0); else fin({ hallados: hallados, incompleto: datos.incompleto });
+                    })();
+                });
+            });
+        }).then(function (res) {
+            if (!res) return;
+            halladosPrivados = Object.keys(res.hallados).map(function (k) { return res.hallados[k]; }).sort(function (a, b) { return b.m2 - a.m2; });
+            if (movil.matches) plegarBarra(true);
+            abrirPanel('<div class="ficha-lote"><div class="cab"><span class="titulo">🔎 Posibles privados</span></div>' +
+                '<div class="mr">' + capas.length + ' polígonos revisados en lo que se ve · ' + halladosPrivados.length + ' con 100 m² o más sobre predios que no figuran como del municipio</div>' +
+                (halladosPrivados.length ? '<div class="pred-lista">' + halladosPrivados.map(function (h, j) {
+                    var l = h.capa.lote;
+                    return '<button type="button" class="boton secundario" data-privado-ir="' + j + '">' + esc(tituloPoligono(l, true)) + ' · ' + m2(h.m2) +
+                        '<span class="sub">' + Math.round(100 * h.m2 / (h.total || 1)) + ' % del polígono · CBML ' + esc(h.cbmls.join(', ')) + '</span></button>';
+                }).join('') + '</div>' : '<div class="pred-nota">✓ Ningún lote a la vista cae de forma importante sobre predios no municipales.</div>') +
+                '<div class="pred-nota">En el mapa: naranja = lote a revisar; rojo punteado = predio que no figura como del municipio. Es un indicio para pedir que se evalúe, no una prueba. Tocar el mapa borra las marcas.' +
+                (res.incompleto ? '<br>⚠ El catastro no entregó todos los predios de la zona: acérquese más y repita.' : '') + '</div></div>', map.getCenter(), true);
+        }).catch(avisoCatastro).then(function () { if (turno === turnoRevision) pintarChips(); });
+    }
+
+    document.addEventListener('click', function (ev) {
+        if (!ev.target.closest) return;
+        var b = ev.target.closest('[data-predio-revisar]');
+        if (b) return revisarLote(b);
+        var cb = ev.target.closest('[data-predio-cbml]');
+        if (cb) { map.closePopup(); cerrarFicha(); $('buscar').value = cb.dataset.predioCbml; return buscarCbml(cb.dataset.predioCbml); }
+        var cp = ev.target.closest('[data-predio-copiar]');
+        if (cp) {
+            var t = cp.dataset.predioCopiar, listo = function () { toast('Copiado: péguelo en el reporte'); };
+            if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(listo, function () { copiarViejo(t) && listo(); });
+            if (copiarViejo(t)) listo();
+            return;
+        }
+        var pl = ev.target.closest('[data-predio-lote]');
+        if (pl) { var t2 = lotesCbml[+pl.dataset.predioLote]; if (t2) { map.closePopup(); resaltarMr(t2.capa.lote.m); verLote(t2.capa); } return; }
+        var pv = ev.target.closest('[data-privado-ir]');
+        if (pv) { var h = halladosPrivados[+pv.dataset.privadoIr]; if (h) { map.closePopup(); resaltarMr(h.capa.lote.m); verLote(h.capa); } return; }
+        var af = ev.target.closest('[data-area-filtro]');
+        if (af) { var kv = af.dataset.areaFiltro.split(':'); filtroAreas[kv[0]] = kv[0] === 'mias' ? kv[1] === 'true' : kv[1]; return verAreas(); }
+        var ai = ev.target.closest('[data-area-ir]');
+        if (ai) { var a = areasVistas[+ai.dataset.areaIr]; if (a) { map.closePopup(); cerrarFicha(); estadoRuta = null; $('buscar').value = a.l || a.m; ir([a.l || a.m], true); } }
+    }, true);
+    pintarBuscador();
+    pintarControlPrivados();
+    if (predPref.areas) cargarAreas().catch(function () {});
 
     // ---------- Inicio ----------
     // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)  ·  ?q=dirección o lo que se escribe en el buscador

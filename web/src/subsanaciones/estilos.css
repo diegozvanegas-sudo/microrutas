@@ -291,6 +291,9 @@ fieldset { min-width: 0; }
 #wa-texto { display: block; width: 100%; min-height: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 15px; color: var(--ink); resize: vertical; }
 .wa { color: #fff; background: #1f9d55; }
 .detalle .wa-btn { width: 100%; padding: 11px; margin-top: 8px; }
+/* 📨 Crear requerimiento de la visita: en el celular a lo ancho como el de WhatsApp; en la tabla, pequeño al lado */
+.detalle .req-btn { display: block; width: 100%; padding: 11px; margin-top: 8px; text-align: center; }
+.detalle .req-btn.pequeno { display: inline-block; width: auto; padding: 6px 10px; }
 /* Buscador de microrruta / lote (reemplaza el datalist, que en el celular casi no se ve) */
 .buscador { position: relative; }
 .sugerencias { position: absolute; left: 0; right: 0; top: 100%; z-index: 30; margin-top: 4px; background: #fff; border: 1px solid #b8c6cd; border-radius: 10px;
