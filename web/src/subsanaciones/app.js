@@ -4,7 +4,7 @@ import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegis
 import { $, toast, aviso, confirmar } from './ui.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento, itemsSubsanables, itemsNoSubsanables, soloNoSubsanable } from './estado.js';
-import { textoVisita, FORMATOS_VISITA, FORMATOS_DIA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
+import { textoVisita, FORMATOS_VISITA, FORMATOS_DIA, FORMATOS_PEND, textoResumen, textoReiteracion, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { textoSupervisores } from './supervisores.js';
@@ -415,9 +415,9 @@ export function iniciar(api, CFG) {
         if (!lista.length) return toast('No hay novedades pendientes en lo filtrado.');
         // Con el filtro "Para descuento": el listado de lotes a descontar en la factura, con el motivo
         var desc = $('f-estado').value === 'DESCUENTO';
-        $('wa-texto').value = desc ? textoDescuento(lista) : textoResumen(lista);
-        actualizarEnlaceWa();
-        $('dlg-wa').showModal();
+        // Si no, se elige el formato: reiteración de todas o el resumen por cuadrilla (solo lo filtrado o buscado)
+        if (desc) { $('wa-texto').value = textoDescuento(lista); actualizarEnlaceWa(); $('dlg-wa').showModal(); }
+        else abrirWaConFormatos({ tipo: 'pend', lista: lista });
         toast(lista.length + (lista.length === 1 ? ' visita' : ' visitas') + (desc ? ' para descuento' : (lista.length === 1 ? ' pendiente' : ' pendientes')) + ' en el resumen.');
     };
     // Visitas de hoy (o del día de la visita filtrada) por cuadrilla: lo que se revisó y lo que quedó con novedad
@@ -542,8 +542,8 @@ export function iniciar(api, CFG) {
     // Mensaje de una visita y resumen del día: se elige el formato y si va el plazo (preferencias del equipo, cada uno
     // con las suyas). Los demás resúmenes que usan esta ventana no muestran estas opciones
     // waModo: { tipo: 'visita', r } o { tipo: 'dia', lista, dia }
-    var waModo = null, PREF_WA = { visita: 'subsanaciones_wa_formato', dia: 'subsanaciones_wa_formato_dia' };
-    var FORMATOS_WA = { visita: FORMATOS_VISITA, dia: FORMATOS_DIA }, FORMATO_INICIAL = { visita: 'corto', dia: 'formal' };
+    var waModo = null, PREF_WA = { visita: 'subsanaciones_wa_formato', dia: 'subsanaciones_wa_formato_dia', pend: 'subsanaciones_wa_formato_pend' };
+    var FORMATOS_WA = { visita: FORMATOS_VISITA, dia: FORMATOS_DIA, pend: FORMATOS_PEND }, FORMATO_INICIAL = { visita: 'corto', dia: 'formal', pend: 'reiteracion' };
     function prefWa(tipo) { try { return JSON.parse(localStorage.getItem(PREF_WA[tipo])) || {}; } catch (e) { return {}; } }
     function pintarWa() {
         var o = { formato: $('wa-formato').value, plazo: $('wa-plazo').checked };
@@ -551,6 +551,8 @@ export function iniciar(api, CFG) {
             var cuad = String(waModo.r.CUADRILLA || '').trim().replace(/^C\s*/i, '');
             o.mencion = menciones()[cuad] || '';
             $('wa-texto').value = textoVisita(waModo.r, o);
+        } else if (waModo.tipo === 'pend') {
+            $('wa-texto').value = o.formato === 'resumen' ? textoResumen(waModo.lista) : textoReiteracion(waModo.lista, menciones(), o);
         } else {
             // «Conteo» no lleva plazos: la casilla se apaga mientras esté elegido
             $('wa-plazo').disabled = o.formato === 'conteo';

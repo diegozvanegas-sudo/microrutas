@@ -1,5 +1,5 @@
 // Textos para WhatsApp: novedad de una visita y resumen de las pendientes.
-import { norm, frase, claveRegistro, aTexto, hoy } from './util.js';
+import { norm, frase, claveRegistro, claveFecha, aTexto, hoy } from './util.js';
 import { esOp, itemsEnNo, plazoNovedad, plazoVisita, NO_REALIZADO } from './estado.js';
 
 // "Barrido del lote (Plazo: el mismo día)": el plazo de corrección queda visible en cada novedad
@@ -198,6 +198,54 @@ export function textoResumen(lista) {
         });
         return titulo + '\n\n' + lotes.join('\n\n');
     }).join('\n\n\n');
+}
+
+// «📋 Copiar resumen» con lo filtrado o buscado: el resumen de siempre o la reiteración de todas las pendientes
+export var FORMATOS_PEND = {
+    reiteracion: 'Reiteración: siguen sin subsanar',
+    resumen: 'Resumen de pendientes por cuadrilla',
+};
+// Reiteración de varias pendientes (de días distintos): por tipo y cuadrilla (con su @mención), cada lote con el día de
+// la visita, de la más vieja a la más nueva. o: { plazo (false = sin el plazo de cada novedad), hora, hoy (dd/mm/aaaa) }
+// "¡Buenas tardes! / REITERACIÓN DE NOVEDADES / Se reiteran las novedades reportadas entre el 31/10/2026 y el 13/11/2026 en 9 lotes…
+//  / NOVEDADES POSOPERACION / Cuadrilla: 4 / Z1CC0051 (53) · visita 31/10/2026: / * Limpieza manual árboles (Plazo: 5 días)"
+export function textoReiteracion(lista, menciones, o) {
+    o = o || {};
+    var h = o.hora != null ? o.hora : new Date().getHours(), conP = o.plazo !== false, alDia = o.hoy || aTexto(hoy());
+    var saludo = h < 12 ? '¡Buenos días!' : h < 19 ? '¡Buenas tardes!' : '¡Buenas noches!';
+    var pend = lista.filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
+    if (!pend.length) return '';
+    var porFecha = function (a, b) {
+        return claveFecha(a['FECHA DE LA VISITA']).localeCompare(claveFecha(b['FECHA DE LA VISITA'])) ||
+            String(a.MICRORRUTA || '').localeCompare(String(b.MICRORRUTA || ''), 'es', { numeric: true });
+    };
+    var grupos = {}, orden = [];
+    pend.slice().sort(porFecha).forEach(function (r) {
+        var cuad = String(r.CUADRILLA || '').trim().replace(/^C\s*/i, ''), k = (esOp(r) ? '1' : '0') + '|' + cuad;
+        if (!grupos[k]) { grupos[k] = { op: esOp(r), cuad: cuad, rs: [] }; orden.push(k); }
+        grupos[k].rs.push(r);
+    });
+    orden.sort(function (a, b) {
+        var x = grupos[a], y = grupos[b];
+        return (x.op - y.op) || (x.cuad ? 0 : 1) - (y.cuad ? 0 : 1) || x.cuad.localeCompare(y.cuad, 'es', { numeric: true });
+    });
+    var fechas = pend.map(function (r) { return r['FECHA DE LA VISITA']; }).filter(Boolean).sort(function (a, b) { return claveFecha(a).localeCompare(claveFecha(b)); });
+    var primera = fechas[0], ultima = fechas[fechas.length - 1];
+    var cuando = !primera ? '' : primera === ultima ? ' el ' + primera : ' entre el ' + primera + ' y el ' + ultima;
+    var cuerpo = orden.map(function (k) {
+        var g = grupos[k], m = (menciones || {})[g.cuad];
+        var cab = ['NOVEDADES ' + (g.op ? 'EN OPERACION' : 'POSOPERACION')].concat(g.cuad ? ['Cuadrilla: ' + g.cuad] : []).concat(m ? [m] : []).join('\n');
+        return cab + '\n\n' + g.rs.map(function (r) {
+            return (r.MICRORRUTA || '') + (r.LOTE && r.LOTE !== 'NA' ? ' (' + r.LOTE + ')' : '') +
+                (r['FECHA DE LA VISITA'] ? ' · visita ' + r['FECHA DE LA VISITA'] : '') + ':\n\n' + lineasNovedad(r, conP).join('\n');
+        }).join('\n\n');
+    }).join('\n\n\n');
+    var n = pend.length;
+    return saludo + '\n\nREITERACIÓN DE NOVEDADES\n\n' +
+        'Se reiteran las novedades reportadas' + cuando + ' en ' + (n === 1 ? '1 lote' : n + ' lotes') + ', las cuales al ' + alDia + ' continúan sin subsanar:\n\n' + cuerpo + '\n\n' +
+        'Se solicita atenderlas de manera prioritaria y enviar el registro fotográfico de la corrección. De no subsanarse' +
+        (conP ? ' dentro del plazo establecido' : '') + ', se procederá con el descuento correspondiente en la factura, conforme a lo establecido en el contrato.\n\n' +
+        'Quedamos atentos.\nInterventoría del Área de Servicios de Aseo';
 }
 
 // Lotes para descuento en la factura (pendientes con el plazo vencido o no subsanables), por cuadrilla y con el motivo:
