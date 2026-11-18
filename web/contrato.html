@@ -88,6 +88,38 @@
     <div id="cw-toast" class="cw-toast" role="status" aria-live="polite"></div>
     <p class="nota-privada">🔒 Este contenido solo se ve con sesión iniciada. Las páginas (pág. o p.) son las del PDF de cada documento.</p>
 </main>
+<!-- 📷 Fotos de campo de un punto de la Guía de campo (fotos_ui.js): verlas y subir más, marcadas como bien o mal -->
+<dialog id="dlg-fotos" class="gf-dlg" aria-labelledby="gf-titulo">
+    <div class="cuerpo">
+        <h2 id="gf-titulo">📷 Fotos de campo</h2>
+        <p class="sub">Fotos reales para mostrar cómo se ve este punto bien hecho y mal hecho. Se guardan en la base (privadas: solo con sesión y permiso de contrato) y no se borran solas.</p>
+        <p class="gf-cuenta" id="gf-cuenta"></p>
+        <div class="gf-filtros" id="gf-filtros" role="group" aria-label="Filtrar fotos"></div>
+        <div class="gf-galeria" id="gf-galeria"></div>
+        <fieldset class="gf-subir">
+            <legend>Agregar fotos</legend>
+            <div class="gf-tipo" role="radiogroup" aria-label="Qué muestra la foto">
+                <label><input type="radio" name="gf-tipo" value="bien"> ✅ Así está bien</label>
+                <label><input type="radio" name="gf-tipo" value="mal"> ❌ Así está mal</label>
+            </div>
+            <label class="gf-nota">QUÉ SE VE <span class="opcional">(opcional, sale debajo de la foto)</span>
+                <input id="gf-nota" maxlength="70" placeholder="Ej.: plateo de 30 cm en el lote 532" autocomplete="off">
+            </label>
+            <div class="gf-zona" id="gf-zona" tabindex="0" aria-label="Pegue aquí las fotos">
+                <span>Pegue aquí (Ctrl+V), arrastre o</span>
+                <div class="gf-botones"><button type="button" id="gf-elegir">🖼️ Elegir fotos</button><button type="button" id="gf-camara">📷 Tomar foto</button></div>
+            </div>
+            <div class="gf-previas" id="gf-previas"></div>
+            <input type="file" id="gf-archivo" accept="image/*" multiple hidden>
+            <input type="file" id="gf-camara-archivo" accept="image/*" capture="environment" hidden>
+        </fieldset>
+        <p class="gf-estado" id="gf-estado" role="status" aria-live="polite"></p>
+        <div class="pie">
+            <button type="button" id="gf-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="gf-subir" disabled>⬆️ Subir</button>
+        </div>
+    </div>
+</dialog>
 <script type="module" src="/src/contrato/main.js"></script>
 </body>
 </html>

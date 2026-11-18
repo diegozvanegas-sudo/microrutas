@@ -52,11 +52,11 @@ export function buscarEnDocumentos(docs, q, nombres, orden) {
             if (s.tipo === 'meta' || s.tipo === 'config' || s.tipo === 'plantilla') return;
             var tit = plano(s.titulo), items = [];
             s.items.forEach(function (it, i) {
-                var texto = plano([it.clave, it.t, it.ej, it.ref].join(' ')), todo = tit + ' ' + texto;
+                var texto = plano([it.clave, it.t, it.ej, (it.mas || []).join(' '), it.ref].join(' ')), todo = tit + ' ' + texto;
                 if (!ps.every(function (p) { return todo.indexOf(p) !== -1; })) return;
                 // Más puntos si la palabra está en la clave o el título (es el tema del punto) que si solo se nombra
                 var puntos = ps.reduce(function (n, p) { return n + (plano(it.clave).indexOf(p) !== -1 ? 3 : 0) + (tit.indexOf(p) !== -1 ? 2 : 0) + (texto.indexOf(p) !== -1 ? 1 : 0); }, 0);
-                items.push({ clave: it.clave, t: it.t, ref: it.ref, ej: it.ej, i: i, puntos: puntos });
+                items.push({ clave: it.clave, t: it.t, ref: it.ref, ej: it.ej, mas: it.mas, i: i, puntos: puntos });
             });
             if (items.length) {
                 items.sort(function (a, b) { return b.puntos - a.puntos || a.i - b.i; });

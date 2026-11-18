@@ -6,6 +6,9 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { buscarEnDocumentos, documentoCitas, resaltarPalabras, textoWhatsApp } from './busqueda.js';
+import { dibujoDe } from './dibujos.js';
+import { carpetaPunto, SECCIONES_FOTOS } from './fotosguia.js';
+import { iniciarFotos } from './fotos_ui.js';
 
 var CACHE = 'contrato_cache';            // también la usa pqr.html: solo el contrato de corte de césped
 var CACHE_CONVENIOS = 'convenios_cache';
@@ -49,8 +52,25 @@ function marcados() { try { return JSON.parse(localStorage.getItem(CHEQUEO)) || 
 function guardarMarcados(m) { try { localStorage.setItem(CHEQUEO, JSON.stringify(m)); } catch (e) {} }
 function claveChequeo(seccion, i) { return actual + '|' + seccion + '|' + i; }
 
-// it.ej: ejemplo de campo (cómo se ve, qué escribir en la novedad)
-function ejemplo(it, q) { return it.ej ? '<span class="ej"><b>Ejemplo:</b> ' + resaltar(it.ej, q) + '</span>' : ''; }
+// it.ej: ejemplo de campo (cómo se ve, qué escribir en la novedad); it.mas: más ejemplos del mismo punto
+function ejemplo(it, q) {
+    var mas = (it.mas || []).filter(Boolean);
+    if (!it.ej && !mas.length) return '';
+    if (!mas.length) return '<span class="ej"><b>Ejemplo:</b> ' + resaltar(it.ej, q) + '</span>';
+    return '<span class="ej"><b>Ejemplos:</b><span class="ej-lista">' + [it.ej].concat(mas).filter(Boolean).map(function (e) { return '<span>' + resaltar(e, q) + '</span>'; }).join('') + '</span></span>';
+}
+// Guía de campo, «Lote ejecutado» y «Durante la operación»: dibujo ✅ bien / ❌ mal y las fotos de campo del punto
+var fotos = null;
+function conVisual(s) { return actual === 'GUIA-CAMPO' && vista === 'lista' && SECCIONES_FOTOS.indexOf(s.id) >= 0; }
+function figura(lado, tipo) {
+    return '<figure class="gv-fig gv-' + tipo + '">' + lado.svg + '<figcaption><b>' + (tipo === 'bien' ? '✅ Bien' : '❌ Mal') + ':</b> ' + esc(lado.txt) + '</figcaption></figure>';
+}
+function itemVisual(it, s, q) {
+    var d = dibujoDe(it.clave), carpeta = carpetaPunto(s.id, it.clave);
+    return '<li class="gv-punto">' + (it.clave ? '<b>' + resaltar(it.clave, q) + ':</b> ' : '') + resaltar(it.t, q) + (it.ref ? '<span class="ref">' + esc(it.ref) + '</span>' : '') + ejemplo(it, q) +
+        (d ? '<div class="gv-dibujos">' + figura(d.bien, 'bien') + figura(d.mal, 'mal') + '</div>' : '') +
+        (fotos ? '<div class="gv-fotos" data-gv-carpeta="' + esc(carpeta) + '" data-gv-clave="' + esc(it.clave) + '">' + fotos.tira(carpeta) + '</div>' : '') + '</li>';
+}
 
 function item(it, tipo, q, seccion, i) {
     var ref = it.ref ? '<span class="ref">' + esc(it.ref) + '</span>' : '';
@@ -142,7 +162,8 @@ function pintarGeneral(texto) {
                     s.items.map(function (it) {
                         return '<li>' + (it.clave ? '<b>' + resaltarPalabras(it.clave, r.palabras, esc) + ':</b> ' : '') + resaltarPalabras(it.t, r.palabras, esc) +
                             (it.ref ? '<span class="ref">' + esc(it.ref) + '</span>' : '') +
-                            (it.ej ? '<span class="ej"><b>Ejemplo:</b> ' + resaltarPalabras(it.ej, r.palabras, esc) + '</span>' : '') + '</li>';
+                            (it.ej ? '<span class="ej"><b>Ejemplo:</b> ' + resaltarPalabras(it.ej, r.palabras, esc) + '</span>' : '') +
+                            (it.mas || []).filter(function (e) { return r.palabras.some(function (p) { return plano(e).indexOf(p) >= 0; }); }).map(function (e) { return '<span class="ej"><b>Ejemplo:</b> ' + resaltarPalabras(e, r.palabras, esc) + '</span>'; }).join('') + '</li>';
                     }).join('') + '</ul></div>';
             }).join('') + '</section>';
     }).join('');
@@ -174,7 +195,7 @@ function pintar() {
     var visibles = secciones.filter(function (s) { return s.tipo !== 'meta'; }).map(function (s) {
         // i: posición del punto en la sección (para que lo marcado no cambie al buscar)
         var items = s.items.map(function (it, i) { return Object.assign({ i: i }, it); });
-        if (q) items = items.filter(function (it) { return plano([it.clave, it.t, it.ref, it.ej, s.titulo].join(' ')).indexOf(q) >= 0; });
+        if (q) items = items.filter(function (it) { return plano([it.clave, it.t, it.ref, it.ej, (it.mas || []).join(' '), s.titulo].join(' ')).indexOf(q) >= 0; });
         return { s: s, items: items };
     }).filter(function (x) { return x.items.length; });
 
@@ -186,6 +207,7 @@ function pintar() {
         var s = x.s, cuerpo = s.tipo === 'cifras' ? '<div class="cifras">' + x.items.map(function (it) { return item(it, 'cifras', q); }).join('') + '</div>'
             : s.tipo === 'tabla' ? '<table class="plazos"><tbody>' + x.items.map(function (it) { return item(it, 'tabla', q); }).join('') + '</tbody></table>'
             : s.tipo === 'pasos' ? '<ol class="pasos">' + x.items.map(function (it) { return item(it, 'lista', q); }).join('') + '</ol>'
+            : conVisual(s) ? '<ul class="gv-lista">' + x.items.map(function (it) { return itemVisual(it, s, q); }).join('') + '</ul>'
             : '<ul>' + x.items.map(function (it) { return item(it, s.tipo, q, s.id, it.i); }).join('') + '</ul>';
         var m = marcados(), hechos = s.tipo === 'chequeo' ? s.items.filter(function (it, i) { return m[claveChequeo(s.id, i)]; }).length : 0;
         var barra = s.tipo === 'chequeo' ? '<div class="barra-chequeo"><span>' + hechos + ' de ' + s.items.length + ' revisados</span>' +
@@ -194,6 +216,12 @@ function pintar() {
     }).join('');
     // «Solo en este documento»: también se puede copiar lo que salió
     compartirWa(q ? textoBuscado : '', q ? [{ nombre: nombresDocs()[actual] || (meta ? meta.titulo : actual), secciones: visibles.map(function (x) { return { icono: x.s.icono, titulo: x.s.titulo, items: x.items }; }) }] : []);
+    // Fotos de campo: se buscan una vez al abrir la guía (después, cada tira se pinta con lo ya cargado)
+    if (fotos && !fotos.cargado() && visibles.some(function (x) { return conVisual(x.s); })) {
+        fotos.cargar([].concat.apply([], visibles.filter(function (x) { return conVisual(x.s); }).map(function (x) {
+            return x.s.items.map(function (it) { return carpetaPunto(x.s.id, it.clave); });
+        })));
+    }
     $('estado').hidden = !!visibles.length;
     if (!visibles.length) $('estado').textContent = q ? 'No hay nada con «' + $('buscar').value.trim() + '» en este documento.' : 'Este documento está vacío.';
 }
@@ -295,6 +323,7 @@ async function arrancar() {
         $('estado').textContent = '🔒 Su usuario no tiene permiso para ver el contrato. Pídaselo al administrador.';
         return;
     }
+    fotos = iniciarFotos(supabase, avisoWa);
     cargar();
 }
 
