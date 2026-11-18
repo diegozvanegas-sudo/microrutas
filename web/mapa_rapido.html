@@ -78,6 +78,19 @@
     .ficha-lote .chip-no { display: inline-block; margin: 3px 4px 0 0; padding: 2px 8px; border-radius: 6px; font-size: 12px; color: #b91c1c; background: #fee2e2; }
     .ficha-lote .visita-det .copia { font-size: 11px; color: var(--muted); margin-top: 6px; }
     .ficha-lote .visita-det a.editar-visita { display: block; text-align: center; margin-top: 8px; padding: 9px; color: var(--brand); background: #fff; border: 1px solid #9fd3bd; }
+    /* Sentinel-2: cuadro de fecha y nubes, solo visible con ese fondo elegido */
+    .s2-panel { background: var(--surface); border-radius: 10px; box-shadow: 0 1px 6px rgba(0,0,0,.3); padding: 10px 12px; width: 230px; max-width: calc(100vw - 80px);
+        font-size: 12.5px; line-height: 1.35; color: var(--ink); }
+    .s2-panel[hidden] { display: none; }
+    .s2-panel b { display: block; font-size: 13.5px; margin-bottom: 6px; }
+    .s2-panel label { display: block; margin: 6px 0 2px; font-weight: 600; }
+    .s2-panel input, .s2-panel select { width: 100%; box-sizing: border-box; min-height: 36px; padding: 6px 8px; border: 1px solid var(--line); border-radius: 8px; font: inherit; }
+    .s2-panel .s2-sub { color: var(--muted); margin: 6px 0 0; }
+    .s2-panel .s2-err { color: #b91c1c; margin: 6px 0 0; }
+    .s2-panel .s2-acc { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
+    .s2-panel button { min-height: 36px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--line); background: var(--surface); font: inherit; cursor: pointer; }
+    .s2-panel button.s2-ok { background: var(--brand); border-color: var(--brand); color: #fff; font-weight: 600; }
+    .s2-panel button:disabled { opacity: .6; cursor: wait; }
     .toast { position: fixed; left: 50%; bottom: calc(20px + env(safe-area-inset-bottom)); transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 2000; display: none; max-width: calc(100% - 32px); }
     /* Ficha del lote: ventana en computador, panel desde abajo en el celular */
     .ficha-lote { font-size: 14px; line-height: 1.35; color: var(--ink); }
@@ -271,10 +284,116 @@
     var orto = L.tileLayer('https://www.medellin.gov.co/servidormapas/rest/services/ServiciosCiudad/IMAGEN_WEBM_2024/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: 21, attribution: 'Ortofoto © Alcaldía de Medellín' });
     // Servicio sin año: la ortofoto vigente de la Alcaldía, cambia sola cuando publiquen una nueva.
     var alcaldia = L.tileLayer('https://www.medellin.gov.co/servidormapas/rest/services/ServiciosCiudad/IMAGEN_WEBM/MapServer/tile/{z}/{y}/{x}', { maxZoom: 21, maxNativeZoom: 21, attribution: 'Ortofoto © Alcaldía de Medellín' });
-    var bases = { orto: orto, alcaldia: alcaldia, satelite: satelite, hibrido: hibrido, esri: esri, calles: calles };
-    (bases[leer('rapido_fondo', 'orto')] || orto).addTo(map);
-    L.control.layers({ 'Ortofoto Medellín 2025': orto, 'Ortofoto Alcaldía (vigente)': alcaldia, 'Satélite Google': satelite, 'Google con nombres de calles': hibrido, 'Satélite Esri': esri, 'Calles': calles }, null, { position: 'topright' }).addTo(map);
-    map.on('baselayerchange', function (e) { guardar('rapido_fondo', Object.keys(bases).filter(function (k) { return bases[k] === e.layer; })[0] || 'orto'); });
+    // Sentinel-2 (Copernicus Data Space, gratis): la foto más reciente hasta el día elegido, con tope de nubes. Pasa cada ~5 días,
+    // pero cada punto mide 10 m: se ven manchas verdes y obras, no el detalle de un lote.
+    // Código de la configuración de la interventoría (lo pidió el usuario en el código para no pegarlo en cada equipo).
+    // Es público en el repositorio y gasta el cupo gratis de esa cuenta: si alguien lo abusa, se borra la configuración en
+    // Copernicus, se crea otra y se cambia aquí. Un código pegado en el equipo («Cambiar código») tiene prioridad.
+    var S2_DEFECTO = { id: '377dd911-8793-4832-9713-8b0ca5a529ac', capa: 'TRUE_COLOR', nubes: 30 };
+    var S2 = 'rapido_sentinel', s2cfg = leer(S2, null) || { id: S2_DEFECTO.id, capa: S2_DEFECTO.capa, nubes: S2_DEFECTO.nubes };
+    function hoyISO() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
+    function menosDias(iso, n) { var d = new Date(iso + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - n); return d.toISOString().slice(0, 10); }
+    var s2fecha = hoyISO();
+    var sentinel = L.tileLayer.wms('https://sh.dataspace.copernicus.eu/ogc/wms/' + (s2cfg ? s2cfg.id : 'sin-codigo'), {
+        layers: s2cfg ? s2cfg.capa : 'TRUE_COLOR', format: 'image/jpeg', version: '1.3.0', tileSize: 512, // cuadros grandes: la mitad de pedidos al cupo
+        maxcc: s2cfg && s2cfg.nubes != null ? s2cfg.nubes : 30, time: menosDias(s2fecha, 90) + '/' + s2fecha, priority: 'mostRecent', showlogo: false,
+        maxZoom: 21, attribution: 'Sentinel-2 © Copernicus (ESA)'
+    });
+    sentinel.on('tileerror', function () { if (s2cfg && !s2Aviso) { s2Aviso = true; s2Error('Copernicus no devolvió la imagen. Revise el código, la conexión o si se acabó el cupo gratis del mes.'); } });
+    var s2Aviso = false;
+    var bases = { orto: orto, alcaldia: alcaldia, satelite: satelite, hibrido: hibrido, esri: esri, calles: calles, sentinel: sentinel };
+    var fondoIni = leer('rapido_fondo', 'orto');
+    if (fondoIni === 'sentinel' && !s2cfg) fondoIni = 'orto';
+    (bases[fondoIni] || orto).addTo(map);
+    L.control.layers({ 'Ortofoto Medellín 2025': orto, 'Ortofoto Alcaldía (vigente)': alcaldia, 'Satélite Google': satelite, 'Google con nombres de calles': hibrido, 'Satélite Esri': esri, 'Calles': calles, 'Sentinel-2 por fecha (10 m)': sentinel }, null, { position: 'topright' }).addTo(map);
+    map.on('baselayerchange', function (e) {
+        guardar('rapido_fondo', Object.keys(bases).filter(function (k) { return bases[k] === e.layer; })[0] || 'orto');
+        s2Mostrar(e.layer === sentinel);
+    });
+
+    // Cuadro de Sentinel-2: pide el código la primera vez; después, el día y el tope de nubes
+    var s2div;
+    var S2Panel = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function () {
+            s2div = L.DomUtil.create('div', 's2-panel');
+            s2div.hidden = true;
+            L.DomEvent.disableClickPropagation(s2div); L.DomEvent.disableScrollPropagation(s2div);
+            return s2div;
+        }
+    });
+    map.addControl(new S2Panel());
+    function s2Error(msg) { var p = s2div && s2div.querySelector('.s2-err'); if (p) { p.textContent = msg; p.hidden = false; } }
+    function s2Pintar() {
+        if (!s2cfg) {
+            s2div.innerHTML = '<b>🛰 Sentinel-2</b>' +
+                '<div>Pegue el código (Instance ID) de su configuración en Copernicus Data Space. Se guarda solo en este equipo.</div>' +
+                '<label for="s2-id">Código</label><input id="s2-id" autocomplete="off" spellcheck="false" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx">' +
+                '<p class="s2-err" hidden></p>' +
+                '<div class="s2-acc"><button type="button" data-s2="ver-orto">Usar ortofoto</button><button type="button" class="s2-ok" data-s2="guardar">Guardar</button></div>';
+            return;
+        }
+        var n = s2cfg.nubes != null ? s2cfg.nubes : 30;
+        s2div.innerHTML = '<b>🛰 Sentinel-2</b>' +
+            '<label for="s2-fecha">Foto más reciente hasta el</label><input type="date" id="s2-fecha" max="' + hoyISO() + '" value="' + s2fecha + '">' +
+            '<label for="s2-nubes">Nubes máximo</label><select id="s2-nubes">' + [10, 30, 60, 100].map(function (v) {
+                return '<option value="' + v + '"' + (v === n ? ' selected' : '') + '>' + (v === 100 ? 'Sin tope (puede salir nublado)' : v + ' %') + '</option>'; }).join('') + '</select>' +
+            '<p class="s2-sub">Busca en los 90 días anteriores. Cada punto mide 10 m: sirve para ver cambios grandes, no un lote.</p>' +
+            '<p class="s2-err" hidden></p>' +
+            '<div class="s2-acc"><button type="button" data-s2="cambiar">Cambiar código</button></div>';
+    }
+    function s2Mostrar(si) {
+        if (!s2div) return;
+        s2div.hidden = !si;
+        if (si) { s2Aviso = false; s2Pintar(); }
+    }
+    function s2Aplicar() {
+        s2Aviso = false;
+        sentinel.setParams({ time: menosDias(s2fecha, 90) + '/' + s2fecha, maxcc: s2cfg.nubes != null ? s2cfg.nubes : 30 });
+    }
+    // Revisa el código con Copernicus y busca el nombre de la capa de color real de esa configuración
+    function s2Guardar() {
+        var inp = $('s2-id'), id = (inp.value || '').trim().toLowerCase(), btn = s2div.querySelector('[data-s2="guardar"]');
+        if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(id))
+            return s2Error('Ese código no tiene la forma de un Instance ID (8-4-4-4-12 letras y números). Cópielo completo de «Configuraciones» en Copernicus.');
+        btn.disabled = true; btn.textContent = 'Revisando…';
+        fetch('https://sh.dataspace.copernicus.eu/ogc/wms/' + id + '?SERVICE=WMS&REQUEST=GetCapabilities&VERSION=1.3.0').then(function (r) {
+            return r.text().then(function (t) { return { ok: r.ok, t: t }; });
+        }).then(function (res) {
+            var xml = new DOMParser().parseFromString(res.t, 'text/xml');
+            if (!res.ok) {
+                var ex = xml.getElementsByTagName('ServiceException')[0];
+                throw new Error(/invalid instance/i.test(ex ? ex.textContent : '') ? 'Copernicus no reconoce ese código. Revise que sea el de la configuración y no el de la cuenta.' : 'Copernicus respondió con un error (' + (ex ? ex.textContent.trim() : 'sin detalle') + ').');
+            }
+            var nombres = [].map.call(xml.querySelectorAll('Layer > Layer > Name'), function (e) { return e.textContent.trim(); }).filter(Boolean);
+            if (!nombres.length) throw new Error('La configuración no tiene capas. En Copernicus créela con la plantilla de Sentinel-2 L2A.');
+            var capa = nombres.filter(function (c) { return /TRUE.?COLOR/i.test(c); })[0] || nombres.filter(function (c) { return /NATURAL/i.test(c); })[0] || nombres[0];
+            s2cfg = { id: id, capa: capa, nubes: 30 }; guardar(S2, s2cfg);
+            sentinel.setUrl('https://sh.dataspace.copernicus.eu/ogc/wms/' + id, true);
+            sentinel.setParams({ layers: capa }, true);
+            s2Aplicar(); sentinel.redraw();
+            s2Pintar(); toast('Sentinel-2 listo (capa ' + capa + ').');
+        }).catch(function (e) {
+            btn.disabled = false; btn.textContent = 'Guardar';
+            s2Error(e && e.message && !/fetch/i.test(e.message) ? e.message : 'No se pudo contactar a Copernicus. Revise la conexión a internet e intente de nuevo.');
+        });
+    }
+    // Delegación de eventos del cuadro (botones y campos)
+    function s2Click(ev) {
+        var b = ev.target.closest('[data-s2]'); if (!b) return;
+        var a = b.getAttribute('data-s2');
+        if (a === 'guardar') s2Guardar();
+        else if (a === 'cambiar') { s2cfg = null; try { localStorage.removeItem(S2); } catch (e) {} s2Pintar(); }
+        else if (a === 'ver-orto') { map.removeLayer(sentinel); orto.addTo(map); } // el control de capas avisa el cambio solo
+    }
+    s2div.addEventListener('click', s2Click);
+    s2div.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && ev.target.id === 's2-id') s2Guardar(); });
+    s2div.addEventListener('change', function (ev) {
+        if (ev.target.id === 's2-fecha' && ev.target.value) { s2fecha = ev.target.value > hoyISO() ? hoyISO() : ev.target.value; s2Aplicar(); }
+        if (ev.target.id === 's2-nubes') { s2cfg.nubes = +ev.target.value; guardar(S2, s2cfg); s2Aplicar(); }
+    });
+    // Sin código: al elegir Sentinel-2 se ve el fondo vacío hasta pegarlo, por eso el cuadro sale de una
+    if (map.hasLayer(sentinel)) s2Mostrar(true);
 
     // Ubicación seguida todo el tiempo (punto azul); "Cómo llegar" sale siempre desde aquí.
     // El botón ◎ solo centra el mapa en usted: no mueve el mapa cada vez que el GPS se actualiza.
