@@ -23,6 +23,14 @@ export function nombreSeguro(nombre, ahora, tipo) {
 }
 // Carpeta de la visita: su ID tal cual, sin nada que rompa la ruta
 export function carpeta(id) { return String(id || '').replace(/[^a-zA-Z0-9_-]+/g, '_'); }
+// Carpeta del reporte de la cuadrilla (el pantallazo del mensaje «microrrutas ejecutadas», que se guarda al crear la
+// pre-ruta en Subsanaciones): una por fecha de ejecución y cuadrilla, la comparten todas las visitas de esa ejecución.
+// ('2026-11-15', '2') → 'REP-2026-11-15-C2'; sin fecha → ''
+export function carpetaReporte(fechaIso, cuad) {
+    var f = String(fechaIso || '').slice(0, 10);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(f)) return '';
+    return carpeta('REP-' + f + '-C' + (String(cuad || '').trim().replace(/^C\s*/i, '') || '0'));
+}
 // Tipo del archivo por su nombre; los de antes (sin tipo) eran el envío o la captura del reporte: cuentan como envío
 export function tipoDe(archivo) { var m = /^[a-z0-9]+-(reporte|envio|preaviso)_/.exec(String(archivo || '')); return m ? m[1] : 'envio'; }
 // «lz3k9a-reporte_pantallazo-envio.jpg» → «pantallazo envio»

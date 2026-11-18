@@ -26,6 +26,7 @@ import { mezclarRutas, tocaReleer } from './prerutas.js';
 import { iniciarUbicar } from './ubicar_ui.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
+import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -1842,6 +1843,7 @@ export function iniciar(api, CFG) {
     }
     function abrirDlgRuta() {
         ['ruta-texto', 'ruta-cuad', 'ruta-agregar'].forEach(function (id) { $(id).value = ''; });
+        soltarRutaImgs();
         // Siempre con fecha de ejecución: la del mensaje si la trae, si no hoy (se puede cambiar)
         $('ruta-fecha').value = hoy();
         rutaQuitados = []; rutaAgregados = [];
@@ -1923,6 +1925,83 @@ export function iniciar(api, CFG) {
         }, function () { $('ruta-texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
     };
     $('ruta-cancelar').onclick = function () { $('dlg-ruta').close(); };
+
+    // ---------- 📋 Imagen del reporte (pantallazo del mensaje de la cuadrilla) ----------
+    // Se pega (Ctrl+V en la ventana), se arrastra o se elige; al crear la pre-ruta se guarda en el almacenamiento de anexos como
+    // «Reporte de ejecución» de esa fecha y cuadrilla (requerimiento/anexos.js) y entra sola al requerimiento. Al cerrar se suelta.
+    var rutaImgs = [];
+    function pintarRutaImgs() {
+        $('ruta-img-lista').innerHTML = rutaImgs.map(function (x, i) {
+            return '<div class="ruta-img-item"><img src="' + x.url + '" alt="Imagen del reporte ' + (i + 1) + '"><button type="button" data-ruta-img-quitar="' + i + '" aria-label="Quitar la imagen ' + (i + 1) + '">✕</button></div>';
+        }).join('');
+        $('ruta-img-nota').textContent = rutaImgs.length ? rutaImgs.length + (rutaImgs.length === 1 ? ' imagen: se guarda' : ' imágenes: se guardan') + ' al crear la pre-ruta como «📋 Reporte de ejecución» de esa fecha y cuadrilla. Se borra a los 30 días.'
+            : 'Se guarda como «📋 Reporte de ejecución» de esa fecha y cuadrilla, y entra sola al requerimiento si un lote no se corrige. Se borra a los 30 días.';
+    }
+    function soltarRutaImgs() { rutaImgs.forEach(function (x) { URL.revokeObjectURL(x.url); }); rutaImgs = []; pintarRutaImgs(); }
+    function agregarRutaImgs(lista, reemplazar) {
+        var imgs = Array.prototype.slice.call(lista || []).filter(function (f) { return /^image\//.test(f.type); });
+        if (!imgs.length) return toast('Eso no es una imagen: pegue el pantallazo del mensaje o elija una imagen.');
+        if (reemplazar) soltarRutaImgs();   // volver a elegir reemplaza lo anterior; pegar va sumando
+        imgs.forEach(function (f) {
+            var nombre = f.name && !/^image\.\w+$/i.test(f.name) ? f.name : 'reporte-cuadrilla.png';
+            var file = f.name === nombre ? f : new File([f], nombre, { type: f.type });
+            rutaImgs.push({ file: file, url: URL.createObjectURL(file) });
+        });
+        pintarRutaImgs();
+    }
+    $('dlg-ruta').addEventListener('paste', function (ev) {
+        var files = Array.prototype.slice.call((ev.clipboardData && ev.clipboardData.files) || []).filter(function (f) { return /^image\//.test(f.type); });
+        if (files.length) { ev.preventDefault(); agregarRutaImgs(files, false); }
+    });
+    $('dlg-ruta').addEventListener('close', soltarRutaImgs);
+    var zonaImg = $('ruta-img-zona');
+    zonaImg.addEventListener('dragover', function (ev) { ev.preventDefault(); zonaImg.classList.add('encima'); });
+    zonaImg.addEventListener('dragleave', function () { zonaImg.classList.remove('encima'); });
+    zonaImg.addEventListener('drop', function (ev) { ev.preventDefault(); zonaImg.classList.remove('encima'); agregarRutaImgs(ev.dataTransfer.files, false); });
+    $('ruta-img-elegir').onclick = function () { $('ruta-img-archivo').value = ''; $('ruta-img-archivo').click(); };
+    $('ruta-img-archivo').onchange = function () { agregarRutaImgs(this.files, true); this.value = ''; };
+    $('ruta-img-pegar').onclick = function () {
+        if (!navigator.clipboard || !navigator.clipboard.read) { zonaImg.focus(); return toast('Toque el recuadro y pegue con Ctrl+V (o mantenga presionado y elija Pegar).'); }
+        navigator.clipboard.read().then(function (items) {
+            return Promise.all(items.map(function (it) {
+                var t = it.types.filter(function (x) { return /^image\//.test(x); })[0];
+                return t ? it.getType(t).then(function (b) { return new File([b], 'reporte-cuadrilla.png', { type: t }); }) : null;
+            }));
+        }).then(function (files) {
+            files = files.filter(Boolean);
+            if (!files.length) return toast('El portapapeles no tiene una imagen: haga el recorte del mensaje (Win + Shift + S) y vuelva a pegar.');
+            agregarRutaImgs(files, false);
+        }, function () { zonaImg.focus(); toast('No se pudo leer el portapapeles: toque el recuadro y pegue con Ctrl+V.'); });
+    };
+    $('ruta-img-lista').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-ruta-img-quitar]');
+        if (!b) return;
+        var x = rutaImgs.splice(+b.dataset.rutaImgQuitar, 1)[0];
+        if (x) URL.revokeObjectURL(x.url);
+        pintarRutaImgs();
+    });
+    // La imagen se reduce (1.600 px, JPEG) antes de subirla, igual que los pantallazos de Requerimientos
+    async function reducirImagen(file) {
+        var bmp = await createImageBitmap(file), e = Math.min(1, 1600 / Math.max(bmp.width, bmp.height)), c = document.createElement('canvas');
+        c.width = Math.round(bmp.width * e); c.height = Math.round(bmp.height * e);
+        var g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); g.drawImage(bmp, 0, 0, c.width, c.height); bmp.close();
+        return new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
+    }
+    // Una copia por cuadrilla de la pre-ruta (si el mensaje no traía cuadrilla, cada lote fue a la suya)
+    async function guardarReporte(imgs, fecha, cuads) {
+        if (!supabase) return toast('Sin base de datos: la imagen del reporte no se guardó.');
+        var an = crearAnexos(supabase), bien = 0, error = '';
+        for (var i = 0; i < imgs.length; i++) {
+            var blob;
+            try { blob = await reducirImagen(imgs[i].file); } catch (e) { error = 'no se pudo leer la imagen'; continue; }
+            for (var k = 0; k < cuads.length; k++) {
+                try { await an.subir(carpetaReporte(fecha, cuads[k]), blob, imgs[i].file.name, 'reporte'); bien++; }
+                catch (e) { error = (e && e.message) || 'revise la conexión'; }
+            }
+        }
+        if (error) return toast('La imagen del reporte no se guardó' + (bien ? ' completa' : '') + ': ' + error + ' Agréguela en Requerimientos › 📎 Agregar imagen.');
+        toast('📋 Imagen del reporte guardada (' + cuads.map(function (c) { return c ? 'C' + c : 'sin cuadrilla'; }).join(', ') + ' · ejec. ' + aTexto(fecha).slice(0, 5) + '): entra sola al requerimiento.');
+    }
     // Lotes del mensaje que ya están en alguna tarjeta con otra fecha de ejecución: se pregunta con cuál se quedan.
     // usarNueva: true = la del mensaje, false = la que ya tenían; en las dos el lote queda en una sola tarjeta.
     $('ruta-crear').onclick = function () {
@@ -1997,8 +2076,12 @@ export function iniciar(api, CFG) {
             nuevas.push(ruta);
         });
         guardarRutas();
+        // La imagen del reporte se lleva antes de cerrar (al cerrar se suelta); solo si hay lotes ejecutados, no si solo «en ejecución»
+        var imgsReporte = cursoIds.length < lista.length ? rutaImgs.slice() : [];
+        rutaImgs = [];
         $('dlg-ruta').close();
         pintarRutas();
+        if (imgsReporte.length) guardarReporte(imgsReporte, fecha, Object.keys(grupos)).then(function () { imgsReporte.forEach(function (x) { URL.revokeObjectURL(x.url); }); });
         var nombres = Object.keys(grupos).map(function (c) { return (c ? 'C' + c : 'sin cuadrilla') + ' (' + grupos[c].length + ')'; }).join(', ');
         toast(curso ? 'Trabajando ahora en ' + cursoIds.join(', ') + ' · ' + nombres + '.'
             : (nuevas.length > 1 ? 'Lotes repartidos por cuadrilla: ' + nombres

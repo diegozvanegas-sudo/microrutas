@@ -12,7 +12,7 @@ import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { valorItem, hoy } from '../subsanaciones/util.js';
 import { crearApi } from '../api.js';
 import { candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
-import { crearAnexos, carpeta, seBorra, TIPOS } from './anexos.js';
+import { crearAnexos, carpeta, carpetaReporte, seBorra, TIPOS } from './anexos.js';
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
 function plural(n, uno, varios) { return n + ' ' + (n === 1 ? uno : varios); }
@@ -43,7 +43,19 @@ export function iniciarListos(dep) {
         try {
             var d = await leerVisitas();
             visitas = candidatas(d.registros, hoy(), itemsNoDe(d.items));
-            try { porVisita = await anexos.listar(visitas.map(function (v) { return v.id; })); sinAnexos = ''; }
+            try {
+                porVisita = await anexos.listar(visitas.map(function (v) { return v.id; }));
+                // Más la imagen del reporte de la cuadrilla que se guardó al crear la pre-ruta (una por fecha de ejecución y
+                // cuadrilla, la comparten todas las visitas de esa ejecución)
+                var reps = {};
+                visitas.forEach(function (v) { var k = carpetaReporte(v.ejec, v.cuad); if (k) reps[k] = 1; });
+                var porRep = await anexos.listar(Object.keys(reps));
+                visitas.forEach(function (v) {
+                    var k = carpetaReporte(v.ejec, v.cuad), de = (k && porRep[k]) || [];
+                    if (de.length) porVisita[v.id] = (porVisita[v.id] || []).concat(de.map(function (a) { return Object.assign({}, a, { tipo: 'reporte', compartido: true }); }));
+                });
+                sinAnexos = '';
+            }
             catch (e) { porVisita = {}; sinAnexos = e.message; }
             $('rl-estado').hidden = !origen;
             $('rl-estado').textContent = origen;
@@ -60,7 +72,12 @@ export function iniciarListos(dep) {
         var dia = hoy();
         try { if (localStorage.getItem(LIMPIEZA) === dia) return; localStorage.setItem(LIMPIEZA, dia); } catch (e) { return; }
         var ya = yaRequeridas(dep.historial()), protegidas = {};
-        visitas.forEach(function (v) { if (!ya[v.id]) protegidas[carpeta(v.id)] = true; });
+        visitas.forEach(function (v) {
+            if (ya[v.id]) return;
+            protegidas[carpeta(v.id)] = true;
+            var k = carpetaReporte(v.ejec, v.cuad);
+            if (k) protegidas[k] = true;   // el reporte de la cuadrilla de esa ejecución también se guarda
+        });
         try {
             var r = await anexos.limpiar(protegidas);
             if (r.borrados) toast(plural(r.borrados, 'imagen de hace más de un mes se borró', 'imágenes de hace más de un mes se borraron') + ' del almacenamiento.');
@@ -72,7 +89,8 @@ export function iniciarListos(dep) {
         var lista = porVisita[v.id] || [];
         return '<div class="rl-anexos">' + lista.map(function (a) {
             var borra = seBorra(a.fecha);
-            return '<span class="rl-anexo" title="' + esc(TIPOS[a.tipo] || '') + '">' + esc((TIPOS[a.tipo] || '🖼️').split(' ')[0]) + ' ' + esc(a.nombre) +
+            return '<span class="rl-anexo" title="' + esc(a.compartido ? 'Reporte de la cuadrilla, guardado al crear la pre-ruta (lo comparten las visitas de esa ejecución)' : TIPOS[a.tipo] || '') + '">' +
+                esc((TIPOS[a.tipo] || '🖼️').split(' ')[0]) + ' ' + esc(a.compartido ? 'mensaje de la cuadrilla' : a.nombre) +
                 (borra ? ' <span class="rl-borra">· se borra el ' + esc(aTexto(borra)) + '</span>' : '') +
                 '<button type="button" data-rl-quitar="' + esc(a.ruta) + '" data-v="' + esc(v.id) + '" aria-label="Quitar el anexo ' + esc(a.nombre) + '" title="Quitar este anexo">✕</button></span>';
         }).join('') + (sinAnexos ? '' : '<button type="button" class="secundario pequeno" data-rl-agregar="' + esc(v.id) + '" data-tipo="' + esc(tipoInicial) + '">📎 Agregar imagen</button>') + '</div>';
@@ -152,10 +170,11 @@ export function iniciarListos(dep) {
         if (!sel.length || ocupado) return;
         ocupado = true;
         $('rl-crear').disabled = true;
-        var archivos = [], fallidos = 0;
+        var archivos = [], fallidos = 0, puestas = {};
         try {
             for (var i = 0; i < sel.length; i++) {
-                var lista = porVisita[sel[i].id] || [];
+                // El reporte de la cuadrilla lo comparten las visitas de la misma ejecución: entra una sola vez
+                var lista = (porVisita[sel[i].id] || []).filter(function (a) { if (puestas[a.ruta]) return false; puestas[a.ruta] = 1; return true; });
                 for (var k = 0; k < lista.length; k++) {
                     $('rl-crear').textContent = 'Trayendo las imágenes… (' + (archivos.length + 1) + ')';
                     try {
@@ -303,10 +322,12 @@ export function iniciarListos(dep) {
         if (pc) copiar(textoDeCuadrilla(pc.dataset.rlPreCopiar));
         if (pw) window.open('https://wa.me/?text=' + encodeURIComponent(textoDeCuadrilla(pw.dataset.rlPreWa)), '_blank', 'noopener');
         if (q) {
-            if (!(await confirmar('Quitar el anexo', 'La imagen se borra del almacenamiento y ya no entra al requerimiento.', 'Quitar'))) return;
+            var comp = /^REP-/.test(q.dataset.rlQuitar);
+            if (!(await confirmar('Quitar el anexo', 'La imagen se borra del almacenamiento y ya no entra al requerimiento.' +
+                (comp ? ' Es el mensaje de la cuadrilla: se quita de todas las visitas de esa ejecución.' : ''), 'Quitar'))) return;
             try {
                 await anexos.borrar(q.dataset.rlQuitar);
-                porVisita[q.dataset.v] = (porVisita[q.dataset.v] || []).filter(function (x) { return x.ruta !== q.dataset.rlQuitar; });
+                Object.keys(porVisita).forEach(function (id) { porVisita[id] = porVisita[id].filter(function (x) { return x.ruta !== q.dataset.rlQuitar; }); });
                 pintar();
             } catch (e) { toast(e.message); }
         }

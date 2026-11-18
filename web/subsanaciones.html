@@ -659,6 +659,17 @@
             <textarea id="ruta-texto" placeholder="Lotes ejecutados el 14-10-2026 por la cuadrilla #2&#10;&#10;532&#10;371&#10;363"></textarea>
         </label>
         <button type="button" class="secundario pequeno" id="ruta-pegar" style="margin-top:6px">Pegar del portapapeles</button>
+        <!-- 📋 Imagen del reporte (pantallazo del mensaje de la cuadrilla): se guarda y entra sola al requerimiento -->
+        <div class="ruta-img">
+            <div class="ruta-img-tit">IMAGEN DEL REPORTE <span class="opcional">(el pantallazo del mensaje de la cuadrilla)</span></div>
+            <div class="ruta-img-zona" id="ruta-img-zona" tabindex="0" aria-label="Pegue aquí la imagen del reporte">
+                <span>Pegue aquí la imagen (Ctrl+V) o</span>
+                <div class="ruta-img-botones"><button type="button" class="secundario pequeno" id="ruta-img-pegar">📋 Pegar imagen</button><button type="button" class="secundario pequeno" id="ruta-img-elegir">🖼️ Elegir</button></div>
+            </div>
+            <div class="ruta-img-lista" id="ruta-img-lista"></div>
+            <div class="sub" id="ruta-img-nota">Se guarda como «📋 Reporte de ejecución» de esa fecha y cuadrilla, y entra sola al requerimiento si un lote no se corrige. Se borra a los 30 días.</div>
+            <input type="file" id="ruta-img-archivo" accept="image/*" multiple hidden>
+        </div>
         <div class="dos">
             <label>FECHA DE EJECUCIÓN <input type="date" id="ruta-fecha"></label>
             <label>CUADRILLA <input id="ruta-cuad" inputmode="numeric"></label>

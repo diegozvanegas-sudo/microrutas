@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { nombreSeguro, nombreVisible, carpeta, crearAnexos, SIN_ACTIVAR, tipoDe, paraBorrar, seBorra } from '../src/requerimiento/anexos.js';
+import { nombreSeguro, nombreVisible, carpeta, crearAnexos, SIN_ACTIVAR, tipoDe, paraBorrar, seBorra, carpetaReporte } from '../src/requerimiento/anexos.js';
 import { AVISO, textoPreaviso, PLAZO_REQ, habiles, fechaListo, esHabil, aIso, candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, rotuloVisita, EVID_ENVIO } from '../src/requerimiento/listos.js';
 
 const visita = (id, mr, lote, cuad, fecha, estado, extra) => Object.assign({ ID: id, MICRORRUTA: mr, LOTE: lote, CUADRILLA: cuad, ZONA: 'Zona 1',
@@ -145,6 +145,16 @@ test('anexos: cada imagen guarda su tipo (reporte, envío, pre aviso) y se borra
     }) } };
     assert.deepEqual(await crearAnexos(sb).limpiar({}, ahora), { borrados: 1, sinPermiso: 1 });
     assert.deepEqual(quitados, ['SUB-1/a.jpg', 'SUB-2/c.jpg']);
+});
+
+test('anexos: la imagen del reporte de la cuadrilla va en una carpeta por fecha de ejecución y cuadrilla', () => {
+    assert.equal(carpetaReporte('2026-11-15', '2'), 'REP-2026-11-15-C2');
+    assert.equal(carpetaReporte('2026-11-15', 'C 2'), 'REP-2026-11-15-C2');
+    assert.equal(carpetaReporte('2026-11-15', ''), 'REP-2026-11-15-C0');
+    assert.equal(carpetaReporte('', '2'), '');
+    // La visita sabe su fecha de ejecución para encontrarla
+    const c = candidatas([visita('SUB-1', 'Z2CC0300', '521', '2', '06/11/2026', 'PENDIENTE', { BORDEO: 'NO', 'FECHA DE EJECUCIÓN': '05/11/2026' })], HOY, itemsNo);
+    assert.equal(carpetaReporte(c[0].ejec, c[0].cuad), 'REP-2026-11-05-C2');
 });
 
 test('pre aviso: a los 5 días hábiles sin corregir, con el día en que pasa a requerimiento', () => {

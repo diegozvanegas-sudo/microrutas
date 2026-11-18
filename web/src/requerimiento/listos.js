@@ -74,7 +74,7 @@ export function candidatas(registros, hoy, itemsNo) {
         // Afectación a árboles: no se puede subsanar, así que no se espera el plazo ni se manda pre aviso: va de una
         var arbol = tipo === 'novedad' && novedades.some(function (t) { return esNoSubsanable(t, false); });
         out.push({ id: String(r.ID || ''), tipo: tipo, mr: mr, lote: loteDe(r), cuad: cuadDe(r), zona: z ? z[1] : String(r.ZONA || '').replace(/\D/g, ''),
-            noSubsanable: arbol, fecha: fecha, dias: dias, listo: arbol || dias >= PLAZO_REQ, preaviso: !arbol && dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
+            noSubsanable: arbol, ejec: aIso(r['FECHA DE EJECUCIÓN']), fecha: fecha, dias: dias, listo: arbol || dias >= PLAZO_REQ, preaviso: !arbol && dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
     });
     // Las que más días llevan, primero
     return out.sort(function (a, b) { return b.dias - a.dias || a.fecha.localeCompare(b.fecha) || a.mr.localeCompare(b.mr); });
