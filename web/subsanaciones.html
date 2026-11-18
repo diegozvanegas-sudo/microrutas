@@ -61,6 +61,7 @@
             <button type="button" class="item-menu" id="btn-prog" title="Subir el Excel de programación del mes y ver qué lote le toca hoy a cada cuadrilla y dónde va">📅 Programación del día</button>
             <button type="button" class="item-menu" id="btn-ubicar" title="Pegar un mensaje con direcciones y ver qué lotes quedan cerca, si ya les tocaba y el mapa con todo marcado">📍 Ubicar direcciones</button>
             <button type="button" class="item-menu" id="btn-tabla" title="Pegar las filas copiadas del Excel (o leer un pantallazo) y sacar los informes">📥 Informes desde una tabla</button>
+            <button type="button" class="item-menu" id="btn-cuadre" title="Pegar las filas pendientes del Excel (o un pantallazo): esas quedan pendientes y las demás pendientes se pasan a subsanadas">✓ Cuadrar pendientes</button>
             <button type="button" class="item-menu" id="btn-fotolote" title="Fotos, carpeta o .zip a PDF con la microrruta y el lote de cada foto según su GPS">📍 Fotos con su lote</button>
             <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
             <a class="item-menu" id="abrir-hoja" target="_blank" hidden>📄 Abrir hoja en Drive</a>
@@ -489,6 +490,34 @@
     </div>
 </dialog>
 <!-- Informes desde una tabla (src/subsanaciones/tabla.js): no guarda nada, solo lee lo pegado -->
+<!-- ✓ Cuadrar pendientes (src/subsanaciones/cuadre.js): las filas pegadas son las únicas pendientes; las demás se subsanan -->
+<dialog id="dlg-cuadre">
+    <div class="cuerpo">
+        <h2>✓ Cuadrar pendientes
+            <button type="button" class="cerrar-dlg" id="cu-x" aria-label="Cerrar" title="Cerrar">×</button></h2>
+        <div class="sub">Copie del Excel las filas (pueden ir todas: solo cuentan las que dicen PENDIENTE o tienen un NO) y péguelas aquí. También sirve un pantallazo o
+            una lista escrita de las microrrutas pendientes (una por renglón: Z1CC0103).
+            Esas quedan <b>pendientes</b>; las demás pendientes de la base pasan a <b>subsanadas</b> con la fecha que elija.</div>
+        <textarea id="cu-texto" rows="5" placeholder="Pegue aquí las filas del Excel o el pantallazo (Ctrl+V)" aria-label="Filas copiadas del Excel" spellcheck="false"></textarea>
+        <input type="file" id="cu-imagen" accept="image/*" hidden>
+        <div class="cu-botones">
+            <button type="button" class="secundario" id="cu-pegar">📋 Pegar</button>
+            <button type="button" class="secundario" id="cu-elegir">🖼️ Leer de una imagen</button>
+            <button type="button" class="secundario" id="cu-limpiar">Borrar</button>
+        </div>
+        <div class="cu-opciones">
+            <label class="cu-fecha">FECHA DE SUBSANACIÓN <input type="date" id="cu-fecha"></label>
+            <label class="cu-check"><input type="checkbox" id="cu-hasta" checked> No tocar las visitas posteriores al último día de la tabla (aún no están en el Excel)</label>
+            <label class="cu-check" id="cu-ninguna-caja" hidden><input type="checkbox" id="cu-ninguna"> Sí: no queda ninguna pendiente, subsanar todas</label>
+        </div>
+        <div class="fotos-resumen" id="cu-estado" aria-live="polite"></div>
+        <div class="cu-resultado" id="cu-resultado"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="cu-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="cu-aplicar" disabled>✓ Subsanar las demás</button>
+        </div>
+    </div>
+</dialog>
 <dialog id="dlg-tabla">
     <div class="cuerpo">
         <h2>📥 Informes desde una tabla</h2>

@@ -893,3 +893,25 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .ruta-img-item { position: relative; width: 84px; height: 84px; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: #fff; }
 .ruta-img-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
 .ruta-img-item button { position: absolute; top: 3px; right: 3px; width: 28px; height: 28px; padding: 0; border-radius: 50%; background: rgba(15, 23, 42, .75); color: #fff; }
+
+/* ✓ Cuadrar pendientes */
+#dlg-cuadre { width: min(760px, calc(100% - 24px)); }
+#dlg-cuadre textarea { width: 100%; margin-top: 10px; font: 12px/1.4 ui-monospace, Consolas, monospace; white-space: pre; overflow-x: auto; }
+.cu-botones { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.cu-botones button { flex: 1 1 150px; min-height: 40px; }
+.cu-opciones { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin-top: 12px; }
+.cu-fecha { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.cu-fecha input { min-height: 40px; }
+.cu-check { display: flex; gap: 8px; align-items: flex-start; flex: 1 1 260px; font-size: 13px; font-weight: 400; line-height: 1.35; color: var(--ink); cursor: pointer; }
+#dlg-cuadre .cu-check input { width: 18px; height: 18px; min-height: 0; margin: 1px 0 0; padding: 0; flex: none; display: inline-block; accent-color: var(--brand); }
+.cu-resultado { margin-top: 8px; display: grid; gap: 8px; max-height: 46vh; overflow-y: auto; overscroll-behavior: contain; }
+.cu-resultado:empty { display: none; }
+.cu-cuentas { display: flex; flex-wrap: wrap; gap: 6px; }
+.cu-cuentas span { border-radius: 999px; padding: 4px 10px; font-size: 13px; background: #f1f5f9; }
+.cu-cuentas .cu-sub { background: #dcfce7; color: #166534; }
+.cu-cuentas .cu-pen { background: #fef3c7; color: #92400e; }
+.cu-cuentas .cu-ojo { background: #fee2e2; color: #991b1b; }
+.cu-grupo { border: 1px solid var(--line); border-radius: 10px; background: var(--surface); }
+.cu-grupo > summary { cursor: pointer; padding: 10px 12px; font-weight: 650; }
+.cu-grupo ul { margin: 0; padding: 0 12px 10px 30px; font-size: 13px; line-height: 1.5; }
+.cu-grupo.cu-alerta > summary { color: #991b1b; }

@@ -17,6 +17,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { leerTabla, diasDe } from './tabla.js';
+import { cuadrar, fechaSubsanacion } from './cuadre.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote, rangoQuincena } from './programacion.js';
 import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha, describirFecha, ATAJOS as ATAJOS_FECHA, atajoFecha } from './fechas.js';
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
@@ -724,8 +725,8 @@ export function iniciar(api, CFG) {
     }
     // Subsanar sin abrir el formulario: los ítems en NO pasan a SI y la fecha de subsanación es hoy (la base pone el
     // estado SUBSANADO y quién lo subsanó). Devuelve el registro guardado.
-    function subsanarYa(r) {
-        var cambio = { 'FECHA SUBSANACIÓN': aTexto(hoy()) };
+    function subsanarYa(r, fecha) {
+        var cambio = { 'FECHA SUBSANACIÓN': fecha || aTexto(hoy()) };
         itemsSubsanables(r).forEach(function (it) { cambio[it] = 'SI'; });   // la afectación a árboles se queda en NO
         return enviar('actualizar', { id: r.ID, registro: cambio }).then(function (d) {
             var nuevo = canonico(d.registro), i = registros.findIndex(function (x) { return x.ID === nuevo.ID; });
@@ -3177,6 +3178,129 @@ export function iniciar(api, CFG) {
         }
     };
 
+    // ---------- ✓ Cuadrar pendientes (src/subsanaciones/cuadre.js) ----------
+    // Las filas pegadas (o del pantallazo) son las únicas pendientes que quedan; las demás pendientes de la base se
+    // subsanan con la fecha elegida (ayer por defecto, nunca antes de la visita). Abre vacía; al cerrar se borra lo pegado.
+    // Si se cierra mientras subsana, sigue hasta terminar y avisa (no se mezcla con lo próximo que se pegue)
+    var cuRes = null, cuOcupado = false;
+    function ayer() { var d = new Date(hoy() + 'T12:00:00'); d.setDate(d.getDate() - 1); return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2); }
+    function filaCuadre(r, extra) {
+        return '<li><b>' + esc(r.MICRORRUTA || '') + '</b>' + (r.LOTE ? ' · Lote ' + esc(r.LOTE) : '') + ' · visita ' + esc(r['FECHA DE LA VISITA'] || '¿?') +
+            (r.CUADRILLA ? ' · C' + esc(r.CUADRILLA) : '') + (esOp(r) ? ' · operación' : '') + (extra ? ' — ' + extra : '') + '</li>';
+    }
+    function grupoCuadre(titulo, lista, abierto, alerta, extra) {
+        if (!lista.length) return '';
+        return '<details class="cu-grupo' + (alerta ? ' cu-alerta' : '') + '"' + (abierto ? ' open' : '') + '><summary>' + titulo + ' (' + lista.length + ')</summary><ul>' +
+            lista.map(function (x) { return extra ? extra(x) : filaCuadre(x); }).join('') + '</ul></details>';
+    }
+    function pintarCuadre() {
+        var texto = $('cu-texto').value;
+        $('cu-aplicar').textContent = '✓ Subsanar las demás';
+        $('cu-ninguna-caja').hidden = true;
+        if (!texto.trim()) { cuRes = null; $('cu-estado').innerHTML = ''; $('cu-resultado').innerHTML = ''; $('cu-aplicar').disabled = true; return; }
+        var t = leerTabla(texto, items, itemsOp);
+        if (!t.visitas.length) {
+            cuRes = null; $('cu-resultado').innerHTML = ''; $('cu-aplicar').disabled = true;
+            $('cu-estado').innerHTML = '<span class="aviso-fotos">No se encontró ninguna microrruta (Z1CC0051…). Copie las filas desde el Excel o pegue un pantallazo más nítido.</span>';
+            return;
+        }
+        var res = cuRes = cuadrar(registros, t.visitas, { hastaTabla: $('cu-hasta').checked, suelto: !!t.imagen, hoy: hoy() }), fecha = $('cu-fecha').value;
+        var ult = res.ultimoDia ? res.ultimoDia.slice(6, 8) + '/' + res.ultimoDia.slice(4, 6) + '/' + res.ultimoDia.slice(0, 4) : '';
+        $('cu-estado').innerHTML = '<b>' + t.visitas.length + (t.visitas.length === 1 ? ' fila leída' : ' filas leídas') + '</b>' + (t.imagen ? ' de la imagen' : '') +
+            ', ' + res.pendTabla.length + ' pendiente' + (res.pendTabla.length === 1 ? '' : 's') + (ult ? ' · último día de la tabla: ' + ult : '') +
+            (t.imagen ? '<br><span class="aviso-fotos">Texto de una imagen o lista escrita: se cuadra solo por microrruta y las filas que no se leyeron bien cuentan como pendientes (ante la duda no se subsana). ' +
+                'Revise que «Siguen pendientes» sean las del Excel. Lo más seguro es copiar las filas del Excel.</span>' : '') +
+            (t.avisos.length ? '<br><span class="sub">' + t.avisos.length + ' aviso' + (t.avisos.length === 1 ? '' : 's') + ' al leer: ' + esc(t.avisos.slice(0, 3).join(' · ')) + (t.avisos.length > 3 ? '…' : '') + '</span>' : '') +
+            (fecha ? '' : '<br><span class="aviso-fotos">Elija la fecha de subsanación.</span>');
+        $('cu-resultado').innerHTML = '<div class="cu-cuentas"><span class="cu-sub">✓ ' + res.aSubsanar.length + ' se subsanan</span><span class="cu-pen">⏳ ' + res.quedan.length + ' siguen pendientes</span>' +
+            (res.arboles.length ? '<span class="cu-pen">🌳 ' + res.arboles.length + ' no subsanables</span>' : '') +
+            (res.nuevas.length ? '<span>' + res.nuevas.length + ' más nuevas que la tabla</span>' : '') +
+            (res.noEstan.length ? '<span class="cu-ojo">⚠ ' + res.noEstan.length + ' de la tabla sin pendiente en la base</span>' : '') + '</div>' +
+            grupoCuadre('⚠ Pendientes en la tabla que en la base no están pendientes: revíselas a mano', res.noEstan, true, true, function (x) {
+                return filaCuadre(x.fila, x.base ? 'en la base está ' + esc(String(x.base.ESTADO || '').toLowerCase()) : 'no está en la base (¿no se registró o el lector la leyó mal?)');
+            }) +
+            grupoCuadre('✓ Se subsanan', res.aSubsanar, res.aSubsanar.length <= 15, false, function (r) {
+                return filaCuadre(r, 'subsanada el ' + esc(fechaSubsanacion(r, fecha)) + (res.conArboles.indexOf(r) !== -1 ? ' · 🌳 la afectación a árboles queda en NO (sigue pendiente)' : ''));
+            }) +
+            grupoCuadre('⏳ Siguen pendientes (están en la tabla)', res.quedan, false) +
+            grupoCuadre('🌳 Solo afectación a árboles: no se pueden subsanar, siguen pendientes', res.arboles, false) +
+            grupoCuadre('No se tocan: visita después del ' + esc(ult), res.nuevas, false);
+        var sinPend = !res.pendTabla.length && !$('cu-ninguna').checked;
+        $('cu-ninguna-caja').hidden = !!res.pendTabla.length;
+        if (sinPend) $('cu-estado').innerHTML += '<br><span class="aviso-fotos">La tabla no tiene ninguna pendiente: se subsanaría todo. Si de verdad no queda ninguna, marque la casilla de abajo.</span>';
+        $('cu-aplicar').disabled = cuOcupado || !res.aSubsanar.length || !fecha || sinPend;
+        $('cu-aplicar').textContent = res.aSubsanar.length ? '✓ Subsanar ' + res.aSubsanar.length : '✓ Nada que subsanar';
+    }
+    function leerCuadreImagen(file) {
+        if (!file || cuOcupado) return;
+        $('cu-elegir').disabled = true;
+        $('cu-estado').textContent = 'Leyendo la imagen… (la primera vez se descarga el lector)';
+        leerImagenes([file]).then(function (res) {
+            if (!$('dlg-cuadre').open) return;
+            var t = res[0] && res[0].texto;
+            if (!t) { $('cu-estado').innerHTML = '<span class="aviso-fotos">No se pudo leer texto en la imagen. Pruebe con un pantallazo más grande o copie las filas del Excel.</span>'; return; }
+            $('cu-texto').value = t;
+            pintarCuadre();
+        }).catch(function (e) { if ($('dlg-cuadre').open) $('cu-estado').innerHTML = '<span class="aviso-fotos">' + esc(e.message || 'No se pudo leer la imagen.') + '</span>'; })
+          .then(function () { $('cu-elegir').disabled = false; });
+    }
+    $('btn-cuadre').onclick = function () {
+        if (!$('cu-fecha').value) $('cu-fecha').value = ayer();
+        $('dlg-cuadre').showModal();
+        pintarCuadre();
+        $('cu-texto').focus();
+    };
+    $('cu-x').onclick = $('cu-cerrar').onclick = function () { $('dlg-cuadre').close(); };
+    $('dlg-cuadre').addEventListener('close', function () {
+        $('cu-texto').value = ''; $('cu-imagen').value = ''; $('cu-fecha').value = '';
+        $('cu-hasta').checked = true; $('cu-ninguna').checked = false;
+        cuRes = null;
+        $('cu-estado').innerHTML = $('cu-resultado').innerHTML = '';
+    });
+    $('cu-texto').oninput = pintarCuadre;
+    $('cu-fecha').onchange = $('cu-hasta').onchange = $('cu-ninguna').onchange = pintarCuadre;
+    $('cu-limpiar').onclick = function () { $('cu-texto').value = ''; pintarCuadre(); $('cu-texto').focus(); };
+    $('cu-pegar').onclick = function () {
+        if (!navigator.clipboard || !navigator.clipboard.readText) { $('cu-texto').focus(); return toast('Mantenga presionado el cuadro y elija Pegar.'); }
+        navigator.clipboard.readText().then(function (t) { $('cu-texto').value = t; pintarCuadre(); },
+            function () { $('cu-texto').focus(); toast('Mantenga presionado el cuadro y elija Pegar.'); });
+    };
+    $('cu-elegir').onclick = function () { $('cu-imagen').value = ''; $('cu-imagen').click(); };
+    $('cu-imagen').onchange = function () { leerCuadreImagen(this.files && this.files[0]); };
+    $('dlg-cuadre').addEventListener('paste', function (ev) {
+        var f = ev.clipboardData && ev.clipboardData.files && ev.clipboardData.files[0];
+        if (f && /^image\//.test(f.type)) { ev.preventDefault(); leerCuadreImagen(f); }
+    });
+    $('cu-aplicar').onclick = function () {
+        var res = cuRes, fecha = $('cu-fecha').value;
+        if (!res || !res.aSubsanar.length || !fecha || cuOcupado) return;
+        var lista = res.aSubsanar.slice();
+        confirmar('¿Subsanar ' + lista.length + (lista.length === 1 ? ' visita?' : ' visitas?'),
+            'Quedan pendientes solo las ' + res.quedan.length + ' de la tabla' + (res.arboles.length ? ' y ' + res.arboles.length + ' de afectación a árboles' : '') +
+            (res.nuevas.length ? ' (y ' + res.nuevas.length + ' más nuevas que no se tocan)' : '') + '.\n' +
+            'A cada una se le pasan a SI los ítems en NO, con fecha de subsanación ' + aTexto(fecha) + ' (o el día de la visita si fue después). La afectación a árboles queda en NO.' +
+            (res.noEstan.length ? '\n⚠ ' + res.noEstan.length + ' fila(s) de la tabla no tienen pendiente en la base: revíselas después.' : ''),
+            '✓ Subsanar ' + lista.length, 'Cancelar').then(function (si) {
+            if (!si) return;
+            cuOcupado = true;
+            var boton = $('cu-aplicar'), bien = 0, mal = [];
+            boton.disabled = true;
+            return lista.reduce(function (p, r, i) {
+                return p.then(function () {
+                    boton.textContent = 'Subsanando ' + (i + 1) + ' de ' + lista.length + '…';
+                    return subsanarYa(r, fechaSubsanacion(r, fecha)).then(function () { bien++; }, function (err) { mal.push(nombreVisita(r) + ' (' + err.message + ')'); });
+                });
+            }, Promise.resolve()).then(function () {
+                cuOcupado = false;
+                guardarCache();
+                pintar();
+                if (mal.length) aviso('<b>' + bien + ' subsanadas.</b> No se pudieron: ' + mal.map(esc).join(', ') + '. Vuelva a pegar la tabla para intentar con esas.');
+                else toast(bien + (bien === 1 ? ' visita subsanada' : ' visitas subsanadas') + '. Quedan pendientes las de la tabla.');
+                if ($('dlg-cuadre').open) pintarCuadre();
+            });
+        });
+    };
+
     // ---------- Fotos con su lote (src/subsanaciones/lotegps.js) ----------
     // Fotos, carpeta o .zip → el lote de cada foto por su GPS (polígonos del mapa rápido) → rótulo en grande y PDF.
     // Cada rótulo se puede corregir a mano antes de crear el PDF
@@ -3512,7 +3636,7 @@ export function iniciar(api, CFG) {
     // Desde el menú Más de otra sección: subsanaciones.html?herramienta=fotos abre esa herramienta
     (function () {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
-        var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|fotolote|prog|ubicar)$/.test(h) && $('btn-' + h);
+        var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|cuadre|fotolote|prog|ubicar)$/.test(h) && $('btn-' + h);
         if (!btn) return;
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         // Se espera a saber los permisos: si el administrador se la apagó a este usuario, el botón queda escondido (sesion.js)
