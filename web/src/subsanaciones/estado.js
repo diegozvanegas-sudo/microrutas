@@ -38,6 +38,13 @@ export function plazoNovedad(texto, op) {
     return p == null ? '' : p < 0 ? 'No subsanable' : p === 0 ? (op ? 'Plazo: inmediato' : 'Plazo: el mismo día') : 'Plazo: ' + p + ' días';
 }
 export function itemsEnNo(r) { return itemsDe(r).filter(function (i) { return valorItem(r[i]) === 'NO'; }); }
+// Afectación o heridas a árboles (posoperación): NO se puede subsanar. Al subsanar una visita ese ítem se queda en NO
+// (es la prueba del daño y lo que la manda a descuento); solo los demás pasan a SI
+export function esNoSubsanable(texto, op) { return diasPlazo(texto, op) === -1; }
+export function itemsNoSubsanables(r) { var op = esOp(r); return itemsEnNo(r).filter(function (i) { return esNoSubsanable(i, op); }); }
+export function itemsSubsanables(r) { var op = esOp(r); return itemsEnNo(r).filter(function (i) { return !esNoSubsanable(i, op); }); }
+// Pendiente cuyo único problema es no subsanable: no hay nada que subsanar (no se muestra el botón)
+export function soloNoSubsanable(r) { return r.ESTADO === 'PENDIENTE' && itemsNoSubsanables(r).length > 0 && !itemsSubsanables(r).length; }
 // Pendiente con alguna novedad que ya pasó su plazo (o no es subsanable): va para descuento en la factura.
 // { descuento: true, motivo, vencido: días de atraso (0 si no es subsanable) } o, si aún está a tiempo,
 // { descuento: false, resta: días que le quedan }; null si no aplica

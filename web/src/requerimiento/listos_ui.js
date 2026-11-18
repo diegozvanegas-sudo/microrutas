@@ -83,8 +83,9 @@ export function iniciarListos(dep) {
         return '<div class="rl-visita' + (r ? ' ya' : '') + '">' +
             (conCasilla ? '<input type="checkbox" data-rl-v="' + esc(v.id) + '"' + (r ? ' disabled' : marcadas[v.id] ? ' checked' : '') + ' aria-label="Incluir ' + esc(v.mr) + ' en el requerimiento">' : '') +
             '<div class="rl-datos"><div class="rl-tit"><b>' + (v.lote ? 'Lote ' + esc(v.lote) : esc(v.mr)) + '</b>' + (v.lote ? '<span class="sub">' + esc(v.mr) + '</span>' : '') +
-                '<span class="rl-dias ' + (v.listo ? 'listo' : v.preaviso ? 'pronto' : '') + '">' + (v.listo ? plural(v.dias, 'día hábil', 'días hábiles') : 'faltan ' + plural(v.faltan, 'día hábil', 'días hábiles')) + '</span></div>' +
-            '<div class="sub">' + (v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) + (v.listo ? '' : ' · se cumple el ' + esc(aTexto(v.cumple))) + '</div>' +
+                '<span class="rl-dias ' + (v.listo ? 'listo' : v.preaviso ? 'pronto' : '') + '">' + (v.noSubsanable ? '🌳 No subsanable' : v.listo ? plural(v.dias, 'día hábil', 'días hábiles') : 'faltan ' + plural(v.faltan, 'día hábil', 'días hábiles')) + '</span></div>' +
+            '<div class="sub">' + (v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) +
+                (v.noSubsanable ? ' · afectación a árboles: va de una a requerimiento (no se espera el plazo ni el pre aviso)' : v.listo ? '' : ' · se cumple el ' + esc(aTexto(v.cumple))) + '</div>' +
             (v.tipo === 'novedad' && v.novedades.length ? '<div class="rl-nov">' + esc(v.novedades.join(' · ')) + '</div>' : '') +
             (v.preaviso ? '<div class="rl-pre-estado ' + (pre ? 'ok">✓ Pre aviso enviado el ' + esc(aTexto(String(pre.fecha).slice(0, 10))) : 'falta">⚠️ Falta el pantallazo del pre aviso') + '</div>' : '') +
             (r ? '<div class="rl-ya">✓ Ya está en el requerimiento ' + esc(r.radicado || 'sin radicado') + ' (' + esc(r.estado) + ')</div>' : '') +

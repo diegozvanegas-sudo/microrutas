@@ -291,6 +291,8 @@ fieldset { min-width: 0; }
 #wa-texto { display: block; width: 100%; min-height: 190px; border: 1px solid var(--line); border-radius: 8px; padding: 10px; font: inherit; font-size: 15px; color: var(--ink); resize: vertical; }
 .wa { color: #fff; background: #1f9d55; }
 .detalle .wa-btn { width: 100%; padding: 11px; margin-top: 8px; }
+/* 🌳 Afectación a árboles: no se puede subsanar (queda en NO y va para descuento) */
+.detalle .no-subsanable { margin: 0 0 10px; padding: 9px 12px; border-radius: 8px; background: #f3e8ff; color: #4c1d95; border-left: 4px solid #7c3aed; font-size: 13.5px; }
 /* 📨 Crear requerimiento de la visita: en el celular a lo ancho como el de WhatsApp; en la tabla, pequeño al lado */
 .detalle .req-btn { display: block; width: 100%; padding: 11px; margin-top: 8px; text-align: center; }
 .detalle .req-btn.pequeno { display: inline-block; width: auto; padding: 6px 10px; }

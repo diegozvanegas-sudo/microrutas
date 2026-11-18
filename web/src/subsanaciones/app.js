@@ -3,7 +3,7 @@
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegistro, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
-import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento } from './estado.js';
+import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento, itemsSubsanables, itemsNoSubsanables, soloNoSubsanable } from './estado.js';
 import { textoVisita, FORMATOS_VISITA, FORMATOS_DIA, textoResumen, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
 import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
@@ -276,7 +276,7 @@ export function iniciar(api, CFG) {
             return;
         }
         // Con algo escrito en el buscador: subsanar de una vez todas las pendientes de la lista
-        var pend = $('f-texto').value.trim() ? lista.filter(function (r) { return r.ESTADO === 'PENDIENTE'; }) : [];
+        var pend = $('f-texto').value.trim() ? lista.filter(function (r) { return r.ESTADO === 'PENDIENTE' && !soloNoSubsanable(r); }) : [];
         var masivo = pend.length ? '<div class="subsanar-lista"><button type="button" class="subsanar" data-subsanar-todos>✓ Subsanar ' +
             (pend.length === 1 ? 'la pendiente' : 'las ' + pend.length + ' pendientes') + ' de esta lista</button>' +
             '<span class="sub">Pasa a SI los ítems en NO y pone la fecha de hoy</span></div>' : '';
@@ -312,7 +312,7 @@ export function iniciar(api, CFG) {
                         (r.ESTADO === 'SUBSANADO' && r['FECHA SUBSANACIÓN'] ? '<div class="sub">' + esc(r['FECHA SUBSANACIÓN']) + '</div>' : '') + '</td>' +
                     '<td data-label="Observaciones">' + esc(r['OBSERVACIONES NOVEDADES'] || '') +
                         (r['OBSERVACIÓN SUBSANACIÓN'] ? '<div class="sub">Subsanación: ' + esc(r['OBSERVACIÓN SUBSANACIÓN']) + '</div>' : '') + '</td>' +
-                    '<td class="acciones">' + (r.ESTADO === 'PENDIENTE' ? '<button type="button" class="subsanar pequeno" data-subsanar-ya="' + esc(r.ID) + '" title="Pasar a SI los ítems en NO, con la fecha de hoy">✓ Subsanar</button> ' : '') +
+                    '<td class="acciones">' + (r.ESTADO === 'PENDIENTE' && !soloNoSubsanable(r) ? '<button type="button" class="subsanar pequeno" data-subsanar-ya="' + esc(r.ID) + '" title="Pasar a SI los ítems en NO, con la fecha de hoy">✓ Subsanar</button> ' : '') +
                         '<button type="button" class="secundario pequeno" data-ver="' + esc(r.ID) + '" aria-expanded="' + !!abiertos[r.ID] + '">' +
                         (abiertos[r.ID] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button> ' +
                         '<button type="button" class="secundario pequeno" data-editar="' + esc(r.ID) + '">Editar</button></td>' +
@@ -354,7 +354,9 @@ export function iniciar(api, CFG) {
             dato('Última modificación', r['MODIFICADO POR'] ? esc(r['MODIFICADO POR']) + ' · ' + esc(r['ÚLTIMA MODIFICACIÓN']) : '') +
             dato('Observación subsanación', esc(r['OBSERVACIÓN SUBSANACIÓN']), true) +
             dato('Evidencia', /^https?:\/\//i.test(r.EVIDENCIA || '') ? '<a href="' + esc(r.EVIDENCIA) + '" target="_blank" rel="noopener">Abrir fotos</a>' : esc(r.EVIDENCIA), true) +
-            '</dl>' + (r.ESTADO === 'PENDIENTE' ? (conEditar ? '<button type="button" class="subsanar" data-subsanar-ya="' + esc(r.ID) + '">✓ Subsanar ya</button> ' : '') +
+            '</dl>' + (itemsNoSubsanables(r).length && r.ESTADO === 'PENDIENTE' ? '<div class="no-subsanable">🌳 <b>Afectación a árboles: no se puede subsanar.</b> Queda en NO como prueba del daño y va para descuento' +
+                (soloNoSubsanable(r) ? '.' : '; al subsanar solo pasan a SI los demás ítems.') + '</div>' : '') +
+            (r.ESTADO === 'PENDIENTE' && !soloNoSubsanable(r) ? (conEditar ? '<button type="button" class="subsanar" data-subsanar-ya="' + esc(r.ID) + '">✓ Subsanar ya</button> ' : '') +
                 '<button type="button" class="' + (conEditar ? 'secundario' : 'subsanar pequeno') + '" data-subsanar="' + esc(r.ID) + '">' + (conEditar ? '📎 Subsanar con evidencia' : '✓ Marcar subsanado') + '</button>' : '') +
             (conEditar ? '<div class="fila-btn"><button type="button" class="primario editar" data-editar="' + esc(r.ID) + '">Editar</button>' +
                 '<button type="button" class="peligro" data-eliminar="' + esc(r.ID) + '">🗑 Eliminar</button></div>' : '') +
@@ -708,9 +710,10 @@ export function iniciar(api, CFG) {
     }
     // Abre la visita con los ítems en NO pasados a SI y la fecha de hoy: al guardar queda SUBSANADO
     function subsanar(r) {
-        var enNo = itemsEnNo(r);
+        var enNo = itemsSubsanables(r), arboles = itemsNoSubsanables(r);
         abrir(r, { html: '✓ Subsanando <b>' + esc(r.MICRORRUTA || '') + (r.LOTE ? ' · Lote ' + esc(r.LOTE) : '') + '</b><br>' +
-            'Se marcaron en SI: ' + enNo.map(esc).join(', ') + '. Revise, agregue la observación y guarde.<br>' +
+            'Se marcaron en SI: ' + (enNo.map(esc).join(', ') || 'ningún ítem') + '. Revise, agregue la observación y guarde.<br>' +
+            (arboles.length ? '🌳 <b>' + arboles.map(esc).join(', ') + ' sigue en NO:</b> no se puede subsanar, va para descuento.<br>' : '') +
             '📌 <b style="font-size:13px">Adjunte la evidencia ahora:</b> la interventoría la pide al momento de subsanar, no después.' });
         enNo.forEach(function (it) { var el = $('it' + itemsDe(r).indexOf(it) + 'si'); if (el) el.checked = true; });
         form.querySelector('[data-campo="FECHA SUBSANACIÓN"]').value = hoy();
@@ -722,7 +725,7 @@ export function iniciar(api, CFG) {
     // estado SUBSANADO y quién lo subsanó). Devuelve el registro guardado.
     function subsanarYa(r) {
         var cambio = { 'FECHA SUBSANACIÓN': aTexto(hoy()) };
-        itemsEnNo(r).forEach(function (it) { cambio[it] = 'SI'; });
+        itemsSubsanables(r).forEach(function (it) { cambio[it] = 'SI'; });   // la afectación a árboles se queda en NO
         return enviar('actualizar', { id: r.ID, registro: cambio }).then(function (d) {
             var nuevo = canonico(d.registro), i = registros.findIndex(function (x) { return x.ID === nuevo.ID; });
             if (i !== -1) registros[i] = nuevo;
@@ -731,8 +734,9 @@ export function iniciar(api, CFG) {
     }
     function nombreVisita(r) { return r.LOTE ? 'Lote ' + r.LOTE : r.MICRORRUTA || r.ID; }
     function subsanarUna(r, boton) {
-        var enNo = itemsEnNo(r);
-        confirmar('¿Subsanar ' + nombreVisita(r) + '?', 'Pasan a SI: ' + (enNo.join(', ') || 'ningún ítem') + '.\nFecha de subsanación: hoy, ' + aTexto(hoy()) + '.', '✓ Subsanar', 'Cancelar')
+        var enNo = itemsSubsanables(r), arboles = itemsNoSubsanables(r);
+        confirmar('¿Subsanar ' + nombreVisita(r) + '?', 'Pasan a SI: ' + (enNo.join(', ') || 'ningún ítem') + '.\nFecha de subsanación: hoy, ' + aTexto(hoy()) + '.' +
+            (arboles.length ? '\n🌳 ' + arboles.join(', ') + ' sigue en NO: no se puede subsanar y va para descuento.' : ''), '✓ Subsanar', 'Cancelar')
             .then(function (si) {
                 if (!si) return;
                 if (boton) boton.disabled = true;
@@ -742,10 +746,10 @@ export function iniciar(api, CFG) {
     }
     // Todas las pendientes de la lista filtrada, una tras otra; al final dice cuáles no se pudieron
     function subsanarLista(boton) {
-        var pend = filtrados().filter(function (r) { return r.ESTADO === 'PENDIENTE'; });
+        var pend = filtrados().filter(function (r) { return r.ESTADO === 'PENDIENTE' && !soloNoSubsanable(r); });
         if (!pend.length) return;
         confirmar('¿Subsanar ' + pend.length + (pend.length === 1 ? ' visita pendiente?' : ' visitas pendientes?'),
-            pend.map(nombreVisita).join(', ') + '\n\nA cada una se le pasan a SI los ítems en NO, con fecha de subsanación de hoy (' + aTexto(hoy()) + ').',
+            pend.map(nombreVisita).join(', ') + '\n\nA cada una se le pasan a SI los ítems en NO, con fecha de subsanación de hoy (' + aTexto(hoy()) + '). La afectación a árboles no se toca: queda en NO.',
             '✓ Subsanar ' + pend.length, 'Cancelar')
             .then(function (si) {
                 if (!si) return;
@@ -780,12 +784,25 @@ export function iniciar(api, CFG) {
             localStorage.setItem('subsanaciones_usuario', r['REGISTRADO POR']);
             localStorage.setItem('subsanaciones_interventor', r.INTERVENTOR);
         } catch (e) {}
+        // La afectación a árboles no se subsana: si estaba en NO y la pasaron a SI, solo se guarda si fue un error al registrarla
+        var arboles = editando ? itemsNoSubsanables(editando).filter(function (it) { return valorItem(r[it]) === 'SI'; }) : [];
+        if (arboles.length) {
+            return confirmar('¿Pasar a SI la afectación a árboles?', arboles.join(', ') + ' no se puede subsanar: debe quedar en NO como prueba del daño y va para descuento.\n' +
+                'Páselo a SI solo si se registró por error.', 'Sí, fue un error', 'Dejarlo en NO').then(function (si) {
+                if (si) return seguirGuardando(r);
+                arboles.forEach(function (it) { var el = $('it' + itemsDe(editando).indexOf(it) + 'no'); if (el) { el.checked = true; el.dispatchEvent(new Event('change', { bubbles: true })); } });
+                toast('Quedó en NO. Revise y vuelva a guardar.');
+            });
+        }
+        seguirGuardando(r);
+    });
+    function seguirGuardando(r) {
         var lejos = !editando && lejosDelLote(r);
         if (!lejos) return guardarVisita(r);
         confirmar('¿Está en el lote?', 'Su GPS lo ubica a ' + textoDist(lejos.d) + ' del ' + lejos.nombre + ' (precisión ±' + Math.round(precision) + ' m).\n' +
             'Si está registrando la visita desde otro sitio, puede guardarla igual.', 'Guardar igual')
             .then(function (si) { if (si) guardarVisita(r); });
-    });
+    }
     // Visita nueva de hoy con el GPS preciso a más de LEJOS_M del lote: { d, nombre } o null.
     // Sin GPS, sin coordenadas del lote o con fecha de otro día no se avisa nada.
     var LEJOS_M = 300;

@@ -12,6 +12,7 @@
 // Días hábiles desde la visita para que el requerimiento quede listo (lo fijó la interventoría); AVISO: a los 5 días
 // hábiles sin corregir se le manda al contratista el pre aviso (lo fijó la interventoría el 17/11/2026)
 import { esFestivo } from '../horas/distribucion.js';
+import { esNoSubsanable } from '../subsanaciones/estado.js';
 
 export var PLAZO_REQ = 8, AVISO = 5;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
@@ -70,8 +71,10 @@ export function candidatas(registros, hoy, itemsNo) {
         if (!tipo) return;
         var nota = quitarEstado(obs), novedades = tipo === 'norealizado' ? ['Lote no realizado'] : (itemsNo ? itemsNo(r) : []).concat(nota && plano(nota) !== 'SIN NOVEDAD' ? [nota] : []);
         var dias = habiles(fecha, hoy), mr = String(r.MICRORRUTA || '').trim().toUpperCase(), z = mr.match(/^Z(\d+)/);
+        // Afectación a árboles: no se puede subsanar, así que no se espera el plazo ni se manda pre aviso: va de una
+        var arbol = tipo === 'novedad' && novedades.some(function (t) { return esNoSubsanable(t, false); });
         out.push({ id: String(r.ID || ''), tipo: tipo, mr: mr, lote: loteDe(r), cuad: cuadDe(r), zona: z ? z[1] : String(r.ZONA || '').replace(/\D/g, ''),
-            fecha: fecha, dias: dias, listo: dias >= PLAZO_REQ, preaviso: dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
+            noSubsanable: arbol, fecha: fecha, dias: dias, listo: arbol || dias >= PLAZO_REQ, preaviso: !arbol && dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
     });
     // Las que más días llevan, primero
     return out.sort(function (a, b) { return b.dias - a.dias || a.fecha.localeCompare(b.fecha) || a.mr.localeCompare(b.mr); });
@@ -115,6 +118,7 @@ export function armar(visitas, base, hoy) {
             { titulo: EVID_REPORTE, texto: '' },
             { titulo: EVID_ENVIO, texto: visitas.map(function (v) {
                 // Antes del plazo (📨 Crear requerimiento de una visita, p. ej. un daño no subsanable) no se dice «sin corrección»
+                if (v.noSubsanable) return rotuloVisita(v) + ': novedades enviadas el ' + aTexto(v.fecha) + '; incluye afectación a árboles, que no es subsanable.';
                 return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? 'reportado como no realizado el ' : 'novedades enviadas el ') + aTexto(v.fecha) +
                     (v.listo ? ', ' + v.dias + ' días hábiles sin corrección.' : ' (' + v.dias + (v.dias === 1 ? ' día hábil' : ' días hábiles') + ' desde la visita).');
             }).join('\n') },
