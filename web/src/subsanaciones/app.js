@@ -9,7 +9,7 @@ import { parsearMensaje as leerMensaje } from './mensaje.js';
 import { recorridoCorto as recorrer } from './recorrido.js';
 import { textoSupervisores } from './supervisores.js';
 import { exportarExcel, hojasExcel, htmlHoja, filasParaCopiar } from './excel.js';
-import { HALLAZGOS, buscarHallazgos } from './hallazgos.js';
+import { HALLAZGOS, buscarHallazgos, mensajeHallazgo, hallazgoEnLinea, hallazgosArbol } from './hallazgos.js';
 import { BUENAS, buscarBuenas, mensaje as mensajeBuena, mensajeVarios } from './buenaoperacion.js';
 import { ESTILOS as ESTILOS_NOTA, dibujar as dibujarNota, pieFecha, aArchivo } from './textoimagen.js';
 import { cumplimiento, porcentaje } from './cumplimiento.js';
@@ -2323,35 +2323,57 @@ export function iniciar(api, CFG) {
         };
         if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(function () { toast(listo); }, aMano); else aMano();
     }
+    // 🌳 Solo árboles: los reportes para poda o riesgo (formato fijo, solo se llena la dirección). Al cerrar se borran la
+    // búsqueda, la dirección y el filtro
+    var hallSoloArb = false;
+    function dirHallazgo() { return $('hall-dir').value; }
     function pintarHallazgos() {
-        var q = $('hall-buscar').value.trim(), idx = buscarHallazgos(q), conForm = dlg.open;
-        $('hall-cuenta').textContent = !q ? HALLAZGOS.length + ' mensajes. Escriba qué vio para encontrar el que sirve.'
+        var q = $('hall-buscar').value.trim(), idx = buscarHallazgos(q), conForm = dlg.open, dir = dirHallazgo();
+        if (hallSoloArb) { var arb = hallazgosArbol(); idx = q ? idx.filter(function (i) { return arb.indexOf(i) !== -1; }) : arb; }
+        $('hall-arboles').setAttribute('aria-pressed', hallSoloArb);
+        $('hall-arboles').textContent = hallSoloArb ? '✕ Ver todos' : '🌳 Solo árboles';
+        $('hall-dir-campo').hidden = !idx.some(function (i) { return HALLAZGOS[i].arbol; });
+        $('hall-cuenta').textContent = hallSoloArb ? idx.length + (idx.length === 1 ? ' reporte de árbol' : ' reportes de árboles') + (q ? ' con "' + q + '"' : '') + '. Escriba la dirección y copie.'
+            : !q ? HALLAZGOS.length + ' mensajes. Escriba qué vio para encontrar el que sirve.'
             : idx.length ? idx.length + (idx.length === 1 ? ' mensaje' : ' mensajes') + ' con "' + q + '"'
             : 'Nada con "' + q + '". Pruebe con otra palabra: piedras, peatones, EPP, lluvia, combustible…';
         $('hall-lista').innerHTML = idx.map(function (i) {
-            var h = HALLAZGOS[i];
-            return '<div class="hallazgo"><b>' + esc(h.t) + '</b><p>' + esc(h.m) + '</p><div class="botones">' +
+            var h = HALLAZGOS[i], m = mensajeHallazgo(i, dir);
+            return '<div class="hallazgo"><b>' + esc(h.t) + '</b><p' + (h.arbol ? ' class="hall-formato"' : '') + '>' + esc(m) + '</p><div class="botones">' +
                 '<button type="button" class="wa pequeno" data-copiar="' + i + '">Copiar</button>' +
-                '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(h.m) + '">Abrir WhatsApp</a>' +
+                '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(m) + '">Abrir WhatsApp</a>' +
                 (conForm ? '<button type="button" class="secundario pequeno" data-agregar="' + i + '">➕ A la observación</button>' : '') +
                 '</div></div>';
         }).join('');
-        $('hall-lista').scrollTop = 0;
     }
-    function abrirHallazgos(q) {
+    function abrirHallazgos(q, soloArb) {
+        hallSoloArb = !!soloArb;
         $('hall-buscar').value = q || '';
+        // Con la visita abierta, la dirección del lote ya queda puesta (se puede cambiar)
+        var mr = dlg.open ? form.querySelector('[data-campo="MICRORRUTA"]').value.trim().toUpperCase() : '', p = mr && LOTES[mr];
+        $('hall-dir').value = p && p.d ? p.d : '';
         pintarHallazgos();
+        $('hall-lista').scrollTop = 0;
         $('dlg-hallazgos').showModal();
-        if (!q) $('hall-buscar').focus();
+        if (hallSoloArb) $('hall-dir').focus(); else if (!q) $('hall-buscar').focus();
     }
     $('btn-hallazgos').onclick = function () { abrirHallazgos(''); };
-    $('hall-buscar').addEventListener('input', pintarHallazgos);
+    $('btn-arboles').onclick = function () { abrirHallazgos('', true); };
+    $('hall-buscar').addEventListener('input', function () { pintarHallazgos(); $('hall-lista').scrollTop = 0; });
+    $('hall-dir').addEventListener('input', function () { var y = $('hall-lista').scrollTop; pintarHallazgos(); $('hall-lista').scrollTop = y; });
+    $('hall-arboles').onclick = function () { hallSoloArb = !hallSoloArb; pintarHallazgos(); $('hall-lista').scrollTop = 0; };
     $('hall-cerrar').onclick = function () { $('dlg-hallazgos').close(); };
+    $('dlg-hallazgos').addEventListener('close', function () {
+        hallSoloArb = false;
+        $('hall-buscar').value = $('hall-dir').value = '';
+        $('hall-lista').innerHTML = '';
+    });
     $('hall-lista').onclick = function (ev) {
         var c = ev.target.closest('[data-copiar]'), a = ev.target.closest('[data-agregar]');
-        if (c) copiarTexto(HALLAZGOS[c.dataset.copiar].m, 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
+        if (c) copiarTexto(mensajeHallazgo(+c.dataset.copiar, dirHallazgo()), HALLAZGOS[c.dataset.copiar].arbol && !dirHallazgo().trim()
+            ? 'Copiado sin dirección: complétela en WhatsApp.' : 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
         if (!a) return;
-        var obs = campoObs(), actual = obs.value.trim(), m = HALLAZGOS[a.dataset.agregar].m;
+        var obs = campoObs(), actual = obs.value.trim(), m = hallazgoEnLinea(+a.dataset.agregar, dirHallazgo());
         obs.value = !actual || norm(actual) === 'SIN NOVEDAD' ? m : actual.replace(/\.?$/, '.') + ' ' + m;
         obs.dispatchEvent(new Event('input', { bubbles: true }));
         $('dlg-hallazgos').close();
@@ -2361,6 +2383,7 @@ export function iniciar(api, CFG) {
     function sugerirHallazgos() {
         var texto = campoObs().value;
         HALLAZGOS.forEach(function (h) { texto = texto.split(h.m).join(' '); });
+        texto = texto.replace(/Reporte de árbol:[^.]*\./g, ' ');
         var idx = buscarHallazgos(texto, true).slice(0, 3);
         $('obs-sug').hidden = !idx.length;
         $('obs-sug').innerHTML = idx.length ? '💡 Posibles hallazgos: ' + idx.map(function (i) {

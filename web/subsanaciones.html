@@ -154,6 +154,7 @@
                     <button type="button" class="secundario pequeno" id="todo-si">Marcar todos SI</button>
                     <button type="button" class="pequeno no-realizado solo-ej" id="no-realizado">✗ Lote no realizado</button>
                     <button type="button" class="pequeno lote-cerrado solo-ej" id="lote-cerrado">🔒 Lote cerrado</button>
+                    <button type="button" class="secundario pequeno" id="btn-arboles" title="Reportes de árboles (muerto en pie, volcado, rama fracturada…) para WhatsApp: solo se llena la dirección">🌳 Reportar árbol</button>
                     <!-- Revisión con fotos (IA) desactivada: consume créditos. Para volver a usarla, quitar hidden y restaurar netlify/functions/analizar-fotos.mjs del commit fe53c58 -->
                     <button type="button" class="secundario pequeno" id="btn-ia" hidden title="Opcional: la IA mira las fotos y llena los ítems y las observaciones">📷 Revisar con fotos (IA)</button>
                     <input type="file" id="fotos-ia" accept="image/*" multiple hidden>
@@ -337,7 +338,10 @@
         <h2>📋 Posibles hallazgos
             <button type="button" class="cerrar-dlg" id="hall-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
         <input type="search" id="hall-buscar" aria-label="Buscar hallazgo" placeholder="Escriba qué vio: sopladora, piedras, carro parqueado, lluvia…" autocomplete="off">
-        <div class="sub" id="hall-cuenta"></div>
+        <!-- Reportes de árboles (🌳): solo se llena la dirección; con la visita abierta se pone la del lote -->
+        <label class="hall-dir" id="hall-dir-campo" hidden>DIRECCIÓN DEL ÁRBOL <input id="hall-dir" placeholder="Cra 50 # 30-20, frente al parque" autocomplete="off"></label>
+        <div class="hall-barra"><span class="sub" id="hall-cuenta"></span>
+            <button type="button" class="secundario pequeno" id="hall-arboles" aria-pressed="false" title="Ver solo los reportes de árboles para poda o riesgo">🌳 Solo árboles</button></div>
         <div class="hall-lista" id="hall-lista"></div>
     </div>
 </dialog>

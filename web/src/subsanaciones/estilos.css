@@ -138,6 +138,11 @@ fieldset { min-width: 0; }
 .hallazgo b { display: block; margin-bottom: 4px; color: var(--brand); }
 .hallazgo p { margin: 0 0 8px; line-height: 1.45; }
 .hallazgo .botones { display: flex; gap: 6px; flex-wrap: wrap; }
+.hallazgo p.hall-formato { white-space: pre-line; font-family: inherit; background: #fff; border: 1px dashed var(--line); border-radius: 8px; padding: 8px 10px; }
+.hall-dir { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.hall-dir input { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); background: #fff; }
+.hall-barra { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
+#hall-arboles[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: var(--brand); }
 
 /* Resumen para WhatsApp de una visita: formato y plazo */
 .wa-formatos { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin: 0 0 10px; }
