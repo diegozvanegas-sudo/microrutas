@@ -3,9 +3,10 @@
 // revisar. Aquí va solo la lógica (sin pantalla): qué visitas ya cumplieron el plazo, cómo se agrupan por cuadrilla y
 // cómo queda el requerimiento ya lleno.
 //
-//   candidatas(registros, hoy, itemsNo)  -> [{ id, tipo, mr, lote, cuad, zona, fecha, dias, listo, faltan, novedades }]
+//   candidatas(registros, hoy, itemsNo)  -> [{ id, clave, tipo, mr, lote, cuad, zona, fecha, dias, listo, faltan, novedades }]
 //   porCuadrilla(lista)                  -> [{ cuad, visitas, listas }]
-//   yaRequeridas(historial)              -> { idVisita: { id, radicado, estado } }
+//   yaRequeridas(historial)              -> { claveVisita: { id, radicado, estado } }
+//   armarArboles(visitas, base, hoy)     -> el de afectación a árboles, solo con esas visitas y su tabla de árboles
 //   armar(visitas, base, hoy)            -> el requerimiento (mismo objeto del formulario) con sus microrrutas y evidencias
 //   textoPreaviso(cuad, visitas)         -> el mensaje del pre aviso al contratista (a los 5 días hábiles)
 
@@ -13,6 +14,7 @@
 // hábiles sin corregir se le manda al contratista el pre aviso (lo fijó la interventoría el 17/11/2026)
 import { esFestivo } from '../horas/distribucion.js';
 import { esNoSubsanable } from '../subsanaciones/estado.js';
+import { arbolesEn } from './plantillas.js';
 
 export var PLAZO_REQ = 8, AVISO = 5;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
@@ -71,10 +73,22 @@ export function candidatas(registros, hoy, itemsNo) {
         if (!tipo) return;
         var nota = quitarEstado(obs), novedades = tipo === 'norealizado' ? ['Lote no realizado'] : (itemsNo ? itemsNo(r) : []).concat(nota && plano(nota) !== 'SIN NOVEDAD' ? [nota] : []);
         var dias = habiles(fecha, hoy), mr = String(r.MICRORRUTA || '').trim().toUpperCase(), z = mr.match(/^Z(\d+)/);
-        // Afectación a árboles: no se puede subsanar, así que no se espera el plazo ni se manda pre aviso: va de una
-        var arbol = tipo === 'novedad' && novedades.some(function (t) { return esNoSubsanable(t, false); });
-        out.push({ id: String(r.ID || ''), tipo: tipo, mr: mr, lote: loteDe(r), cuad: cuadDe(r), zona: z ? z[1] : String(r.ZONA || '').replace(/\D/g, ''),
-            noSubsanable: arbol, ejec: aIso(r['FECHA DE EJECUCIÓN']), fecha: fecha, dias: dias, listo: arbol || dias >= PLAZO_REQ, preaviso: !arbol && dias >= AVISO && dias < PLAZO_REQ, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha), novedades: novedades });
+        // Afectación a árboles: no se puede subsanar, así que no se espera el plazo ni se manda pre aviso: va de una.
+        // Si la visita además tiene novedades subsanables, se parte en dos: la de árboles (clave «ID|arboles») va de una
+        // a su requerimiento y la otra (clave «ID») sigue su plazo normal; así cada requerimiento queda enfocado en lo suyo
+        var deArbol = tipo === 'novedad' ? novedades.filter(function (t) { return esNoSubsanable(t, false); }) : [];
+        var otras = novedades.filter(function (t) { return deArbol.indexOf(t) === -1; });
+        var id = String(r.ID || ''), base = { id: id, tipo: tipo, mr: mr, lote: loteDe(r), cuad: cuadDe(r), zona: z ? z[1] : String(r.ZONA || '').replace(/\D/g, ''),
+            ejec: aIso(r['FECHA DE EJECUCIÓN']), fecha: fecha, dias: dias, faltan: Math.max(0, PLAZO_REQ - dias), cumple: fechaListo(fecha) };
+        if (deArbol.length) {
+            // Cuántos árboles, si la observación lo dice («3 árboles con herida en la base»); si no, se pone en la tabla
+            out.push(Object.assign({}, base, { clave: otras.length ? id + '|arboles' : id, noSubsanable: true, arboles: arbolesEn([obs].concat(deArbol)),
+                listo: true, preaviso: false, novedades: deArbol }));
+        }
+        if (!deArbol.length || otras.length) {
+            out.push(Object.assign({}, base, { clave: id, noSubsanable: false, arboles: 0, listo: dias >= PLAZO_REQ,
+                preaviso: dias >= AVISO && dias < PLAZO_REQ, novedades: deArbol.length ? otras : novedades }));
+        }
     });
     // Las que más días llevan, primero
     return out.sort(function (a, b) { return b.dias - a.dias || a.fecha.localeCompare(b.fecha) || a.mr.localeCompare(b.mr); });
@@ -99,6 +113,32 @@ export function rotuloVisita(v) { return v.mr + (v.lote ? ' (' + v.lote + ')' : 
 // Títulos de las evidencias del requerimiento automático. En la de ENVIO van los pantallazos guardados de cada visita
 export var EVID_REPORTE = 'Reportes de ejecución de las microrrutas', EVID_ENVIO = 'Envío de las novedades al contratista para su corrección', EVID_INSPECCION = 'Evidencia de la inspección';
 // base: el requerimiento vacío del formulario (vacio() en main.js)
+// Requerimiento de afectación a árboles: va enfocado solo en las heridas (no se mezcla con las novedades subsanables
+// de las mismas u otras visitas: esas siguen su plazo y van en su propio requerimiento). Tabla con lote, fecha de
+// ejecución y número de árboles; no se pide registro fotográfico de corrección porque no es subsanable.
+export function hayArboles(visitas) { return (visitas || []).some(function (v) { return v.noSubsanable; }); }
+export function armarArboles(visitas, base, hoy) {
+    var sel = (visitas || []).filter(function (v) { return v.noSubsanable; }), zonas = [], fechas = [];
+    sel.forEach(function (v) { if (v.zona && zonas.indexOf(v.zona) === -1) zonas.push(v.zona); fechas.push(v.fecha); });
+    zonas.sort(); fechas.sort();
+    return Object.assign({}, base, {
+        id: null, fecha: hoy, zonas: zonas, eventoDesde: fechas[0] || '', eventoHasta: fechas[fechas.length - 1] || '', tabla: 'arboles',
+        ruta: sel.map(rotuloVisita).join(', '),
+        asunto: 'Novedad por afectación a la base de árboles en la operación de corte de césped',
+        novedades: sel.map(function (v) {
+            return { micro: v.mr || '', lote: v.lote, ejec: v.ejec || '', fecha: v.fecha, arboles: v.arboles || '',
+                tipos: v.novedades.filter(function (t) { return esNoSubsanable(t, false); }) };
+        }),
+        evidencias: [
+            { titulo: EVID_REPORTE, texto: '' },
+            { titulo: EVID_ENVIO, texto: sel.map(function (v) {
+                return rotuloVisita(v) + ': afectación a árboles reportada el ' + aTexto(v.fecha) + ' (no subsanable).';
+            }).join('\n') },
+            { titulo: EVID_INSPECCION, texto: '' }
+        ],
+        visitas: sel.map(function (v) { return v.clave || v.id; }).filter(Boolean)
+    });
+}
 export function armar(visitas, base, hoy) {
     var cuads = [], zonas = [], fechas = [];
     visitas.forEach(function (v) {
@@ -124,7 +164,7 @@ export function armar(visitas, base, hoy) {
             }).join('\n') },
             { titulo: EVID_INSPECCION, texto: '' }
         ],
-        visitas: visitas.map(function (v) { return v.id; }).filter(Boolean)
+        visitas: visitas.map(function (v) { return v.clave || v.id; }).filter(Boolean)
     });
     return d;
 }
@@ -142,6 +182,10 @@ export function textoPreaviso(cuad, visitas) {
 }
 // La plantilla que corresponde, si existe una para esto (por su nombre o su asunto)
 export function plantillaPara(visitas, plantillas) {
+    if (hayArboles(visitas)) {
+        var a = (plantillas || []).filter(function (x) { return x.tabla === 'arboles' || /ARBOL/.test(plano(x.id + ' ' + x.nombre)); })[0];
+        return a ? a.id : '';
+    }
     var noReal = visitas.every(function (v) { return v.tipo === 'norealizado'; });
     var re = noReal ? /NO (SE )?(EJECUT|REALIZ)|SIN EJECUT/ : /POSOPERACION|SIN CORRECCION|SIN SUBSANA/;
     var p = (plantillas || []).filter(function (x) { return re.test(plano(x.nombre + ' ' + x.asunto)); })[0];

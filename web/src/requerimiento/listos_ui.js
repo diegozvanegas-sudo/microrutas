@@ -11,7 +11,7 @@
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { valorItem, hoy } from '../subsanaciones/util.js';
 import { crearApi } from '../api.js';
-import { candidatas, porCuadrilla, yaRequeridas, armar, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
+import { candidatas, porCuadrilla, yaRequeridas, armar, armarArboles, hayArboles, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
 import { crearAnexos, carpeta, carpetaReporte, seBorra, TIPOS } from './anexos.js';
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -73,7 +73,7 @@ export function iniciarListos(dep) {
         try { if (localStorage.getItem(LIMPIEZA) === dia) return; localStorage.setItem(LIMPIEZA, dia); } catch (e) { return; }
         var ya = yaRequeridas(dep.historial()), protegidas = {};
         visitas.forEach(function (v) {
-            if (ya[v.id]) return;
+            if (ya[v.clave]) return;
             protegidas[carpeta(v.id)] = true;
             var k = carpetaReporte(v.ejec, v.cuad);
             if (k) protegidas[k] = true;   // el reporte de la cuadrilla de esa ejecución también se guarda
@@ -97,9 +97,9 @@ export function iniciarListos(dep) {
     }
     function tipoInicial(v) { return v.preaviso && !deTipo(v, 'preaviso').length ? 'preaviso' : v.tipo === 'norealizado' || !deTipo(v, 'reporte').length && v.listo ? 'reporte' : 'envio'; }
     function htmlVisita(v, ya, conCasilla) {
-        var r = ya[v.id], pre = v.preaviso && deTipo(v, 'preaviso')[0];
+        var r = ya[v.clave], pre = v.preaviso && deTipo(v, 'preaviso')[0];
         return '<div class="rl-visita' + (r ? ' ya' : '') + '">' +
-            (conCasilla ? '<input type="checkbox" data-rl-v="' + esc(v.id) + '"' + (r ? ' disabled' : marcadas[v.id] ? ' checked' : '') + ' aria-label="Incluir ' + esc(v.mr) + ' en el requerimiento">' : '') +
+            (conCasilla ? '<input type="checkbox" data-rl-v="' + esc(v.clave) + '"' + (r ? ' disabled' : marcadas[v.clave] ? ' checked' : '') + ' aria-label="Incluir ' + esc(v.mr) + ' en el requerimiento">' : '') +
             '<div class="rl-datos"><div class="rl-tit"><b>' + (v.lote ? 'Lote ' + esc(v.lote) : esc(v.mr)) + '</b>' + (v.lote ? '<span class="sub">' + esc(v.mr) + '</span>' : '') +
                 '<span class="rl-dias ' + (v.listo ? 'listo' : v.preaviso ? 'pronto' : '') + '">' + (v.noSubsanable ? '🌳 No subsanable' : v.listo ? plural(v.dias, 'día hábil', 'días hábiles') : 'faltan ' + plural(v.faltan, 'día hábil', 'días hábiles')) + '</span></div>' +
             '<div class="sub">' + (v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) +
@@ -112,9 +112,9 @@ export function iniciarListos(dep) {
     function pintar() {
         var ya = yaRequeridas(dep.historial()), listas = visitas.filter(function (v) { return v.listo; });
         var preaviso = visitas.filter(function (v) { return v.preaviso; }), enPlazo = visitas.filter(function (v) { return !v.listo && !v.preaviso; });
-        var nuevas = listas.filter(function (v) { return !ya[v.id]; }), avisadas = preaviso.filter(function (v) { return deTipo(v, 'preaviso').length; }).length;
+        var nuevas = listas.filter(function (v) { return !ya[v.clave]; }), avisadas = preaviso.filter(function (v) { return deTipo(v, 'preaviso').length; }).length;
         // Lo marcado que ya no aplica (se subsanó o ya tiene requerimiento) se suelta
-        Object.keys(marcadas).forEach(function (id) { if (!nuevas.some(function (v) { return v.id === id; })) delete marcadas[id]; });
+        Object.keys(marcadas).forEach(function (id) { if (!nuevas.some(function (v) { return v.clave === id; })) delete marcadas[id]; });
         $('rl-cuenta').innerHTML = '<div class="rl-dato' + (nuevas.length ? ' mal' : '') + '"><b>' + nuevas.length + '</b><span>listas para requerimiento</span></div>' +
             '<div class="rl-dato"><b>' + (listas.length - nuevas.length) + '</b><span>ya con requerimiento</span></div>' +
             '<div class="rl-dato' + (preaviso.length > avisadas ? ' aviso' : '') + '"><b>' + preaviso.length + '</b><span>para pre aviso' + (preaviso.length ? ' (' + avisadas + ' avisadas)' : '') + '</span></div>' +
@@ -122,7 +122,7 @@ export function iniciarListos(dep) {
         $('rl-aviso').hidden = !sinAnexos;
         $('rl-aviso').textContent = sinAnexos;
         $('rl-lista').innerHTML = listas.length ? porCuadrilla(listas).map(function (g) {
-            var libres = g.visitas.filter(function (v) { return !ya[v.id]; }), todas = libres.length && libres.every(function (v) { return marcadas[v.id]; });
+            var libres = g.visitas.filter(function (v) { return !ya[v.clave]; }), todas = libres.length && libres.every(function (v) { return marcadas[v.clave]; });
             return '<article class="rl-cuad"><label class="rl-cuad-cab"><input type="checkbox" data-rl-cuad="' + esc(g.cuad) + '"' + (todas ? ' checked' : '') + (libres.length ? '' : ' disabled') + '>' +
                 '<b>Cuadrilla ' + esc(g.cuad) + '</b><span class="sub">' + plural(libres.length, 'visita lista', 'visitas listas') + (g.visitas.length > libres.length ? ' · ' + (g.visitas.length - libres.length) + ' ya con requerimiento' : '') + '</span></label>' +
                 g.visitas.map(function (v) { return htmlVisita(v, ya, true); }).join('') + '</article>';
@@ -141,7 +141,7 @@ export function iniciarListos(dep) {
         $('rl-plazo-lista').innerHTML = porCuadrilla(enPlazo).map(function (g) {
             return '<div class="rl-cuad"><div class="rl-cuad-cab"><b>Cuadrilla ' + esc(g.cuad) + '</b></div>' + g.visitas.map(function (v) { return htmlVisita(v, ya, false); }).join('') + '</div>';
         }).join('');
-        var sel = nuevas.filter(function (v) { return marcadas[v.id]; }), cuads = [];
+        var sel = nuevas.filter(function (v) { return marcadas[v.clave]; }), cuads = [];
         sel.forEach(function (v) { if (cuads.indexOf(v.cuad) === -1) cuads.push(v.cuad); });
         $('rl-pie').hidden = !nuevas.length;
         $('rl-marcadas').textContent = sel.length ? plural(sel.length, 'visita marcada', 'visitas marcadas') + ' · ' + (cuads.length === 1 ? 'cuadrilla ' : 'cuadrillas ') + cuads.sort().join(' y ') : 'Marque las visitas (o toda la cuadrilla) que van en el mismo requerimiento.';
@@ -151,16 +151,17 @@ export function iniciarListos(dep) {
 
     async function crear() {
         var ya = yaRequeridas(dep.historial());
-        return armarCon(visitas.filter(function (v) { return v.listo && marcadas[v.id] && !ya[v.id]; }));
+        return armarCon(visitas.filter(function (v) { return v.listo && marcadas[v.clave] && !ya[v.clave]; }));
     }
     // 📨 Crear requerimiento desde una visita de Subsanaciones (?visita=): de una, aunque no hayan pasado los 8 días hábiles
     async function crearDe(id) {
-        var v = visitas.filter(function (x) { return x.id === id; })[0];
+        // Si la visita tiene afectación a árboles, se arma ese (va de una); lo subsanable sigue su plazo
+        var v = visitas.filter(function (x) { return x.id === id && x.noSubsanable; })[0] || visitas.filter(function (x) { return x.id === id; })[0];
         if (!v) {
             if ($('rl-estado').textContent && !visitas.length) return toast($('rl-estado').textContent);
             return toast('La visita ' + id + ' ya no está pendiente ni como lote no realizado (puede que se haya subsanado): no hay qué requerir.');
         }
-        var r = yaRequeridas(dep.historial())[id];
+        var r = yaRequeridas(dep.historial())[v.clave];
         if (r) {
             if (await confirmar('Esta visita ya tiene requerimiento', 'Está en el requerimiento ' + (r.radicado || 'sin radicado') + ' (' + r.estado + '). ¿Abrir ese o crear otro?', 'Abrir ese', 'Crear otro')) return dep.abrirGuardado(r.id);
         }
@@ -168,6 +169,10 @@ export function iniciarListos(dep) {
     }
     async function armarCon(sel) {
         if (!sel.length || ocupado) return;
+        // Afectación a árboles: su requerimiento va solo con esas visitas (enfocado en las heridas); las demás marcadas
+        // siguen marcadas para armar su propio requerimiento después
+        var arboles = hayArboles(sel), quedan = arboles ? sel.filter(function (v) { return !v.noSubsanable; }) : [];
+        if (arboles) sel = sel.filter(function (v) { return v.noSubsanable; });
         ocupado = true;
         $('rl-crear').disabled = true;
         var archivos = [], fallidos = 0, puestas = {};
@@ -185,9 +190,11 @@ export function iniciarListos(dep) {
                     } catch (e) { fallidos++; }
                 }
             }
-            var d = armar(sel, dep.vacio(), hoy());
+            var d = arboles ? armarArboles(sel, dep.vacio(), hoy()) : armar(sel, dep.vacio(), hoy());
             marcadas = {};
+            quedan.forEach(function (v) { marcadas[v.clave] = true; });
             await dep.abrir(d, plantillaPara(sel, dep.plantillas()), archivos);
+            if (quedan.length) toast('🌳 El requerimiento de árboles va solo con las heridas. ' + plural(quedan.length, 'visita con otras novedades sigue marcada', 'visitas con otras novedades siguen marcadas') + ' para su propio requerimiento.');
             if (fallidos) toast(plural(fallidos, 'imagen no se pudo traer', 'imágenes no se pudieron traer') + ': agréguelas a mano en la evidencia.');
         } catch (e) {
             toast('No se pudo crear el requerimiento: ' + ((e && e.message) || e));
@@ -311,7 +318,7 @@ export function iniciarListos(dep) {
         if (t.dataset.rlV) { if (t.checked) marcadas[t.dataset.rlV] = 1; else delete marcadas[t.dataset.rlV]; pintar(); }
         if (t.dataset.rlCuad != null) {
             var ya = yaRequeridas(dep.historial());
-            visitas.filter(function (v) { return v.listo && (v.cuad || '?') === t.dataset.rlCuad && !ya[v.id]; }).forEach(function (v) { if (t.checked) marcadas[v.id] = 1; else delete marcadas[v.id]; });
+            visitas.filter(function (v) { return v.listo && (v.cuad || '?') === t.dataset.rlCuad && !ya[v.clave]; }).forEach(function (v) { if (t.checked) marcadas[v.clave] = 1; else delete marcadas[v.clave]; });
             pintar();
         }
     });

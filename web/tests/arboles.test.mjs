@@ -41,9 +41,11 @@ test('árboles: en Requerimientos va de una (sin esperar 8 días ni pre aviso) y
         visita('SUB-1', '17/11/2026', ['AFECTACIÓN A ÁRBOLES', 'BORDEO']),   // hoy mismo
         visita('SUB-2', '10/11/2026', ['BORDEO']),                          // 6 días hábiles: pre aviso
     ], HOY, itemsNo);
-    const por = Object.fromEntries(c.map((v) => [v.id, v]));
-    assert.deepEqual([por['SUB-1'].noSubsanable, por['SUB-1'].listo, por['SUB-1'].preaviso], [true, true, false]);
+    const por = Object.fromEntries(c.map((v) => [v.clave, v]));
+    // La afectación va de una; el bordeo de la misma visita sigue su plazo aparte (el requerimiento de árboles va solo con las heridas)
+    assert.deepEqual([por['SUB-1|arboles'].noSubsanable, por['SUB-1|arboles'].listo, por['SUB-1|arboles'].preaviso], [true, true, false]);
+    assert.deepEqual([por['SUB-1'].noSubsanable, por['SUB-1'].listo, por['SUB-1'].novedades], [false, false, ['BORDEO']]);
     assert.deepEqual([por['SUB-2'].noSubsanable, por['SUB-2'].listo, por['SUB-2'].preaviso], [false, false, true]);
-    const d = armar([por['SUB-1']], {}, HOY);
+    const d = armar([por['SUB-1|arboles']], {}, HOY);
     assert.match(d.evidencias[1].texto, /Z2CC0300 \(521\): novedades enviadas el 17\/11\/2026; incluye afectación a árboles, que no es subsanable\./);
 });

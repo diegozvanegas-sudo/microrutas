@@ -4,6 +4,7 @@
 // pie, márgenes y letra. Sin formato, el membrete va de fondo en el encabezado y el pie lleva «Página X de Y».
 // Funciona igual en el navegador y en Node (pruebas).
 import { enLetras, filasNovedad, gruposPdf } from './pdf.js';
+import { filasArboles } from './plantillas.js';
 
 var EMU = 12700;                       // 1 punto en EMU (imágenes)
 var ANCHO_BASE = 12240 - 2 * 1240;     // hoja carta menos márgenes izquierdo y derecho, en twips (1/20 de punto), sin formato
@@ -168,7 +169,7 @@ export async function armarDocx(req, opciones) {
     // Celda: ancho en twips; o: { fondo, centrar, vertical, sinBorde }
     function celda(contenido, ancho, o) {
         o = o || {};
-        return '<w:tc><w:tcPr><w:tcW w:w="' + ancho + '" w:type="dxa"/>' + (o.fondo ? '<w:shd w:val="clear" w:color="auto" w:fill="' + o.fondo + '"/>' : '') +
+        return '<w:tc><w:tcPr><w:tcW w:w="' + ancho + '" w:type="dxa"/>' + (o.span > 1 ? '<w:gridSpan w:val="' + o.span + '"/>' : '') + (o.fondo ? '<w:shd w:val="clear" w:color="auto" w:fill="' + o.fondo + '"/>' : '') +
             '<w:vAlign w:val="' + (o.vertical || 'center') + '"/></w:tcPr>' + (contenido || p('', { despues: 0 })) + '</w:tc>';
     }
     function tabla(anchos, filas, o) {
@@ -181,14 +182,18 @@ export async function armarDocx(req, opciones) {
     }
     function fila(celdas, o) { return '<w:tr><w:trPr><w:cantSplit/>' + (o && o.cabecera ? '<w:tblHeader/>' : '') + '</w:trPr>' + celdas.join('') + '</w:tr>'; }
     // Tabla con encabezado de color: columnas [{ titulo, ancho, centrar }], filas de textos (con \n para renglones)
-    function tablaColor(columnas, filas) {
+    // total: [rótulo, valor] → última fila en negrita, con el rótulo ocupando todas las columnas menos la última
+    function tablaColor(columnas, filas, total) {
         var cab = fila(columnas.map(function (c) { return celda(p(run(c.titulo, { b: true, color: 'FFFFFF', sz: 9.5 }), { jc: 'center', despues: 0 }), c.ancho, { fondo: TEAL }); }), { cabecera: true });
         return tabla(columnas.map(function (c) { return c.ancho; }), [cab].concat(filas.map(function (f) {
             return fila(columnas.map(function (c, i) {
                 var renglones = String(f[i] || '').split('\n');
                 return celda(renglones.map(function (l) { return p(run(l, { sz: 9.5 }), { jc: c.centrar ? 'center' : 'left', despues: 0 }); }).join(''), c.ancho, { vertical: c.centrar ? 'center' : 'top' });
             }));
-        })));
+        })).concat(total ? [fila([
+            celda(p(run(total[0], { b: true, sz: 9.5 }), { jc: 'center', despues: 0 }), ANCHO - columnas[columnas.length - 1].ancho, { fondo: 'EDF5F5', span: columnas.length - 1 }),
+            celda(p(run(total[1], { b: true, sz: 9.5 }), { jc: 'center', despues: 0 }), columnas[columnas.length - 1].ancho, { fondo: 'EDF5F5' })
+        ])] : []));
     }
 
     // ---------- cuerpo ----------
@@ -206,8 +211,14 @@ export async function armarDocx(req, opciones) {
 
     b.push(titulo('1.   DESCRIPCIÓN:'));
     b.push(parrafos(req.descripcion));
-    var novedades = filasNovedad(req.novedades);
-    if (novedades.length) {
+    var novedades = filasNovedad(req.novedades), arb = req.tabla === 'arboles' ? filasArboles(req.novedades) : null;
+    if (arb && arb.filas.length) {
+        // Afectación a árboles: microrruta, lote, fecha de ejecución y número de árboles, con el total
+        var w4 = Math.round((ANCHO - 2200 - 1200) / 2);
+        b.push(tablaColor([{ titulo: 'MICRORRUTA', ancho: 2200, centrar: true }, { titulo: 'LOTE', ancho: 1200, centrar: true },
+            { titulo: 'FECHA DE EJECUCIÓN', ancho: w4, centrar: true }, { titulo: 'NÚMERO DE ÁRBOLES AFECTADOS', ancho: ANCHO - 3400 - w4, centrar: true }],
+        arb.filas.map(function (n) { return [n.micro, n.lote, n.ejec, n.arboles]; }), ['TOTAL ÁRBOLES AFECTADOS', arb.total ? String(arb.total) : '']));
+    } else if (novedades.length) {
         b.push(tablaColor([{ titulo: 'MICRORRUTA', ancho: 2000, centrar: true }, { titulo: 'FECHA DE VERIFICACIÓN', ancho: 2000, centrar: true }, { titulo: 'TIPOS DE NOVEDADES', ancho: ANCHO - 4000 }],
             novedades.map(function (n) { return [n.micro, n.fecha, n.tipos.join('\n')]; })));
     }

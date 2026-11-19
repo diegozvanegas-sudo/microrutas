@@ -134,8 +134,9 @@
             <textarea id="f-descripcion" rows="12" aria-label="Descripción"></textarea>
             <p class="sub">Reemplace lo que está entre [corchetes] con los datos del caso. El PDF avisa si queda alguno.</p>
 
-            <h3>Microrrutas con novedades <span class="req-ans-cuenta" id="f-nov-cuenta"></span></h3>
-            <p class="sub">Tabla que va debajo de la descripción (microrruta, fecha de verificación y tipos de novedades). Si no tiene filas, no sale.</p>
+            <h3><span id="f-nov-titulo">Microrrutas con novedades</span> <span class="req-ans-cuenta" id="f-nov-cuenta"></span></h3>
+            <p class="sub req-arb-ayuda" id="f-arb-ayuda" hidden>🌳 Afectación a árboles: <b>no es subsanable</b>, así que no se piden fotos de corrección. Ponga en cada microrruta el lote, la fecha de ejecución y cuántos árboles quedaron con herida; el total sale solo. En la descripción, <code>{periodo}</code>, <code>{contrato}</code>, <code>{arboles}</code> y <code>{microrrutas}</code> se llenan solos con esta tabla.</p>
+            <p class="sub" id="f-nov-ayuda">Tabla que va debajo de la descripción (microrruta, fecha de verificación y tipos de novedades). Si no tiene filas, no sale.</p>
             <div id="f-novedades" class="req-novs"></div>
             <div class="req-agregar">
                 <button type="button" class="secundario" id="f-nov-agregar">+ Agregar microrruta</button>

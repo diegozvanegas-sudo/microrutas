@@ -5,6 +5,8 @@
 // Las firmas van en blanco (cada persona firma), salvo que quien firma haya puesto la imagen de su firma en su equipo.
 // pdf-lib se carga solo al generar. Funciona igual en el navegador y en Node (pruebas).
 
+import { filasArboles } from './plantillas.js';
+
 var CARTA = [612, 792];
 var TEAL = [0.06, 0.45, 0.47], GRIS = [0.55, 0.58, 0.6], TINTA = [0.08, 0.1, 0.12], FONDO = [0.96, 0.97, 0.97];
 var NUMEROS = ['cero', 'uno', 'dos', 'tres', 'cuatro', 'cinco', 'seis', 'siete', 'ocho', 'nueve', 'diez', 'once', 'doce', 'trece', 'catorce', 'quince'];
@@ -135,8 +137,9 @@ export async function armarPdf(req, opciones) {
         });
         y -= 12;
     }
-    // Tabla con encabezado de color: columnas [{ titulo, ancho, campo }]
-    function tablaColor(columnas, filas) {
+    // Tabla con encabezado de color: columnas [{ titulo, ancho, campo }]; total: [rótulo, valor] → última fila en negrita,
+    // con el rótulo ocupando todas las columnas menos la última
+    function tablaColor(columnas, filas, total) {
         var tam = 9.5, alto = tam * 1.35, pad = 6;
         function fila(valores, cab) {
             var lineas = columnas.map(function (c, i) { return partir(valores[i], cab ? negrita : normal, tam, c.ancho - pad * 2); });
@@ -156,6 +159,17 @@ export async function armarPdf(req, opciones) {
         }
         fila(columnas.map(function (c) { return c.titulo; }), true);
         filas.forEach(function (f) { fila(f, false); });
+        if (total) {
+            var wUlt = columnas[columnas.length - 1].ancho, h = tam + pad * 2 + 2, x0 = M.izq;
+            espacio(h);
+            [[total[0], ANCHO - wUlt], [total[1], wUlt]].forEach(function (c) {
+                pag.drawRectangle({ x: x0, y: y - h, width: c[1], height: h, color: col([0.93, 0.96, 0.96]), borderColor: col([0.78, 0.82, 0.83]), borderWidth: 0.7 });
+                var w = negrita.widthOfTextAtSize(limpiar(c[0]), tam);
+                texto(c[0], x0 + (c[1] - w) / 2, y - pad - tam, { tam: tam, letra: negrita });
+                x0 += c[1];
+            });
+            y -= h;
+        }
         y -= 12;
     }
 
@@ -177,8 +191,15 @@ export async function armarPdf(req, opciones) {
     titulo('1.   DESCRIPCIÓN:');
     parrafo(req.descripcion || '');
     // Tabla de microrrutas con sus novedades (si se llenó) y el párrafo de constancia
-    var novedades = filasNovedad(req.novedades);
-    if (novedades.length) {
+    var novedades = filasNovedad(req.novedades), arb = req.tabla === 'arboles' ? filasArboles(req.novedades) : null;
+    if (arb && arb.filas.length) {
+        // Afectación a árboles: microrruta, lote, fecha de ejecución y número de árboles, con el total
+        y -= 4;
+        var w4 = Math.round((ANCHO - 110 - 60) / 2);
+        tablaColor([{ titulo: 'MICRORRUTA', ancho: 110, centrar: true }, { titulo: 'LOTE', ancho: 60, centrar: true },
+            { titulo: 'FECHA DE EJECUCIÓN', ancho: w4, centrar: true }, { titulo: 'NÚMERO DE ÁRBOLES AFECTADOS', ancho: ANCHO - 170 - w4, centrar: true }],
+        arb.filas.map(function (n) { return [n.micro, n.lote, n.ejec, n.arboles]; }), ['TOTAL ÁRBOLES AFECTADOS', arb.total ? String(arb.total) : '']);
+    } else if (novedades.length) {
         y -= 4;
         tablaColor([{ titulo: 'MICRORRUTA', ancho: 100, centrar: true }, { titulo: 'FECHA DE VERIFICACIÓN', ancho: 100, centrar: true }, { titulo: 'TIPOS DE NOVEDADES', ancho: ANCHO - 200 }],
             novedades.map(function (n) { return [n.micro, n.fecha, n.tipos.join('\n')]; }));

@@ -9,8 +9,9 @@ export function leerPlantillas(filas) {
         else if (s.id === 'ans') s.items.forEach(function (it) { var n = String(it.clave).replace(/\D/g, ''); if (n) ans[n] = it.t; });
         else if (s.tipo === 'plantilla') {
             // constancia: párrafo después de la tabla de microrrutas · evidencias: títulos de los grupos, uno por renglón
+            // tabla: 'arboles' → la tabla de microrrutas sale con lote, fecha de ejecución y número de árboles afectados
             var p = { id: s.id, nombre: s.titulo, icono: s.icono || '', tipo: 'Hallazgo', asunto: '', descripcion: '', constancia: '', evidencias: '',
-                obligaciones: [], ans: [], solicitudes: [], plazo: null };
+                tabla: '', obligaciones: [], ans: [], solicitudes: [], plazo: null };
             s.items.forEach(function (it) {
                 if (it.clave === 'obligacion') p.obligaciones.push({ ref: it.ref || '', t: it.t });
                 else if (it.clave === 'solicitud') p.solicitudes.push({ t: it.t, ej: it.ej || '' });
@@ -21,6 +22,8 @@ export function leerPlantillas(filas) {
             p.obligaciones.forEach(function (o) {
                 if (!catalogo.some(function (c) { return c.ref === o.ref && c.t === o.t; })) catalogo.push({ ref: o.ref, t: o.t });
             });
+            // La de árboles sale con su tabla aunque las plantillas cargadas sean de antes de este campo
+            if (!p.tabla && s.id === 'arboles') p.tabla = 'arboles';
             plantillas.push(p);
         }
     });
@@ -69,7 +72,10 @@ export function leerFilasNovedades(texto) {
         if (mm) {
             ultima = { micro: 'Z' + mm[1] + 'CC' + mm[2], fecha: '', tipos: [] };
             filas.push(ultima);
-            r = r.replace(mm[0], ' ').replace(/^\s*\(\s*\d+\s*\)/, ' ');   // el número de lote entre paréntesis no es novedad
+            r = r.replace(mm[0], ' ');
+            // El número de lote entre paréntesis no es novedad (se guarda para la tabla de árboles)
+            var lp = r.match(/^\s*\(\s*(\d+)\s*\)/);
+            if (lp) { ultima.lote = lp[1]; r = r.replace(lp[0], ' '); }
         }
         if (!ultima) return;
         r.split(/\t|;|\||•|·|▪|\s-\s/).forEach(function (parte) {
@@ -86,11 +92,71 @@ export function leerFilasNovedades(texto) {
     });
     return filas;
 }
+// Fila pegada → fila de la tabla de árboles. Como en la tabla del informe (MICRORRUTA, LOTE, FECHA DE EJECUCIÓN, NÚMERO
+// DE ÁRBOLES): la fecha es la de ejecución; de los números sueltos, si hay dos el primero es el lote y el último los
+// árboles; si hay uno solo, son los árboles (el lote puede venir entre paréntesis o como «NA»)
+export function aFilaArboles(fila) {
+    var nums = [], resto = [], lote = fila.lote || '';
+    (fila.tipos || []).forEach(function (t) {
+        if (/^\d{1,5}$/.test(t)) nums.push(t);
+        else if (/^N\/?A$/i.test(t)) lote = lote || 'NA';
+        else resto.push(t);
+    });
+    if (nums.length >= 2) { lote = lote || nums[0]; nums = nums.slice(-1); }
+    var arboles = nums.length ? Number(nums[0]) : arbolesEn(resto);
+    return { micro: fila.micro, fecha: fila.fecha, ejec: fila.fecha, lote: /^NA$/i.test(lote) ? '' : lote, arboles: arboles || '', tipos: resto };
+}
 // Evidencias guardadas antes como «una por renglón» → grupos { titulo, texto }
 export function gruposEvidencia(d) {
     if (d && Array.isArray(d.evidencias)) return d.evidencias.map(function (g) { return { titulo: g.titulo || '', texto: g.texto || '' }; });
     return String((d && d.evidenciasTexto) || '').split('\n').map(function (t) { return t.trim(); }).filter(Boolean)
         .map(function (t) { return { titulo: t, texto: '' }; });
+}
+
+// ---------- Afectación a árboles (no subsanable): tabla con el número de árboles y descripción que se llena sola ----------
+var MESES = ['enero', 'febrero', 'marzo', 'abril', 'mayo', 'junio', 'julio', 'agosto', 'septiembre', 'octubre', 'noviembre', 'diciembre'];
+function ddmm(f) { var m = String(f || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? m[3] + '/' + m[2] + '/' + m[1] : String(f || ''); }
+// «3 árboles», «2 individuos», «1 arbol» → 3 / 2 / 1 (0 si no dice cuántos)
+export function arbolesEn(textos) {
+    var n = 0;
+    (textos || []).forEach(function (t) {
+        var m = String(t || '').match(/(\d{1,3})\s*(?:[aá]rbol(?:es)?|individuos?|arb\b)/i);
+        if (m && !n) n = Number(m[1]);
+    });
+    return n;
+}
+// Filas de la tabla de árboles: { micro, lote ('NA' si no hay), ejec dd/mm/aaaa, arboles ('' si falta) } y el total
+export function filasArboles(novedades) {
+    var filas = (novedades || []).filter(function (n) { return n && (n.micro || n.lote || n.arboles); }).map(function (n) {
+        var a = Number(n.arboles) || 0;
+        return { micro: n.micro || '', lote: String(n.lote || '').trim() || 'NA', ejec: ddmm(n.ejec || ''), arboles: a ? String(a) : '' };
+    });
+    return { filas: filas, total: filas.reduce(function (s, f) { return s + (Number(f.arboles) || 0); }, 0) };
+}
+// Fechas (aaaa-mm-dd) → «la primera quincena del mes de octubre de 2025», «el mes de octubre de 2025»,
+// «el 02/10/2025» o «el periodo comprendido entre el 28/09/2025 y el 12/10/2025»
+export function textoPeriodo(fechas) {
+    var f = (fechas || []).filter(function (x) { return /^\d{4}-\d{2}-\d{2}/.test(x || ''); }).map(function (x) { return x.slice(0, 10); }).sort();
+    if (!f.length) return '';
+    var a = f[0], b = f[f.length - 1];
+    if (a === b) return 'el ' + ddmm(a);
+    if (a.slice(0, 7) !== b.slice(0, 7)) return 'el periodo comprendido entre el ' + ddmm(a) + ' y el ' + ddmm(b);
+    var mes = 'del mes de ' + MESES[+a.slice(5, 7) - 1] + ' de ' + a.slice(0, 4), d1 = +a.slice(8), d2 = +b.slice(8);
+    if (d2 <= 15) return 'la primera quincena ' + mes;
+    if (d1 >= 16) return 'la segunda quincena ' + mes;
+    return 'el mes de ' + mes.slice(11);
+}
+// Lo que se llena solo en los textos del requerimiento de árboles: {periodo}, {contrato}, {arboles} («20 árboles»),
+// {microrrutas} («10 microrrutas»). Lo que no se puede saber queda entre corchetes para que salga en los avisos.
+export function rellenarArboles(texto, novedades, contrato) {
+    var t = filasArboles(novedades), fechas = (novedades || []).map(function (n) { return n.fecha || n.ejec; });
+    var periodo = textoPeriodo(fechas), n = t.filas.length;
+    return rellenar(texto, {
+        periodo: periodo || '[periodo de las verificaciones]',
+        contrato: contrato || '[contrato]',
+        arboles: t.total ? (t.total === 1 ? 'un árbol' : t.total + ' árboles') : 'varios árboles',
+        microrrutas: n === 1 ? 'una microrruta' : n + ' microrrutas'
+    });
 }
 
 // Fechas aaaa-mm-dd → «12/08/2026» o «01/09/2026 - 02/09/2026»

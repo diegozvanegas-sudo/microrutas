@@ -99,6 +99,13 @@ main.req label input[type="checkbox"], #dlg-config label input[type="checkbox"] 
 .req-nov-cab input[data-n="micro"] { flex: 1 1 140px; min-width: 0; min-height: 38px; font-weight: 700; text-transform: uppercase; }
 .req-nov-cab input[type="date"] { flex: 0 1 170px; min-width: 0; min-height: 38px; }
 .req-nov input[data-n="otras"] { width: 100%; min-height: 36px; }
+/* Tabla de afectación a árboles: lote, fecha de ejecución y número de árboles; los tipos de novedad no se usan */
+.req-nov-arb { display: none; flex-wrap: wrap; gap: 8px; }
+.req-nov-arb label { display: grid; gap: 3px; flex: 1 1 120px; min-width: 0; font-size: 12px; font-weight: 700; color: var(--muted); }
+.req-nov-arb input { min-height: 38px; min-width: 0; width: 100%; }
+.modo-arboles .req-nov-arb { display: flex; }
+.modo-arboles .req-chips, .modo-arboles input[data-n="otras"] { display: none; }
+.req-arb-ayuda { margin: 0 0 8px; padding: 8px 10px; border-radius: 8px; background: #edf8f3; }
 .req-chips { display: flex; flex-wrap: wrap; gap: 6px; }
 .req-chip { min-height: 34px; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13px; cursor: pointer; }
 .req-chip[aria-pressed="true"] { border-color: var(--brand); background: #edf8f3; box-shadow: inset 0 0 0 1px var(--brand); font-weight: 650; }

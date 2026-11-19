@@ -8,7 +8,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
-import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia } from './plantillas.js';
+import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia, filasArboles, rellenarArboles, aFilaArboles } from './plantillas.js';
 import { armarPdf } from './pdf.js';
 import { armarDocx, prepararFormato } from './word.js';
 import { iniciarListos } from './listos_ui.js';
@@ -21,6 +21,8 @@ var DOCX = 'application/vnd.openxmlformats-officedocument.wordprocessingml.docum
 var P = { config: {}, ans: {}, plantillas: [], catalogo: [] }, fotosGrupo = [], grupoFotos = -1, editandoId = null, cambios = false;
 // visitasReq: visitas (ID) que cubre el requerimiento abierto, cuando se armó desde ⏰ «Listos para requerimiento»
 var visitasReq = [], listos = null;
+// tablaModo: 'arboles' → la tabla de microrrutas es la de afectación a árboles (lote, fecha de ejecución, número de árboles)
+var tablaModo = '';
 function todasLasFotos() { return fotosGrupo.reduce(function (a, g) { return a.concat(g || []); }, []); }
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -98,7 +100,7 @@ function claveFirma(nombre) { return String(nombre || '').trim().toUpperCase(); 
 // ---------- Formulario ----------
 function vacio() {
     return { id: null, plantilla: '', radicado: '', tipo: 'Hallazgo', fecha: hoy(), eventoDesde: '', eventoHasta: '', zonas: [], ruta: '', asunto: '',
-        descripcion: '', novedades: [], constancia: '',
+        descripcion: '', novedades: [], constancia: '', tabla: '',
         evidencias: [{ titulo: 'Fotografías / Correos / Despacho', texto: '' }, { titulo: 'Evidencia inspección', texto: '' }],
         obligaciones: [], ans: [], solicitudes: [], plazo: Number(cfg('plazo')) || 5 };
 }
@@ -109,8 +111,13 @@ function novedadesForm() {
             .map(function (b) { return b.dataset.tipo; });
         f.querySelector('[data-n="otras"]').value.split(';').map(function (t) { return t.trim(); }).filter(Boolean)
             .forEach(function (t) { if (tipos.indexOf(t) === -1) tipos.push(t); });
-        return { micro: f.querySelector('[data-n="micro"]').value.trim().toUpperCase(), fecha: f.querySelector('[data-n="fecha"]').value, tipos: tipos };
-    }).filter(function (n) { return n.micro || n.fecha || n.tipos.length; });
+        var n = { micro: f.querySelector('[data-n="micro"]').value.trim().toUpperCase(), fecha: f.querySelector('[data-n="fecha"]').value, tipos: tipos };
+        var lote = f.querySelector('[data-n="lote"]').value.trim(), ejec = f.querySelector('[data-n="ejec"]').value, arb = Number(f.querySelector('[data-n="arboles"]').value) || 0;
+        if (lote) n.lote = lote;
+        if (ejec) n.ejec = ejec;
+        if (arb) n.arboles = arb;
+        return n;
+    }).filter(function (n) { return n.micro || n.fecha || n.tipos.length || n.lote || n.arboles; });
 }
 // Evidencias del formulario: todas las tarjetas, también las vacías (van alineadas con sus fotos en fotosGrupo)
 function evidenciasForm() {
@@ -123,7 +130,7 @@ function datosForm() {
         id: editandoId, plantilla: $('f-plantilla').value, radicado: $('f-radicado').value.trim(), tipo: $('f-tipo').value, fecha: $('f-fecha').value,
         eventoDesde: $('f-evento-desde').value, eventoHasta: $('f-evento-hasta').value,
         zonas: Array.prototype.map.call(document.querySelectorAll('#f-zonas input:checked'), function (i) { return i.value; }),
-        ruta: $('f-ruta').value.trim(), asunto: $('f-asunto').value.trim(), descripcion: $('f-descripcion').value,
+        ruta: $('f-ruta').value.trim(), asunto: $('f-asunto').value.trim(), descripcion: $('f-descripcion').value, tabla: tablaModo,
         novedades: novedadesForm(), constancia: $('f-constancia').value.trim(), evidencias: evidenciasForm(),
         obligaciones: Array.prototype.map.call(document.querySelectorAll('#f-obligaciones .req-obl'), function (d) {
             return { ref: d.querySelector('[data-o="ref"]').value.trim(), t: d.querySelector('[data-o="t"]').value.trim() };
@@ -158,11 +165,25 @@ function filaNovedad(n) {
         '<input type="text" data-n="micro" value="' + esc(n.micro) + '" placeholder="Z4CC0159" aria-label="Microrruta">' +
         '<input type="date" data-n="fecha" value="' + esc(n.fecha) + '" aria-label="Fecha de verificación">' +
         '<button type="button" class="secundario pequeno" data-quitar title="Quitar esta microrruta">🗑</button></div>' +
+        // Solo en la tabla de árboles (se ven con la clase .modo-arboles de #f-novedades)
+        '<div class="req-nov-arb">' +
+        '<label>Lote <input type="text" data-n="lote" value="' + esc(n.lote || '') + '" placeholder="NA" aria-label="Lote"></label>' +
+        '<label>Fecha de ejecución <input type="date" data-n="ejec" value="' + esc(n.ejec || '') + '" aria-label="Fecha de ejecución"></label>' +
+        '<label>N.º de árboles <input type="number" data-n="arboles" min="1" max="999" inputmode="numeric" value="' + esc(n.arboles || '') + '" aria-label="Número de árboles afectados"></label></div>' +
         '<div class="req-chips">' + botones + '</div>' +
         '<input type="text" data-n="otras" value="' + esc(otras) + '" placeholder="Otras novedades (separadas por ;)" aria-label="Otras novedades"></div>';
 }
 function ponerNovedades(lista) {
     $('f-novedades').innerHTML = (lista || []).map(filaNovedad).join('');
+}
+// La tabla de árboles cambia el título y la ayuda; lo escrito en las filas se conserva al cambiar
+function ponerModo(modo) {
+    tablaModo = modo === 'arboles' ? 'arboles' : '';
+    var arb = tablaModo === 'arboles';
+    $('f-novedades').classList.toggle('modo-arboles', arb);
+    $('f-nov-titulo').textContent = arb ? '🌳 Microrrutas con árboles afectados' : 'Microrrutas con novedades';
+    $('f-arb-ayuda').hidden = !arb;
+    $('f-nov-ayuda').hidden = arb;
 }
 // Tarjeta de una evidencia: título, texto y sus fotos
 function tarjetaEvidencia(g, i) {
@@ -194,7 +215,7 @@ function ponerForm(d, conservarFotos) {
     $('f-evento-desde').value = d.eventoDesde || ''; $('f-evento-hasta').value = d.eventoHasta || '';
     document.querySelectorAll('#f-zonas input').forEach(function (i) { i.checked = (d.zonas || []).indexOf(i.value) !== -1; });
     $('f-ruta').value = d.ruta || ''; $('f-asunto').value = d.asunto || ''; $('f-descripcion').value = d.descripcion || '';
-    ponerNovedades(d.novedades); $('f-constancia').value = d.constancia || '';
+    ponerNovedades(d.novedades); ponerModo(d.tabla); $('f-constancia').value = d.constancia || '';
     if (!conservarFotos) soltarFotos();
     ponerEvidencias(gruposEvidencia(d));
     $('f-obligaciones').innerHTML = (d.obligaciones || []).map(filaObligacion).join('');
@@ -207,7 +228,7 @@ function aplicarPlantilla(id) {
     var p = P.plantillas.find(function (x) { return x.id === id; });
     if (!p) return;
     var d = datosForm();
-    d.plantilla = id; d.tipo = p.tipo || d.tipo; d.asunto = p.asunto; d.descripcion = p.descripcion;
+    d.plantilla = id; d.tipo = p.tipo || d.tipo; d.asunto = p.asunto; d.descripcion = p.descripcion; d.tabla = p.tabla || '';
     if (p.constancia) d.constancia = p.constancia;
     // Los títulos de evidencia de la plantilla reemplazan los actuales; las fotos ya cargadas siguen en su posición
     if (p.evidencias) {
@@ -229,12 +250,23 @@ function avisos() {
     if (!d.asunto) faltan.push('asunto');
     if (!d.eventoDesde) faltan.push('fecha del evento');
     if (!membrete()) faltan.push('membrete (⚙️ Configuración)');
+    var arb = d.tabla === 'arboles';
     var sinFecha = d.novedades.filter(function (n) { return !n.fecha; }).length, sinCodigo = d.novedades.filter(function (n) { return !n.micro; }).length;
     if (sinCodigo) faltan.push(sinCodigo + (sinCodigo === 1 ? ' fila' : ' filas') + ' de la tabla sin microrruta');
     if (sinFecha) faltan.push(sinFecha + (sinFecha === 1 ? ' microrruta' : ' microrrutas') + ' sin fecha de verificación');
-    var corchetes = pendientes([d.asunto, d.descripcion, d.ruta, d.constancia]);
+    var t = arb ? filasArboles(d.novedades) : null;
+    if (arb) {
+        var sinArb = d.novedades.filter(function (n) { return !n.arboles; }).length, sinEjec = d.novedades.filter(function (n) { return !n.ejec; }).length;
+        if (!d.novedades.length) faltan.push('las microrrutas con árboles afectados');
+        if (sinArb) faltan.push(sinArb + (sinArb === 1 ? ' microrruta' : ' microrrutas') + ' sin número de árboles');
+        if (sinEjec) faltan.push(sinEjec + (sinEjec === 1 ? ' microrruta' : ' microrrutas') + ' sin fecha de ejecución');
+    }
+    // En el de árboles, {periodo}, {contrato}, {arboles} y {microrrutas} se llenan con la tabla
+    var llenar = function (x) { return arb ? rellenarArboles(x, d.novedades, cfg('contrato')) : x; };
+    var corchetes = pendientes([d.asunto, llenar(d.descripcion), d.ruta, llenar(d.constancia)]);
     $('f-ans-cuenta').textContent = d.ans.length ? '· ' + d.ans.length + (d.ans.length === 1 ? ' marcado' : ' marcados') + ': ANS ' + d.ans.join(', ') : '· ninguno marcado';
-    $('f-nov-cuenta').textContent = d.novedades.length ? '· ' + d.novedades.length + (d.novedades.length === 1 ? ' microrruta' : ' microrrutas') + (sinFecha ? ', ' + sinFecha + ' sin fecha' : '') : '· sin filas';
+    $('f-nov-cuenta').textContent = d.novedades.length ? '· ' + d.novedades.length + (d.novedades.length === 1 ? ' microrruta' : ' microrrutas') +
+        (arb ? ' · ' + t.total + (t.total === 1 ? ' árbol afectado' : ' árboles afectados') : '') + (sinFecha ? ', ' + sinFecha + ' sin fecha' : '') : '· sin filas';
     $('f-nov-fechas').hidden = !d.novedades.some(function (n) { return n.fecha; });
     $('f-avisos').innerHTML = (faltan.length ? '⚠ Falta: ' + esc(faltan.join(', ')) + '. ' : '') +
         (corchetes.length ? '⚠ Sin llenar: ' + esc(corchetes.slice(0, 3).join(' ')) + (corchetes.length > 3 ? '…' : '') : '') ||
@@ -266,7 +298,9 @@ function datosPdf(d) {
     return {
         radicado: d.radicado, contratista: cfg('contratista'), contrato: cfg('contrato'), servicio: cfg('servicio'),
         zonas: d.zonas.map(function (z) { return 'Zona ' + z; }), asunto: d.asunto, ruta: d.ruta, fechaEvento: fechaEvento(d.eventoDesde, d.eventoHasta),
-        fechaRequerimiento: aTexto(d.fecha), descripcion: d.descripcion, novedades: d.novedades || [], constancia: d.constancia || '',
+        fechaRequerimiento: aTexto(d.fecha), tabla: d.tabla || '', novedades: d.novedades || [],
+        descripcion: d.tabla === 'arboles' ? rellenarArboles(d.descripcion, d.novedades, cfg('contrato')) : d.descripcion,
+        constancia: d.tabla === 'arboles' ? rellenarArboles(d.constancia || '', d.novedades, cfg('contrato')) : d.constancia || '',
         // Las fotos están en memoria solo mientras se edita (en el listado salen sin fotos)
         gruposEvidencia: gruposEvidencia(d).map(function (g, i) {
             return { titulo: g.titulo, texto: g.texto, fotos: (fotosGrupo[i] || []).map(function (f) { return { bytes: f.bytes, tipo: f.tipo, pie: f.pie }; }) };
@@ -463,6 +497,8 @@ function eventos() {
     $('f-pegar-cancelar').onclick = cerrarPegar;
     $('f-pegar-ok').onclick = function () {
         var filas = leerFilasNovedades($('f-pegar-texto').value);
+        // En la tabla de árboles los números sueltos son el lote y los árboles, y la fecha es la de ejecución
+        if (tablaModo === 'arboles') filas = filas.map(aFilaArboles);
         if (!filas.length) { $('f-pegar-estado').textContent = 'No se encontró ningún código de microrruta (p. ej. Z4CC0159). Revise el texto pegado.'; return; }
         // Las filas vacías que había (sin nada escrito) se reemplazan; las llenas se conservan
         var actuales = novedadesForm();

@@ -29,7 +29,7 @@ test('leerFilasNovedades: columnas de Excel, punto y coma y mensaje de WhatsApp 
     ].join('\n'));
     assert.equal(f.length, 3);
     assert.deepEqual(f[0], { micro: 'Z4CC0159', fecha: '2026-10-16', tipos: ['Limpieza previa', 'Barrido'] });
-    assert.deepEqual(f[1], { micro: 'Z7CC0058', fecha: '2026-10-17', tipos: ['Barrido de zona verde', 'Corte disparejo'] });
+    assert.deepEqual(f[1], { micro: 'Z7CC0058', fecha: '2026-10-17', tipos: ['Barrido de zona verde', 'Corte disparejo'], lote: '603' });
     assert.deepEqual(f[2], { micro: 'Z4CC0184', fecha: '2026-10-22', tipos: ['Sectores sin intervenir'] });   // «Hoy …» no cambia la fecha ya puesta
     assert.deepEqual(leerFilasNovedades('sin códigos\notra línea'), []);
 });
