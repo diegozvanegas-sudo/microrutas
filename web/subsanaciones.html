@@ -265,9 +265,22 @@
                     <select id="aud-quincena" aria-label="Quincena"></select>
                     <button type="button" class="secundario" id="aud-btn-nueva">+ Nueva quincena</button>
                 </div>
+                <!-- Informe de la quincena elegida y cómo cambiarlo (PUT /quincenas/{id}): las fotos ya leídas se conservan -->
+                <div class="aud-q-informe" id="aud-q-informe" hidden></div>
+                <div class="aud-nueva" id="aud-cambio" hidden>
+                    <label>INFORME DE LOTES EJECUTADOS <select id="aud-c-informe" aria-describedby="aud-c-ayuda"></select></label>
+                    <label>O LA RUTA DE UN INFORME EN EL PC <input id="aud-c-ruta" spellcheck="false" autocomplete="off" placeholder="C:\…\INFORME_1_15_NOVIEMBRE 2026 CC.xlsx"></label>
+                    <p class="sub aud-ancho" id="aud-c-ayuda">En el Explorador de Windows: clic derecho sobre el archivo → <b>Copiar como ruta</b> y péguela aquí (con o sin comillas). La ruta escrita manda sobre la lista. Las fotos ya leídas se conservan: solo cambia el cruce con el informe.</p>
+                    <div class="aud-fila">
+                        <label class="boton secundario pequeno">📤 Subir informe (.xlsx)<input type="file" id="aud-c-subir" accept=".xlsx" hidden></label>
+                        <button type="button" class="secundario pequeno" id="aud-c-cancelar">Cancelar</button>
+                        <button type="button" class="primario pequeno" id="aud-c-guardar">Usar este informe</button>
+                    </div>
+                </div>
                 <div class="aud-nueva" id="aud-nueva" hidden>
                     <label>NOMBRE <input id="aud-nombre" placeholder="Q2 OCTUBRE 2026"></label>
                     <label>INFORME DE LOTES EJECUTADOS <select id="aud-informe"></select></label>
+                    <label class="aud-ancho">O LA RUTA DE UN INFORME EN EL PC <input id="aud-ruta-informe" spellcheck="false" autocomplete="off" placeholder="C:\…\INFORME_1_15_NOVIEMBRE 2026 CC.xlsx"></label>
                     <div class="aud-fila">
                         <label class="boton secundario pequeno">📤 Subir informe (.xlsx)<input type="file" id="aud-subir-informe" accept=".xlsx" hidden></label>
                         <button type="button" class="primario pequeno" id="aud-crear">Crear quincena</button>
@@ -281,6 +294,10 @@
                     <span class="sub">o uno que ya está en el PC:</span>
                     <select id="aud-zip-lista" aria-label="ZIP que ya está en el PC"></select>
                     <button type="button" class="secundario" id="aud-agregar">Agregar</button>
+                </div>
+                <div class="aud-fila">
+                    <input id="aud-zip-ruta" class="aud-ruta" spellcheck="false" autocomplete="off" aria-label="Ruta de un ZIP en el PC" placeholder="o pegue la ruta de un ZIP en cualquier carpeta del PC: C:\…\C2.zip">
+                    <button type="button" class="secundario" id="aud-agregar-ruta">Agregar esta ruta</button>
                 </div>
                 <!-- Opciones del motor (las mismas de la consola). No están, a propósito, las que cuestan: borrar la caché y la API -->
                 <details class="aud-opciones" id="aud-opciones">
@@ -306,6 +323,10 @@
                     </div>
                 </details>
                 <div id="aud-fuentes" class="aud-fuentes"></div>
+                <details class="aud-donde" id="aud-donde">
+                    <summary>📁 Dónde quedan los archivos y las revisiones</summary>
+                    <div id="aud-donde-lista"></div>
+                </details>
             </section>
             <section class="aud-seccion" id="aud-paso-res" hidden>
                 <h3><span class="aud-num">3</span> Novedades por microrruta <span class="sub" id="aud-res-titulo"></span></h3>

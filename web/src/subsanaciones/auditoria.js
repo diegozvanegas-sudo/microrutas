@@ -37,6 +37,39 @@ function json(metodo, datos) { return { method: metodo, headers: { 'Content-Type
 
 // Nombre del archivo de una ruta de Windows
 function nombre(ruta) { return String(ruta || '').split(/[\\/]/).pop(); }
+// Ruta pegada por el usuario → ruta limpia. «Copiar como ruta» del Explorador la trae con comillas; también se aceptan
+// file:///C:/… y espacios o saltos de línea alrededor
+export function limpiarRuta(texto) {
+    var r = String(texto || '').trim().replace(/^["'“”]+|["'“”]+$/g, '').trim();
+    if (/^file:\/\//i.test(r)) { try { r = decodeURIComponent(r.replace(/^file:\/+/i, '')).replace(/\//g, '\\'); } catch (e) { /* queda como vino */ } }
+    return r;
+}
+// Dónde deja cada cosa el motor (mismas reglas que el backend: zv/config.py, infra/ejecutor_proceso.py,
+// infra/motor_auditoria.py y servicios/casos_uso.py). raiz = la carpeta de trabajo del motor (GET /archivos → raiz).
+// → [{ que, ruta, nota }]
+export function ubicaciones(raiz, q, carpetas) {
+    raiz = String(raiz || '').replace(/[\\/]+$/, '');
+    carpetas = carpetas || {};
+    var sep = raiz.indexOf('/') !== -1 && raiz.indexOf('\\') === -1 ? '/' : '\\';
+    var unir = function () { return Array.prototype.slice.call(arguments).join(sep); };
+    var salidas = unir(raiz, 'salidas', 'aplicacion');
+    var carpetaQ = q ? (String(q.nombre || '').replace(/[^\p{L}\p{N}_.-]+/gu, '_').replace(/^_+|_+$/g, '') || 'quincena_' + q.id) : '';
+    var out = [];
+    if (q) out.push({ que: 'Informe de lotes ejecutados de la quincena', ruta: q.informe, nota: 'El motor lo lee de ahí: no lo mueva ni le cambie el nombre mientras audita.' });
+    (q && q.fuentes || []).forEach(function (f) {
+        var base = String(f.ruta).replace(/[\\/]+$/, '').replace(/\.[^.\\/]+$/, ''), modelo = String(f.modelo || '').replace(/[^A-Za-z0-9_.-]+/g, '_');
+        out.push({ que: 'ZIP ' + nombre(f.ruta), ruta: f.ruta, nota: '' });
+        out.push({ que: 'Lo leído por Claude de ' + nombre(f.ruta) + ' (caché, al lado del ZIP)', ruta: base + '_claude_plan_' + modelo + '_cache.jsonl',
+            nota: 'Con su _progreso.json y _indice_fotos.json. No la borre: es lo que evita volver a gastar el plan en fotos ya leídas.' });
+        out.push({ que: 'Excel de las lecturas y el avance parcial de ' + nombre(f.ruta), ruta: unir(salidas, 'lecturas', 'fuente_' + f.id), nota: '' });
+    });
+    if (q) out.push({ que: 'Excel exportado de la quincena (📗 Exportar Excel)', ruta: unir(salidas, carpetaQ), nota: '' });
+    out.push({ que: 'Revisiones (aprobada, descartada, corregida) y la lista de quincenas', ruta: unir(raiz, 'datos', 'zonasverdes.db'),
+        nota: 'Historial del motor en este PC. «☁ Guardar para el celular» copia el reporte a Supabase (auditorias_zv) para verlo desde el celular.' });
+    out.push({ que: 'ZIP subidos desde este equipo', ruta: carpetas.carpeta_fotos || unir(raiz, 'entradas', 'fotos'), nota: '' });
+    out.push({ que: 'Informes subidos desde este equipo', ruta: carpetas.carpeta_informes || unir(raiz, 'entradas', 'informes'), nota: '' });
+    return out;
+}
 function tamano(b) { return b >= 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB'; }
 function miles(n) { return Number(n || 0).toLocaleString('es-CO'); }
 
@@ -184,16 +217,80 @@ function pintarInformes() {
         return '<option value="' + esc(r) + '">' + esc(nombre(r)) + '</option>';
     }).join('') : '<option value="">No hay informes: súbalo</option>';
 }
+// Informe de la quincena elegida, con el botón para cambiarlo
+function pintarInformeQuincena() {
+    var q = quincena();
+    $('aud-q-informe').hidden = !q;
+    if (!q) { $('aud-cambio').hidden = true; return; }
+    $('aud-q-informe').innerHTML = '<span>📄 Informe: <b>' + esc(nombre(q.informe)) + '</b></span><span class="sub aud-ruta-txt">' + esc(q.informe) + '</span>' +
+        '<button type="button" class="secundario pequeno" id="aud-btn-cambiar"' + ($('aud-cambio').hidden ? '' : ' hidden') + '>📝 Cambiar informe</button>';
+}
+function abrirCambio() {
+    var q = quincena();
+    if (!q) return;
+    var lista = archivos.informes.slice();
+    if (q.informe && !lista.some(function (r) { return r.toLowerCase() === q.informe.toLowerCase(); })) lista.unshift(q.informe);
+    $('aud-c-informe').innerHTML = lista.map(function (r) {
+        return '<option value="' + esc(r) + '"' + (r === q.informe ? ' selected' : '') + '>' + esc(nombre(r)) + (r === q.informe ? ' (el de ahora)' : '') + '</option>';
+    }).join('') || '<option value="">No hay informes en la carpeta: pegue la ruta o súbalo</option>';
+    $('aud-c-ruta').value = '';
+    $('aud-cambio').hidden = false;
+    pintarInformeQuincena();
+    $('aud-c-ruta').focus();
+}
+function cerrarCambio() { $('aud-cambio').hidden = true; $('aud-c-ruta').value = ''; pintarInformeQuincena(); }
+async function guardarInforme() {
+    var q = quincena();
+    if (!q) return;
+    var ruta = limpiarRuta($('aud-c-ruta').value) || $('aud-c-informe').value;
+    if (!ruta) return toast('Pegue la ruta del informe o elíjalo de la lista.');
+    if (!/\.xlsx$/i.test(ruta)) return toast('El informe debe ser un Excel .xlsx (revise la ruta: ' + nombre(ruta) + ').');
+    if (ruta.toLowerCase() === String(q.informe).toLowerCase()) { cerrarCambio(); return toast('Ese ya es el informe de la quincena.'); }
+    if (q.fuentes.some(function (f) { return (estados[f.id] || {}).estado === 'CORRIENDO'; }))
+        return toast('Hay una lectura corriendo con el informe de ahora: deténgala (⏸) o espere a que termine, y cámbielo después.');
+    var b = $('aud-c-guardar'); b.disabled = true; b.textContent = 'Cambiando…';
+    try {
+        await pedir('/quincenas/' + q.id, json('PUT', { nombre: q.nombre, informe: ruta }));
+        // El reporte de antes era con el otro informe: se borra de la pantalla
+        novedades = []; pintarResultados([], ''); $('aud-res-acciones').hidden = true; $('aud-archivos').innerHTML = '';
+        cerrarCambio();
+        await cargarQuincenas(q.id);
+        toast('✓ La quincena usa ahora ' + nombre(ruta) + '. Las fotos ya leídas siguen; toque «📋 Ver el reporte» para cruzarlas con este informe.');
+    } catch (e) {
+        toast(/No existe/.test(e.message) ? 'No se encontró ese archivo en el PC: revise la ruta (' + ruta + ').' : 'No se cambió el informe: ' + e.message);
+    } finally { b.disabled = false; b.textContent = 'Usar este informe'; }
+}
+function pintarDonde() {
+    var q = quincena();
+    $('aud-donde-lista').innerHTML = ubicaciones(archivos.raiz, q, archivos).map(function (u) {
+        return '<div class="aud-donde-item"><b>' + esc(u.que) + '</b><code>' + esc(u.ruta) + '</code>' + (u.nota ? '<span class="sub">' + esc(u.nota) + '</span>' : '') + '</div>';
+    }).join('') + '<div class="aud-fila"><button type="button" class="secundario pequeno" id="aud-donde-copiar">📋 Copiar las rutas</button></div>';
+}
+async function agregarRutaZip() {
+    var ruta = limpiarRuta($('aud-zip-ruta').value);
+    if (!ruta) { $('aud-zip-ruta').focus(); return toast('Pegue la ruta del ZIP (clic derecho sobre el archivo → Copiar como ruta).'); }
+    if (!/\.zip$/i.test(ruta)) return toast('Debe ser un archivo .zip (revise la ruta: ' + nombre(ruta) + ').');
+    if (quincena() && quincena().fuentes.some(function (f) { return f.ruta.toLowerCase() === ruta.toLowerCase(); })) return toast('Ese ZIP ya está en la quincena.');
+    var b = $('aud-agregar-ruta'); b.disabled = true;
+    try {
+        await agregarFuente(ruta);
+        $('aud-zip-ruta').value = '';
+        toast('✓ ZIP agregado. Su caché de lectura queda al lado del ZIP, en esa misma carpeta.');
+    } catch (e) {
+        toast(/No existe/.test(e.message) ? 'No se encontró ese ZIP en el PC: revise la ruta (' + ruta + ').' : 'No se agregó: ' + e.message);
+    } finally { b.disabled = false; }
+}
 async function crearQuincena() {
-    var nom = $('aud-nombre').value.trim(), inf = $('aud-informe').value;
-    if (!inf) return toast('Primero suba el informe de lotes ejecutados de la quincena (.xlsx).');
+    var nom = $('aud-nombre').value.trim(), inf = limpiarRuta($('aud-ruta-informe').value) || $('aud-informe').value;
+    if (!inf) return toast('Primero suba el informe de lotes ejecutados de la quincena (.xlsx) o pegue su ruta.');
+    if (!/\.xlsx$/i.test(inf)) return toast('El informe debe ser un Excel .xlsx (revise la ruta: ' + nombre(inf) + ').');
     var b = $('aud-crear'); b.disabled = true;
     try {
         var q = await pedir('/quincenas', json('POST', { nombre: nom, informe: inf }));
-        $('aud-nueva').hidden = true; $('aud-nombre').value = '';
+        $('aud-nueva').hidden = true; $('aud-nombre').value = ''; $('aud-ruta-informe').value = '';
         await cargarQuincenas(q.id);
         toast('✓ Quincena creada. Ahora suba o elija el ZIP de fotos.');
-    } catch (e) { toast('No se creó la quincena: ' + e.message); }
+    } catch (e) { toast(/No existe/.test(e.message) ? 'No se encontró ese informe en el PC: revise la ruta (' + inf + ').' : 'No se creó la quincena: ' + e.message); }
     b.disabled = false;
 }
 
@@ -204,7 +301,9 @@ function pintarQuincena() {
     try { if (q) localStorage.setItem('auditoria_quincena', q.id); } catch (e) {}
     $('aud-paso-zip').hidden = !q;
     $('aud-paso-res').hidden = !q;
+    pintarInformeQuincena();
     if (!q) return;
+    pintarDonde();
     var usados = q.fuentes.map(function (f) { return f.ruta.toLowerCase(); });
     var libres = archivos.zips.filter(function (z) { return usados.indexOf(z.toLowerCase()) === -1; });
     $('aud-zip-lista').innerHTML = libres.length ? libres.map(function (z) { return '<option value="' + esc(z) + '">' + esc(nombre(z)) + '</option>'; }).join('')
@@ -491,6 +590,34 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
         consolaAbierta = {}; consolaAbajo = {};
         $('aud-op-cuadrilla').value = '';
         $('aud-opciones').open = false;
+        // Lo escrito o pegado de esta vez (rutas) se borra; lo guardado en el motor (quincena, informe, ZIP) queda
+        $('aud-cambio').hidden = true; $('aud-c-ruta').value = ''; $('aud-zip-ruta').value = ''; $('aud-ruta-informe').value = '';
+        $('aud-donde').open = false;
+    });
+    $('aud-q-informe').addEventListener('click', function (ev) { if (ev.target.closest('#aud-btn-cambiar')) abrirCambio(); });
+    $('aud-c-cancelar').onclick = cerrarCambio;
+    $('aud-c-guardar').onclick = guardarInforme;
+    $('aud-c-ruta').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); guardarInforme(); } });
+    $('aud-c-subir').onchange = async function () {
+        var archivo = this.files[0];
+        this.value = '';
+        if (!archivo) return;
+        if (!/\.xlsx$/i.test(archivo.name)) return toast('El informe debe ser .xlsx.');
+        try {
+            var r = await subir('informe', archivo);
+            barra(0, '✓ Informe ' + archivo.name + ' en el PC. Toque «Usar este informe».', 100, 'listo');
+            archivos = await pedir('/archivos');
+            abrirCambio();
+            $('aud-c-informe').value = r.ruta;
+        } catch (e) { barra(0, 'No se subió el informe: ' + e.message, 0, 'error'); }
+    };
+    $('aud-agregar-ruta').onclick = agregarRutaZip;
+    $('aud-zip-ruta').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); agregarRutaZip(); } });
+    $('aud-donde').addEventListener('click', function (ev) {
+        if (!ev.target.closest('#aud-donde-copiar')) return;
+        var texto = ubicaciones(archivos.raiz, quincena(), archivos).map(function (u) { return u.que + ':\n' + u.ruta; }).join('\n\n');
+        (navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(texto) : Promise.reject()).then(function () { toast('Rutas copiadas.'); },
+            function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
     });
     $('aud-motor').addEventListener('change', function (ev) { if (ev.target.id === 'aud-arranque') cambiarArranque(ev.target.checked); });
     $('aud-motor').addEventListener('click', function (ev) { if (ev.target.closest('#aud-apagar')) apagarMotor(); });
@@ -512,7 +639,7 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
         consolaAbajo[d.dataset.consola] = pre.scrollHeight - pre.scrollTop - pre.clientHeight < 24;
         consolaAbajo['y' + d.dataset.consola] = pre.scrollTop;
     }, true);
-    $('aud-quincena').onchange = function () { novedades = []; pintarResultados([], ''); $('aud-res-acciones').hidden = true; $('aud-avance').hidden = true; pintarQuincena(); seguir(); };
+    $('aud-quincena').onchange = function () { $('aud-cambio').hidden = true; $('aud-c-ruta').value = ''; novedades = []; pintarResultados([], ''); $('aud-res-acciones').hidden = true; $('aud-avance').hidden = true; pintarQuincena(); seguir(); };
     $('aud-btn-nueva').onclick = function () { $('aud-nueva').hidden = !$('aud-nueva').hidden; pintarInformes(); };
     $('aud-crear').onclick = crearQuincena;
     $('aud-subir-informe').onchange = function () { if (this.files[0]) subirInforme(this.files[0]); this.value = ''; };

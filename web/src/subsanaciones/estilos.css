@@ -589,12 +589,28 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .aud-archivos { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; font-size: 14px; }
 .aud-archivos:empty { display: none; }
 .aud-archivos .sub { flex-basis: 100%; overflow-wrap: anywhere; }
+/* Auditar ZIP: informe de la quincena (cambiable), rutas pegadas del PC y dónde quedan los archivos */
+.aud-q-informe { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; font-size: 14px; background: #f8faf9; border-radius: 10px; padding: 8px 10px; }
+.aud-q-informe .aud-ruta-txt { flex: 1 1 260px; overflow-wrap: anywhere; }
+.aud-q-informe b { overflow-wrap: anywhere; }
+/* Un nombre de archivo largo no ensancha la sección (en el celular se salía del borde) */
+.aud-seccion { grid-template-columns: minmax(0, 1fr); }
+.aud-q-informe button { min-height: 34px; }
+.aud-nueva .aud-ancho { grid-column: 1 / -1; }
+.aud-nueva p.aud-ancho { margin: 0; }
+.aud-nueva input, .aud-ruta { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; padding: 6px 10px; font: inherit; font-weight: 400; color: var(--ink); background: #fff; min-width: 0; }
+.aud-ruta { flex: 1 1 320px; }
+.aud-donde { border: 1px solid var(--line); border-radius: 10px; padding: 6px 12px; }
+.aud-donde summary { cursor: pointer; font-weight: 650; min-height: 32px; display: flex; align-items: center; }
+#aud-donde-lista { display: grid; gap: 10px; padding: 6px 0 4px; }
+.aud-donde-item { display: grid; gap: 2px; font-size: 13px; }
+.aud-donde-item code { font-size: 12px; background: #f1f5f9; border-radius: 6px; padding: 3px 6px; overflow-wrap: anywhere; user-select: all; }
 #aud-ver-guardadas { border: 0; background: none; padding: 0; color: var(--brand); font-weight: 650; text-decoration: underline; cursor: pointer; }
 @media (max-width: 760px) {
     #dlg-auditoria { width: 100%; height: 100dvh; max-height: 100dvh; margin: 0; border-radius: 0; }
     #dlg-auditoria .cuerpo { padding: 14px; }
     .aud-fila > .boton, .aud-fila > button { flex: 1 1 auto; text-align: center; }
-    .aud-fila select { flex-basis: 100%; }
+    .aud-fila select, .aud-ruta { flex-basis: 100%; }
 }
 #dlg-auditoria .peligro-suave { color: #b91c1c; background: #fee2e2; }
 #dlg-auditoria .peligro-suave:hover { background: #fecaca; }
