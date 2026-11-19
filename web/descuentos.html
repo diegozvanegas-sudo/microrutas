@@ -130,7 +130,8 @@
         <div class="dz-paso">
             <h3><span class="dz-num">4</span> Imágenes y registro fotográfico</h3>
             <p class="sub">Las imágenes del «Área actual» y del «Área para descontar» se arman solas con la foto satelital y el dibujo. Si prefiere otra (un recorte del Google Earth),
-                cámbiela con «Usar otra» o pegándola con Ctrl+V después de tocar «Usar otra». Las fotos de campo se agregan a cada lote; no se guardan: hay que volver a ponerlas si cierra la página.</p>
+                cámbiela con «Usar otra» (o toque «Usar otra» y pegue con Ctrl+V). <b>Fotos de campo:</b> todas las que quiera, a cada lote: elíjalas, arrástrelas sobre el recuadro del lote
+                o péguelas con Ctrl+V (van al lote que esté dibujando). No se guardan: si cierra la página hay que volver a ponerlas.</p>
             <div id="dz-medios" class="dz-medios"></div>
         </div>
 
@@ -139,16 +140,24 @@
             <div class="dz-fila">
                 <label class="dz-check"><input type="checkbox" id="dz-emitido"> Ya se emitió (se envió el documento)</label>
                 <button type="button" class="secundario" id="dz-guardar">💾 Guardar en el historial</button>
+                <button type="button" class="secundario" id="dz-word">⬇️ Generar Word</button>
                 <button type="button" class="primario" id="dz-pdf">⬇️ Generar PDF</button>
             </div>
         </div>
         <details class="dz-plegable" id="dz-config">
-            <summary>⚙️ Membrete del documento</summary>
+            <summary>⚙️ Formato del documento (membrete) <span class="sub" id="dz-formato-resumen"></span></summary>
+            <p class="sub">Suba una vez el <b>Word (.docx) de un descuento ya hecho</b> (o cualquier documento con el formato GD-FR-016): de ahí salen el membrete, el pie con el código,
+                la letra y los márgenes, para el Word y el PDF. Se guarda solo en este equipo, sin su contenido ni sus fotos.</p>
+            <p class="sub" id="dz-formato-estado" role="status"></p>
+            <div class="dz-fila">
+                <label class="boton primario pequeno">📄 Elegir el Word del formato (.docx)<input type="file" id="dz-formato" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden></label>
+                <button type="button" class="secundario pequeno" id="dz-formato-quitar" hidden>Quitar el formato</button>
+            </div>
             <p class="sub" id="dz-membrete-estado"></p>
             <img id="dz-membrete-ver" class="dz-membrete-ver" alt="Membrete elegido" hidden>
             <div class="dz-fila">
-                <label class="boton secundario pequeno">🖼 Elegir el membrete (imagen de la hoja carta)<input type="file" id="dz-membrete" accept="image/png,image/jpeg" hidden></label>
-                <button type="button" class="secundario pequeno" id="dz-membrete-quitar" hidden>Quitar el de este equipo</button>
+                <label class="boton secundario pequeno">🖼 O una imagen de la hoja con el membrete<input type="file" id="dz-membrete" accept="image/png,image/jpeg" hidden></label>
+                <button type="button" class="secundario pequeno" id="dz-membrete-quitar" hidden>Quitar la imagen</button>
             </div>
         </details>
     </section>

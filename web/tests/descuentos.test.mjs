@@ -9,6 +9,8 @@ import { areaM2, areaFila, areaActualizada, m2, textoLotes, buscarLote, textoSec
 import { aPixel, recuadro, encuadre, cuadros, urlCuadro, posEtiqueta } from '../src/descuentos/imagen.js';
 import { crearGuardado } from '../src/descuentos/guardado.js';
 import { armarPdfDescuento } from '../src/descuentos/pdf.js';
+import { armarDocxDescuento } from '../src/descuentos/word.js';
+import { prepararFormatoDescuento, membreteDeFormato } from '../src/descuentos/formato.js';
 
 // Rectángulo de «norte» × «este» metros con esquina en San Antonio de Prado
 var O = [6.1819, -75.649];
@@ -138,6 +140,64 @@ test('descuentos: el historial queda en el equipo cuando no hay base', async () 
     assert.equal(r.lista[0].estado, 'emitido');
     r = await g.borrar('x1');
     assert.equal(r.lista.length, 0);
+});
+
+// Un .docx mínimo «de la institución»: membrete de página completa en el encabezado y un cuadro de texto con el código en el pie
+async function formatoDePrueba() {
+    var JSZip = (await import('jszip')).default, z = new JSZip();
+    var png = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64');
+    var W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:wps="http://schemas.microsoft.com/office/word/2010/wordprocessingShape"';
+    var rel = (l) => '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' + l + '</Relationships>';
+    z.file('[Content_Types].xml', '<?xml version="1.0"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="png" ContentType="image/png"/><Default Extension="odttf" ContentType="application/vnd.openxmlformats-officedocument.obfuscatedFont"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+    z.file('_rels/.rels', rel('<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'));
+    z.file('word/document.xml', '<?xml version="1.0"?><w:document ' + W + '><w:body><w:p><w:r><w:rPr><w:rFonts w:ascii="Arial"/><w:sz w:val="24"/></w:rPr><w:t>Texto viejo que se quita</w:t></w:r></w:p>' +
+        '<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="12240" w:h="15840"/><w:pgMar w:top="1963" w:right="1325" w:bottom="2473" w:left="1134" w:header="708" w:footer="708" w:gutter="0"/></w:sectPr></w:body></w:document>');
+    z.file('word/_rels/document.xml.rels', rel('<Relationship Id="rIdH" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header2.xml"/><Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer2.xml"/>'));
+    z.file('word/header2.xml', '<?xml version="1.0"?><w:hdr ' + W + '><w:p><w:r><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>-720090</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>-449580</wp:posOffset></wp:positionV><wp:extent cx="7772400" cy="10058400"/><a:graphic><a:graphicData><a:blip r:embed="rIdM"/></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p></w:hdr>');
+    z.file('word/_rels/header2.xml.rels', rel('<Relationship Id="rIdM" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image6.png"/>'));
+    z.file('word/media/image6.png', png);
+    z.file('word/footer2.xml', '<?xml version="1.0"?><w:ftr ' + W + '><w:p><w:r><w:drawing><wp:anchor><wp:positionH relativeFrom="column"><wp:posOffset>3414713</wp:posOffset></wp:positionH><wp:positionV relativeFrom="paragraph"><wp:posOffset>-119693</wp:posOffset></wp:positionV><wp:extent cx="1476375" cy="571500"/><a:graphic><a:graphicData><wps:wsp><wps:txbx><w:txbxContent>' +
+        '<w:p><w:r><w:rPr><w:color w:val="0D0D0D"/><w:sz w:val="16"/></w:rPr><w:t>Código: GD-FR-016</w:t></w:r></w:p><w:p><w:r><w:t>Versión: 14</w:t></w:r></w:p></w:txbxContent></wps:txbx></wps:wsp></a:graphicData></a:graphic></wp:anchor></w:drawing></w:r></w:p></w:ftr>');
+    z.file('word/fonts/font1.odttf', Buffer.alloc(5000, 1));
+    z.file('word/fontTable.xml', '<?xml version="1.0"?><w:fonts ' + W + '><w:font w:name="Arial"><w:embedRegular r:id="rIdFont"/></w:font></w:fonts>');
+    z.file('word/_rels/fontTable.xml.rels', rel('<Relationship Id="rIdFont" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/font" Target="fonts/font1.odttf"/>'));
+    return z.generateAsync({ type: 'uint8array' });
+}
+
+test('descuentos: el formato Word se guarda liviano y de él salen el membrete y el pie del PDF', async () => {
+    var JSZip = (await import('jszip')).default;
+    var f = await prepararFormatoDescuento(await formatoDePrueba());
+    var z = await JSZip.loadAsync(f.bytes);
+    assert.equal(Object.keys(z.files).filter((n) => /^word\/fonts\//.test(n)).length, 0, 'sin letras incrustadas');
+    assert.doesNotMatch(await z.file('word/fontTable.xml').async('string'), /embedRegular/);
+    assert.doesNotMatch(await z.file('word/document.xml').async('string'), /Texto viejo/, 'sin el contenido del documento');
+    assert.deepEqual(f.datos.margenes, { arriba: 1963, abajo: 2473, izq: 1134, der: 1325 });
+    var m = await membreteDeFormato(f.bytes);
+    assert.ok(m.fondo && m.fondo.tipo === 'png' && Math.abs(m.fondo.x) < 1 && Math.abs(m.fondo.y) < 1 && Math.abs(m.fondo.w - 612) < 1 && Math.abs(m.fondo.h - 792) < 1, JSON.stringify(m.fondo && { x: m.fondo.x, y: m.fondo.y, w: m.fondo.w, h: m.fondo.h }));
+    assert.deepEqual(m.textos[0].lineas, ['Código: GD-FR-016', 'Versión: 14']);
+    assert.ok(Math.abs(m.textos[0].x - 325.6) < 0.5 && Math.abs(m.textos[0].y - 733.2) < 0.5, m.textos[0].x + ' ' + m.textos[0].y);
+    assert.equal(m.fuente, 'Arial');
+    assert.equal(m.tam, 12);
+    // PDF con ese formato: el código del pie va en cada hoja
+    var pdf = await PDFDocument.load(await armarPdfDescuento(docEjemplo(), { formato: m }));
+    assert.ok(pdf.getPageCount() >= 1);
+    // Word dentro del formato: conserva encabezado y pie y lleva el texto del descuento
+    var w = await JSZip.loadAsync(await armarDocxDescuento(docEjemplo(), { formato: f.bytes, fotos: { 0: [{ bytes: new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==', 'base64')), tipo: 'png' }] } }));
+    var doc = await w.file('word/document.xml').async('string');
+    assert.match(doc, /DESCUENTO POR CERRAMIENTO MICRORRUTA Z6CC0153 - 1027/);
+    assert.match(doc, /Registro fotográfico de la microrruta Z6CC0153 - 1027/);
+    assert.match(doc, /<w:headerReference w:type="default" r:id="rIdH"\/>/);
+    assert.ok(w.file('word/header2.xml') && w.file('word/media/desc-img1.png'));
+    assert.match(await w.file('word/_rels/document.xml.rels').async('string'), /rIdDescImg1/);
+});
+
+test('descuentos: el Word sin formato también se arma (carta, Arial 12)', async () => {
+    var JSZip = (await import('jszip')).default;
+    var w = await JSZip.loadAsync(await armarDocxDescuento(docEjemplo(), {}));
+    var doc = await w.file('word/document.xml').async('string');
+    assert.match(doc, /<w:pgSz w:w="12240" w:h="15840"\/>/);
+    assert.match(doc, /ÁREA A DESCONTAR/);
+    assert.match(doc, /2\.896/);
 });
 
 test('descuentos: el PDF se arma con uno y con varios lotes (sin imágenes ni membrete)', async () => {

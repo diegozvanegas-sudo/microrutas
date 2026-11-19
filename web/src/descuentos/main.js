@@ -16,6 +16,7 @@ import { TIPOS, tipo } from './tipos.js';
 import { areaM2, areaFila, areaActualizada, m2, buscarLote, textoSector, comunaDe, centroAnillos, textosDeTipo, revisar, totales,
     nombreArchivo, pieFotos, textoLotes, nuevoId, filasHistorial } from './descuentos.js';
 import { crearGuardado } from './guardado.js';
+import { prepararFormatoDescuento, membreteDeFormato, guardarArchivo, leerArchivo } from './formato.js';
 
 var BORRADOR = 'desc_borrador', MEMBRETE = 'desc_membrete', MEMBRETE_REQ = 'req_membrete';
 var LOTES = window.direccionesLotes || {};
@@ -177,10 +178,15 @@ function pintarMedios() {
             '<div class="dz-fila"><button type="button" class="secundario pequeno" data-armar="' + i + '">🖼 Armar imágenes</button>' +
                 '<label class="boton secundario pequeno">📷 Agregar fotos<input type="file" accept="image/*" multiple data-fotos="' + i + '" hidden></label>' +
                 '<span class="sub">' + esc(pieFotos(f)) + ' · ' + plural((md.fotos || []).length, 'foto', 'fotos') + '</span></div>' +
-            ((md.fotos || []).length ? '<div class="dz-fotos">' + md.fotos.map(function (x, k) {
-                return '<figure class="dz-foto"><img src="' + esc(x.url) + '" alt="Foto ' + (k + 1) + '"><input data-pie="' + i + '|' + k + '" value="' + esc(x.pie || '') + '" placeholder="Pie de foto (opcional)" aria-label="Pie de la foto ' + (k + 1) + '">' +
-                    '<button type="button" class="secundario pequeno" data-quitar-foto="' + i + '|' + k + '">✕ Quitar</button></figure>';
-            }).join('') + '</div>' : '') + '</div>';
+            '<div class="dz-soltar" data-soltar="' + i + '">' + ((md.fotos || []).length ? '<div class="dz-fotos">' + md.fotos.map(function (x, k) {
+                return '<figure class="dz-foto"><span class="dz-foto-n">' + (k + 1) + '</span><img src="' + esc(x.url) + '" alt="Foto ' + (k + 1) + '">' +
+                    '<input data-pie="' + i + '|' + k + '" value="' + esc(x.pie || '') + '" placeholder="Pie de foto (opcional)" aria-label="Pie de la foto ' + (k + 1) + '">' +
+                    '<div class="dz-fila"><button type="button" class="secundario pequeno" data-mover="' + i + '|' + k + '|-1"' + (k ? '' : ' disabled') + ' aria-label="Subir la foto ' + (k + 1) + '">↑</button>' +
+                    '<button type="button" class="secundario pequeno" data-mover="' + i + '|' + k + '|1"' + (k < md.fotos.length - 1 ? '' : ' disabled') + ' aria-label="Bajar la foto ' + (k + 1) + '">↓</button>' +
+                    '<button type="button" class="secundario pequeno" data-quitar-foto="' + i + '|' + k + '">✕ Quitar</button></div></figure>';
+            }).join('') + '</div>' : '') +
+            '<div class="dz-soltar-txt">📷 Arrastre aquí las fotos de ' + esc(f.mr + (f.lote ? ' - ' + f.lote : '')) + ', elíjalas con «Agregar fotos» o péguelas con Ctrl+V</div></div>' +
+            (md.error ? '<p class="dz-aviso-lote">' + esc(md.error) + '</p>' : '') + '</div>';
     }).join('') || '<p class="sub">Agregue un lote para ver sus imágenes y agregarle fotos.</p>';
 }
 function avisos() {
@@ -266,17 +272,31 @@ async function prepararFoto(file) {
     var blob = await new Promise(function (ok) { c.toBlob(ok, 'image/jpeg', 0.85); });
     return { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: 'jpg', url: URL.createObjectURL(blob), nombre: file.name, pie: '' };
 }
-// Pegar con Ctrl+V: va a la imagen que se esté cambiando («Usar otra» recién tocado) o, si no, a las fotos del lote activo
+// Agrega fotos a un lote, todas las que vengan; las que no se pueden leer se dicen con su nombre (p. ej. HEIC del iPhone)
+async function agregarFotos(i, archivos) {
+    var md = medios[i] = medios[i] || { fotos: [] }, malas = [], buenas = 0;
+    archivos = Array.prototype.slice.call(archivos || []);
+    for (var k = 0; k < archivos.length; k++) {
+        var f = archivos[k];
+        if (!/^image\//.test(f.type) && !/\.(jpe?g|png|webp|gif|bmp|heic|heif)$/i.test(f.name)) { malas.push(f.name + ' (no es una imagen)'); continue; }
+        try { md.fotos.push(await prepararFoto(f)); buenas++; } catch (e) {
+            malas.push(f.name + (/\.(heic|heif)$/i.test(f.name) ? ' (formato HEIC del iPhone: el navegador no lo abre; pásela a JPG o mándela por WhatsApp y guárdela de nuevo)' : ' (no se pudo leer)'));
+        }
+    }
+    md.error = malas.length ? 'No se agregaron: ' + malas.join(' · ') : '';
+    pintarMedios();
+    if (buenas) toast(plural(buenas, 'foto agregada', 'fotos agregadas') + ' a ' + d.filas[i].mr + ' · ' + plural(md.fotos.length, 'foto', 'fotos') + ' en total.');
+}
+// Pegar con Ctrl+V: va a la imagen que se esté cambiando («Usar otra» recién tocado) o, si no, a las fotos del lote activo.
+// Funciona aunque el cursor esté en un campo de texto, si lo pegado es una imagen
 var destinoPegar = null;
 async function pegar(ev) {
     var archivos = Array.prototype.slice.call((ev.clipboardData && ev.clipboardData.files) || []).filter(function (f) { return /^image\//.test(f.type); });
-    if (!archivos.length || !d.filas.length) return;
+    if (!archivos.length) return;
     ev.preventDefault();
-    if (destinoPegar) { await ponerImagen(destinoPegar[0], destinoPegar[1], archivos[0]); destinoPegar = null; return; }
-    var i = activa >= 0 ? activa : 0;
-    for (var k = 0; k < archivos.length; k++) medios[i].fotos.push(await prepararFoto(archivos[k]));
-    pintarMedios();
-    toast(plural(archivos.length, 'foto pegada', 'fotos pegadas') + ' en ' + d.filas[i].mr + '.');
+    if (!d.filas.length) return toast('Primero agregue el lote; después pegue las fotos.');
+    if (destinoPegar) { await ponerImagen(destinoPegar[0], destinoPegar[1], archivos[0]); destinoPegar = null; toast('Imagen cambiada.'); return; }
+    await agregarFotos(activa >= 0 ? activa : 0, archivos);
 }
 async function ponerImagen(i, que, file) {
     var im = await prepararFoto(file);
@@ -293,39 +313,75 @@ function deDataUrl(datos) {
     return { bytes: bytes, tipo: /^data:image\/png/.test(datos) ? 'png' : 'jpg' };
 }
 function membrete() { var m = leer(MEMBRETE, null), r = leer(MEMBRETE_REQ, null); return deDataUrl(m && m.datos) || deDataUrl(r && r.datos); }
+// Formato Word del equipo (IndexedDB «formato»): { bytes, nombre, fecha }; membreteF: lo que sale de él para el PDF
+var formato = null, membreteF = null;
+async function cargarFormato() {
+    formato = await leerArchivo('formato');
+    membreteF = null;
+    if (formato && formato.bytes) {
+        try { membreteF = await membreteDeFormato(formato.bytes); } catch (e) { membreteF = null; }
+    }
+    pintarMembrete();
+}
 function pintarMembrete() {
     var m = leer(MEMBRETE, null), r = leer(MEMBRETE_REQ, null);
-    $('dz-membrete-estado').textContent = m ? 'Se usa el membrete elegido aquí (' + (m.nombre || 'imagen') + ').' : r ? 'Se usa el mismo membrete de 📨 Requerimientos de este equipo. Puede elegir otro solo para los descuentos.'
-        : 'Sin membrete: el PDF sale sin logos. Elija la imagen de la hoja carta con los logos (la misma del formato GD-FR-016).';
-    $('dz-membrete-ver').hidden = !(m || r);
-    if (m || r) $('dz-membrete-ver').src = (m || r).datos;
+    $('dz-formato-estado').innerHTML = formato ? '✓ Formato: <b>' + esc(formato.nombre) + '</b>' + (membreteF && membreteF.fondo ? ' · con membrete' : ' · ⚠ no se encontró el membrete de página completa en su encabezado') +
+        (membreteF && membreteF.textos.length ? ' y ' + plural(membreteF.textos.length, 'cuadro', 'cuadros') + ' de texto del pie (' + esc(membreteF.textos[0].lineas[0]) + '…)' : '') +
+        ' · letra ' + esc(membreteF ? membreteF.fuente + ' ' + membreteF.tam : '') + ' · el Word y el PDF salen con este formato.'
+        : '<b>Sin formato.</b> El Word y el PDF salen con el diseño de la aplicación' + (m || r ? ' y la imagen de membrete' : ' y sin logos') + '. Suba el Word para que queden iguales al documento de la institución.';
+    $('dz-formato-quitar').hidden = !formato;
+    $('dz-formato-resumen').textContent = formato ? '· ' + formato.nombre : (m || r) ? '· imagen de membrete' : '· sin membrete';
+    $('dz-membrete-estado').textContent = formato ? 'Con el formato Word no hace falta la imagen.' : m ? 'Imagen de membrete elegida aquí (' + (m.nombre || 'imagen') + ').' : r ? 'Se usa la imagen de membrete de 📨 Requerimientos de este equipo.' : '';
+    $('dz-membrete-ver').hidden = !!formato || !(m || r);
+    if (!formato && (m || r)) $('dz-membrete-ver').src = (m || r).datos;
     $('dz-membrete-quitar').hidden = !m;
 }
+async function subirFormato(file) {
+    if (!/\.docx$/i.test(file.name)) return toast('Elija un Word .docx (si lo tiene en .doc, ábralo en Word y guárdelo como .docx).');
+    $('dz-formato-estado').textContent = 'Leyendo ' + file.name + '…';
+    try {
+        var f = await prepararFormatoDescuento(new Uint8Array(await file.arrayBuffer()));
+        await guardarArchivo('formato', { bytes: f.bytes, nombre: file.name, fecha: new Date().toISOString() });
+        await cargarFormato();
+        toast('✓ Formato guardado en este equipo: el Word y el PDF salen con su membrete.');
+    } catch (e) {
+        $('dz-formato-estado').innerHTML = '<span class="dz-mal">No se pudo usar ese Word: ' + esc(e.message) + '. Pruebe con otro .docx que tenga el membrete.</span>';
+    }
+}
 
-// ---------- PDF y guardado ----------
-async function generarPdf() {
+// ---------- PDF, Word y guardado ----------
+// que: 'pdf' | 'word'
+async function generar(que) {
     leerForm();
-    var falta = revisar(d);
-    if (falta.length && !(await confirmar('Falta algo', 'Falta: ' + falta.join(' · ') + '. ¿Generar el PDF así?', 'Generar igual'))) return;
-    var b = $('dz-pdf');
-    b.disabled = true; b.textContent = 'Armando las imágenes…';
+    var falta = revisar(d), nombreDoc = que === 'word' ? 'el Word' : 'el PDF';
+    if (falta.length && !(await confirmar('Falta algo', 'Falta: ' + falta.join(' · ') + '. ¿Generar ' + nombreDoc + ' así?', 'Generar igual'))) return;
+    var b = $(que === 'word' ? 'dz-word' : 'dz-pdf'), texto0 = b.textContent;
+    $('dz-pdf').disabled = true; $('dz-word').disabled = true; b.textContent = 'Armando las imágenes…';
     try {
         for (var i = 0; i < d.filas.length; i++) {
             try { await armarImagenes(i); } catch (e) { toast('⚠ ' + e.message); }
         }
         pintarMedios();
-        b.textContent = 'Generando el PDF…';
-        var { armarPdfDescuento } = await import('./pdf.js');
+        b.textContent = 'Generando ' + nombreDoc + '…';
         var imagenes = {}, fotos = {};
         medios.forEach(function (md, k) { imagenes[k] = { actual: md.actual, descontar: md.descontar }; fotos[k] = md.fotos || []; });
-        var bytes = await armarPdfDescuento(d, { membrete: membrete(), imagenes: imagenes, fotos: fotos });
-        var a = document.createElement('a'), url = URL.createObjectURL(new Blob([bytes], { type: 'application/pdf' }));
-        a.href = url; a.download = nombreArchivo(d);
+        var nFotos = Object.keys(fotos).reduce(function (s, k) { return s + fotos[k].length; }, 0), bytes, tipoArchivo, nombre = nombreArchivo(d);
+        if (que === 'word') {
+            var { armarDocxDescuento } = await import('./word.js');
+            bytes = await armarDocxDescuento(d, { formato: formato && formato.bytes, membrete: membrete(), imagenes: imagenes, fotos: fotos });
+            tipoArchivo = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; nombre = nombre.replace(/\.pdf$/, '.docx');
+        } else {
+            var { armarPdfDescuento } = await import('./pdf.js');
+            bytes = await armarPdfDescuento(d, { formato: membreteF, membrete: membrete(), imagenes: imagenes, fotos: fotos });
+            tipoArchivo = 'application/pdf';
+        }
+        var a = document.createElement('a'), url = URL.createObjectURL(new Blob([bytes], { type: tipoArchivo }));
+        a.href = url; a.download = nombre;
         document.body.appendChild(a); a.click(); a.remove();
         setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-        toast('PDF descargado: ' + a.download + '. Guárdelo en el historial para que cuente en los totales.');
-    } catch (e) { toast('No se pudo generar el PDF: ' + e.message); }
-    finally { b.disabled = false; b.textContent = '⬇️ Generar PDF'; }
+        toast((que === 'word' ? 'Word' : 'PDF') + ' descargado: ' + nombre + ' · ' + plural(nFotos, 'foto', 'fotos') + (formato ? ' · con el formato ' + formato.nombre : '') + '. Guárdelo en el historial para que cuente en los totales.');
+    } catch (e) { toast('No se pudo generar ' + nombreDoc + ': ' + e.message); }
+    finally { $('dz-pdf').disabled = false; $('dz-word').disabled = false; b.textContent = texto0; }
 }
 async function guardarHistorial() {
     leerForm();
@@ -475,20 +531,41 @@ async function arrancar() {
             try { await armarImagenes(+a.dataset.armar, true); pintarMedios(); } catch (e) { toast('No se armaron: ' + e.message); a.disabled = false; a.textContent = '🖼 Armar imágenes'; }
         }
         if (qf) { var p = qf.dataset.quitarFoto.split('|'); medios[+p[0]].fotos.splice(+p[1], 1); pintarMedios(); }
+        var mv = ev.target.closest('[data-mover]');
+        if (mv) {
+            var q3 = mv.dataset.mover.split('|').map(Number), lista = medios[q3[0]].fotos, k2 = q3[1] + q3[2];
+            if (k2 >= 0 && k2 < lista.length) { var tmp = lista[q3[1]]; lista[q3[1]] = lista[k2]; lista[k2] = tmp; pintarMedios(); }
+        }
         if (au) { var r = au.dataset.imgAuto.split('|'); medios[+r[0]][r[1]] = null; medios[+r[0]].clave = ''; pintarMedios(); }
     });
     $('dz-medios').addEventListener('change', async function (ev) {
         var t = ev.target;
         if (t.dataset.fotos != null && t.files.length) {
-            var i = +t.dataset.fotos;
-            for (var k = 0; k < t.files.length; k++) { try { medios[i].fotos.push(await prepararFoto(t.files[k])); } catch (e) { toast('No se pudo leer ' + t.files[k].name); } }
-            t.value = ''; pintarMedios();
+            var lista = Array.prototype.slice.call(t.files);
+            t.value = '';
+            await agregarFotos(+t.dataset.fotos, lista);
         }
         if (t.dataset.img != null && t.files[0]) { var p = t.dataset.img.split('|'); await ponerImagen(+p[0], p[1], t.files[0]); destinoPegar = null; }
         if (t.dataset.pie != null) { var q = t.dataset.pie.split('|'); medios[+q[0]].fotos[+q[1]].pie = t.value; }
     });
-    document.addEventListener('paste', function (ev) { if (!/^(INPUT|TEXTAREA)$/.test((ev.target && ev.target.tagName) || '') || destinoPegar) pegar(ev); });
-    $('dz-pdf').onclick = generarPdf;
+    // Pegar imágenes en cualquier parte de la página (también con el cursor en un campo: el texto pegado no se toca)
+    document.addEventListener('paste', pegar);
+    // Arrastrar fotos sobre el recuadro de un lote
+    $('dz-medios').addEventListener('dragover', function (ev) { var z = ev.target.closest('[data-soltar]'); if (!z) return; ev.preventDefault(); z.classList.add('encima'); });
+    $('dz-medios').addEventListener('dragleave', function (ev) { var z = ev.target.closest('[data-soltar]'); if (z && !z.contains(ev.relatedTarget)) z.classList.remove('encima'); });
+    $('dz-medios').addEventListener('drop', function (ev) {
+        var z = ev.target.closest('[data-soltar]');
+        if (!z) return;
+        ev.preventDefault(); z.classList.remove('encima');
+        agregarFotos(+z.dataset.soltar, ev.dataTransfer && ev.dataTransfer.files);
+    });
+    $('dz-pdf').onclick = function () { generar('pdf'); };
+    $('dz-word').onclick = function () { generar('word'); };
+    $('dz-formato').onchange = function () { var f = this.files[0]; this.value = ''; if (f) subirFormato(f); };
+    $('dz-formato-quitar').onclick = async function () {
+        if (!(await confirmar('Quitar el formato', 'El Word y el PDF vuelven a salir con el diseño de la aplicación (y la imagen de membrete, si hay).', 'Quitar'))) return;
+        await guardarArchivo('formato', null); await cargarFormato(); toast('Formato quitado.');
+    };
     $('dz-guardar').onclick = guardarHistorial;
     $('dz-nuevo').onclick = empezarOtro;
     $('dz-membrete').onchange = async function () {
@@ -519,6 +596,7 @@ async function arrancar() {
     // Un borrador sin textos (de antes, o vacío): se arman con su tipo y sus datos
     if (!String(d.textos && d.textos.titulo || '').trim()) d.textos = textosDeTipo(d.tipo, d);
     pintarTodo(); pintarMembrete();
+    cargarFormato();
     if (d.filas.length) abrirDibujo(0);
     donde(await guardado.leer());
 }

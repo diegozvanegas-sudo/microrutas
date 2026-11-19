@@ -70,6 +70,23 @@ export function ubicaciones(raiz, q, carpetas) {
     out.push({ que: 'Informes subidos desde este equipo', ruta: carpetas.carpeta_informes || unir(raiz, 'entradas', 'informes'), nota: '' });
     return out;
 }
+// Archivos de un ZIP en el PC (mismos nombres que el motor: infra/ejecutor_proceso.py arma «--salida» y el script le pone
+// «_parcial» al avance). descargar: true si se puede bajar con /descargar (solo lo que está en salidas\aplicacion)
+// → [{ que, ruta, descargar }]
+export function archivosZip(raiz, f) {
+    raiz = String(raiz || '').replace(/[\\/]+$/, '');
+    var sep = raiz.indexOf('/') !== -1 && raiz.indexOf('\\') === -1 ? '/' : '\\';
+    var carpeta = [raiz, 'salidas', 'aplicacion', 'lecturas', 'fuente_' + f.id].join(sep);
+    var base = nombre(f.ruta).replace(/\.[^.]+$/, ''), sinExt = String(f.ruta).replace(/[\\/]+$/, '').replace(/\.[^.\\/]+$/, '');
+    var modelo = String(f.modelo || '').replace(/[^A-Za-z0-9_.-]+/g, '_');
+    return [
+        { que: 'Excel de la lectura (el reporte por microrruta)', ruta: carpeta + sep + base + '_zonas_verdes.xlsx', descargar: true },
+        { que: 'Excel del avance parcial («📊 Ver avance»)', ruta: carpeta + sep + base + '_zonas_verdes_avance_parcial.xlsx', descargar: true },
+        { que: 'Carpeta de las lecturas de este ZIP', ruta: carpeta, descargar: false },
+        { que: 'El ZIP de fotos', ruta: f.ruta, descargar: false },
+        { que: 'Lo leído por Claude (caché, al lado del ZIP: no la borre)', ruta: sinExt + '_claude_plan_' + modelo + '_cache.jsonl', descargar: false }
+    ];
+}
 function tamano(b) { return b >= 1e9 ? (b / 1e9).toFixed(1).replace('.', ',') + ' GB' : Math.max(1, Math.round(b / 1e6)) + ' MB'; }
 function miles(n) { return Number(n || 0).toLocaleString('es-CO'); }
 
@@ -295,7 +312,50 @@ async function crearQuincena() {
 }
 
 // ---------- 2. ZIP de fotos ----------
-var ESTADO = { SIN_INICIAR: 'Sin leer', CORRIENDO: 'Leyendo…', TERMINADA: '✓ Leído', DETENIDA: '⏸ Detenido', LIMITE: '⏳ Límite del plan', ERROR: '⚠ Error' };
+// ZIP abierto (uno a la vez) y fila de lectura, por quincena; se recuerdan en el equipo
+var ABIERTO = 'auditoria_zip_abierto', COLA = 'auditoria_cola';
+function leerMapa(k) { try { return JSON.parse(localStorage.getItem(k)) || {}; } catch (e) { return {}; } }
+function guardarMapa(k, m) { try { localStorage.setItem(k, JSON.stringify(m)); } catch (e) { /* solo es la preferencia */ } }
+function zipAbierto(q) {
+    var ids = q.fuentes.map(function (f) { return f.id; }), guardado = leerMapa(ABIERTO)[q.id];
+    var corriendo = q.fuentes.filter(function (f) { return (estados[f.id] || {}).estado === 'CORRIENDO'; })[0];
+    if (ids.indexOf(guardado) !== -1) return guardado;
+    return corriendo ? corriendo.id : ids[0];
+}
+function abrirZip(fid) { var q = quincena(), m = leerMapa(ABIERTO); m[q.id] = fid; guardarMapa(ABIERTO, m); consolaAbajo[fid] = true; pintarQuincena(); }
+function colaDe(q) {
+    var ids = q.fuentes.map(function (f) { return f.id; });
+    return (leerMapa(COLA)[q.id] || []).filter(function (id) { return ids.indexOf(id) !== -1; });
+}
+function ponerCola(q, lista) { var m = leerMapa(COLA); m[q.id] = lista; guardarMapa(COLA, m); }
+// Archivos del ZIP abierto en el PC, con «⬇» si el Excel ya existe (se pregunta al motor sin bajarlo)
+var existen = {};
+async function revisarArchivos(f) {
+    if (!f || !conectado) return;
+    var pendientes = archivosZip(archivos.raiz, f).filter(function (a) { return a.descargar && existen[a.ruta] === undefined; });
+    if (!pendientes.length) return;
+    await Promise.all(pendientes.map(async function (a) {
+        existen[a.ruta] = null;   // preguntando
+        // El motor no responde HEAD: se pide el archivo y se corta apenas llega la respuesta (no se baja entero)
+        var ctl = new AbortController();
+        try { var r = await fetch(base + API + '/descargar?ruta=' + encodeURIComponent(a.ruta), { signal: ctl.signal }); existen[a.ruta] = r.ok; ctl.abort(); } catch (e) { existen[a.ruta] = false; }
+    }));
+    var caja = $('aud-fuentes').querySelector('[data-archivos="' + f.id + '"]');
+    if (caja) caja.outerHTML = archivosHtml(f);
+}
+function olvidarArchivos(f) { archivosZip(archivos.raiz, f).forEach(function (a) { delete existen[a.ruta]; }); }
+function archivosHtml(f) {
+    var lista = archivosZip(archivos.raiz, f);
+    return '<details class="aud-archivos-zip" data-archivos="' + f.id + '"' + (archivosAbiertos[f.id] ? ' open' : '') + '><summary>📁 Archivos de este ZIP en el PC <span class="sub">· dónde quedaron los Excel</span></summary>' +
+        lista.map(function (a) {
+            var hay = existen[a.ruta];
+            return '<div class="aud-archivo"><span class="et">' + esc(a.que) + (a.descargar ? (hay ? ' <span class="aud-hay">✓ existe</span>' : hay === false ? ' <span class="sub">(todavía no existe)</span>' : '') : '') + '</span>' +
+                '<code>' + esc(a.ruta) + '</code><span class="aud-archivo-acc"><button type="button" class="secundario pequeno" data-copiar-ruta="' + esc(a.ruta) + '">📋 Copiar</button>' +
+                (a.descargar && hay ? '<a class="boton secundario pequeno" href="' + esc(base + API + '/descargar?ruta=' + encodeURIComponent(a.ruta)) + '" download>⬇ Descargar</a>' : '') + '</span></div>';
+        }).join('') + '<p class="sub">La carpeta no se puede abrir desde el navegador: copie la ruta y péguela en la barra del Explorador de Windows.</p></details>';
+}
+var archivosAbiertos = {};
+var ESTADO ={ SIN_INICIAR: 'Sin leer', CORRIENDO: 'Leyendo…', TERMINADA: '✓ Leído', DETENIDA: '⏸ Detenido', LIMITE: '⏳ Límite del plan', ERROR: '⚠ Error' };
 function pintarQuincena() {
     var q = quincena();
     try { if (q) localStorage.setItem('auditoria_quincena', q.id); } catch (e) {}
@@ -309,13 +369,16 @@ function pintarQuincena() {
     $('aud-zip-lista').innerHTML = libres.length ? libres.map(function (z) { return '<option value="' + esc(z) + '">' + esc(nombre(z)) + '</option>'; }).join('')
         : '<option value="">Ningún otro ZIP en la carpeta de fotos</option>';
     $('aud-agregar').disabled = !libres.length;
-    $('aud-fuentes').innerHTML = q.fuentes.length ? q.fuentes.map(function (f) {
+    // Un ZIP a la vez: el abierto se ve completo; los demás, en una lista corta con su estado (y «En fila» si esperan turno)
+    var abierto = zipAbierto(q), fila = colaDe(q);
+    var otros = q.fuentes.filter(function (f) { return f.id !== abierto; });
+    $('aud-fuentes').innerHTML = q.fuentes.length ? q.fuentes.filter(function (f) { return f.id === abierto; }).map(function (f) {
         var e = estados[f.id] || {}, corriendo = e.estado === 'CORRIENDO';
         // «Ver avance» solo cuenta (no lee): no se muestra como leído ni con su barra
         var cuenta = e.tipo === 'avance' && !corriendo;
         var etiqueta = cuenta && e.estado === 'TERMINADA' ? '📊 Avance listo' : e.tipo === 'metro' && e.estado === 'TERMINADA' ? '✓ Metro leído' : (ESTADO[e.estado] || 'Sin leer');
         var pct = e.total ? e.actual / e.total * 100 : null;
-        return '<div class="aud-fuente" data-fuente="' + f.id + '">' +
+        return '<div class="aud-fuente abierta" data-fuente="' + f.id + '">' +
             '<div class="cab"><b>📦 ' + esc(f.nombre) + '</b><span class="aud-estado ' + esc((e.estado || 'SIN_INICIAR').toLowerCase()) + '">' + etiqueta + '</span></div>' +
             (!cuenta && (corriendo || e.total) ? '<div class="aud-mini" role="progressbar" aria-valuemin="0" aria-valuemax="100"' + (pct == null ? '' : ' aria-valuenow="' + Math.round(pct) + '"') + '>' +
                 '<span style="width:' + (pct == null ? 35 : pct) + '%" class="' + (pct == null ? 'mueve' : '') + '"></span></div>' : '') +
@@ -328,8 +391,19 @@ function pintarQuincena() {
                   '<button type="button" class="primario pequeno" data-correr="lectura">▶ ' + (e.estado === 'DETENIDA' || e.estado === 'LIMITE' ? 'Seguir leyendo' : 'Leer todas') + '</button>' +
                   '<button type="button" class="secundario pequeno" data-correr="metro" title="Volver a leer solo las fotos del metro con el modelo de «Opciones del motor»">📏 Segunda pasada del metro</button>' +
                   '<button type="button" class="secundario pequeno" data-correr="avance" title="Cuántas fotos van y un Excel parcial con las carpetas completas, sin llamar a Claude">📊 Ver avance (sin leer)</button>') +
-            '</div>' + consola(f.id, e) + '</div>';
-    }).join('') : '<p class="sub">Esta quincena aún no tiene ZIP. Súbalo o elíjalo arriba.</p>';
+            '</div>' + archivosHtml(f) + consola(f.id, e) + '</div>';
+    }).join('') + (otros.length ? '<div class="aud-lista-zip"><div class="aud-lista-tit">' + (otros.length === 1 ? 'El otro ZIP de la quincena' : 'Los otros ' + otros.length + ' ZIP de la quincena') +
+        (fila.length ? ' · <b>' + fila.length + ' en fila</b>: cuando termine el que lee, sigue el siguiente (con esta ventana abierta)' : '') + '</div>' +
+        otros.map(function (f) {
+            var e = estados[f.id] || {}, corriendo = e.estado === 'CORRIENDO', pct = e.total ? Math.floor(e.actual / e.total * 100) : null, turno = fila.indexOf(f.id);
+            return '<div class="aud-zip-fila" data-fuente="' + f.id + '"><b>📦 ' + esc(f.nombre) + '</b>' +
+                '<span class="aud-estado ' + esc((e.estado || 'SIN_INICIAR').toLowerCase()) + '">' + (ESTADO[e.estado] || 'Sin leer') + (pct != null && e.tipo !== 'avance' ? ' · ' + pct + ' %' : '') + '</span>' +
+                (turno !== -1 ? '<span class="aud-turno">En fila · ' + (turno + 1) + '°</span>' : '') +
+                '<span class="aud-zip-acc">' + (!corriendo && e.estado !== 'TERMINADA' ? (turno === -1 ? '<button type="button" class="secundario pequeno" data-en-fila>＋ Poner en fila</button>' : '<button type="button" class="secundario pequeno" data-fuera-fila>Quitar de la fila</button>') : '') +
+                '<button type="button" class="secundario pequeno" data-abrir-zip>Abrir</button></span></div>';
+        }).join('') + '</div>' : '')
+        : '<p class="sub">Esta quincena aún no tiene ZIP. Arrástrelo arriba, elíjalo o pegue su ruta.</p>';
+    revisarArchivos(q.fuentes.filter(function (f) { return f.id === abierto; })[0]);
     // La consola sigue abajo (lo último) salvo que se haya subido a leer algo
     $('aud-fuentes').querySelectorAll('[data-consola] pre').forEach(function (pre) {
         var fid = pre.closest('[data-consola]').dataset.consola;
@@ -430,6 +504,9 @@ async function correr(fid, que) {
     var o = opcionesPara(que === 'prueba' ? 'lectura' : que, que === 'prueba');
     estados[fid] = await pedir('/fuentes/' + fid + '/revision', json('POST', o));
     consolaAbierta[fid] = true; consolaAbajo[fid] = true;
+    // El que empieza a leer pasa a ser el ZIP abierto (y sale de la fila si estaba)
+    var qa = quincena();
+    if (qa) { var m = leerMapa(ABIERTO); m[qa.id] = fid; guardarMapa(ABIERTO, m); ponerCola(qa, colaDe(qa).filter(function (x) { return x !== fid; })); }
     toast({ prueba: 'Leyendo ' + o.prueba + ' fotos de prueba…', lectura: 'Leyendo todas las fotos. Puede cerrar esta página: el motor sigue. Si cierra la ventana negra del motor, la lectura se detiene (luego sigue donde iba).',
         metro: 'Segunda pasada del metro con ' + o.modelo_metro + '…', avance: 'Contando lo que va, sin llamar a Claude…' }[que]);
     pintarQuincena();
@@ -462,11 +539,20 @@ async function seguir() {
     // Uno acaba de terminar: el reporte se arma solo
     var termino = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo !== 'avance'; });
     var conto = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo === 'avance'; });
-    if (conto) barra(2, '✓ Avance de ' + conto.nombre + ' listo: mire el resumen en la consola del motor.', 100, 'listo');
+    // Terminó algo: sus Excel pueden haber cambiado, se vuelve a preguntar si existen
+    q.fuentes.forEach(function (f) { if (antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado !== 'CORRIENDO') { olvidarArchivos(f); revisarArchivos(f); } });
+    if (conto) barra(2, '✓ Avance de ' + conto.nombre + ' listo: el Excel parcial quedó en «📁 Archivos de este ZIP».', 100, 'listo');
     if (termino) cargarNovedades(true);
     var malo = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && /ERROR|LIMITE/.test(estados[f.id].estado); });
-    if (malo) barra(2, estados[malo.id].estado === 'LIMITE' ? 'Se acabó el límite del plan de Claude en ' + malo.nombre + '. Siga más tarde: no se vuelven a pagar las fotos hechas.'
-        : 'El motor se detuvo con un error en ' + malo.nombre + '. Mire la consola del motor (debajo del ZIP).', 0, 'error');
+    if (malo) barra(2, estados[malo.id].estado === 'LIMITE' ? 'Se acabó el límite del plan de Claude en ' + malo.nombre + '. Siga más tarde: no se vuelven a pagar las fotos hechas.' + (colaDe(q).length ? ' La fila queda en pausa.' : '')
+        : 'El motor se detuvo con un error en ' + malo.nombre + '. Mire la consola del motor (debajo del ZIP).' + (colaDe(q).length ? ' La fila queda en pausa.' : ''), 0, 'error');
+    // Fila: sin nada leyendo (y sin error ni límite recién), sigue el próximo ZIP
+    var fila = colaDe(q);
+    if (fila.length && !malo) {
+        var sig = fila[0], f2 = q.fuentes.filter(function (f) { return f.id === sig; })[0];
+        toast('Sigue en la fila: ' + f2.nombre + '.');
+        correr(sig, 'lectura').catch(function (e) { toast('No arrancó ' + f2.nombre + ': ' + e.message); ponerCola(q, fila.slice(1)); });
+    }
 }
 
 // ---------- 3. Resultados por microrruta ----------
@@ -643,7 +729,29 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
     $('aud-btn-nueva').onclick = function () { $('aud-nueva').hidden = !$('aud-nueva').hidden; pintarInformes(); };
     $('aud-crear').onclick = crearQuincena;
     $('aud-subir-informe').onchange = function () { if (this.files[0]) subirInforme(this.files[0]); this.value = ''; };
-    $('aud-subir-zip').onchange = function () { if (this.files[0]) subirZip(this.files[0]); this.value = ''; };
+    // Uno o varios ZIP: elegidos o arrastrados sobre el recuadro; se suben uno detrás de otro
+    async function subirVarios(lista) {
+        lista = Array.prototype.slice.call(lista || []);
+        var zips = lista.filter(function (f) { return /\.zip$/i.test(f.name); }), otros = lista.length - zips.length;
+        if (otros) toast(otros === 1 ? 'Un archivo no es .zip y no se subió.' : otros + ' archivos no son .zip y no se subieron.');
+        for (var i = 0; i < zips.length; i++) {
+            if (zips.length > 1) barra(1, 'Subiendo ' + (i + 1) + ' de ' + zips.length + ': ' + zips[i].name + '…', 0);
+            await subirZip(zips[i]);
+        }
+    }
+    $('aud-subir-zip').onchange = function () { var l = this.files; subirVarios(l).then(function () { $('aud-subir-zip').value = ''; }); };
+    var zona = $('aud-soltar');
+    ['dragenter', 'dragover'].forEach(function (t) { zona.addEventListener(t, function (ev) { ev.preventDefault(); zona.classList.add('encima'); }); });
+    zona.addEventListener('dragleave', function (ev) { if (!zona.contains(ev.relatedTarget)) zona.classList.remove('encima'); });
+    zona.addEventListener('drop', function (ev) {
+        ev.preventDefault(); zona.classList.remove('encima');
+        if (!quincena()) return toast('Primero elija o cree la quincena.');
+        subirVarios(ev.dataTransfer && ev.dataTransfer.files);
+    });
+    $('aud-fuentes').addEventListener('toggle', function (ev) {
+        var d = ev.target.closest && ev.target.closest('[data-archivos]');
+        if (d) archivosAbiertos[d.dataset.archivos] = d.open;
+    }, true);
     $('aud-cancelar').onclick = function () { if (subida) subida.abort(); };
     $('aud-agregar').onclick = function () {
         agregarFuente($('aud-zip-lista').value).then(function () { toast('✓ ZIP agregado a la quincena.'); }, function (e) { toast('No se agregó: ' + e.message); });
@@ -653,6 +761,17 @@ export function iniciarAuditoria(cliente, usuarioSesion) {
         if (!fid) return;
         var l = ev.target.closest('[data-correr]');
         if (l) { l.disabled = true; correr(fid, l.dataset.correr).catch(function (e) { toast('No arrancó: ' + e.message); l.disabled = false; }); }
+        if (ev.target.closest('[data-abrir-zip]')) abrirZip(fid);
+        var q0 = quincena();
+        if (ev.target.closest('[data-en-fila]')) {
+            var lee = q0.fuentes.some(function (f) { return (estados[f.id] || {}).estado === 'CORRIENDO'; });
+            if (!lee) { correr(fid, 'lectura').catch(function (e) { toast('No arrancó: ' + e.message); }); }
+            else { ponerCola(q0, colaDe(q0).concat([fid])); pintarQuincena(); toast('En fila: empieza cuando termine el que está leyendo (deje esta ventana abierta).'); }
+        }
+        if (ev.target.closest('[data-fuera-fila]')) { ponerCola(q0, colaDe(q0).filter(function (x) { return x !== fid; })); pintarQuincena(); }
+        var cr = ev.target.closest('[data-copiar-ruta]');
+        if (cr) (navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(cr.dataset.copiarRuta) : Promise.reject()).then(function () { toast('Ruta copiada: péguela en el Explorador de Windows.'); },
+            function () { toast('No se pudo copiar: seleccione la ruta y cópiela.'); });
         if (ev.target.closest('[data-copiar-consola]')) {
             var e2 = estados[fid] || {}, texto = (e2.comando ? '> ' + e2.comando + '\n' : '') + (e2.lineas || []).join('\n');
             (navigator.clipboard && window.isSecureContext ? navigator.clipboard.writeText(texto) : Promise.reject()).then(function () { toast('Consola copiada.'); },

@@ -290,9 +290,14 @@
             </section>
             <section class="aud-seccion" id="aud-paso-zip" hidden>
                 <h3><span class="aud-num">2</span> ZIP de fotos de la cuadrilla</h3>
+                <!-- Arrastrar uno o varios ZIP, o tocar para elegirlos: se suben al PC del motor y quedan en la quincena -->
+                <label class="aud-soltar" id="aud-soltar">
+                    <input type="file" id="aud-subir-zip" accept=".zip,application/zip" multiple hidden>
+                    <span class="aud-soltar-ico" aria-hidden="true">📦</span>
+                    <span><b>Arrastre aquí el ZIP de fotos</b> (uno o varios) <span class="sub">o toque para elegirlos desde este equipo</span></span>
+                </label>
                 <div class="aud-fila">
-                    <label class="boton primario">📤 Subir ZIP desde este equipo<input type="file" id="aud-subir-zip" accept=".zip,application/zip" hidden></label>
-                    <span class="sub">o uno que ya está en el PC:</span>
+                    <span class="sub">O uno que ya está en el PC:</span>
                     <select id="aud-zip-lista" aria-label="ZIP que ya está en el PC"></select>
                     <button type="button" class="secundario" id="aud-agregar">Agregar</button>
                 </div>
