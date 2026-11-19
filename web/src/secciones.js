@@ -18,6 +18,7 @@ export var SECCIONES = [
     { clave: 'auditar', nombre: '🔍 Auditar ZIP', grupo: 'Zonas verdes', pagina: 'subsanaciones.html', hash: '#auditar', dentro: 'subsanaciones' },
     { clave: 'cruce', nombre: '📊 Cruce programado / realizado', grupo: 'Zonas verdes', pagina: 'cruce.html' },
     { clave: 'optimizar', nombre: '🛣️ Programación por cercanía', grupo: 'Zonas verdes', pagina: 'optimizar.html' },
+    { clave: 'descuentos', nombre: '💸 Descuentos', grupo: 'Zonas verdes', pagina: 'descuentos.html' },
     { clave: 'guia', nombre: '🧭 Guía de campo', grupo: 'Zonas verdes', pagina: 'contrato.html', doc: 'GUIA-CAMPO', contrato: true },
     { clave: 'requerimientos', nombre: '📨 Requerimientos', grupo: 'Zonas verdes', pagina: 'requerimiento.html', contrato: true },
     { clave: 'pendientes', nombre: '📌 Pendientes', grupo: 'General', pagina: 'pendientes.html' },

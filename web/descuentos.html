@@ -1,0 +1,188 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Descuentos de área</title>
+    <link rel="stylesheet" href="css/leaflet.css">
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">💸</span>
+        <div class="nombre"><h1>Descuentos de área</h1><div class="lema">Zonas verdes · el área que no se puede intervenir, dibujada en el mapa y en el documento de descuento</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
+                <a href="optimizar.html" title="La programación del mes contra una armada por sectores: lotes cercanos el mismo día y quincenales a 14 días">🛣️ Programación por cercanía</a>
+                <a href="descuentos.html" aria-current="page" title="Documento de descuento de área (cerramiento, predio privado, obra…) con el área dibujada en el mapa">💸 Descuentos</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+                <a href="programados.html" title="Mensajes de WhatsApp que salen solos a la hora elegida">⏰ Envíos programados</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="dz">
+    <div id="estado" class="dz-estado">Cargando…</div>
+    <section class="panel dz-panel" id="dz-form" hidden>
+        <div class="dz-cab">
+            <h2 id="dz-titulo-form">💸 Nuevo descuento</h2>
+            <div class="dz-fila">
+                <span class="sub" id="dz-guardado" role="status"></span>
+                <button type="button" class="secundario" id="dz-nuevo">＋ Empezar otro</button>
+            </div>
+        </div>
+        <p class="sub">El documento de descuento cuando una parte de un lote no se puede intervenir. Elija el tipo, agregue el lote, dibuje en el mapa el área que se descuenta
+            (la app calcula los m² y arma las imágenes), revise el texto, agregue las fotos y genere el PDF. Lo escrito se guarda solo como borrador en este equipo; las fotos no.</p>
+
+        <div class="dz-paso">
+            <h3><span class="dz-num">1</span> Tipo de descuento</h3>
+            <div class="dz-tipos" id="dz-tipos" role="radiogroup" aria-label="Tipo de descuento"></div>
+        </div>
+
+        <div class="dz-paso">
+            <h3><span class="dz-num">2</span> Lotes y área a descontar</h3>
+            <div class="dz-fila">
+                <input id="dz-buscar" class="dz-entrada" spellcheck="false" autocomplete="off" aria-label="Microrruta o lote" placeholder="Microrruta o lote: Z6CC0153, 1027 o «Z6CC0153 1027»">
+                <button type="button" class="primario" id="dz-agregar">＋ Agregar lote</button>
+            </div>
+            <div id="dz-buscar-estado" class="dz-linea" role="status"></div>
+            <div id="dz-filas" class="dz-filas"></div>
+            <div class="dz-dibujo" id="dz-dibujo" hidden>
+                <div class="dz-dibujo-cab">
+                    <b id="dz-dibujo-tit"></b>
+                    <span class="dz-area" id="dz-dibujo-area" role="status"></span>
+                </div>
+                <p class="sub" id="dz-dibujo-ayuda">Toque el mapa para marcar las esquinas del área a descontar (mínimo 3). Arrastre un punto para corregirlo. En el celular, acerque el mapa con dos dedos antes de marcar.</p>
+                <div class="dz-fila dz-herr">
+                    <button type="button" class="secundario" id="dz-deshacer">↶ Quitar el último punto</button>
+                    <button type="button" class="secundario" id="dz-borrar-dibujo">🗑 Borrar el dibujo</button>
+                    <button type="button" class="secundario" id="dz-centrar">⌖ Ver el lote</button>
+                    <label class="dz-check"><input type="checkbox" id="dz-calles" checked> Nombres de calles</label>
+                </div>
+                <div id="dz-mapa" class="dz-mapa" role="region" aria-label="Mapa para dibujar el área a descontar"></div>
+                <p class="sub">Celeste: el lote en la base de datos · azul: el área a descontar. Las medidas son del dibujo en la foto satelital (pueden variar unos m² con la del Google Earth).</p>
+            </div>
+        </div>
+
+        <div class="dz-paso">
+            <h3><span class="dz-num">3</span> Datos y texto del documento</h3>
+            <div class="dz-rejilla">
+                <label>FECHA DE LA VERIFICACIÓN <input type="date" id="dz-fecha"></label>
+                <label>SECTOR <input id="dz-sector" placeholder="el corregimiento San Antonio de Prado"><span class="sub">Sale solo del mapa al agregar el primer lote.</span></label>
+            </div>
+            <div class="dz-rejilla" id="dz-campos"></div>
+            <div class="dz-fila">
+                <button type="button" class="secundario pequeno" id="dz-rearmar">↺ Volver a armar los textos con estos datos</button>
+                <span class="sub">Reemplaza lo que haya cambiado a mano en los textos de abajo.</span>
+            </div>
+            <div class="dz-textos">
+                <label>TÍTULO <input id="dz-t-titulo"></label>
+                <label>TEXTO <textarea id="dz-t-intro" rows="4"></textarea></label>
+                <label>CONCLUSIÓN <textarea id="dz-t-conclusion" rows="2"></textarea></label>
+                <label>TÍTULO DE LA LOCALIZACIÓN <input id="dz-t-localizacion"></label>
+                <label>DESCRIPCIÓN DEL SITIO (columna izquierda del cuadro) <textarea id="dz-t-sitio" rows="4"></textarea></label>
+            </div>
+        </div>
+
+        <div class="dz-paso">
+            <h3><span class="dz-num">4</span> Imágenes y registro fotográfico</h3>
+            <p class="sub">Las imágenes del «Área actual» y del «Área para descontar» se arman solas con la foto satelital y el dibujo. Si prefiere otra (un recorte del Google Earth),
+                cámbiela con «Usar otra» o pegándola con Ctrl+V después de tocar «Usar otra». Las fotos de campo se agregan a cada lote; no se guardan: hay que volver a ponerlas si cierra la página.</p>
+            <div id="dz-medios" class="dz-medios"></div>
+        </div>
+
+        <div class="dz-pie">
+            <div id="dz-faltan" class="dz-faltan" role="status"></div>
+            <div class="dz-fila">
+                <label class="dz-check"><input type="checkbox" id="dz-emitido"> Ya se emitió (se envió el documento)</label>
+                <button type="button" class="secundario" id="dz-guardar">💾 Guardar en el historial</button>
+                <button type="button" class="primario" id="dz-pdf">⬇️ Generar PDF</button>
+            </div>
+        </div>
+        <details class="dz-plegable" id="dz-config">
+            <summary>⚙️ Membrete del documento</summary>
+            <p class="sub" id="dz-membrete-estado"></p>
+            <img id="dz-membrete-ver" class="dz-membrete-ver" alt="Membrete elegido" hidden>
+            <div class="dz-fila">
+                <label class="boton secundario pequeno">🖼 Elegir el membrete (imagen de la hoja carta)<input type="file" id="dz-membrete" accept="image/png,image/jpeg" hidden></label>
+                <button type="button" class="secundario pequeno" id="dz-membrete-quitar" hidden>Quitar el de este equipo</button>
+            </div>
+        </details>
+    </section>
+
+    <section class="panel dz-panel" id="dz-historial" hidden>
+        <div class="dz-cab">
+            <h2>📚 Descuentos hechos</h2>
+            <button type="button" class="secundario" id="dz-excel">⬇️ Excel del historial</button>
+        </div>
+        <div id="dz-donde" class="sub" role="status"></div>
+        <div id="dz-cuenta" class="dz-cuenta"></div>
+        <div class="dz-fila">
+            <label>Tipo <select id="dz-f-tipo"></select></label>
+            <label>Mes <select id="dz-f-mes"></select></label>
+            <label>Estado <select id="dz-f-estado"><option value="">Todos</option><option value="borrador">Borradores</option><option value="emitido">Emitidos</option></select></label>
+            <input id="dz-f-buscar" class="dz-entrada dz-chica" aria-label="Buscar microrruta o lote" placeholder="Buscar microrruta o lote">
+        </div>
+        <div id="dz-lista" class="dz-lista"></div>
+    </section>
+    <p class="nota-privada">El membrete y las fotos quedan solo en este equipo. Los descuentos guardados (sin fotos) se ven en el historial del equipo de interventoría.</p>
+</main>
+<div class="toast" id="toast"></div>
+<dialog id="dlg-confirmar">
+    <div class="cuerpo">
+        <h2 id="conf-titulo"></h2>
+        <p id="conf-texto"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="conf-no">Cancelar</button>
+            <button type="button" class="primario" id="conf-si">Aceptar</button>
+        </div>
+    </div>
+</dialog>
+<script src="js/leaflet.js"></script>
+<script src="data/direcciones_lotes.js"></script>
+<script type="module" src="/src/descuentos/main.js"></script>
+</body>
+</html>
