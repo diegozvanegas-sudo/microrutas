@@ -277,7 +277,9 @@ export function analizar(prog, centros) {
             km: { hoy1: sumaKm(hoy[1]), hoy2: sumaKm(hoy[2]), prop1: sumaKm(propuesta[1]), prop2: sumaKm(propuesta[2]) },
             largos: { hoy: todos(hoy).filter(function (d) { return d.km > LARGO; }).length, prop: todos(propuesta).filter(function (d) { return d.km > LARGO; }).length },
             cargaMax: { hoy: Math.max.apply(null, todos(hoy).map(function (d) { return d.area; }).concat(0)), prop: Math.max.apply(null, todos(propuesta).map(function (d) { return d.area; }).concat(0)) },
-            sinDia: A.concat(B).filter(function (x) { return x.semana == null || x.dia == null; }).length
+            sinDia: A.concat(B).filter(function (x) { return x.semana == null || x.dia == null; }).length,
+            // Los que el Excel deja sin semana o día (ubicados): en el mapa de hoy van aparte, sin recorrido
+            sinDiaLotes: { 1: A.filter(function (x) { return ubic(x) && (x.semana == null || x.dia == null); }), 2: B.filter(function (x) { return ubic(x) && (x.semana == null || x.dia == null); }) }
         };
     });
     var suma = function (f) { return cuadrillas.reduce(function (s, c) { return s + f(c); }, 0); };
@@ -293,6 +295,32 @@ export function analizar(prog, centros) {
     total.ahorro = total.hoy ? Math.round(100 * (1 - total.prop / total.hoy)) : 0;
     return { cuadrillas: cuadrillas, total: total, sinUbicar: sinUbicar };
 }
+
+// ---------- Recorridos enumerados (mapas y Excel) ----------
+// Días de una quincena → paradas en orden: [{ dia, x, n (orden en el día), g (orden seguido en la quincena), sig (km al
+// siguiente del mismo día, null en el último), total (lotes del día) }]
+export function paradas(dias) {
+    var out = [], g = 0;
+    (dias || []).forEach(function (d) {
+        d.lotes.forEach(function (x, i) {
+            g++;
+            out.push({ dia: d, x: x, n: i + 1, g: g, total: d.lotes.length, sig: i + 1 < d.lotes.length ? km(x, d.lotes[i + 1]) : null });
+        });
+    });
+    return out;
+}
+// Ángulo en pantalla (grados, 0 = hacia el este, positivo = hacia abajo, como CSS rotate) de la flecha de a hacia b
+export function anguloPantalla(a, b) {
+    var dx = (b.lon - a.lon) * Math.cos(a.lat * Math.PI / 180), dy = b.lat - a.lat;
+    return Math.atan2(-dy, dx) * 180 / Math.PI;
+}
+// Fechas de los días de hoy y de la propuesta de una quincena, sin repetir y en orden (para un color por fecha)
+export function fechasDe(diasHoy, diasProp) {
+    var v = {};
+    (diasHoy || []).concat(diasProp || []).forEach(function (d) { if (d.fecha) v[d.fecha] = { fecha: d.fecha, semana: d.semana, dia: d.dia }; });
+    return Object.keys(v).sort().map(function (k) { return v[k]; });
+}
+export function metros(km) { return km < 1 ? Math.round(km * 1000) + ' m' : kmTexto(km) + ' km'; }
 
 // ---------- Textos ----------
 var DIAS = ['', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];

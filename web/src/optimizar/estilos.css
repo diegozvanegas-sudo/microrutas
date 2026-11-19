@@ -45,11 +45,48 @@
 .oz-q { display: flex; gap: 6px; }
 .oz-q button { min-height: 42px; min-width: 52px; }
 .oz-q button[aria-pressed="true"] { background: var(--brand); color: #fff; }
-.oz-mapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
+.oz-mapas { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 10px; }
+.oz-dibujos { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 10px; }
 .oz-mapa { margin: 0; border: 1px solid var(--line); border-radius: 10px; overflow: hidden; min-width: 0; }
-.oz-mapa figcaption { display: flex; justify-content: space-between; gap: 8px; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
-.oz-mapa svg { display: block; width: 100%; height: auto; }
-.oz-mapa g.apagado { opacity: .12; }
+.oz-mapa figcaption { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; padding: 7px 10px; font-size: 13px; border-bottom: 1px solid var(--line); }
+/* Solo el dibujo de respaldo: los svg de Leaflet (la bandera del crédito, las líneas) no se tocan */
+.oz-mapa > svg { display: block; width: 100%; height: auto; }
+.oz-mapa > svg g.apagado { opacity: .12; }
+.oz-map { height: 520px; background: #e5e7eb; }
+.oz-mapas.grande { grid-template-columns: 1fr; }
+.oz-mapas.grande .oz-map { height: 78vh; }
+
+/* Día que se ve en los mapas y opciones */
+.oz-diasel { display: flex; flex-wrap: wrap; gap: 6px; }
+.oz-fecha { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 11px; border-radius: 99px; background: #f1f5f9; color: var(--ink); font-size: 13px; font-weight: 650; border: 2px solid transparent; }
+.oz-fecha[aria-pressed="true"] { border-color: var(--color, var(--brand)); background: #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .12); }
+.oz-fecha:not([style])[aria-pressed="true"] { background: var(--brand); color: #fff; }
+.oz-mapopc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; font-size: 13px; }
+.oz-mapopc label { display: flex; align-items: center; gap: 6px; margin: 0; }
+.oz-mapopc select { min-height: 36px; border: 1px solid var(--line); border-radius: 8px; padding: 4px 8px; font: inherit; background: #fff; color: var(--ink); max-width: 100%; }
+.oz-mapopc .oz-check { min-height: 36px; font-size: 13px; }
+.oz-mapopc button { min-height: 36px; }
+
+/* Números de los lotes (orden de visita) y flechas del recorrido */
+.oz-pin { background: none; border: 0; }
+.oz-pin span { display: flex; align-items: center; justify-content: center; width: 100%; height: 100%; border-radius: 99px; color: #fff; font: 700 12px/1 "Segoe UI", Arial, sans-serif;
+    border: 2px solid #fff; box-shadow: 0 1px 4px rgba(0, 0, 0, .45); box-sizing: border-box; }
+.oz-pin.quin span { border-color: #1d4ed8; border-width: 3px; }
+.oz-pin.sin span { background: #64748b; }
+.oz-flecha { background: none; border: 0; pointer-events: none; }
+.oz-flecha span { display: block; width: 16px; height: 16px; font-size: 15px; line-height: 16px; text-align: center; text-shadow: 0 0 2px #fff, 0 0 3px #fff; }
+.oz-ficha { font-size: 13px; min-width: 220px; }
+.oz-ficha table { border-collapse: collapse; margin: 6px 0; width: 100%; }
+.oz-ficha td { padding: 2px 0; vertical-align: top; }
+.oz-ficha td:first-child { color: var(--muted); padding-right: 10px; white-space: nowrap; }
+.oz-ficha a { font-weight: 650; }
+
+/* Paso a paso de cada día */
+.oz-paso { border-top: 1px dashed var(--line); padding-top: 6px; }
+.oz-paso summary { cursor: pointer; font-size: 13px; font-weight: 650; color: var(--brand-dark); min-height: 30px; display: flex; align-items: center; }
+.oz-paso ol { margin: 4px 0 0; padding-left: 26px; display: grid; gap: 6px; font-size: 12.5px; line-height: 1.4; }
+.oz-paso li { overflow-wrap: anywhere; }
+.oz-sig { display: block; color: var(--muted); font-size: 11.5px; }
 
 .oz-pestanas { display: flex; gap: 6px; border-bottom: 1px solid var(--line); overflow-x: auto; }
 .oz-pestanas button { background: none; color: var(--muted); border-radius: 8px 8px 0 0; padding: 10px 14px; min-height: 42px; border-bottom: 3px solid transparent; white-space: nowrap; }
@@ -76,4 +113,6 @@
     .oz-acciones, .oz-acciones button { width: 100%; }
     .oz-dato b { font-size: 18px; }
     .oz-dias { max-height: none; overflow: visible; }
+    .oz-map { height: 380px; }
+    .oz-mapas.grande .oz-map { height: 70vh; }
 }

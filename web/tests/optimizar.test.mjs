@@ -3,7 +3,28 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import ExcelJS from 'exceljs';
-import { km, largo, ruta, partir, centroLote, centrosDeLotes, ubicar, analizar, textoResumen, nombreDia } from '../src/optimizar/optimizar.js';
+import { km, largo, ruta, partir, centroLote, centrosDeLotes, ubicar, analizar, textoResumen, nombreDia, paradas, anguloPantalla, fechasDe, metros } from '../src/optimizar/optimizar.js';
+
+test('paradas, flechas y fechas: lo que numera y dibuja los mapas', () => {
+    var a = p(0, 0), b = p(0, 300), c = p(400, 300);
+    var dias = [{ fecha: '2026-11-16', semana: 3, dia: 1, lotes: [a, b, c] }, { fecha: '2026-11-17', semana: 3, dia: 2, lotes: [b] }];
+    var s = paradas(dias);
+    assert.deepEqual(s.map(function (x) { return [x.n, x.g, x.total]; }), [[1, 1, 3], [2, 2, 3], [3, 3, 3], [1, 4, 1]]);
+    assert.ok(Math.abs(s[0].sig - 0.3) < 0.005 && Math.abs(s[1].sig - 0.4) < 0.005);
+    assert.equal(s[2].sig, null, 'el último del día no tiene siguiente');
+    assert.equal(s[3].sig, null);
+    assert.deepEqual(paradas([]), []);
+    // Flecha: hacia el este 0°, hacia el norte −90° (arriba en la pantalla), hacia el sur 90°, hacia el oeste ±180°
+    assert.ok(Math.abs(anguloPantalla(a, b)) < 0.5);
+    assert.ok(Math.abs(anguloPantalla(b, c) + 90) < 0.5);
+    assert.ok(Math.abs(anguloPantalla(c, b) - 90) < 0.5);
+    assert.ok(Math.abs(Math.abs(anguloPantalla(b, a)) - 180) < 0.5);
+    // Fechas de hoy y de la propuesta juntas, sin repetir y en orden
+    assert.deepEqual(fechasDe([{ fecha: '2026-11-17', semana: 3, dia: 2 }], [{ fecha: '2026-11-16', semana: 3, dia: 1 }, { fecha: '2026-11-17', semana: 3, dia: 2 }]).map(function (f) { return f.fecha; }),
+        ['2026-11-16', '2026-11-17']);
+    assert.equal(metros(0.35), '350 m');
+    assert.equal(metros(2.34), '2,3 km');
+});
 import { libroPropuesta } from '../src/optimizar/excel.js';
 
 // Punto a «metros» al norte y al este de un origen en Medellín
@@ -138,11 +159,17 @@ test('excel: comparativo, una hoja por quincena con todas las filas y la de sin 
     var wb = libroPropuesta(ExcelJS, res, { mes: '2026-11', archivo: 'prueba.xlsx' });
     var otro = new ExcelJS.Workbook();
     await otro.xlsx.load(await wb.xlsx.writeBuffer());
-    assert.deepEqual(otro.worksheets.map(function (w) { return w.name; }), ['Comparativo', 'Propuesta Q1', 'Propuesta Q2', 'Días más dispersos hoy', 'Sin ubicar']);
-    assert.equal(otro.getWorksheet('Propuesta Q1').rowCount, 1 + 8);
-    assert.equal(otro.getWorksheet('Propuesta Q2').rowCount, 1 + 8);
+    assert.deepEqual(otro.worksheets.map(function (w) { return w.name; }), ['Comparativo', 'Propuesta Q1', 'Propuesta Q2', 'Hoy Q1', 'Hoy Q2', 'Días más dispersos hoy', 'Sin ubicar']);
+    ['Propuesta Q1', 'Propuesta Q2', 'Hoy Q1', 'Hoy Q2'].forEach(function (n) { assert.equal(otro.getWorksheet(n).rowCount, 1 + 8, n); });
     var f = otro.getWorksheet('Propuesta Q2').getRow(2).values;
     assert.equal(f[1], 1);                  // cuadrilla
     assert.ok(f[7] === 3 || f[7] === 4);   // semana de la Q2
+    // Orden en el día, orden seguido en la quincena (1…8) y km al siguiente (vacío en el último del día)
+    var h = otro.getWorksheet('Hoy Q1');
+    assert.equal(h.getRow(1).getCell(11).value, 'ORDEN EN LA QUINCENA');
+    assert.deepEqual([2, 3, 4, 5, 6, 7, 8, 9].map(function (r) { return h.getRow(r).getCell(11).value; }), [1, 2, 3, 4, 5, 6, 7, 8]);
+    assert.equal(h.getRow(2).getCell(10).value, 1);
+    assert.equal(typeof h.getRow(2).getCell(12).value, 'number');
+    assert.ok(h.getRow(3).getCell(12).value == null || h.getRow(3).getCell(12).value === '', 'el último lote del día no tiene siguiente');
     assert.equal(otro.getWorksheet('Sin ubicar').getRow(2).getCell(3).value, 'Z1CC0099');
 });

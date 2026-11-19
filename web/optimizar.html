@@ -7,6 +7,7 @@
     <link rel="icon" type="image/png" href="icons/icono-192.png">
     <link rel="apple-touch-icon" href="icons/icono-192.png">
     <title>Programación por cercanía</title>
+    <link rel="stylesheet" href="css/leaflet.css">
 </head>
 <body>
 <header>
@@ -111,7 +112,31 @@
                 <button type="button" class="secundario" data-q="2" aria-pressed="false">Q2</button>
             </div>
         </div>
-        <div class="oz-mapas" id="oz-mapas"></div>
+        <h3>Recorridos en el mapa: hoy y propuesta</h3>
+        <p class="sub">Cada lote lleva su número en el orden de visita y la línea de su día, con flechas hacia el que sigue. Toque un número para ver la ficha del lote.
+            Los dos mapas se mueven juntos. El orden de hoy es el más corto entre los lotes que el Excel pone ese día (el Excel no trae orden dentro del día).</p>
+        <div class="oz-diasel" id="oz-diasel" role="group" aria-label="Día que se ve en los mapas"></div>
+        <div class="oz-mapopc">
+            <label>Fondo <select id="oz-fondo">
+                <option value="calles">Calles</option>
+                <option value="satelite">Satélite con calles</option>
+                <option value="orto">Ortofoto Alcaldía</option>
+            </select></label>
+            <label>Números <select id="oz-numeros">
+                <option value="dia">Orden en el día (1, 2, 3…)</option>
+                <option value="quincena">Seguidos en la quincena</option>
+            </select></label>
+            <label class="oz-check"><input type="checkbox" id="oz-flechas" checked> Flechas</label>
+            <label class="oz-check"><input type="checkbox" id="oz-poligonos" checked> Polígonos de los lotes</label>
+            <label class="oz-check"><input type="checkbox" id="oz-juntos" checked> Mover los dos mapas juntos</label>
+            <button type="button" class="secundario pequeno" id="oz-grande">⤢ Mapas más grandes</button>
+        </div>
+        <div class="oz-mapas" id="oz-mapas">
+            <figure class="oz-mapa"><figcaption id="oz-cap-hoy"></figcaption><div id="oz-map-hoy" class="oz-map" role="region" aria-label="Mapa del recorrido de hoy"></div></figure>
+            <figure class="oz-mapa"><figcaption id="oz-cap-prop"></figcaption><div id="oz-map-prop" class="oz-map" role="region" aria-label="Mapa del recorrido de la propuesta"></div></figure>
+        </div>
+        <div id="oz-sin-mapa" hidden></div>
+        <p class="sub">Número con borde azul: quincenal · borde blanco: mensual · gris con «?»: el Excel no le pone día. Las líneas son en línea recta entre lotes, no por calle.</p>
         <div class="oz-pestanas" role="tablist" aria-label="Qué días ver" id="oz-pestanas">
             <button type="button" role="tab" data-lista="prop" aria-selected="true">Días de la propuesta</button>
             <button type="button" role="tab" data-lista="hoy" aria-selected="false">Días de hoy</button>
@@ -123,6 +148,7 @@
     <p class="nota-privada">El cálculo se hace en este equipo y no se guarda: al volver a abrir la página se calcula otra vez con la programación guardada.</p>
 </main>
 <div class="toast" id="toast"></div>
+<script src="js/leaflet.js"></script>
 <script type="module" src="/src/optimizar/main.js"></script>
 </body>
 </html>

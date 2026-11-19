@@ -1,7 +1,7 @@
 // Excel de 🛣️ Programación por cercanía: comparativo por cuadrilla, la propuesta de cada quincena (mismas columnas del
 // Excel del contratista, más el orden en el día y el día que tiene hoy) y los días más dispersos de la programación actual.
 // libroPropuesta(ExcelJS, res, info) → Workbook (res = analizar(); info = { mes, archivo })
-import { kmTexto, pct, nombreDia, LARGO } from './optimizar.js';
+import { kmTexto, pct, nombreDia, paradas, LARGO } from './optimizar.js';
 
 var VERDE = 'FF166534';
 function cabecera(ws, columnas) {
@@ -42,16 +42,32 @@ export function libroPropuesta(ExcelJS, res, info) {
         'Fuente: ' + (info.archivo || 'programación del mes') + (info.mes ? ' (' + info.mes + ')' : '') + ' y los polígonos del mapa.'
     ].forEach(function (x) { ws.addRow([x]); });
 
+    // Las dos rutas completas y enumeradas: la propuesta y la de hoy (orden más corto entre los lotes que el Excel pone cada día)
+    var km3 = function (n) { return n == null ? '' : Math.round(n * 1000) / 1000; };
     [1, 2].forEach(function (q) {
         var h = wb.addWorksheet('Propuesta Q' + q);
         cabecera(h, [['CUADRILLA', 11], ['MICRORRUTA', 13], ['LOTE', 8], ['DIRECCION', 48], ['AREA m2', 10], ['FRECUENCIA', 11], ['SEMANA DE EJECUCION', 11],
-            ['DIA DE EJECUCION', 10], ['FECHA', 11], ['ORDEN EN EL DIA', 9], ['KM DEL DIA (línea recta)', 11], ['SEMANA HOY', 9], ['DIA HOY', 8], ['¿CAMBIA DE DÍA?', 10]]);
+            ['DIA DE EJECUCION', 10], ['FECHA', 11], ['ORDEN EN EL DIA', 9], ['ORDEN EN LA QUINCENA', 11], ['KM AL SIGUIENTE (línea recta)', 12], ['KM DEL DIA (línea recta)', 11],
+            ['SEMANA HOY', 9], ['DIA HOY', 8], ['¿CAMBIA DE DÍA?', 10]]);
         res.cuadrillas.forEach(function (c) {
-            c.propuesta[q].forEach(function (d) {
-                d.lotes.forEach(function (x, i) {
-                    h.addRow([Number(c.cuad) || c.cuad, x.mr, numLote(x.lote), x.dir || '', x.area || 0, x.frec, d.semana, d.dia, d.fecha, i + 1, r1(d.km),
-                        x.antes.semana, x.antes.dia, x.cambia ? 'sí' : '']);
-                });
+            paradas(c.propuesta[q]).forEach(function (s) {
+                var x = s.x, d = s.dia;
+                h.addRow([Number(c.cuad) || c.cuad, x.mr, numLote(x.lote), x.dir || '', x.area || 0, x.frec, d.semana, d.dia, d.fecha, s.n, s.g, km3(s.sig), r1(d.km),
+                    x.antes.semana, x.antes.dia, x.cambia ? 'sí' : '']);
+            });
+        });
+    });
+    [1, 2].forEach(function (q) {
+        var h = wb.addWorksheet('Hoy Q' + q);
+        cabecera(h, [['CUADRILLA', 11], ['MICRORRUTA', 13], ['LOTE', 8], ['DIRECCION', 48], ['AREA m2', 10], ['FRECUENCIA', 11], ['SEMANA DE EJECUCION', 11],
+            ['DIA DE EJECUCION', 10], ['FECHA', 11], ['ORDEN EN EL DIA', 9], ['ORDEN EN LA QUINCENA', 11], ['KM AL SIGUIENTE (línea recta)', 12], ['KM DEL DIA (línea recta)', 11], ['FILA EN EL EXCEL', 9]]);
+        res.cuadrillas.forEach(function (c) {
+            paradas(c.hoy[q]).forEach(function (s) {
+                var x = s.x, d = s.dia;
+                h.addRow([Number(c.cuad) || c.cuad, x.mr, numLote(x.lote), x.dir || '', x.area || 0, x.frec, d.semana, d.dia, d.fecha, s.n, s.g, km3(s.sig), r1(d.km), x.fila]);
+            });
+            (c.sinDiaLotes ? c.sinDiaLotes[q] : []).forEach(function (x) {
+                h.addRow([Number(c.cuad) || c.cuad, x.mr, numLote(x.lote), x.dir || '', x.area || 0, x.frec, '', '', 'sin día en el Excel', '', '', '', '', x.fila]);
             });
         });
     });
