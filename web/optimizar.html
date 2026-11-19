@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Programación por cercanía</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🛣️</span>
+        <div class="nombre"><h1>Programación por cercanía</h1><div class="lema">Zonas verdes · la programación del mes contra una armada con los lotes más cercanos por día</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
+                <a href="optimizar.html" aria-current="page" title="La programación del mes contra una armada por sectores: lotes cercanos el mismo día y quincenales a 14 días">🛣️ Programación por cercanía</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+                <a href="programados.html" title="Mensajes de WhatsApp que salen solos a la hora elegida">⏰ Envíos programados</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="oz">
+    <div id="estado" class="oz-estado">Cargando…</div>
+    <section class="panel oz-panel" id="oz-datos" hidden>
+        <h2>🛣️ Programación por cercanía</h2>
+        <p class="sub">Compara la programación del mes con una armada por sectores: cada día, cada cuadrilla hace lotes cercanos entre sí.
+            Un quincenal va el mismo día de la semana en Q1 y en Q2 (14 días entre pasadas) y un mensual sigue en su quincena, solo cambia de día.
+            Se usan los mismos días que trabaja hoy cada cuadrilla, con la carga (m²) pareja.</p>
+        <div class="oz-caja">
+            <h3>Programación del mes</h3>
+            <div id="oz-prog-estado" class="oz-linea" role="status"></div>
+            <input type="file" id="oz-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
+            <button type="button" class="secundario oz-ancho" id="oz-elegir">📁 Elegir el Excel de programación</button>
+            <div class="sub">Es la misma de 📅 Programación del día y de 📊 Cruce: <b>queda guardada en este equipo</b> hasta que suba otra.</div>
+        </div>
+        <div id="oz-calc" class="oz-linea" role="status" aria-live="polite"></div>
+    </section>
+    <section class="panel oz-panel" id="oz-res" hidden>
+        <div class="oz-cab">
+            <h2 id="oz-titulo">Resultado</h2>
+            <div class="oz-acciones">
+                <button type="button" class="secundario" id="oz-copiar">📋 Copiar resumen</button>
+                <button type="button" class="primario" id="oz-excel">⬇️ Descargar Excel de la propuesta</button>
+            </div>
+        </div>
+        <div id="oz-cuenta" class="oz-cuenta"></div>
+        <div id="oz-avisos" class="oz-avisos" hidden></div>
+        <details class="oz-plegable">
+            <summary>¿Cómo se calcula y qué no tiene en cuenta?</summary>
+            <ul class="oz-notas">
+                <li><b>Km</b>: distancia en línea recta entre el centro de los lotes del mismo día, en el orden más corto. Por calle suele ser 1,3 a 1,5 veces más.</li>
+                <li>No cuenta la ida desde la base al primer lote ni la vuelta, ni las lomas o el tráfico.</li>
+                <li><b>Carga</b> = m² del día. Ningún día pasa del 125 % del promedio de la cuadrilla, salvo que un solo lote ya pese más.</li>
+                <li>En las vías largas (p. ej. Vía al Mar) el centro del polígono es aproximado.</li>
+                <li>Casi todos los lotes cambian de día: sirve como base para el mes siguiente, no para corregir la quincena que va en curso.</li>
+            </ul>
+        </details>
+        <h3>Por cuadrilla</h3>
+        <p class="sub">Toque una cuadrilla para ver sus días abajo.</p>
+        <div class="oz-tabla-caja"><table class="oz-tabla" id="oz-tabla"></table></div>
+    </section>
+    <section class="panel oz-panel" id="oz-detalle" hidden>
+        <div class="oz-sel">
+            <label for="oz-cuad">Cuadrilla</label>
+            <select id="oz-cuad"></select>
+            <div class="oz-q" role="group" aria-label="Quincena">
+                <button type="button" class="secundario" data-q="1" aria-pressed="true">Q1</button>
+                <button type="button" class="secundario" data-q="2" aria-pressed="false">Q2</button>
+            </div>
+        </div>
+        <div class="oz-mapas" id="oz-mapas"></div>
+        <div class="oz-pestanas" role="tablist" aria-label="Qué días ver" id="oz-pestanas">
+            <button type="button" role="tab" data-lista="prop" aria-selected="true">Días de la propuesta</button>
+            <button type="button" role="tab" data-lista="hoy" aria-selected="false">Días de hoy</button>
+        </div>
+        <label class="oz-check"><input type="checkbox" id="oz-solo"> Solo los días de más de 3 km entre lotes</label>
+        <p class="sub">Azul: quincenal · gris: mensual. «hoy …» es el día que tiene en la programación actual. Toque un lote para verlo en el mapa.</p>
+        <div id="oz-dias" class="oz-dias"></div>
+    </section>
+    <p class="nota-privada">El cálculo se hace en este equipo y no se guarda: al volver a abrir la página se calcula otra vez con la programación guardada.</p>
+</main>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/optimizar/main.js"></script>
+</body>
+</html>
