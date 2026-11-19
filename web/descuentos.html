@@ -140,14 +140,15 @@
             <div class="dz-fila">
                 <label class="dz-check"><input type="checkbox" id="dz-emitido"> Ya se emitió (se envió el documento)</label>
                 <button type="button" class="secundario" id="dz-guardar">💾 Guardar en el historial</button>
+                <button type="button" class="secundario" id="dz-previa">👁 Vista previa</button>
                 <button type="button" class="secundario" id="dz-word">⬇️ Generar Word</button>
                 <button type="button" class="primario" id="dz-pdf">⬇️ Generar PDF</button>
             </div>
         </div>
         <details class="dz-plegable" id="dz-config">
             <summary>⚙️ Formato del documento (membrete) <span class="sub" id="dz-formato-resumen"></span></summary>
-            <p class="sub">Suba una vez el <b>Word (.docx) de un descuento ya hecho</b> (o cualquier documento con el formato GD-FR-016): de ahí salen el membrete, el pie con el código,
-                la letra y los márgenes, para el Word y el PDF. Se guarda solo en este equipo, sin su contenido ni sus fotos.</p>
+            <p class="sub">El Word y el PDF salen con el formato GD-FR-016 del Colegio Mayor (membrete, pie con el código, letra y márgenes), el mismo para todo el equipo.
+                Si necesita otro, suba el <b>Word (.docx) de un documento ya hecho</b> con ese formato: se usa solo en este equipo, sin su contenido ni sus fotos.</p>
             <p class="sub" id="dz-formato-estado" role="status"></p>
             <div class="dz-fila">
                 <label class="boton primario pequeno">📄 Elegir el Word del formato (.docx)<input type="file" id="dz-formato" accept=".docx,application/vnd.openxmlformats-officedocument.wordprocessingml.document" hidden></label>
@@ -180,6 +181,23 @@
     <p class="nota-privada">El membrete y las fotos quedan solo en este equipo. Los descuentos guardados (sin fotos) se ven en el historial del equipo de interventoría.</p>
 </main>
 <div class="toast" id="toast"></div>
+<!-- Vista previa: el PDF tal como sale, antes de descargarlo. Al cerrar se borra (no se guarda nada) -->
+<dialog id="dlg-previa" aria-labelledby="dz-previa-tit">
+    <div class="cuerpo">
+        <h2 id="dz-previa-tit">👁 Vista previa del documento</h2>
+        <p class="sub" id="dz-previa-sub">Así queda el PDF; el Word lleva lo mismo. Si algo no está bien, cierre, corríjalo y vuelva a abrir la vista previa.</p>
+        <div id="dz-previa-faltan" class="dz-previa-faltan" hidden></div>
+        <div id="dz-previa-estado" class="dz-previa-estado" role="status">Armando el documento…</div>
+        <iframe id="dz-previa-marco" class="dz-previa-marco" title="Vista previa del PDF del descuento" hidden></iframe>
+        <p class="sub dz-previa-sin" id="dz-previa-sin" hidden>Este navegador (p. ej. Chrome en el celular) no muestra PDF dentro de la página: toque <b>«Abrir en otra pestaña»</b> para verlo.</p>
+        <div class="pie">
+            <button type="button" class="secundario" id="dz-previa-cerrar">Cerrar</button>
+            <a class="boton secundario" id="dz-previa-abrir" target="_blank" rel="noopener" hidden>↗ Abrir en otra pestaña</a>
+            <button type="button" class="secundario" id="dz-previa-word">⬇️ Descargar Word</button>
+            <button type="button" class="primario" id="dz-previa-pdf" disabled>⬇️ Descargar este PDF</button>
+        </div>
+    </div>
+</dialog>
 <dialog id="dlg-confirmar">
     <div class="cuerpo">
         <h2 id="conf-titulo"></h2>

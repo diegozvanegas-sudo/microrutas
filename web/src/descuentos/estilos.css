@@ -96,7 +96,20 @@
 .dz-estado { font-size: 11.5px; font-weight: 700; padding: 2px 9px; border-radius: 99px; background: #fef3c7; color: #92400e; height: fit-content; }
 .dz-estado.ok { background: #dcfce7; color: #166534; }
 
+/* Vista previa del documento */
+#dlg-previa { width: min(1000px, calc(100% - 24px)); }
+#dlg-previa .cuerpo { display: grid; gap: 10px; }
+#dlg-previa h2 { margin: 0; }
+#dlg-previa .sub { margin: 0; }
+.dz-previa-marco { width: 100%; height: min(72vh, 900px); border: 1px solid var(--line); border-radius: 8px; background: #e5e7eb; }
+.dz-previa-estado { padding: 40px 10px; text-align: center; color: var(--muted); font-size: 14px; border: 1px dashed var(--line); border-radius: 8px; }
+.dz-previa-faltan { font-size: 13px; color: #9a3412; font-weight: 600; background: #fff7ed; border-radius: 8px; padding: 8px 10px; overflow-wrap: anywhere; }
+#dlg-previa .pie { display: flex; flex-wrap: wrap; gap: 8px; justify-content: flex-end; }
+#dlg-previa .pie > * { min-height: 40px; display: inline-flex; align-items: center; }
+
+@media (max-width: 760px) { #dlg-previa { width: 100%; } .dz-previa-marco { height: 62vh; } }
 @media (max-width: 560px) {
+    #dlg-previa .pie > * { flex: 1 1 calc(50% - 8px); justify-content: center; text-align: center; }
     .dz-panel { padding: 12px; }
     .dz-paso { padding: 10px; }
     .dz-mapa { height: 420px; }

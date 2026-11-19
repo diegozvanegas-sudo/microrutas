@@ -313,10 +313,29 @@ function deDataUrl(datos) {
     return { bytes: bytes, tipo: /^data:image\/png/.test(datos) ? 'png' : 'jpg' };
 }
 function membrete() { var m = leer(MEMBRETE, null), r = leer(MEMBRETE_REQ, null); return deDataUrl(m && m.datos) || deDataUrl(r && r.datos); }
-// Formato Word del equipo (IndexedDB «formato»): { bytes, nombre, fecha }; membreteF: lo que sale de él para el PDF
-var formato = null, membreteF = null;
+// Formato Word: el elegido en este equipo (IndexedDB «formato») o, si no hay, el predeterminado del Colegio Mayor, que está en
+// la base como documento privado (DESC-FORMATO de convenio_secciones, lo carga npm run guia; solo con sesión y permiso de
+// contrato). → { bytes, nombre, origen: 'equipo' | 'base' }; membreteF: lo que sale de él para el PDF
+var formato = null, membreteF = null, formatoBase;
+async function formatoDeLaBase() {
+    if (formatoBase !== undefined) return formatoBase;
+    formatoBase = null;
+    if (!configurado) return null;
+    try {
+        var r = await supabase.from('convenio_secciones').select('items').eq('documento', 'DESC-FORMATO').eq('id', 'formato').maybeSingle();
+        var items = (r.data && r.data.items) || [], dato = function (k) { return ((items.filter(function (i) { return i.clave === k; })[0]) || {}).t || ''; };
+        var b64 = dato('formato_docx');
+        if (b64) {
+            var bin = atob(b64.split(',')[1] || ''), bytes = new Uint8Array(bin.length);
+            for (var i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            formatoBase = { bytes: bytes, nombre: dato('formato_nombre') || 'Formato GD-FR-016', origen: 'base' };
+        }
+    } catch (e) { formatoBase = null; }
+    return formatoBase;
+}
 async function cargarFormato() {
-    formato = await leerArchivo('formato');
+    var propio = await leerArchivo('formato');
+    formato = propio ? Object.assign({ origen: 'equipo' }, propio) : await formatoDeLaBase();
     membreteF = null;
     if (formato && formato.bytes) {
         try { membreteF = await membreteDeFormato(formato.bytes); } catch (e) { membreteF = null; }
@@ -325,11 +344,13 @@ async function cargarFormato() {
 }
 function pintarMembrete() {
     var m = leer(MEMBRETE, null), r = leer(MEMBRETE_REQ, null);
-    $('dz-formato-estado').innerHTML = formato ? '✓ Formato: <b>' + esc(formato.nombre) + '</b>' + (membreteF && membreteF.fondo ? ' · con membrete' : ' · ⚠ no se encontró el membrete de página completa en su encabezado') +
+    $('dz-formato-estado').innerHTML = formato ? '✓ Formato: <b>' + esc(formato.nombre) + '</b>' + (formato.origen === 'base' ? ' (el predeterminado, el mismo para todo el equipo)' : ' (elegido en este equipo)') +
+        (membreteF && membreteF.fondo ? ' · con membrete' : ' · ⚠ no se encontró el membrete de página completa en su encabezado') +
         (membreteF && membreteF.textos.length ? ' y ' + plural(membreteF.textos.length, 'cuadro', 'cuadros') + ' de texto del pie (' + esc(membreteF.textos[0].lineas[0]) + '…)' : '') +
         ' · letra ' + esc(membreteF ? membreteF.fuente + ' ' + membreteF.tam : '') + ' · el Word y el PDF salen con este formato.'
         : '<b>Sin formato.</b> El Word y el PDF salen con el diseño de la aplicación' + (m || r ? ' y la imagen de membrete' : ' y sin logos') + '. Suba el Word para que queden iguales al documento de la institución.';
-    $('dz-formato-quitar').hidden = !formato;
+    $('dz-formato-quitar').hidden = !formato || formato.origen !== 'equipo';
+    $('dz-formato-quitar').textContent = formatoBase ? 'Volver al predeterminado' : 'Quitar el formato';
     $('dz-formato-resumen').textContent = formato ? '· ' + formato.nombre : (m || r) ? '· imagen de membrete' : '· sin membrete';
     $('dz-membrete-estado').textContent = formato ? 'Con el formato Word no hace falta la imagen.' : m ? 'Imagen de membrete elegida aquí (' + (m.nombre || 'imagen') + ').' : r ? 'Se usa la imagen de membrete de 📨 Requerimientos de este equipo.' : '';
     $('dz-membrete-ver').hidden = !!formato || !(m || r);
@@ -350,38 +371,79 @@ async function subirFormato(file) {
 }
 
 // ---------- PDF, Word y guardado ----------
+// Arma el documento (que: 'pdf' | 'word') con las imágenes al día → { bytes, tipo, nombre, nFotos }. aviso(texto): el paso que va
+async function armarDoc(que, aviso) {
+    leerForm();
+    aviso('Armando las imágenes…');
+    for (var i = 0; i < d.filas.length; i++) {
+        try { await armarImagenes(i); } catch (e) { toast('⚠ ' + e.message); }
+    }
+    pintarMedios();
+    aviso(que === 'word' ? 'Generando el Word…' : 'Generando el PDF…');
+    var imagenes = {}, fotos = {};
+    medios.forEach(function (md, k) { imagenes[k] = { actual: md.actual, descontar: md.descontar }; fotos[k] = md.fotos || []; });
+    var nFotos = Object.keys(fotos).reduce(function (s, k) { return s + fotos[k].length; }, 0), nombre = nombreArchivo(d);
+    if (que === 'word') {
+        var { armarDocxDescuento } = await import('./word.js');
+        return { bytes: await armarDocxDescuento(d, { formato: formato && formato.bytes, membrete: membrete(), imagenes: imagenes, fotos: fotos }),
+            tipo: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', nombre: nombre.replace(/\.pdf$/, '.docx'), nFotos: nFotos };
+    }
+    var { armarPdfDescuento } = await import('./pdf.js');
+    return { bytes: await armarPdfDescuento(d, { formato: membreteF, membrete: membrete(), imagenes: imagenes, fotos: fotos }), tipo: 'application/pdf', nombre: nombre, nFotos: nFotos };
+}
+function bajar(doc) {
+    var a = document.createElement('a'), url = URL.createObjectURL(new Blob([doc.bytes], { type: doc.tipo }));
+    a.href = url; a.download = doc.nombre;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
+    toast((/pdf/.test(doc.tipo) ? 'PDF' : 'Word') + ' descargado: ' + doc.nombre + ' · ' + plural(doc.nFotos, 'foto', 'fotos') + (formato ? ' · con el formato ' + formato.nombre : '') + '. Guárdelo en el historial para que cuente en los totales.');
+}
 // que: 'pdf' | 'word'
 async function generar(que) {
     leerForm();
     var falta = revisar(d), nombreDoc = que === 'word' ? 'el Word' : 'el PDF';
     if (falta.length && !(await confirmar('Falta algo', 'Falta: ' + falta.join(' · ') + '. ¿Generar ' + nombreDoc + ' así?', 'Generar igual'))) return;
     var b = $(que === 'word' ? 'dz-word' : 'dz-pdf'), texto0 = b.textContent;
-    $('dz-pdf').disabled = true; $('dz-word').disabled = true; b.textContent = 'Armando las imágenes…';
+    ['dz-pdf', 'dz-word', 'dz-previa'].forEach(function (id) { $(id).disabled = true; });
+    try { bajar(await armarDoc(que, function (t) { b.textContent = t; })); } catch (e) { toast('No se pudo generar ' + nombreDoc + ': ' + e.message); }
+    finally { ['dz-pdf', 'dz-word', 'dz-previa'].forEach(function (id) { $(id).disabled = false; }); b.textContent = texto0; }
+}
+
+// ---------- Vista previa: el PDF tal como sale, dentro de la página ----------
+var previa = null, urlPrevia = '', vezPrevia = 0;
+async function abrirPrevia() {
+    var dlg = $('dlg-previa'), vez = ++vezPrevia;
+    previa = null;
+    $('dz-previa-pdf').disabled = true;
+    $('dz-previa-marco').hidden = true; $('dz-previa-sin').hidden = true; $('dz-previa-abrir').hidden = true;
+    $('dz-previa-estado').hidden = false; $('dz-previa-estado').textContent = 'Armando el documento…';
+    leerForm();
+    var falta = revisar(d);
+    $('dz-previa-faltan').hidden = !falta.length;
+    $('dz-previa-faltan').textContent = falta.length ? '⚠ Todavía falta: ' + falta.join(' · ') : '';
+    if (!dlg.open) dlg.showModal();
     try {
-        for (var i = 0; i < d.filas.length; i++) {
-            try { await armarImagenes(i); } catch (e) { toast('⚠ ' + e.message); }
-        }
-        pintarMedios();
-        b.textContent = 'Generando ' + nombreDoc + '…';
-        var imagenes = {}, fotos = {};
-        medios.forEach(function (md, k) { imagenes[k] = { actual: md.actual, descontar: md.descontar }; fotos[k] = md.fotos || []; });
-        var nFotos = Object.keys(fotos).reduce(function (s, k) { return s + fotos[k].length; }, 0), bytes, tipoArchivo, nombre = nombreArchivo(d);
-        if (que === 'word') {
-            var { armarDocxDescuento } = await import('./word.js');
-            bytes = await armarDocxDescuento(d, { formato: formato && formato.bytes, membrete: membrete(), imagenes: imagenes, fotos: fotos });
-            tipoArchivo = 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'; nombre = nombre.replace(/\.pdf$/, '.docx');
-        } else {
-            var { armarPdfDescuento } = await import('./pdf.js');
-            bytes = await armarPdfDescuento(d, { formato: membreteF, membrete: membrete(), imagenes: imagenes, fotos: fotos });
-            tipoArchivo = 'application/pdf';
-        }
-        var a = document.createElement('a'), url = URL.createObjectURL(new Blob([bytes], { type: tipoArchivo }));
-        a.href = url; a.download = nombre;
-        document.body.appendChild(a); a.click(); a.remove();
-        setTimeout(function () { URL.revokeObjectURL(url); }, 5000);
-        toast((que === 'word' ? 'Word' : 'PDF') + ' descargado: ' + nombre + ' · ' + plural(nFotos, 'foto', 'fotos') + (formato ? ' · con el formato ' + formato.nombre : '') + '. Guárdelo en el historial para que cuente en los totales.');
-    } catch (e) { toast('No se pudo generar ' + nombreDoc + ': ' + e.message); }
-    finally { $('dz-pdf').disabled = false; $('dz-word').disabled = false; b.textContent = texto0; }
+        var doc = await armarDoc('pdf', function (t) { $('dz-previa-estado').textContent = t; });
+        if (vez !== vezPrevia || !dlg.open) return;   // se cerró mientras se armaba
+        previa = doc;
+        if (urlPrevia) URL.revokeObjectURL(urlPrevia);
+        urlPrevia = URL.createObjectURL(new Blob([doc.bytes], { type: 'application/pdf' }));
+        $('dz-previa-abrir').href = urlPrevia; $('dz-previa-abrir').hidden = false;
+        // Navegadores sin visor de PDF (Chrome en el celular): se abre en otra pestaña
+        if (navigator.pdfViewerEnabled === false) $('dz-previa-sin').hidden = false;
+        else { $('dz-previa-marco').src = urlPrevia + '#view=FitH'; $('dz-previa-marco').hidden = false; }
+        $('dz-previa-estado').hidden = true;
+        $('dz-previa-sub').textContent = 'Así queda el PDF (' + plural(doc.nFotos, 'foto', 'fotos') + (formato ? ', con el formato ' + formato.nombre : membrete() ? ', con la imagen de membrete' : ', sin membrete') + '); el Word lleva lo mismo. Si algo no está bien, cierre, corríjalo y vuelva a abrir la vista previa.';
+        $('dz-previa-pdf').disabled = false;
+    } catch (e) {
+        if (vez === vezPrevia) $('dz-previa-estado').innerHTML = '<span class="dz-mal">No se pudo armar la vista previa: ' + esc(e.message) + '</span>';
+    }
+}
+function cerrarPrevia() {
+    vezPrevia++;
+    previa = null;
+    $('dz-previa-marco').removeAttribute('src');
+    if (urlPrevia) { URL.revokeObjectURL(urlPrevia); urlPrevia = ''; }
 }
 async function guardarHistorial() {
     leerForm();
@@ -560,10 +622,16 @@ async function arrancar() {
         agregarFotos(+z.dataset.soltar, ev.dataTransfer && ev.dataTransfer.files);
     });
     $('dz-pdf').onclick = function () { generar('pdf'); };
+    $('dz-previa').onclick = abrirPrevia;
+    $('dz-previa-cerrar').onclick = function () { $('dlg-previa').close(); };
+    $('dlg-previa').addEventListener('close', cerrarPrevia);
+    $('dlg-previa').addEventListener('click', function (ev) { if (ev.target === this) this.close(); });
+    $('dz-previa-pdf').onclick = function () { if (previa) bajar(previa); };
+    $('dz-previa-word').onclick = function () { $('dlg-previa').close(); generar('word'); };
     $('dz-word').onclick = function () { generar('word'); };
     $('dz-formato').onchange = function () { var f = this.files[0]; this.value = ''; if (f) subirFormato(f); };
     $('dz-formato-quitar').onclick = async function () {
-        if (!(await confirmar('Quitar el formato', 'El Word y el PDF vuelven a salir con el diseño de la aplicación (y la imagen de membrete, si hay).', 'Quitar'))) return;
+        if (!(await confirmar('Quitar el formato de este equipo', formatoBase ? 'El Word y el PDF vuelven a salir con el formato predeterminado del Colegio Mayor.' : 'El Word y el PDF vuelven a salir con el diseño de la aplicación (y la imagen de membrete, si hay).', 'Quitar'))) return;
         await guardarArchivo('formato', null); await cargarFormato(); toast('Formato quitado.');
     };
     $('dz-guardar').onclick = guardarHistorial;
