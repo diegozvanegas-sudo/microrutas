@@ -6,7 +6,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_RECORRIDO, FRASES_DOMINGO } from './comun.js';
+import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_RECORRIDO, FRASES_DOMINGO, FRASES_INFORMATIVOS } from './comun.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 
 var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha';
@@ -170,7 +170,7 @@ async function arrancar() {
     try { $('con-fecha').checked = localStorage.getItem(PREF_FECHA) === '1'; } catch (e) {}
 
     // Un renglón de frases por servicio
-    var grupos = [['Corte de césped', FRASES], ['Recorridos (otro servicio)', FRASES_RECORRIDO], ['Domingos y festivos', FRASES_DOMINGO]];
+    var grupos = [['Corte de césped', FRASES], ['Recorridos (otro servicio)', FRASES_RECORRIDO], ['Domingos y festivos', FRASES_DOMINGO], ['Mensajes informativos (se mandan sueltos)', FRASES_INFORMATIVOS]];
     $('frases').innerHTML = grupos.map(function (g, j) {
         return '<div class="chips"><span class="sub grupo-frases">' + esc(g[0]) + '</span>' + g[1].map(function (f, i) {
             return '<button type="button" class="chip" data-grupo="' + j + '" data-frase="' + i + '">' + esc(f.t) + '</button>';
@@ -188,6 +188,13 @@ async function arrancar() {
     $('btn-agregar').onclick = function () {
         if (agregar($('nueva').value)) $('nueva').value = '';
         else { $('nueva').focus(); toast('Escriba la actividad.'); }
+    };
+    // Mensaje informativo: se copia tal cual (sin el título del reporte ni el ✅) para mandarlo suelto al grupo
+    $('btn-copiar-solo').onclick = function () {
+        var t = $('nueva').value.trim();
+        if (!t) { $('nueva').focus(); return toast('Escriba el mensaje o toque una frase de arriba.'); }
+        if (t.indexOf('…') >= 0) toast('Ojo: el mensaje aún tiene «…» por completar.');
+        copiar(t);
     };
     $('nueva').addEventListener('keydown', function (ev) { if (ev.key === 'Enter' && (ev.ctrlKey || ev.metaKey)) $('btn-agregar').click(); });
 

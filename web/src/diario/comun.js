@@ -189,3 +189,19 @@ export var FRASES_DOMINGO = [
     { t: 'Recorrido vías y parques', texto: 'Se realiza recorrido en vías principales, vías secundarias y parques:\n\n* …' },
     { t: 'Jornada sin novedad', texto: 'Hasta el momento transcurre la jornada sin novedad.' },
 ];
+
+// Mensajes informativos: avisos del momento que se mandan sueltos al grupo (no van dentro del reporte con ✅)
+export var FRASES_INFORMATIVOS = [
+    { t: 'Sistema vial del río', texto: 'Al momento se realiza intervención del sistema vial del río con medidas de seguridad tanto para el personal como para terceros, por el aliado Precoodes.' },
+    { t: 'Intervención en curso', texto: 'Al momento se realiza intervención de … con medidas de seguridad tanto para el personal como para terceros, por el aliado … .' },
+    { t: 'Corte en curso', texto: 'Al momento se realiza corte de césped en … por la cuadrilla … , con mallas de protección, señalización y EPP.' },
+    { t: 'Recolección en curso', texto: 'Al momento se realiza recolección de residuos vegetales en … por el aliado … .' },
+    { t: 'Plan choque en curso', texto: 'Al momento se realiza plan choque en … , con recolección de RCD, voluminosos y ordinarios.' },
+    { t: 'Punto crítico en atención', texto: 'Al momento se realiza atención del punto crítico de … por el aliado … .' },
+    { t: 'Cierre de vía', texto: 'Se informa cierre parcial de … por la intervención; se cuenta con señalización y personal de apoyo para el paso de peatones y vehículos.' },
+    { t: 'Suspensión por lluvia', texto: 'Se informa que por condiciones climáticas (lluvia) se suspende momentáneamente la actividad en … ; se reanudará cuando mejoren las condiciones.' },
+    { t: 'Se reanuda', texto: 'Se informa que se reanuda la actividad en … .' },
+    { t: 'Intervención terminada', texto: 'Se finaliza la intervención en … ; el área queda limpia y despejada.' },
+    { t: 'Novedad reportada', texto: 'Se informa novedad en … : … ; se reportó al grupo correspondiente para su atención.' },
+    { t: 'Sin novedad', texto: 'Hasta el momento transcurre la jornada sin novedad.' },
+];

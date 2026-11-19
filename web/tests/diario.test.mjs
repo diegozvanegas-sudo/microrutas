@@ -2,7 +2,7 @@
 // Uso: npm test
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { leerPendientes, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, diaPorDefecto, nombreDia, FRASES_DOMINGO } from '../src/diario/comun.js';
+import { leerPendientes, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, diaPorDefecto, nombreDia, FRASES_DOMINGO, FRASES_INFORMATIVOS } from '../src/diario/comun.js';
 
 // Lunes 26 de octubre de 2026, 7:43 p. m.
 const AHORA = new Date(2026, 9, 26, 19, 43);
@@ -76,4 +76,13 @@ test('domingos y festivos: las frases arman el reporte parcial por zona, con sus
     assert.match(txt, /recolección y transporte en operación:\n\n\* 703519\n\n✅ Hasta el momento transcurre la jornada sin novedad\.$/);
     // Cada frase trae su «…» para escribir encima (menos el cierre)
     FRASES_DOMINGO.filter((x) => x.t !== 'Jornada sin novedad').forEach((x) => assert.ok(x.texto.includes('…'), x.t));
+});
+
+test('mensajes informativos: van sueltos, en tono de aviso del momento y sin repetir botón', () => {
+    const f = Object.fromEntries(FRASES_INFORMATIVOS.map((x) => [x.t, x.texto]));
+    assert.equal(Object.keys(f).length, FRASES_INFORMATIVOS.length);
+    assert.equal(f['Sistema vial del río'], 'Al momento se realiza intervención del sistema vial del río con medidas de seguridad tanto para el personal como para terceros, por el aliado Precoodes.');
+    assert.equal(f['Intervención en curso'].replace('…', 'la quebrada La Iguaná').replace('…', 'Precoodes'),
+        'Al momento se realiza intervención de la quebrada La Iguaná con medidas de seguridad tanto para el personal como para terceros, por el aliado Precoodes .');
+    FRASES_INFORMATIVOS.forEach((x) => assert.match(x.texto, /^[A-ZÁÉÍÓÚ].*[.]$/, x.t));
 });
