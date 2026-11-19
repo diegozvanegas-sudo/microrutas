@@ -204,6 +204,8 @@
     .ficha-lote .ruta-estado.pronto { color: #92400e; background: #fef3c7; }
     .ficha-lote .ruta-estado.aldia { color: #15803d; background: #dcfce7; }
     .ficha-lote .ruta-estado.visitado-q { color: #1e3a8a; background: #e0e7ff; }
+    .ficha-lote .ruta-estado.prog { color: #0f766e; background: #ccfbf1; }
+    .ficha-lote .ruta-estado.prog-no { color: #475569; background: #f1f5f9; }
     .halo-lote { animation: halo-lote 1.4s ease-in-out infinite; }
     @keyframes halo-lote { 50% { stroke-opacity: .25; } }
     @media (prefers-reduced-motion: reduce) { .halo-lote { animation: none; } }
@@ -578,6 +580,51 @@
         var hoy0 = new Date(), fin = hoy0.getDate() <= 15 ? 15 : new Date(hoy0.getFullYear(), hoy0.getMonth() + 1, 0).getDate();
         return '<span class="ruta-estado visitado-q">✓ Visitado esta quincena · ' + f.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit' }) +
             ' (hasta el ' + fin + ')</span> ';
+    }
+
+    // ---------- Qué día le toca según la programación del contratista ----------
+    // Es el Excel del mes que se sube en 📅 Programación del día (o en 📊 Cruce): queda en este equipo, «programacion_cache».
+    // Semana y día del Excel → fecha, con la misma regla de src/subsanaciones/programacion.js: la semana 1 es la de lunes a
+    // sábado del primer día hábil del mes y el día 1 es el lunes. «Hecho» es la X del Excel (no la visita de la interventoría).
+    var progMapa;
+    function programacionGuardada() {
+        if (progMapa === undefined) try { progMapa = JSON.parse(localStorage.getItem('programacion_cache')) || null; } catch (e) { progMapa = null; }
+        return progMapa && progMapa.prog && progMapa.prog.mes ? progMapa : null;
+    }
+    function isoUtc(d) { return d.toISOString().slice(0, 10); }
+    function fechaProgramada(mes, semana, dia) {
+        if (semana == null || dia == null) return '';
+        var d = new Date(mes + '-01T00:00:00Z');
+        while (d.getUTCDay() === 0) d.setUTCDate(d.getUTCDate() + 1);
+        d.setUTCDate(d.getUTCDate() - (d.getUTCDay() + 6) % 7 + (semana - 1) * 7 + (dia - 1));
+        return isoUtc(d);
+    }
+    var DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
+    function diaCorto(iso) { var d = new Date(iso + 'T00:00:00Z'); return DIAS_CORTOS[d.getUTCDay()] + ' ' + iso.slice(8, 10) + '/' + iso.slice(5, 7); }
+    function textoProgramacion(capa) {
+        var g = programacionGuardada();
+        if (!g) return '';
+        var p = capa.lote, mr = String(p.m || '').toUpperCase(), lote = p.l && p.l !== 'NA' ? String(p.l) : '';
+        var es = function (x) { return lote ? String(x.lote) === lote && (!mr || x.mr === mr) : !!mr && x.mr === mr && (!x.lote || /^N\/?A$/i.test(x.lote)); };
+        var ahora = new Date(), hoyIso = ahora.getFullYear() + '-' + ('0' + (ahora.getMonth() + 1)).slice(-2) + '-' + ('0' + ahora.getDate()).slice(-2);
+        var mesTxt = new Date(g.prog.mes + '-15T12:00:00Z').toLocaleDateString('es-CO', { month: 'long' });
+        var chips = [];
+        [[1, g.prog.q1 || []], [2, g.prog.q2 || []]].forEach(function (par) {
+            par[1].filter(es).forEach(function (x) {
+                var plan = fechaProgramada(g.prog.mes, x.semana, x.dia), clase, estado;
+                if (x.hecho) { clase = 'aldia'; estado = '✓ hecho' + (x.fecha ? ' el ' + x.fecha.slice(8, 10) + '/' + x.fecha.slice(5, 7) : ''); }
+                else if (!plan) { clase = 'prog-no'; estado = 'sin día en el Excel'; }
+                else if (plan === hoyIso) { clase = 'pronto'; estado = 'le toca hoy'; }
+                else if (plan < hoyIso) { clase = 'vencido'; estado = 'ya pasó, sin X en el Excel'; }
+                else { var faltan = Math.round((new Date(plan) - new Date(hoyIso)) / 864e5); clase = 'prog'; estado = faltan === 1 ? 'mañana' : 'en ' + faltan + ' días'; }
+                chips.push('<span class="ruta-estado ' + clase + '" title="Según ' + esc(g.archivo || 'la programación del mes') + (x.cuad ? ' · cuadrilla ' + esc(x.cuad) : '') + '">📅 Q' + par[0] +
+                    (plan ? ' · ' + esc(diaCorto(plan)) : '') + ' · ' + esc(estado) + '</span>');
+            });
+        });
+        // La programación guardada es de otro mes: se dice para no confiarse
+        var otroMes = g.prog.mes !== hoyIso.slice(0, 7) ? '<span class="ruta-estado prog-no">Programación de ' + esc(mesTxt) + '</span>' : '';
+        if (!chips.length) chips.push('<span class="ruta-estado prog-no" title="Según ' + esc(g.archivo || 'la programación del mes') + '">📅 No está en la programación de ' + esc(mesTxt) + '</span>');
+        return '<div class="linea-estado">' + chips.join('') + otroMes + '</div>';
     }
     var ESTILO_SEL = { color: '#4c1d95', weight: 3, opacity: 1, fillColor: '#8b5cf6', fillOpacity: .75, dashArray: null };
 
@@ -1025,6 +1072,7 @@
             '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
             (p.u ? '<div class="aviso-aprox">⚠ <b>Sin polígono oficial.</b> ' + esc(p.u.replace(/\s*No es el polígono oficial\.?$/, '')) + ' La forma y el sitio exacto hay que confirmarlos en campo.</div>' : '') +
             lineaEstado(capa) +
+            textoProgramacion(capa) +
             '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
             // x: lo propio de este polígono (tools/detalle_sector.mjs); s: descripción de la microrruta en la programación.
             // Sin x, el texto del polígono es la descripción completa y se muestra como antes.
@@ -1186,7 +1234,7 @@
     }
     // Al volver con "atrás" desde subsanaciones (p. ej. tras marcar subsanado) se relee la copia y se repintan los colores
     window.addEventListener('pageshow', function (e) {
-        copiaSubs = null; ultimas = null;
+        copiaSubs = null; ultimas = null; progMapa = undefined;
         if (e.persisted && estadoRuta) return location.reload();
         if (e.persisted) repintarLotes();
     });
