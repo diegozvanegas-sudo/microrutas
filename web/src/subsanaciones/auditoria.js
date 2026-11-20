@@ -82,6 +82,7 @@ export function archivosZip(raiz, f) {
     return [
         { que: 'Excel de la lectura (el reporte por microrruta)', ruta: carpeta + sep + base + '_zonas_verdes.xlsx', descargar: true },
         { que: 'Excel del avance parcial («📊 Ver avance»)', ruta: carpeta + sep + base + '_zonas_verdes_avance_parcial.xlsx', descargar: true },
+        { que: 'Excel de la revisión de la operación («🦺», fotos de DURANTE)', ruta: carpeta + sep + base + '_operacion.xlsx', descargar: true },
         { que: 'Carpeta de las lecturas de este ZIP', ruta: carpeta, descargar: false },
         { que: 'El ZIP de fotos', ruta: f.ruta, descargar: false },
         { que: 'Lo leído por Claude (caché, al lado del ZIP: no la borre)', ruta: sinExt + '_claude_plan_' + modelo + '_cache.jsonl', descargar: false }
@@ -166,6 +167,7 @@ var OPCIONES = 'auditoria_opciones';
 function opcionesGuardadas() { try { return JSON.parse(localStorage.getItem(OPCIONES)) || {}; } catch (e) { return {}; } }
 function pintarOpciones() {
     var m = motor || { modelos: ['claude-haiku-5-5', 'claude-sonnet-5-5', 'claude-opus-5-5'], modelo_lectura: 'claude-haiku-5-5', modelo_metro: 'claude-sonnet-5-5', paralelo: 6, lote: 8 };
+    m.modelo_operacion = m.modelo_operacion || m.modelo_metro || 'claude-sonnet-5-5';
     var g = opcionesGuardadas();
     var lista = function (actual, defecto) {
         var ms = m.modelos.indexOf(actual) === -1 && actual ? m.modelos.concat([actual]) : m.modelos;
@@ -173,6 +175,8 @@ function pintarOpciones() {
     };
     $('aud-op-modelo').innerHTML = lista(g.modelo, m.modelo_lectura);
     $('aud-op-metro').innerHTML = lista(g.modelo_metro, m.modelo_metro);
+    $('aud-op-operacion').innerHTML = lista(g.modelo_operacion, m.modelo_operacion);
+    $('aud-op-op-maximo').value = g.maximo_operacion || '';
     $('aud-op-prueba').value = g.prueba || 20;
     $('aud-op-paralelo').value = g.paralelo || m.paralelo;
     $('aud-op-lote').value = g.lote || m.lote;
@@ -184,12 +188,14 @@ function pintarOpciones() {
 function leerOpciones() {
     var n = function (id) { var v = parseInt($(id).value, 10); return isNaN(v) ? null : v; };
     return { prueba: n('aud-op-prueba') || 20, modelo: $('aud-op-modelo').value, paralelo: n('aud-op-paralelo'), lote: n('aud-op-lote'),
-        cuadrilla: n('aud-op-cuadrilla'), sin_enderezar: $('aud-op-enderezar').checked, modelo_metro: $('aud-op-metro').value, maximo: n('aud-op-maximo') };
+        cuadrilla: n('aud-op-cuadrilla'), sin_enderezar: $('aud-op-enderezar').checked, modelo_metro: $('aud-op-metro').value, maximo: n('aud-op-maximo'),
+        modelo_operacion: $('aud-op-operacion').value, maximo_operacion: n('aud-op-op-maximo') };
 }
 function guardarOpciones() {
     var o = leerOpciones(), m = motor || {};
     var g = { prueba: o.prueba !== 20 ? o.prueba : null, modelo: o.modelo !== m.modelo_lectura ? o.modelo : null, paralelo: o.paralelo !== m.paralelo ? o.paralelo : null,
-        lote: o.lote !== m.lote ? o.lote : null, sin_enderezar: o.sin_enderezar || null, modelo_metro: o.modelo_metro !== m.modelo_metro ? o.modelo_metro : null, maximo: o.maximo };
+        lote: o.lote !== m.lote ? o.lote : null, sin_enderezar: o.sin_enderezar || null, modelo_metro: o.modelo_metro !== m.modelo_metro ? o.modelo_metro : null, maximo: o.maximo,
+        modelo_operacion: o.modelo_operacion !== (m.modelo_operacion || m.modelo_metro) ? o.modelo_operacion : null, maximo_operacion: o.maximo_operacion };
     Object.keys(g).forEach(function (k) { if (g[k] == null) delete g[k]; });
     try { localStorage.setItem(OPCIONES, JSON.stringify(g)); } catch (e) {}
     resumenOpciones();
@@ -206,10 +212,17 @@ function resumenOpciones() {
     $('aud-op-resumen').textContent = d.length ? '· ' + d.join(' · ') : '· las de siempre';
 }
 // Lo que se le manda al motor según el botón
-function opcionesPara(tipo, prueba) {
-    var o = leerOpciones(), r = { tipo: tipo, modelo: o.modelo, paralelo: o.paralelo, lote: o.lote, cuadrilla: o.cuadrilla, sin_enderezar: o.sin_enderezar };
+function opcionesPara(tipo, prueba) { return opcionesDe(tipo, prueba, leerOpciones()); }
+// o: las opciones del motor elegidas (leerOpciones) → lo que va en el POST de /revision
+export function opcionesDe(tipo, prueba, o) {
+    var r = { tipo: tipo, modelo: o.modelo, paralelo: o.paralelo, lote: o.lote, cuadrilla: o.cuadrilla, sin_enderezar: o.sin_enderezar };
     if (tipo === 'lectura' && prueba) r.prueba = o.prueba;
     if (tipo === 'metro') { r.modelo_metro = o.modelo_metro; r.maximo = o.maximo; }
+    // Revisión de la operación (fotos de DURANTE): script aparte; usa su modelo, su máximo y, si es prueba, las fotos de prueba
+    if (tipo === 'operacion') {
+        r = { tipo: tipo, modelo_operacion: o.modelo_operacion, paralelo: o.paralelo, sin_enderezar: o.sin_enderezar, maximo: o.maximo_operacion };
+        if (prueba) { r.prueba = o.prueba; r.maximo = null; }
+    }
     return r;
 }
 
@@ -376,7 +389,7 @@ function pintarQuincena() {
         var e = estados[f.id] || {}, corriendo = e.estado === 'CORRIENDO';
         // «Ver avance» solo cuenta (no lee): no se muestra como leído ni con su barra
         var cuenta = e.tipo === 'avance' && !corriendo;
-        var etiqueta = cuenta && e.estado === 'TERMINADA' ? '📊 Avance listo' : e.tipo === 'metro' && e.estado === 'TERMINADA' ? '✓ Metro leído' : (ESTADO[e.estado] || 'Sin leer');
+        var etiqueta = cuenta && e.estado === 'TERMINADA' ? '📊 Avance listo' : e.tipo === 'metro' && e.estado === 'TERMINADA' ? '✓ Metro leído' : e.tipo === 'operacion' && e.estado === 'TERMINADA' ? '✓ Operación revisada' : (ESTADO[e.estado] || 'Sin leer');
         var pct = e.total ? e.actual / e.total * 100 : null;
         return '<div class="aud-fuente abierta" data-fuente="' + f.id + '">' +
             '<div class="cab"><b>📦 ' + esc(f.nombre) + '</b><span class="aud-estado ' + esc((e.estado || 'SIN_INICIAR').toLowerCase()) + '">' + etiqueta + '</span></div>' +
@@ -391,7 +404,9 @@ function pintarQuincena() {
                   '<button type="button" class="primario pequeno" data-correr="lectura">▶ ' + (e.estado === 'DETENIDA' || e.estado === 'LIMITE' ? 'Seguir leyendo' : 'Leer todas') + '</button>' +
                   '<button type="button" class="secundario pequeno" data-correr="metro" title="Volver a leer solo las fotos del metro con el modelo de «Opciones del motor»">📏 Segunda pasada del metro</button>' +
                   '<button type="button" class="secundario pequeno" data-correr="avance" title="Cuántas fotos van y un Excel parcial con las carpetas completas, sin llamar a Claude">📊 Ver avance (sin leer)</button>') +
-            '</div>' + archivosHtml(f) + consola(f.id, e) + '</div>';
+            '</div>' + (corriendo ? '' : '<div class="aud-operacion"><span class="sub">🦺 <b>Operación</b> (aparte de la lectura): fotos de DURANTE contra el contrato (PMT, vallas, EPP, carnet, combustible…)</span>' +
+                '<div class="acciones"><button type="button" class="secundario pequeno" data-correr="operacion-prueba">🧪 Probar operación con ' + miles(leerOpciones().prueba) + ' fotos</button>' +
+                '<button type="button" class="secundario pequeno" data-correr="operacion" title="Lee las fotos de DURANTE con el modelo de «Revisión de la operación» en Opciones del motor. No cambia la lectura de siempre ni su caché">🦺 Revisar la operación</button></div></div>') + archivosHtml(f) + consola(f.id, e) + '</div>';
     }).join('') + (otros.length ? '<div class="aud-lista-zip"><div class="aud-lista-tit">' + (otros.length === 1 ? 'El otro ZIP de la quincena' : 'Los otros ' + otros.length + ' ZIP de la quincena') +
         (fila.length ? ' · <b>' + fila.length + ' en fila</b>: cuando termine el que lee, sigue el siguiente (con esta ventana abierta)' : '') + '</div>' +
         otros.map(function (f) {
@@ -432,7 +447,7 @@ function consola(fid, e) {
     var abierta = consolaAbierta[fid] != null ? consolaAbierta[fid] : e.estado === 'CORRIENDO' || e.estado === 'ERROR' || (e.tipo !== 'lectura' && !!e.fin);
     var parcial = l.map(function (x) { var m = /Excel parcial:\s+(.+\.xlsx)\s*$/i.exec(x); return m && m[1]; }).filter(Boolean).pop();
     return '<details class="aud-consola" data-consola="' + fid + '"' + (abierta ? ' open' : '') + '><summary>🖥️ Consola del motor <span class="sub">· ' +
-        (e.tipo === 'metro' ? 'segunda pasada del metro' : e.tipo === 'avance' ? 'avance sin leer' : e.opciones && e.opciones.prueba ? 'prueba de ' + e.opciones.prueba + ' fotos' : 'lectura') +
+        (e.tipo === 'metro' ? 'segunda pasada del metro' : e.tipo === 'avance' ? 'avance sin leer' : e.tipo === 'operacion' ? 'revisión de la operación' + (e.opciones && e.opciones.prueba ? ' (prueba de ' + e.opciones.prueba + ' fotos)' : '') : e.opciones && e.opciones.prueba ? 'prueba de ' + e.opciones.prueba + ' fotos' : 'lectura') +
         (e.inicio ? ' · ' + esc(e.inicio.slice(11, 16)) : '') + '</span></summary>' +
         (e.comando ? '<div class="aud-cmd">&gt; ' + esc(e.comando) + '</div>' : '') +
         '<pre>' + esc(l.join('\n') || 'Esperando lo primero que diga el motor…') + '</pre>' +
@@ -501,14 +516,17 @@ async function subirInforme(archivo) {
 // ---------- Lectura con Claude y su avance ----------
 // que: prueba | lectura | metro | avance (botones de cada ZIP), con las opciones del motor
 async function correr(fid, que) {
-    var o = opcionesPara(que === 'prueba' ? 'lectura' : que, que === 'prueba');
+    var tipo = que === 'prueba' ? 'lectura' : que === 'operacion-prueba' ? 'operacion' : que;
+    var o = opcionesPara(tipo, que === 'prueba' || que === 'operacion-prueba');
     estados[fid] = await pedir('/fuentes/' + fid + '/revision', json('POST', o));
     consolaAbierta[fid] = true; consolaAbajo[fid] = true;
     // El que empieza a leer pasa a ser el ZIP abierto (y sale de la fila si estaba)
     var qa = quincena();
     if (qa) { var m = leerMapa(ABIERTO); m[qa.id] = fid; guardarMapa(ABIERTO, m); ponerCola(qa, colaDe(qa).filter(function (x) { return x !== fid; })); }
     toast({ prueba: 'Leyendo ' + o.prueba + ' fotos de prueba…', lectura: 'Leyendo todas las fotos. Puede cerrar esta página: el motor sigue. Si cierra la ventana negra del motor, la lectura se detiene (luego sigue donde iba).',
-        metro: 'Segunda pasada del metro con ' + o.modelo_metro + '…', avance: 'Contando lo que va, sin llamar a Claude…' }[que]);
+        metro: 'Segunda pasada del metro con ' + o.modelo_metro + '…', avance: 'Contando lo que va, sin llamar a Claude…',
+        'operacion-prueba': 'Revisando la operación en ' + o.prueba + ' fotos de DURANTE con ' + o.modelo_operacion + '…',
+        operacion: 'Revisando la operación (fotos de DURANTE) con ' + o.modelo_operacion + '. La lectura de siempre no se toca.' }[que]);
     pintarQuincena();
     seguir();
 }
@@ -530,18 +548,20 @@ async function seguir() {
     if (corriendo) {
         var e = estados[corriendo.id];
         var t = e.total ? tiempos(e).replace(/^⏱ /, ' · ') : '';
-        barra(2, (e.tipo === 'avance' ? 'Contando lo que va de ' : e.tipo === 'metro' ? 'Segunda pasada del metro de ' : 'Leyendo las fotos de ') + corriendo.nombre +
+        barra(2, (e.tipo === 'avance' ? 'Contando lo que va de ' : e.tipo === 'metro' ? 'Segunda pasada del metro de ' : e.tipo === 'operacion' ? 'Revisando la operación de ' : 'Leyendo las fotos de ') + corriendo.nombre +
             (e.tipo === 'avance' ? ' (sin Claude) · ' : ' con Claude · ') + (e.total ? miles(e.actual) + ' de ' + miles(e.total) + t : (e.mensaje || 'preparando las fotos…')),
             e.total ? e.actual / e.total * 100 : null);
         sondeo = setTimeout(seguir, 2000);
         return;
     }
     // Uno acaba de terminar: el reporte se arma solo
-    var termino = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo !== 'avance'; });
+    var termino = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo !== 'avance' && estados[f.id].tipo !== 'operacion'; });
+    var reviso = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo === 'operacion'; });
     var conto = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado === 'TERMINADA' && estados[f.id].tipo === 'avance'; });
     // Terminó algo: sus Excel pueden haber cambiado, se vuelve a preguntar si existen
     q.fuentes.forEach(function (f) { if (antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado !== 'CORRIENDO') { olvidarArchivos(f); revisarArchivos(f); } });
     if (conto) barra(2, '✓ Avance de ' + conto.nombre + ' listo: el Excel parcial quedó en «📁 Archivos de este ZIP».', 100, 'listo');
+    if (reviso) barra(2, '✓ Operación de ' + reviso.nombre + ' revisada: el Excel (por microrruta, con lo que falta) quedó en «📁 Archivos de este ZIP». Cada hallazgo queda POR CONFIRMAR.', 100, 'listo');
     if (termino) cargarNovedades(true);
     var malo = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && /ERROR|LIMITE/.test(estados[f.id].estado); });
     if (malo) barra(2, estados[malo.id].estado === 'LIMITE' ? 'Se acabó el límite del plan de Claude en ' + malo.nombre + '. Siga más tarde: no se vuelven a pagar las fotos hechas.' + (colaDe(q).length ? ' La fila queda en pausa.' : '')

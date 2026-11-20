@@ -2,7 +2,7 @@
 // Las reglas de las rutas son las del backend (Aplicaciones/modulos/zonas_verdes/backend/zv).
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { limpiarRuta, ubicaciones, archivosZip } from '../src/subsanaciones/auditoria.js';
+import { limpiarRuta, ubicaciones, archivosZip, opcionesDe } from '../src/subsanaciones/auditoria.js';
 
 test('auditar ZIP: los Excel de cada ZIP quedan donde los deja el motor', () => {
     const raiz = 'C:\\Users\\diego\\Documents\\Envarias\\Revisar IA reporte\\Zonas verdes';
@@ -10,12 +10,26 @@ test('auditar ZIP: los Excel de cada ZIP quedan donde los deja el motor', () => 
     assert.deepEqual(a.map((x) => x.ruta), [
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_zonas_verdes.xlsx',
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_zonas_verdes_avance_parcial.xlsx',
+        raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_operacion.xlsx',
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4',
         'C:\\ZIps a revisar\\C2.zip',
         'C:\\ZIps a revisar\\C2_claude_plan_claude-haiku-5-5_cache.jsonl'
     ]);
     // Solo los Excel (dentro de salidas\aplicacion) se pueden bajar desde la página
-    assert.deepEqual(a.map((x) => x.descargar), [true, true, false, false, false]);
+    assert.deepEqual(a.map((x) => x.descargar), [true, true, true, false, false, false]);
+});
+
+test('auditar ZIP: la revisión de la operación va aparte, con su modelo y su máximo (o las fotos de prueba)', () => {
+    const o = { prueba: 20, modelo: 'claude-haiku-5-5', paralelo: 4, lote: 8, cuadrilla: 4, sin_enderezar: false,
+        modelo_metro: 'claude-sonnet-5-5', maximo: 50, modelo_operacion: 'claude-opus-5-5', maximo_operacion: 300 };
+    assert.deepEqual(opcionesDe('operacion', false, o),
+        { tipo: 'operacion', modelo_operacion: 'claude-opus-5-5', paralelo: 4, sin_enderezar: false, maximo: 300 });
+    assert.deepEqual(opcionesDe('operacion', true, o),
+        { tipo: 'operacion', modelo_operacion: 'claude-opus-5-5', paralelo: 4, sin_enderezar: false, maximo: null, prueba: 20 });
+    // La lectura y el metro siguen igual que antes (sin nada de la operación)
+    assert.deepEqual(opcionesDe('lectura', true, o), { tipo: 'lectura', modelo: 'claude-haiku-5-5', paralelo: 4, lote: 8, cuadrilla: 4, sin_enderezar: false, prueba: 20 });
+    assert.equal(opcionesDe('metro', false, o).maximo, 50);
+    assert.equal(opcionesDe('metro', false, o).modelo_operacion, undefined);
 });
 
 test('auditar ZIP: la ruta pegada se limpia (comillas de «Copiar como ruta», espacios, file:///)', () => {

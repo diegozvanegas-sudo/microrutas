@@ -323,6 +323,12 @@
                         <label>MODELO DEL METRO <select id="aud-op-metro"></select></label>
                         <label>MÁXIMO DE FOTOS <input type="number" id="aud-op-maximo" min="1" max="100000" inputmode="numeric" placeholder="Todas"></label>
                     </div>
+                    <h4>🦺 Revisión de la operación</h4>
+                    <p class="sub">Aparte de la lectura: revisa las fotos de DURANTE contra el contrato (malla, demarcación, PMT, valla, EPP, dotación, carnet, herramientas, combustible, alturas). Tiene su propia caché: no cambia lo ya leído. «No se ve» no es incumplimiento; cada hallazgo queda POR CONFIRMAR.</p>
+                    <div class="aud-op-rejilla">
+                        <label>MODELO DE LA OPERACIÓN <select id="aud-op-operacion"></select></label>
+                        <label>MÁXIMO DE FOTOS <input type="number" id="aud-op-op-maximo" min="1" max="100000" inputmode="numeric" placeholder="Todas"><span class="sub">Por vez; la siguiente sigue donde iba.</span></label>
+                    </div>
                     <div class="aud-fila">
                         <button type="button" class="secundario pequeno" id="aud-op-restablecer">↺ Valores de siempre</button>
                         <span class="sub">Se recuerdan en este equipo (menos la cuadrilla). No están, a propósito, «borrar la caché» ni la API de Anthropic: cuestan.</span>
