@@ -300,6 +300,7 @@ export function textoDetalle(todas, op) {
 // ---------- Despacho ----------
 // [id, título, frase para cuando todo salió bien]
 export var SECCIONES_DESPACHO = [
+    ['otras', 'Otras actividades', 'No se realizaron otras actividades durante la jornada.'],
     ['asignacion', 'Seguimiento a la asignación vehicular', 'El proceso de asignación vehicular se desarrolló con normalidad.'],
     ['retrasos', 'Seguimiento a retrasos de ruta', 'No se registraron retrasos en la salida de las rutas.'],
     ['volquetas', 'Despacho de volquetas', 'El despacho de volquetas se realizó sin novedades.'],
@@ -331,8 +332,12 @@ export function textoVolquetas(t) {
                 .map(function (x) { return String(x || '').trim(); }).filter(Boolean).join(' · ');
         }).join('\n');
 }
-// Las secciones y turnos sin escribir no salen en el reporte
-export function textoDespacho(datos, fechaTexto) {
+// Jornada del reporte (AM o PM, va en el título): la elegida en la pantalla o, si no, la que se le pase (la de la hora)
+export var JORNADAS = ['AM', 'PM'];
+export function jornadaPorHora(d) { return (d || new Date()).getHours() < 12 ? 'AM' : 'PM'; }
+// Las secciones y turnos sin escribir no salen en el reporte. "Turno 1:" y "Turno 2:" solo salen cuando la sección tiene
+// los dos turnos escritos; con uno solo va el texto directo debajo del título, como en el reporte de siempre
+export function textoDespacho(datos, fechaTexto, jornada) {
     var n = 0, secciones = [];
     SECCIONES_DESPACHO.forEach(function (s) {
         var d = (datos || {})[s[0]] || {};
@@ -341,9 +346,13 @@ export function textoDespacho(datos, fechaTexto) {
             return [t[0], [String(d[t[1]] || '').trim(), textoVolquetas(tabla[t[1]])].filter(Boolean).join('\n\n')];
         }).filter(function (t) { return t[1]; });
         if (!turnos.length) return;
-        secciones.push(++n + '. ' + s[1] + '\n\n' + turnos.map(function (t) { return t[0] + ':\n\n' + t[1].trim(); }).join('\n\n'));
+        var cuerpo = turnos.length === 1 ? turnos[0][1].trim() : turnos.map(function (t) { return t[0] + ':\n' + t[1].trim(); }).join('\n\n');
+        secciones.push(++n + '. ' + s[1] + '\n' + cuerpo);
     });
     if (!secciones.length) return '';
-    return '*REPORTE DE ACTIVIDADES DE DESPACHO*\n\n' + (fechaTexto ? 'Fecha: ' + fechaTexto + '\n\n' : '') +
-        'A continuación, se presenta el consolidado de las novedades y actividades operativas desarrolladas durante la jornada.\n\n' + secciones.join('\n\n');
+    var j = JORNADAS.indexOf((datos || {}).jornada) >= 0 ? datos.jornada : JORNADAS.indexOf(jornada) >= 0 ? jornada : '';
+    return '*REPORTE DE ACTIVIDADES DE DESPACHO' + (j ? ' ' + j : '') + '*\n' + (fechaTexto ? 'Fecha: ' + fechaTexto + '\n' : '') + '\n' +
+        'A continuación, se presenta el consolidado de las actividades desarrolladas y las novedades operativas identificadas durante la jornada, ' +
+        'en relación con los procesos de asignación vehicular, seguimiento a retrasos de ruta, despacho de volquetas y motocarros, verificación del personal Stand By, y otras actividades.\n\n' +
+        secciones.join('\n\n');
 }

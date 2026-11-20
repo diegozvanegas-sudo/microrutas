@@ -93,7 +93,7 @@ test('volquetas: cumplimiento y texto', () => {
     assert.deepEqual(resumenVolquetas({ filas: [{ servicio: 'Voluminosos clandestinos' }] }), { programadas: 0, despachadas: 0, cumplimiento: null }, 'la fila vacía no cuenta');
     assert.ok(textoVolquetas(t).startsWith('Rutas programadas: 2\nRutas despachadas: 2\nCumplimiento: 100 %\n\n- Zona 1 · Voluminosos clandestinos · Control 61 · 16:38 a 19:36 · Mauricio · Supervisor Jorge · FUDEA'));
     const rep = textoDespacho({ volquetas: { t2: 'Sin retrasos.' }, tabla_volquetas: { t2: t } });
-    assert.ok(rep.includes('1. Despacho de volquetas\n\nTurno 2:\n\nSin retrasos.\n\nRutas programadas: 2'));
+    assert.ok(rep.includes('1. Despacho de volquetas\nSin retrasos.\n\nRutas programadas: 2'));
     assert.equal(textoVolquetas({ filas: [] }), '');
 });
 test('reporte por actividades: numerado, con cantidades en letras y lo escrito a mano', () => {
@@ -200,7 +200,25 @@ test('reportes: lo marcado sale en cada formato', () => {
 test('despacho: numera solo lo escrito', () => {
     const t = textoDespacho({ asignacion: { t1: ' ', t2: '' }, volquetas: { t2: 'Retraso de 1 hora.' } }, '15 de octubre de 2026');
     assert.ok(t.includes('Fecha: 15 de octubre de 2026'));
-    assert.ok(t.includes('1. Despacho de volquetas\n\nTurno 2:\n\nRetraso de 1 hora.'));
-    assert.ok(!t.includes('asignación vehicular'));
+    assert.ok(t.includes('1. Despacho de volquetas\nRetraso de 1 hora.'));
+    assert.ok(!t.includes('. Seguimiento a la asignación vehicular'));
     assert.equal(textoDespacho({}), '');
+});
+test('despacho: con los dos turnos escritos, cada uno con su nombre', () => {
+    const t = textoDespacho({ motocarros: { t1: 'Sin novedad.', t2: 'Motocarro en taller.' } });
+    assert.ok(t.includes('1. Despacho de motocarros\nTurno 1:\nSin novedad.\n\nTurno 2:\nMotocarro en taller.'));
+});
+test('despacho: el reporte AM como se envía (título con la jornada, otras actividades primero)', () => {
+    const datos = {
+        otras: { t1: 'Se apoya en la respuesta al derecho de petición allegado a Emvarías, por novedad en el sector que realiza la ruta 0310301 de la Zona 3.' },
+        asignacion: { t1: 'El proceso de asignación vehicular se desarrolló con normalidad.' },
+        motocarros: { t1: 'No se prestó el servicio de plan de choque para la zona 5 por motocarro asignada en taller.' },
+    };
+    const t = textoDespacho(datos, '20 de noviembre de 2026', 'AM');
+    assert.ok(t.startsWith('*REPORTE DE ACTIVIDADES DE DESPACHO AM*\nFecha: 20 de noviembre de 2026\n\nA continuación, se presenta el consolidado de las actividades desarrolladas y las novedades operativas identificadas durante la jornada, en relación con los procesos de asignación vehicular, seguimiento a retrasos de ruta, despacho de volquetas y motocarros, verificación del personal Stand By, y otras actividades.\n\n1. Otras actividades\nSe apoya'));
+    assert.ok(t.includes('\n\n2. Seguimiento a la asignación vehicular\nEl proceso'));
+    assert.ok(t.includes('\n\n3. Despacho de motocarros\nNo se prestó'));
+    // La jornada elegida en el reporte manda sobre la de la hora
+    assert.ok(textoDespacho({ ...datos, jornada: 'PM' }, '', 'AM').startsWith('*REPORTE DE ACTIVIDADES DE DESPACHO PM*'));
+    assert.ok(textoDespacho(datos).startsWith('*REPORTE DE ACTIVIDADES DE DESPACHO*\n\nA continuación'));
 });

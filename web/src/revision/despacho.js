@@ -6,7 +6,7 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia, sumarDias, deIso } from '../diario/comun.js';
-import { SECCIONES_DESPACHO, ALIADOS, filaVolqueta, resumenVolquetas, textoDespacho } from './comun.js';
+import { SECCIONES_DESPACHO, ALIADOS, filaVolqueta, resumenVolquetas, textoDespacho, JORNADAS, jornadaPorHora } from './comun.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 
 var $ = function (id) { return document.getElementById(id); };
@@ -83,8 +83,13 @@ function iniciarVolquetas() {
         cambio();
     });
 }
+// AM o PM en el título: la elegida en este reporte o, si no se ha elegido, la de la hora actual
+function jornada() { return JORNADAS.indexOf(datos.jornada) >= 0 ? datos.jornada : jornadaPorHora(); }
+function texto() { return textoDespacho(datos, fechaLarga(), jornada()); }
 function pintarReporte() {
-    var texto = textoDespacho(datos, fechaLarga());
+    var j = jornada();
+    document.querySelectorAll('[data-jornada]').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.jornada === j)); });
+    var texto = textoDespacho(datos, fechaLarga(), j);
     $('vista-previa').textContent = texto || 'Escriba en una sección y aquí queda el reporte.';
     $('btn-copiar').disabled = !texto;
     $('btn-programar').disabled = !texto;
@@ -142,15 +147,21 @@ async function arrancar() {
         (datos[s[0]] = datos[s[0]] || {})[b.dataset.t] = s[2];
         cambio();
     });
+    $('jornada').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-jornada]');
+        if (!b) return;
+        datos.jornada = b.dataset.jornada;
+        cambio();
+    });
     var irA = function (f) { fecha = f; cargarDia(); };
     $('dia-antes').onclick = function () { irA(sumarDias(fecha, -1)); };
     $('dia-despues').onclick = function () { irA(sumarDias(fecha, 1)); };
     $('dia-fecha').onchange = function () { if (this.value) irA(this.value); };
     // Programarlo: lo envía el servidor a la hora elegida (web/src/whatsapp/programar.js)
     $('btn-programar').onclick = function () {
-        var texto = textoDespacho(datos, fechaLarga());
-        if (!texto) return toast('El reporte está vacío.');
-        abrirProgramar({ texto: texto, origen: 'Despacho', avisar: toast });
+        var t = texto();
+        if (!t) return toast('El reporte está vacío.');
+        abrirProgramar({ texto: t, origen: 'Despacho', avisar: toast });
     };
     $('btn-copiar').onclick = function () {
         navigator.clipboard.writeText($('vista-previa').textContent).then(function () { toast('Reporte copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
