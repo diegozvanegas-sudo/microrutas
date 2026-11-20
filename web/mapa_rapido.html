@@ -114,9 +114,45 @@
     .ficha-lote .sector .txt { font-weight: 600; overflow-wrap: anywhere; }
     .ficha-lote .copiar { border: 1px solid var(--brand); background: #fff; color: var(--brand); border-radius: 999px; padding: 2px 10px; font: inherit; font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: 0; cursor: pointer; }
     .ficha-lote .desc.plegada { -webkit-line-clamp: 1; line-clamp: 1; color: var(--muted); }
-    .ficha-lote .acciones { display: grid; grid-template-columns: 1fr auto; gap: 8px; margin-top: 4px; }
-    .ficha-lote .acciones .boton { text-align: center; padding: 11px 12px; font-size: 15px; }
-    .ficha-lote .acciones .subs, .ficha-lote .acciones .ancho { grid-column: 1 / -1; }
+    /* Acciones: dos columnas parejas; Waze y Street View más pequeños en un solo renglón */
+    .ficha-lote .acciones { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 10px; }
+    .ficha-lote .acciones .boton { text-align: center; padding: 11px 10px; font-size: 14.5px; min-height: 44px; display: flex; align-items: center; justify-content: center; }
+    .ficha-lote .acciones .subs, .ficha-lote .acciones .ancho, .ficha-lote .acciones .acc-otras { grid-column: 1 / -1; }
+    .ficha-lote .acc-otras { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+    .ficha-lote .acc-otras .boton { padding: 7px 8px; font-size: 13px; min-height: 36px; font-weight: 600; }
+    /* Estado del lote: un renglón por quién lo dice (contratista / interventoría) */
+    .ficha-lote .estado-f { display: grid; gap: 6px; margin-top: 10px; padding: 8px 10px; border-radius: 10px; background: #f8fafc; border: 1px solid var(--line); }
+    .ficha-lote .fila-est { display: grid; gap: 4px; }
+    .ficha-lote .et-est { font-size: 10.5px; font-weight: 800; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+    .ficha-lote .estado-f .linea-estado { margin-top: 0; gap: 5px 6px; }
+    .ficha-lote .fila-est + .fila-est { border-top: 1px dashed var(--line); padding-top: 6px; }
+    /* Avisos: lo que hay que atender (pendientes con su plazo, descuentos, requerimientos, PQR) */
+    .ficha-lote .avisos-f { display: grid; gap: 6px; margin-top: 8px; }
+    .ficha-lote .aviso-f { border-radius: 10px; padding: 8px 10px; border-left: 4px solid #94a3b8; background: #f8fafc; font-size: 13px; }
+    .ficha-lote .aviso-f.mal { border-left-color: #dc2626; background: #fef2f2; }
+    .ficha-lote .aviso-f.ojo { border-left-color: #d97706; background: #fffbeb; }
+    .ficha-lote .aviso-f.bien { border-left-color: #16a34a; background: #f0fdf4; }
+    .ficha-lote .aviso-f.info { border-left-color: #2563eb; background: #eff6ff; }
+    .ficha-lote .aviso-cab { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 2px 8px; }
+    .ficha-lote .plazo-f { font-weight: 800; font-size: 12px; }
+    .ficha-lote .aviso-f.mal .plazo-f { color: #b91c1c; }
+    .ficha-lote .aviso-f.ojo .plazo-f { color: #b45309; }
+    .ficha-lote .aviso-f.bien .plazo-f { color: #15803d; }
+    .ficha-lote .aviso-f ul, .ficha-lote .lista-f { margin: 4px 0 6px; padding-left: 18px; display: grid; gap: 2px; }
+    .ficha-lote .lista-f { list-style: none; padding-left: 0; }
+    .ficha-lote .aviso-f a.ver-visita { padding: 3px 10px; font-size: 11.5px; }
+    .ficha-lote .sub-f { color: var(--muted); font-size: 12px; font-weight: 400; }
+    .ficha-lote .dato-sub { display: block; font-size: 11.5px; color: #b45309; font-weight: 600; margin-top: 1px; }
+    /* Historial y análisis (plegado) */
+    .ficha-lote .mas-f { margin: 4px 0 2px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
+    .ficha-lote .mas-f summary { cursor: pointer; font-weight: 700; font-size: 13.5px; min-height: 30px; display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+    .ficha-lote .mas-bloque { padding: 6px 0; border-top: 1px solid var(--line); font-size: 13px; }
+    .ficha-lote .punto-f { display: inline-block; width: 8px; height: 8px; border-radius: 50%; margin-right: 6px; background: #94a3b8; vertical-align: middle; }
+    .ficha-lote .punto-f.mal { background: #dc2626; }
+    .ficha-lote .punto-f.bien { background: #16a34a; }
+    .ficha-lote .punto-f.prop { background: #0d9488; }
+    .ficha-lote a.enlace-f { color: var(--brand); font-weight: 700; font-size: 12px; text-decoration: none; margin-left: 4px; }
+    .ficha-lote .datos { margin: 8px 0 10px; }
     /* Leaflet pinta de azul todos los enlaces del mapa: se fuerzan los colores de los botones */
     .ficha-lote .acciones a.primario { color: #fff; background: var(--brand); }
     .ficha-lote .acciones a.primario:hover { color: #fff; background: var(--brand-dark); }
@@ -262,6 +298,8 @@
 <script src="js/coordenadas.js"></script>
 <script src="js/direcciones.js"></script>
 <script src="js/camara_marca.js"></script>
+<!-- Datos de la ficha del lote (pendientes, reportes, descuentos, auditoría, requerimientos, PQR y propuesta): src/mapa -->
+<script type="module" src="/src/mapa/main.js"></script>
 <script>
 (function () {
     var IDX = window.indiceRapido || { cuadrillas: {}, lotes: {}, mrs: {}, capas: {} };
@@ -624,7 +662,8 @@
         // La programación guardada es de otro mes: se dice para no confiarse
         var otroMes = g.prog.mes !== hoyIso.slice(0, 7) ? '<span class="ruta-estado prog-no">Programación de ' + esc(mesTxt) + '</span>' : '';
         if (!chips.length) chips.push('<span class="ruta-estado prog-no" title="Según ' + esc(g.archivo || 'la programación del mes') + '">📅 No está en la programación de ' + esc(mesTxt) + '</span>');
-        return '<div class="linea-estado">' + chips.join('') + otroMes + '</div>';
+        // Solo las etiquetas: van en el renglón «Contratista» del estado del lote (bloqueEstado)
+        return chips.join('') + otroMes;
     }
     var ESTILO_SEL = { color: '#4c1d95', weight: 3, opacity: 1, fillColor: '#8b5cf6', fillOpacity: .75, dashArray: null };
 
@@ -1062,35 +1101,59 @@
         var dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
         var area = Number(String(p.a || '').replace(',', '.'));
         var pt = puntoLote(capa), ll = pt.lat.toFixed(6) + ',' + pt.lng.toFixed(6);
-        var u = visitaDeCapa(capa);
+        var u = visitaDeCapa(capa), info = infoFicha(capa);
         capaFicha = capa;
-        return '<div class="ficha-lote">' +
+        // Área: la del polígono y, si hay descuentos de área (💸 Descuentos), lo que le queda al lote completo (su área base
+        // del descuento: el polígono tocado puede ser solo una parte del lote)
+        var desc = info && info.areaDescontada ? info.areaDescontada : 0, baseL = info && info.areaBase ? info.areaBase : 0;
+        var datoArea = p.a ? '<div class="dato"><span class="et">Área</span><b>' + esc(area ? area.toLocaleString('es-CO') : p.a) + ' m²</b>' +
+            (desc ? '<span class="dato-sub">−' + desc.toLocaleString('es-CO') + ' m² descontados' + (baseL ? ' · el lote queda en ' + Math.max(0, baseL - desc).toLocaleString('es-CO') + ' de ' + baseL.toLocaleString('es-CO') : '') + '</span>' : '') + '</div>' : '';
+        return '<div class="ficha-lote" data-ficha-lote="' + esc(idCapa(capa)) + '">' +
             // 🖊️ junto al número: lo copia y abre "Texto a imagen" con él puesto
             '<div class="cab"><span class="titulo">' + (lote ? 'Lote ' + esc(lote) : esc(p.m || 'Lote')) + '</span>' +
                 '<a class="nota-lote" data-nota="' + esc(idCapa(capa)) + '" href="subsanaciones.html?nota=' + encodeURIComponent(idCapa(capa)) + '" title="Copiar el número y hacer la imagen" aria-label="Copiar el número y hacer la imagen">🖊️</a>' +
                 (p.c ? '<span class="cuad" style="background:' + colorCuadrilla(p.c) + '">Cuadrilla ' + esc(p.c) + '</span>' : '') + '</div>' +
-            '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : ''].filter(Boolean).map(esc).join(' · ') + '</div>' +
+            '<div class="mr">' + [lote ? p.m : '', zona ? 'Zona ' + zona : '', p.k].filter(Boolean).map(esc).join(' · ') + '</div>' +
             (p.u ? '<div class="aviso-aprox">⚠ <b>Sin polígono oficial.</b> ' + esc(p.u.replace(/\s*No es el polígono oficial\.?$/, '')) + ' La forma y el sitio exacto hay que confirmarlos en campo.</div>' : '') +
-            lineaEstado(capa) +
-            textoProgramacion(capa) +
-            '<div class="datos">' + dato('Comuna', p.k) + dato('Área', p.a ? (area ? area.toLocaleString('es-CO') : p.a) + ' m²' : '') + dato('Frecuencia', p.f) + '</div>' +
+            bloqueEstado(capa, info) +
+            // Lo que hay que atender: pendientes con su plazo, descuentos de área, requerimientos y PQR
+            (info ? window.FichaLote.htmlAvisos(info) : '') +
+            '<div class="datos">' + datoArea + dato('Frecuencia', p.f) + '</div>' +
             // x: lo propio de este polígono (tools/detalle_sector.mjs); s: descripción de la microrruta en la programación.
             // Sin x, el texto del polígono es la descripción completa y se muestra como antes.
             bloqueSector(p.x) +
             bloqueDesc('Dirección', p.d) +
             bloqueDesc(p.x ? 'Descripción de toda la microrruta' : 'Descripción', p.s, !!p.x) +
             bloquesPredio(capa) +
+            // Plegado: últimas visitas, auditoría de fotos del ZIP y el día propuesto por cercanía
+            (info ? window.FichaLote.htmlMas(info) : '') +
             '<div class="acciones">' +
                 (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
                 '<button type="button" class="boton secundario" data-aqui>' + (fijada && fijada.id === idCapa(capa) ? '↺ Usar GPS' : '📍 Estoy aquí') + '</button>' +
-                '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">Waze</a>' +
+                '<a class="boton secundario" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
                 // Arma la pre-ruta con solo este lote (en subsanaciones se confirma la cuadrilla y la fecha)
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
-                '<a class="boton secundario ancho" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
-                '<a class="boton secundario subs" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
+                // Otras formas de llegar, más pequeñas: ocupan un solo renglón
+                '<div class="acc-otras"><a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>' +
+                '<a class="boton secundario" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Street View</a></div>' +
             '</div></div>';
     }
+    // Lo de la base llega después de abrir la ficha (src/mapa): si sigue abierta la del mismo lote, se vuelve a pintar
+    function refrescarFicha() {
+        if (!capaFicha) return;
+        var id = idCapa(capaFicha), p = map._popup, el = p && map.hasLayer(p) && p.getElement && p.getElement();
+        if (el && el.querySelector('[data-ficha-lote="' + id.replace(/"/g, '') + '"]')) {
+            p.setContent(popupLote(capaFicha));
+            try { p._updateLayout(); p._updatePosition(); } catch (e) {}
+        } else if ($('ficha').classList.contains('abierta') && $('ficha-contenido').querySelector('[data-ficha-lote="' + id.replace(/"/g, '') + '"]')) {
+            var y = $('ficha').scrollTop;
+            $('ficha-contenido').innerHTML = popupLote(capaFicha);
+            $('ficha').scrollTop = y;
+        }
+    }
+    window.addEventListener('ficha-datos', refrescarFicha);
+    window.addEventListener('ficha-lista', refrescarFicha);
     // Celular: panel desde abajo (no tapa el lote); computador: ventana sobre el mapa
     var movil = window.matchMedia('(max-width: 760px)');
     function verLote(capa, latlng) { abrirPanel(popupLote(capa), latlng || puntoLote(capa)); }
@@ -1098,7 +1161,7 @@
     var fichaGrande = leer('rapido_ficha_grande', false);
     function medidasPopup() {
         return fichaGrande ? { maxHeight: Math.max(420, map.getSize().y - 110), maxWidth: Math.min(560, map.getSize().x - 60), minWidth: Math.min(380, map.getSize().x - 60) }
-                           : { maxHeight: 420, maxWidth: 330, minWidth: 50 };
+                           : { maxHeight: Math.max(380, Math.min(540, map.getSize().y - 120)), maxWidth: Math.min(360, map.getSize().x - 60), minWidth: 50 };
     }
     function pintarAmpliar() {
         document.querySelectorAll('[data-ampliar]').forEach(function (b) {
@@ -1258,14 +1321,29 @@
         hoy0.setHours(0, 0, 0, 0);
         return f && f.getTime() === hoy0.getTime() ? u : null;
     }
-    function lineaEstado(capa) {
+    // Lo de la interventoría: pre-ruta, visitado en la quincena, cuándo le toca otra visita y la última visita
+    function chipsInterventoria(capa) {
         var u = visitaDeCapa(capa), id = capa.rutaVisita || (u && u.ID), html = '';
         if (capa.rutaEstado) html += '<span class="ruta-estado ' + capa.rutaEstado + '">' + TEXTO_RUTA[capa.rutaEstado] + '</span>';
         // Visita anterior a la pre-ruta (o búsqueda normal): se dice cuándo fue y cómo quedó
         html += textoQuincena(capa) + textoVence(capa);
         if (u && !capa.rutaVisita) html += '<span class="ruta-estado ' + estadoDeVisita(u.ESTADO) + '">Última visita ' + esc(String(u['FECHA DE LA VISITA'] || '').slice(0, 5)) + ' · ' + esc(u.ESTADO || '') + '</span>';
         if (id) html += '<a class="ver-visita" data-visita="' + esc(id) + '" href="subsanaciones.html?ver=' + encodeURIComponent(id) + '">📄 Ver detalles ›</a>';
-        return html ? '<div class="linea-estado">' + html + '</div>' : '';
+        return html;
+    }
+    function lineaEstado(capa) { var html = chipsInterventoria(capa); return html ? '<div class="linea-estado">' + html + '</div>' : ''; }
+    // Estado del lote en dos renglones con su nombre, para que no se confunda lo que dice el contratista (programación del
+    // mes y reporte de WhatsApp) con lo de la interventoría (visitas). El reporte lo da src/mapa (window.FichaLote)
+    function bloqueEstado(capa, info) {
+        var contr = textoProgramacion(capa) + (info ? window.FichaLote.chipReporte(info) : ''), interv = chipsInterventoria(capa);
+        if (!interv) interv = '<span class="ruta-estado prog-no">Sin visitas de la interventoría en este equipo</span>';
+        return '<div class="estado-f">' +
+            (contr ? '<div class="fila-est"><span class="et-est">Contratista</span><div class="linea-estado">' + contr + '</div></div>' : '') +
+            '<div class="fila-est"><span class="et-est">Interventoría</span><div class="linea-estado">' + interv + '</div></div></div>';
+    }
+    function infoFicha(capa) {
+        if (!window.FichaLote) return null;
+        try { return window.FichaLote.info({ mr: capa.lote.m, lote: capa.lote.l }); } catch (e) { return null; }
     }
     function normTxt(s) { return String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '').trim().toUpperCase(); }
     function detalleVisita(v) {
@@ -1289,9 +1367,15 @@
         var v = visitaGuardada(a.dataset.visita);
         if (!v) return; // no está en la copia: abre subsanaciones
         ev.preventDefault();
-        var ficha = a.closest('.ficha-lote'), det = ficha.querySelector('.visita-det');
-        if (det) { det.remove(); a.textContent = '📄 Ver detalles ›'; }
-        else { a.closest('.linea-estado').insertAdjacentHTML('afterend', detalleVisita(v)); a.textContent = 'Ocultar ▴'; }
+        // El detalle va debajo del bloque del enlace (estado, aviso de pendiente o historial); el enlace recuerda su texto
+        var ficha = a.closest('.ficha-lote'), det = ficha.querySelector('.visita-det'), abierto = det && det.dataset.de === a.dataset.visita && a.dataset.abierto;
+        if (det) { det.remove(); ficha.querySelectorAll('[data-abierto]').forEach(function (x) { x.textContent = x.dataset.texto; delete x.dataset.abierto; }); }
+        if (!abierto) {
+            var ancla = a.closest('.estado-f, .aviso-f, .mas-bloque, .linea-estado') || a;
+            ancla.insertAdjacentHTML('afterend', detalleVisita(v));
+            ficha.querySelector('.visita-det').dataset.de = a.dataset.visita;
+            a.dataset.texto = a.textContent; a.dataset.abierto = '1'; a.textContent = 'Ocultar ▴';
+        }
         // La ventana del computador se reacomoda al nuevo tamaño (sin volver a pintar el contenido)
         var p = map._popup;
         if (p && map.hasLayer(p)) try { p._updateLayout(); p._updatePosition(); } catch (e) {}

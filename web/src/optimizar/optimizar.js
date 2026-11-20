@@ -322,6 +322,24 @@ export function fechasDe(diasHoy, diasProp) {
 }
 export function metros(km) { return km < 1 ? Math.round(km * 1000) + ' m' : kmTexto(km) + ' km'; }
 
+// Día propuesto de cada lote, compacto, para la ficha del mapa rápido («oz_propuesta_lotes» en el equipo)
+// → { mes, generado, lotes: { 'MR|lote': [{ q, fecha, n, total, km, vecinos: [lotes del mismo día] }] } }
+export function resumenPropuesta(res, mes) {
+    var lotes = {};
+    res.cuadrillas.forEach(function (c) {
+        [1, 2].forEach(function (q) {
+            c.propuesta[q].forEach(function (d) {
+                d.lotes.forEach(function (x, i) {
+                    var k = x.mr + '|' + (x.lote && !/^N\/?A$/i.test(x.lote) ? x.lote : 'NA');
+                    (lotes[k] = lotes[k] || []).push({ q: q, fecha: d.fecha, n: i + 1, total: d.lotes.length, km: Math.round(d.km * 100) / 100,
+                        vecinos: d.lotes.filter(function (y) { return y !== x; }).map(rotuloLote) });
+                });
+            });
+        });
+    });
+    return { mes: mes, generado: new Date().toISOString(), lotes: lotes };
+}
+
 // ---------- Textos ----------
 var DIAS = ['', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
 export function nombreDia(x) { return x && x.dia ? DIAS[x.dia] + (x.fecha ? ' ' + x.fecha.slice(8, 10) + '/' + x.fecha.slice(5, 7) : '') : 'sin día'; }

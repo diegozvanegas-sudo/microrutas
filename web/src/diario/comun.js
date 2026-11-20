@@ -148,6 +148,20 @@ export var FRASES = [
     { t: 'Descuentos', texto: 'Se consolidaron las novedades no subsanadas dentro del plazo para aplicar el descuento correspondiente en la factura.' },
 ];
 
+// Revisión de la factura de cada quincena (corte de césped), en el tono del reporte diario de los inspectores
+export var FRASES_FACTURA = [
+    { t: 'Recepción de la factura', texto: 'Durante la jornada se llevó a cabo la recepción de la información correspondiente a la facturación de la … quincena del mes de … y se adelanta la revisión.' },
+    { t: 'Revisión de la factura', texto: 'Se adelantó la revisión de la facturación de la … quincena del mes de … , verificando las microrrutas y áreas reportadas como ejecutadas por el contratista.' },
+    { t: 'Cruce con la programación', texto: 'Se realizó el cruce de las microrrutas facturadas de la … quincena de … con la programación del servicio, los reportes de ejecución de las cuadrillas y las visitas de interventoría.' },
+    { t: 'Registro fotográfico de la factura', texto: 'Se verificó el registro fotográfico de las microrrutas facturadas de la … quincena de … (antes, durante y después), como soporte de la ejecución.' },
+    { t: 'Áreas facturadas', texto: 'Se verificaron las áreas facturadas de la … quincena de … contra la base de datos del servicio y los descuentos de área aplicados.' },
+    { t: 'Descuentos en la factura', texto: 'Se consolidaron los descuentos de la … quincena de … por novedades no subsanadas dentro del plazo y por áreas que no se pueden intervenir, para aplicarlos en la factura.' },
+    { t: 'Observaciones a la factura', texto: 'Se remitieron al contratista las observaciones resultantes de la revisión de la facturación de la … quincena de … para su ajuste.' },
+    { t: 'Factura revisada', texto: 'Se culminó la revisión de la facturación de la … quincena del mes de … y se remitió para el visto bueno correspondiente.' },
+    { t: 'Seguimiento a la programación', texto: 'Se realizó seguimiento a la programación del servicio correspondiente a las cuadrillas … .' },
+    { t: 'Acumulación de residuos', texto: 'Se reportó la acumulación de residuos vegetales en los grupos correspondientes.' },
+];
+
 // Otro servicio: recorridos de verificación de sectores (RCD, aliados de recolección), en el mismo tono
 export var FRASES_RECORRIDO = [
     { t: 'Recorrido', texto: 'Se realizó recorrido de verificación por los sectores de … .' },

@@ -86,3 +86,13 @@ test('mensajes informativos: van sueltos, en tono de aviso del momento y sin rep
         'Al momento se realiza intervención de la quebrada La Iguaná con medidas de seguridad tanto para el personal como para terceros, por el aliado Precoodes .');
     FRASES_INFORMATIVOS.forEach((x) => assert.match(x.texto, /^[A-ZÁÉÍÓÚ].*[.]$/, x.t));
 });
+
+// Revisión de factura (grupo nuevo de «Agregar actividad»): títulos únicos y cada texto con su «…» por completar
+import { FRASES_FACTURA } from '../src/diario/comun.js';
+test('informe: frases de revisión de factura', () => {
+    const titulos = FRASES_FACTURA.map((f) => f.t);
+    assert.equal(new Set(titulos).size, titulos.length);
+    assert.ok(titulos.includes('Recepción de la factura') && titulos.includes('Revisión de la factura'));
+    FRASES_FACTURA.forEach((f) => { assert.match(f.texto, /\.$/, f.t); assert.ok(f.texto.length > 30, f.t); });
+    assert.match(FRASES_FACTURA[0].texto, /facturación de la … quincena del mes de … y se adelanta la revisión\./);
+});

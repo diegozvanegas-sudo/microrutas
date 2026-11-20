@@ -11,7 +11,7 @@ import { $, toast } from '../subsanaciones/ui.js';
 import { esc, hoy, aTexto } from '../subsanaciones/util.js';
 import { filasHoja, leerProgramacion } from '../subsanaciones/programacion.js';
 import { leerDatos, decodificar } from '../subsanaciones/lotegps.js';
-import { analizar, centrosDeLotes, textoResumen, kmTexto, pct, nombreDia, rotuloLote, paradas, fechasDe, metros, LARGO } from './optimizar.js';
+import { analizar, centrosDeLotes, textoResumen, kmTexto, pct, nombreDia, rotuloLote, paradas, fechasDe, metros, LARGO, resumenPropuesta } from './optimizar.js';
 import { crearMapas, hayLeaflet, COLORES } from './mapa.js';
 
 var PROG_CACHE = 'programacion_cache', PREF = 'oz_pref';
@@ -78,6 +78,8 @@ async function calcular() {
         await espera();
         res = analizar(prog, centros);
         if (!res.cuadrillas.length) throw new Error('la programación no tiene lotes por cuadrilla');
+        // El día propuesto de cada lote queda en el equipo para la ficha del mapa rápido
+        try { localStorage.setItem('oz_propuesta_lotes', JSON.stringify(resumenPropuesta(res, prog.mes))); } catch (e) { /* sin espacio: solo no sale en el mapa */ }
         if (!res.cuadrillas.some(function (c) { return c.cuad === pref.cuad; })) pref.cuad = res.cuadrillas[0].cuad;
         $('oz-calc').textContent = '';
         pintar();
