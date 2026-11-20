@@ -39,6 +39,11 @@
     .et-grupo { flex: none; align-self: center; font-size: 12px; font-weight: 650; color: var(--muted); margin-right: 2px; }
     #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
     #map { flex: 1; min-height: 0; }
+    /* Solo el mapa (botón ⛶ de la esquina): sin barra ni el botón de capas del celular */
+    body.solo-mapa #barra, body.solo-mapa #btn-capas, body.solo-mapa #hoja-capas { display: none !important; }
+    .solo-mapa-ctl a { font-size: 18px; line-height: 30px; text-align: center; font-weight: 700; }
+    body.solo-mapa .solo-mapa-ctl a { background: var(--brand); color: #fff; }
+    @media (max-width: 760px) { .solo-mapa-ctl a { width: 40px !important; height: 40px !important; line-height: 40px !important; font-size: 21px; } }
     .leaflet-bar a { color: var(--ink); }
     .ubicar a, .herramientas a { font-size: 17px; line-height: 30px; text-align: center; }
     .leaflet-popup-content { margin: 12px 14px; font-size: 13px; line-height: 1.35; }
@@ -2501,6 +2506,44 @@
     pintarBuscador();
     pintarControlPrivados();
     if (predPref.areas) cargarAreas().catch(function () {});
+
+    // ---------- Solo el mapa: se esconde la barra (buscador, cuadrillas y capas) y el mapa ocupa toda la pantalla ----------
+    // El botón ⛶ / ☰ queda siempre en la esquina del mapa (debajo del de fondos); Esc también vuelve. Se recuerda en el equipo.
+    var soloMapa = leer('rapido_solo_mapa', false), btnSolo;
+    function ponerSoloMapa(on) {
+        var arriba = map.getContainer().getBoundingClientRect().top;
+        soloMapa = on;
+        guardar('rapido_solo_mapa', on);
+        document.body.classList.toggle('solo-mapa', on);
+        if (btnSolo) {
+            btnSolo.textContent = on ? '☰' : '⛶';
+            btnSolo.title = on ? 'Mostrar la barra (buscador, cuadrillas y capas)' : 'Solo el mapa: esconder la barra';
+            btnSolo.setAttribute('aria-label', btnSolo.title);
+            btnSolo.setAttribute('aria-pressed', String(on));
+        }
+        map.invalidateSize({ pan: false });
+        // Lo que se ve queda en el mismo sitio aunque el borde de arriba del mapa se movió
+        var corrido = map.getContainer().getBoundingClientRect().top - arriba;
+        if (corrido) map.panBy([0, corrido], { animate: false });
+    }
+    var SoloMapa = L.Control.extend({
+        options: { position: 'topright' },
+        onAdd: function () {
+            var caja = L.DomUtil.create('div', 'leaflet-bar solo-mapa-ctl');
+            btnSolo = L.DomUtil.create('a', '', caja);
+            btnSolo.href = '#'; btnSolo.setAttribute('role', 'button');
+            L.DomEvent.disableClickPropagation(caja);
+            L.DomEvent.on(btnSolo, 'click', function (ev) { L.DomEvent.preventDefault(ev); ponerSoloMapa(!soloMapa); });
+            return caja;
+        }
+    });
+    map.addControl(new SoloMapa());
+    ponerSoloMapa(soloMapa);
+    document.addEventListener('keydown', function (ev) {
+        if (ev.key !== 'Escape' || !soloMapa) return;
+        if (document.querySelector('dialog[open]') || map._popup && map.hasLayer(map._popup)) return; // Esc cierra primero lo abierto
+        ponerSoloMapa(false);
+    });
 
     // ---------- Inicio ----------
     // mapa_rapido.html?lote=532,371  ·  ?mr=Z2CC0308  ·  ?c=2,7 (cuadrillas)  ·  ?q=dirección o lo que se escribe en el buscador
