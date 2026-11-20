@@ -127,7 +127,17 @@ export function leerSif(filas) {
     if (q1 === -1) q1 = ej[0]; if (q2 === -1) q2 = ej[1];
     var rutas = filas.slice(iCab + 1).filter(function (f) { return /_/.test(String(f[0] || '')); });
     var cuenta = function (i) { return i == null || i === -1 ? null : rutas.filter(function (f) { return String(f[i] || '').trim(); }).length; };
-    return { total: rutas.length, q1: cuenta(q1), q2: cuenta(q2) };
+    // Cada ruta con su zona y su ejecución (🌾 Espartillos la cruza con la capa del mapa). FECHA y OBSERVACIONES: las que
+    // siguen a cada EJECUCIÓN
+    var tras = function (i, re) { if (i == null || i === -1) return -1; for (var j = i + 1; j < cab.length && !/^EJECUCION/.test(cab[j]); j++) if (re.test(cab[j])) return j; return -1; };
+    var en = function (f, i) { return i == null || i === -1 ? '' : String(f[i] == null ? '' : f[i]).replace(/\s+/g, ' ').trim(); };
+    var iZona = cab.findIndex(function (h) { return /^ZONA/.test(h); });
+    var f1 = tras(q1, /^FECHA/), f2 = tras(q2, /^FECHA/), o1 = tras(q1, /^OBSERVACION/), o2 = tras(q2, /^OBSERVACION/);
+    var lista = rutas.map(function (f) {
+        return { codigo: en(f, 0), zona: en(f, iZona), q1: en(f, q1), fecha1: fechaDe(f[f1]) || en(f, f1), q2: en(f, q2), fecha2: fechaDe(f[f2]) || en(f, f2),
+            obs: [en(f, o1), en(f, o2)].filter(Boolean).join(' · ') };
+    });
+    return { total: rutas.length, q1: cuenta(q1), q2: cuenta(q2), rutas: lista };
 }
 
 // Libro completo: { hojas: { nombre: filas } , archivo } → { mes, q1, q2, especiales, sif: { cc, esp } }

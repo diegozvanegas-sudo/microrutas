@@ -1,0 +1,116 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Espartillos por zona</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🌾</span>
+        <div class="nombre"><h1>Espartillos</h1><div class="lema">Zonas verdes · los espartillos por zona y comuna, con lo que tiene la app en este momento</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
+                <a href="optimizar.html" title="La programación del mes contra una armada por sectores: lotes cercanos el mismo día y quincenales a 14 días">🛣️ Programación por cercanía</a>
+                <a href="descuentos.html" title="Documento de descuento de área (cerramiento, predio privado, obra…) con el área dibujada en el mapa">💸 Descuentos</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+                <a href="espartillos.html" aria-current="page" title="Los espartillos por zona y comuna, con lo programado y ejecutado en el mes">🌾 Espartillos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+                <a href="programados.html" title="Mensajes de WhatsApp que salen solos a la hora elegida">⏰ Envíos programados</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="es">
+    <div id="estado" class="es-estado" role="status">Cargando…</div>
+    <section class="panel es-panel" id="es-datos" hidden>
+        <div class="es-cab">
+            <h2>🌾 Espartillos por zona</h2>
+            <div class="es-acciones">
+                <button type="button" class="secundario" id="es-actualizar">↻ Actualizar</button>
+                <button type="button" class="primario" id="es-excel">⬇️ Descargar Excel</button>
+            </div>
+        </div>
+        <p class="sub">La lista se arma al abrir la página con lo que tiene la app en ese momento: la capa Espartillos del mapa (código, dirección, área y dibujo)
+            y la programación del mes guardada en este equipo (zona y ejecución Q1/Q2). Si alguno se actualiza, toque <b>↻ Actualizar</b>.</p>
+        <div id="es-fuentes" class="es-fuentes"></div>
+        <div id="es-cuenta" class="es-cuenta"></div>
+        <details class="es-plegable">
+            <summary>¿De dónde sale la zona?</summary>
+            <ul class="es-notas">
+                <li>Si el espartillo está en la programación del mes (hoja SIF_ESP), la zona es la que dice la programación.</li>
+                <li>Si no, la zona EMV del mapa donde cae su pedazo más grande. Si toca otra zona, sale como «también en».</li>
+                <li>Guayabal y parte de Belén no están dentro de la capa Zonas EMV: salen como <b>Sin zona EMV</b>, con la zona más cercana solo como referencia.</li>
+            </ul>
+        </details>
+        <h3>Por zona</h3>
+        <p class="sub">Toque una zona para ver solo sus espartillos.</p>
+        <div class="es-tabla-caja"><table class="es-tabla" id="es-resumen"></table></div>
+    </section>
+    <section class="panel es-panel" id="es-lista-panel" hidden>
+        <h3 id="es-titulo-lista">Espartillos</h3>
+        <div class="es-filtros">
+            <label>Zona <select id="es-zona"></select></label>
+            <label>Comuna <select id="es-comuna"></select></label>
+            <label>Ver <select id="es-estado-f">
+                <option value="">Todos</option>
+                <option value="programados">Programados este mes</option>
+                <option value="ejecutados">Ejecutados este mes</option>
+                <option value="pendientes">Programados sin ejecutar</option>
+                <option value="revisar">Solo los que hay que revisar</option>
+            </select></label>
+            <label class="es-buscar">Buscar <input type="search" id="es-texto" placeholder="Código, dirección, barrio…" autocomplete="off"></label>
+            <button type="button" class="secundario" id="es-limpiar">Quitar filtros</button>
+        </div>
+        <div id="es-cuantos" class="es-cuantos" role="status" aria-live="polite"></div>
+        <div id="es-lista" class="es-lista"></div>
+    </section>
+    <p class="nota-privada">No se guarda nada nuevo: solo los filtros elegidos, en este equipo. La programación es la misma de 📅 Programación del día y 📊 Cruce.</p>
+</main>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/espartillos/main.js"></script>
+</body>
+</html>

@@ -113,11 +113,13 @@ test('operaciones especiales de la semana', () => {
 test('rutas SIF: cuántas tienen ejecución por quincena', () => {
     const sif = leerSif([['CODIFICACIÓN', 'DESCRIPCIÓN', 'DIRECCIÓN', 'ÁREA (m2) BASE', 'FRECUENCIA', 'EJECUCIÓN Q1', 'EJECUCIÓN Q2'],
         ['03_11_CC_0113', '', '', 1011, 'Mensual', 'X', ''], ['04_07_CC_0104', '', '', 402, 'Mensual', '', ''], ['', '', '', '', '', '', '']]);
-    assert.deepEqual(sif, { total: 2, q1: 1, q2: 0 });
+    assert.deepEqual({ total: sif.total, q1: sif.q1, q2: sif.q2 }, { total: 2, q1: 1, q2: 0 });
+    assert.deepEqual(sif.rutas.map(r => [r.codigo, r.q1, r.zona]), [['03_11_CC_0113', 'X', ''], ['04_07_CC_0104', '', '']]);
     // Espartillos: encabezado en la segunda fila y dos columnas EJECUCIÓN
     const esp = leerSif([['ESPARTILLO MECÁNICO'], ['CODIFICACIÓN', 'DESCRIPCIÓN', 'DIRECCIÓN', 'ÁREA (m2)', 'FRECUENCIA', 'ZONA ', 'EJECUCIÓN Q1', 'FECHA', 'OBSERVACIONES', 'EJECUCIÓN Q2'],
-        ['15_02_ES_0026', '', '', 15163, 'Quincenal', 6, 'X', '2026-11-02', '', '']]);
-    assert.deepEqual(esp, { total: 1, q1: 1, q2: 0 });
+        ['15_02_ES_0026', '', '', 15163, 'Quincenal', 6, 'X', '2026-11-02', 'con lluvia', '']]);
+    assert.deepEqual({ total: esp.total, q1: esp.q1, q2: esp.q2 }, { total: 1, q1: 1, q2: 0 });
+    assert.deepEqual(esp.rutas, [{ codigo: '15_02_ES_0026', zona: '6', q1: 'X', fecha1: '2026-11-02', q2: '', fecha2: '', obs: 'con lluvia' }]);
 });
 test('leerProgramacion: hojas por nombre y mes del archivo', () => {
     const p = leerProgramacion({ PROGRAMACION: Q1, Q1, Q2: [CAB], OP_ESPECIALES: ESP }, '2026_11_Noviembre_Programacion_CW394406.xlsx');

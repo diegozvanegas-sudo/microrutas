@@ -21,6 +21,7 @@ export var SECCIONES = [
     { clave: 'descuentos', nombre: '💸 Descuentos', grupo: 'Zonas verdes', pagina: 'descuentos.html' },
     { clave: 'guia', nombre: '🧭 Guía de campo', grupo: 'Zonas verdes', pagina: 'contrato.html', doc: 'GUIA-CAMPO', contrato: true },
     { clave: 'requerimientos', nombre: '📨 Requerimientos', grupo: 'Zonas verdes', pagina: 'requerimiento.html', contrato: true },
+    { clave: 'espartillos', nombre: '🌾 Espartillos', grupo: 'Zonas verdes', pagina: 'espartillos.html' },
     { clave: 'pendientes', nombre: '📌 Pendientes', grupo: 'General', pagina: 'pendientes.html' },
     { clave: 'informe', nombre: '🗒️ Informe', grupo: 'General', pagina: 'informe.html' },
     { clave: 'contrato', nombre: '📜 Contrato', grupo: 'General', pagina: 'contrato.html', contrato: true },
