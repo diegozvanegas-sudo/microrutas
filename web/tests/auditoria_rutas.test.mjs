@@ -11,12 +11,13 @@ test('auditar ZIP: los Excel de cada ZIP quedan donde los deja el motor', () => 
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_zonas_verdes.xlsx',
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_zonas_verdes_avance_parcial.xlsx',
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_operacion.xlsx',
+        raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4\\C2_operacion_novedades',
         raiz + '\\salidas\\aplicacion\\lecturas\\fuente_4',
         'C:\\ZIps a revisar\\C2.zip',
         'C:\\ZIps a revisar\\C2_claude_plan_claude-haiku-5-5_cache.jsonl'
     ]);
-    // Solo los Excel (dentro de salidas\aplicacion) se pueden bajar desde la página
-    assert.deepEqual(a.map((x) => x.descargar), [true, true, true, false, false, false]);
+    // Solo los Excel (dentro de salidas\aplicacion) se pueden bajar desde la página; las carpetas se copian
+    assert.deepEqual(a.map((x) => x.descargar), [true, true, true, false, false, false, false]);
 });
 
 test('auditar ZIP: la revisión de la operación va aparte, con su modelo y su máximo (o las fotos de prueba)', () => {

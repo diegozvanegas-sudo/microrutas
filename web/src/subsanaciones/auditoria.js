@@ -83,6 +83,7 @@ export function archivosZip(raiz, f) {
         { que: 'Excel de la lectura (el reporte por microrruta)', ruta: carpeta + sep + base + '_zonas_verdes.xlsx', descargar: true },
         { que: 'Excel del avance parcial («📊 Ver avance»)', ruta: carpeta + sep + base + '_zonas_verdes_avance_parcial.xlsx', descargar: true },
         { que: 'Excel de la revisión de la operación («🦺», fotos de DURANTE)', ruta: carpeta + sep + base + '_operacion.xlsx', descargar: true },
+        { que: 'Carpeta de las fotos con novedades de la operación (por microrruta, con NOVEDADES.txt)', ruta: carpeta + sep + base + '_operacion_novedades', descargar: false },
         { que: 'Carpeta de las lecturas de este ZIP', ruta: carpeta, descargar: false },
         { que: 'El ZIP de fotos', ruta: f.ruta, descargar: false },
         { que: 'Lo leído por Claude (caché, al lado del ZIP: no la borre)', ruta: sinExt + '_claude_plan_' + modelo + '_cache.jsonl', descargar: false }
@@ -561,7 +562,7 @@ async function seguir() {
     // Terminó algo: sus Excel pueden haber cambiado, se vuelve a preguntar si existen
     q.fuentes.forEach(function (f) { if (antes[f.id] && antes[f.id].estado === 'CORRIENDO' && estados[f.id].estado !== 'CORRIENDO') { olvidarArchivos(f); revisarArchivos(f); } });
     if (conto) barra(2, '✓ Avance de ' + conto.nombre + ' listo: el Excel parcial quedó en «📁 Archivos de este ZIP».', 100, 'listo');
-    if (reviso) barra(2, '✓ Operación de ' + reviso.nombre + ' revisada: el Excel (por microrruta, con lo que falta) quedó en «📁 Archivos de este ZIP». Cada hallazgo queda POR CONFIRMAR.', 100, 'listo');
+    if (reviso) barra(2, '✓ Operación de ' + reviso.nombre + ' revisada: el Excel (por microrruta, con lo que falta) quedó en «📁 Archivos de este ZIP», junto con la carpeta de las fotos con novedades. Cada hallazgo queda POR CONFIRMAR.', 100, 'listo');
     if (termino) cargarNovedades(true);
     var malo = q.fuentes.find(function (f) { return antes[f.id] && antes[f.id].estado === 'CORRIENDO' && /ERROR|LIMITE/.test(estados[f.id].estado); });
     if (malo) barra(2, estados[malo.id].estado === 'LIMITE' ? 'Se acabó el límite del plan de Claude en ' + malo.nombre + '. Siga más tarde: no se vuelven a pagar las fotos hechas.' + (colaDe(q).length ? ' La fila queda en pausa.' : '')
