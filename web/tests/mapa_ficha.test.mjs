@@ -36,7 +36,7 @@ test('ficha: junta lo de cada sección para el lote y nada de otros lotes', () =
     assert.equal(i.pendientes[0].items[0].plazo, 'Plazo: 5 días');
     // El reporte más reciente que lo trae: el del 17 nombra la microrruta sin lote y cuenta (se reporta la microrruta completa);
     // el del 18 es de otra microrruta
-    assert.deepEqual(i.reporte, { fecha: '2026-11-17', cuad: '4', dias: 2 });
+    assert.deepEqual(i.reporte, { fecha: '2026-11-17', cuad: '4', dias: 2, origen: 'cruce' });
     assert.equal(i.areaDescontada, 176);
     assert.equal(i.auditoria.quincena, 'Q2 C4');
     assert.deepEqual(i.auditoria.novedades, [], 'la última auditoría (aprobada, SN) no tiene novedad');
@@ -66,8 +66,25 @@ test('ficha: el HTML dice el plazo de cada pendiente y no deja pasar texto sin e
     assert.match(h, /1 PQR que nombran el lote · 1 abierta/);
     assert.doesNotMatch(h, /<b>x<\/b>/);
     assert.match(htmlMas(i), /Propuesta por cercanía · 2026-11[\s\S]*parada 2 de 5[\s\S]*Con 497, 502/);
-    assert.match(chipReporte(i), /Reportado 17\/11 · C4 · hace 2 días/);
+    assert.match(chipReporte(i), /Ejecutado 17\/11 · C4 · hace 2 días/);
     assert.equal(iso('03/11/2026'), '2026-11-03');
     assert.equal(corto('2026-11-03'), '03/11');
     assert.ok(hoyIso().length === 10);
+});
+
+test('ficha: el lote puesto en la pre-ruta cuenta como ejecutado (con su fecha) aunque no esté en 📊 Cruce', () => {
+    var base = { reportes: [], rutas: [{ id: 'Z2CC0339', fecha: '18/11/2026', cuad: 'C4' }, { id: '498', fecha: '2026-11-15', cuad: '4' }, { id: '777', fecha: '', cuad: '2' }] };
+    var sinLote = infoLote({ mr: 'Z2CC0339', lote: 'NA' }, base, '2026-11-19');
+    assert.deepEqual(sinLote.reporte, { fecha: '2026-11-18', cuad: '4', dias: 1, origen: 'preruta' });
+    assert.match(chipReporte(sinLote), /Ejecutado 18\/11 · C4 · hace 1 día</);
+    assert.equal(infoLote({ mr: 'Z2CC0278', lote: '498' }, base, '2026-11-19').reporte.fecha, '2026-11-15');
+    // Gana lo más nuevo entre Cruce y la pre-ruta
+    var ambos = infoLote({ mr: 'Z2CC0278', lote: '498' }, Object.assign({}, base, { reportes: [{ fecha: '2026-11-17', cuad: '4', items: [{ mr: 'Z2CC0278', lote: '498' }] }] }), '2026-11-19');
+    assert.equal(ambos.reporte.origen, 'cruce');
+    // Todos los reportes, en orden, para ubicarlos en su quincena de la programación
+    assert.deepEqual(ambos.reportes, ['2026-11-15', '2026-11-17']);
+    // En la pre-ruta sin fecha de ejecución: lo dice, no «sin reporte»
+    var sinFecha = infoLote({ mr: 'Z1CC0700', lote: '777' }, base, '2026-11-19');
+    assert.equal(sinFecha.reporte, null);
+    assert.match(chipReporte(sinFecha), /En la pre-ruta · C2 · sin fecha de ejecución/);
 });

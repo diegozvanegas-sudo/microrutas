@@ -51,12 +51,24 @@ export function infoLote(lote, fuentes, hoy) {
         return { id: x.r.ID, fecha: x.f, op: op, items: items, plazo: plazoVisita(x.r) };
     });
     var ultimas = visitas.slice(0, 4).map(function (x) { return { id: x.r.ID, fecha: x.f, estado: x.r.ESTADO || '', op: esOp(x.r), nNo: itemsEnNo(x.r).length }; });
-    // Último reporte de ejecución de las cuadrillas que trae el lote
-    var reporte = null;
+    // Último reporte de ejecución de las cuadrillas que trae el lote: los de WhatsApp cargados en 📊 Cruce y los lotes puestos
+    // en la pre-ruta de Subsanaciones (que se arma con ese mismo reporte y guarda la fecha de ejecución)
+    // reporte: el más reciente; reportes: todos (aaaa-mm-dd), para ubicar cada uno en su quincena de la programación
+    var reporte = null, todos = [];
+    function ponerReporte(f, cuad, origen) {
+        if (f && todos.indexOf(f) === -1) todos.push(f);
+        if (f && (!reporte || f > reporte.fecha || (f === reporte.fecha && origen === 'cruce'))) reporte = { fecha: f, cuad: texto(cuad).replace(/^C\s*/i, ''), dias: hoy ? diasEntre(f, hoy) : null, origen: origen };
+    }
     (fuentes.reportes || []).forEach(function (r) {
-        var f = iso(r.fecha);
-        if (!f || !(r.items || []).some(function (it) { return esDe(lote, it.mr, it.lote); })) return;
-        if (!reporte || f > reporte.fecha) reporte = { fecha: f, cuad: texto(r.cuad || r.cuadrilla), dias: hoy ? diasEntre(f, hoy) : null };
+        if ((r.items || []).some(function (it) { return esDe(lote, it.mr, it.lote); })) ponerReporte(iso(r.fecha), r.cuad || r.cuadrilla, 'cruce');
+    });
+    // Pre-ruta: cada parada es el número del lote o, sin lote, la microrruta
+    var enPreruta = null;
+    (fuentes.rutas || []).forEach(function (p) {
+        var id = texto(p.id || p.lote), mr = mrDe(id);
+        if (!id || !esDe(lote, mr, mr ? '' : id)) return;
+        enPreruta = { cuad: texto(p.cuad || p.cuadrilla).replace(/^C\s*/i, '') };
+        ponerReporte(iso(p.fecha), p.cuad || p.cuadrilla, 'preruta');
     });
     // Descuentos de área
     var desc = [];
@@ -90,7 +102,7 @@ export function infoLote(lote, fuentes, hoy) {
     // Día propuesto por cercanía
     var prop = fuentes.propuesta && fuentes.propuesta.lotes ? (fuentes.propuesta.lotes[lote.mr + '|' + (lote.lote || 'NA')] || fuentes.propuesta.lotes[lote.mr + '|' + lote.lote] || []) : [];
     // areaBase: la del lote completo en el descuento (el polígono tocado en el mapa puede ser solo una parte del lote)
-    return { lote: lote, pendientes: pendientes, visitas: ultimas, reporte: reporte, descuentos: desc, areaDescontada: desc.reduce(function (s, x) { return s + x.area; }, 0),
+    return { lote: lote, pendientes: pendientes, visitas: ultimas, reporte: reporte, reportes: todos.sort(), enPreruta: enPreruta, descuentos: desc, areaDescontada: desc.reduce(function (s, x) { return s + x.area; }, 0),
         areaBase: desc.reduce(function (m, x) { return Math.max(m, x.base || 0); }, 0),
         auditoria: auditoria, requerimientos: reqs, pqrs: pqrs, propuesta: prop, mesPropuesta: fuentes.propuesta ? fuentes.propuesta.mes : '' };
 }
@@ -103,9 +115,10 @@ function plural(n, uno, varios) { return n + ' ' + (n === 1 ? uno : varios); }
 // Reporte de WhatsApp: va en el renglón «Contratista», junto a la programación
 export function chipReporte(info) {
     var r = info.reporte;
-    if (!r) return chip('prog-no', '💬 Sin reporte de ejecución', 'Ningún «REPORTE MICRORRUTAS EJECUTADAS» cargado en 📊 Cruce trae este lote');
-    return chip('aldia', '💬 Reportado ' + esc(corto(r.fecha)) + (r.cuad ? ' · C' + esc(r.cuad) : '') + (r.dias != null && r.dias > 0 ? ' · hace ' + plural(r.dias, 'día', 'días') : r.dias === 0 ? ' · hoy' : ''),
-        'Último reporte de ejecución de las cuadrillas (📊 Cruce) que trae este lote');
+    if (!r && info.enPreruta) return chip('aldia', '💬 En la pre-ruta' + (info.enPreruta.cuad ? ' · C' + esc(info.enPreruta.cuad) : '') + ' · sin fecha de ejecución', 'El lote está en la pre-ruta de Subsanaciones, pero sin la fecha en que se ejecutó');
+    if (!r) return chip('prog-no', '💬 Sin reporte de ejecución', 'Ni la pre-ruta ni los reportes cargados en 📊 Cruce traen este lote');
+    return chip('aldia', '💬 Ejecutado ' + esc(corto(r.fecha)) + (r.cuad ? ' · C' + esc(r.cuad) : '') + (r.dias != null && r.dias > 0 ? ' · hace ' + plural(r.dias, 'día', 'días') : r.dias === 0 ? ' · hoy' : ''),
+        r.origen === 'preruta' ? 'Fecha de ejecución reportada por la cuadrilla, del lote puesto en la pre-ruta (Subsanaciones)' : 'Último reporte de ejecución de las cuadrillas (📊 Cruce) que trae este lote');
 }
 // Avisos: lo que hay que atender (pendientes con su plazo, descuentos, requerimientos y PQR)
 export function htmlAvisos(info) {

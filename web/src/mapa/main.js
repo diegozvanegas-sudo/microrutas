@@ -13,8 +13,11 @@ function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezone
 var base = { reportes: null, descuentos: null, auditorias: null };
 function fuentes() {
     var c = leer('subsanaciones_cache', null) || {};
+    // Pre-ruta: la de la base (copia en subsanaciones_cache.rutas) y la de este equipo (subsanaciones_rutas)
+    var rutas = (c.rutas || []).map(function (r) { return { id: r.lote, fecha: r.fecha, cuad: r.cuadrilla }; });
+    leer('subsanaciones_rutas', []).forEach(function (r) { (r.paradas || []).forEach(function (p) { rutas.push({ id: p.id, fecha: p.fecha, cuad: r.cuad }); }); });
     return {
-        visitas: c.registros || [], items: c.items || [], itemsOp: c.itemsOperacion || [],
+        visitas: c.registros || [], items: c.items || [], itemsOp: c.itemsOperacion || [], rutas: rutas,
         reportes: base.reportes || leer('cruce_reportes', []),
         descuentos: base.descuentos || leer('descuentos_lista', []),
         auditorias: base.auditorias || leer('mapa_auditorias', []),

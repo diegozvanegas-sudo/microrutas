@@ -639,9 +639,15 @@
     }
     var DIAS_CORTOS = ['dom', 'lun', 'mar', 'mié', 'jue', 'vie', 'sáb'];
     function diaCorto(iso) { var d = new Date(iso + 'T00:00:00Z'); return DIAS_CORTOS[d.getUTCDay()] + ' ' + iso.slice(8, 10) + '/' + iso.slice(5, 7); }
-    function textoProgramacion(capa) {
+    // info (src/mapa): con sus reportes de ejecución (pre-ruta y 📊 Cruce), un lote sin la X del Excel pero reportado ejecutado
+    // dentro de esa quincena se dice así (la X la pone el contratista y a veces llega tarde)
+    function textoProgramacion(capa, info) {
         var g = programacionGuardada();
         if (!g) return '';
+        var reportes = info && info.reportes ? info.reportes : [];
+        // Quincenas de la programación: Q1 = semanas 1 y 2; Q2 = de la semana 3 en adelante (como programacion.js)
+        var iniQ2 = fechaProgramada(g.prog.mes, 3, 1), iniQ1 = fechaProgramada(g.prog.mes, 1, 1), finMes = fechaProgramada(g.prog.mes, 6, 6);
+        var reporteEn = function (q) { return reportes.filter(function (f) { return q === 1 ? f >= iniQ1 && f < iniQ2 : f >= iniQ2 && f <= finMes; }).pop() || ''; };
         var p = capa.lote, mr = String(p.m || '').toUpperCase(), lote = p.l && p.l !== 'NA' ? String(p.l) : '';
         var es = function (x) { return lote ? String(x.lote) === lote && (!mr || x.mr === mr) : !!mr && x.mr === mr && (!x.lote || /^N\/?A$/i.test(x.lote)); };
         var ahora = new Date(), hoyIso = ahora.getFullYear() + '-' + ('0' + (ahora.getMonth() + 1)).slice(-2) + '-' + ('0' + ahora.getDate()).slice(-2);
@@ -649,11 +655,12 @@
         var chips = [];
         [[1, g.prog.q1 || []], [2, g.prog.q2 || []]].forEach(function (par) {
             par[1].filter(es).forEach(function (x) {
-                var plan = fechaProgramada(g.prog.mes, x.semana, x.dia), clase, estado;
+                var plan = fechaProgramada(g.prog.mes, x.semana, x.dia), clase, estado, rep = reporteEn(par[0]);
                 if (x.hecho) { clase = 'aldia'; estado = '✓ hecho' + (x.fecha ? ' el ' + x.fecha.slice(8, 10) + '/' + x.fecha.slice(5, 7) : ''); }
+                else if (rep) { clase = 'aldia'; estado = '✓ reportado ejecutado el ' + rep.slice(8, 10) + '/' + rep.slice(5, 7) + ' (sin X en el Excel)'; }
                 else if (!plan) { clase = 'prog-no'; estado = 'sin día en el Excel'; }
                 else if (plan === hoyIso) { clase = 'pronto'; estado = 'le toca hoy'; }
-                else if (plan < hoyIso) { clase = 'vencido'; estado = 'ya pasó, sin X en el Excel'; }
+                else if (plan < hoyIso) { clase = 'vencido'; estado = 'ya pasó, sin X ni reporte de ejecución'; }
                 else { var faltan = Math.round((new Date(plan) - new Date(hoyIso)) / 864e5); clase = 'prog'; estado = faltan === 1 ? 'mañana' : 'en ' + faltan + ' días'; }
                 chips.push('<span class="ruta-estado ' + clase + '" title="Según ' + esc(g.archivo || 'la programación del mes') + (x.cuad ? ' · cuadrilla ' + esc(x.cuad) : '') + '">📅 Q' + par[0] +
                     (plan ? ' · ' + esc(diaCorto(plan)) : '') + ' · ' + esc(estado) + '</span>');
@@ -1335,7 +1342,7 @@
     // Estado del lote en dos renglones con su nombre, para que no se confunda lo que dice el contratista (programación del
     // mes y reporte de WhatsApp) con lo de la interventoría (visitas). El reporte lo da src/mapa (window.FichaLote)
     function bloqueEstado(capa, info) {
-        var contr = textoProgramacion(capa) + (info ? window.FichaLote.chipReporte(info) : ''), interv = chipsInterventoria(capa);
+        var contr = textoProgramacion(capa, info) + (info ? window.FichaLote.chipReporte(info) : ''), interv = chipsInterventoria(capa);
         if (!interv) interv = '<span class="ruta-estado prog-no">Sin visitas de la interventoría en este equipo</span>';
         return '<div class="estado-f">' +
             (contr ? '<div class="fila-est"><span class="et-est">Contratista</span><div class="linea-estado">' + contr + '</div></div>' : '') +
