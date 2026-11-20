@@ -23,7 +23,14 @@ var correccionesLotes = {
     "7043": { "No_Lote": "677" },
     "7056": { "No_Lote": "677" },
     // Z2CC0336 (lote 1168, cuadrilla 1): estaba dibujado sin microrruta. Misma dirección: calle 62 No 85 - 327, Robledo.
-    "675": { "Microruta": "Z2CC0336", "No_Lote": "1168", "CUADRILLA": "1" }
+    "675": { "Microruta": "Z2CC0336", "No_Lote": "1168", "CUADRILLA": "1" },
+    // Z2CC0271 (lote 491): la ficha (19.245 m²) es la vía de acceso + la zona anexa de 16.507 m² (fid 7055), pero solo la
+    // anexa tenía microrruta. Las franjas a lado y lado de la Carrera 94 (vía de acceso a Santa María Campestre, el tramo
+    // del bosque) estaban dibujadas sin datos, justo antes de la anexa en la capa (fid 7052-7054, 3.020 m²). Revisado sobre
+    // la ortofoto, 20/11/2026. Área de campo: los 2.738 m² de las vías (19.245 − 16.507) repartidos por lo dibujado.
+    "7052": { "Microruta": "Z2CC0271", "No_Lote": "491", "CUADRILLA": "2", "Area_campo": "561", "Descripcio": "Vías de acceso urbanización Santa María de Robledo: maquinazo ampliado en dos metros en el costado norte de la vía de acceso a Santa María Campestre (Carrera 94), frente a la zona anexa." },
+    "7053": { "Microruta": "Z2CC0271", "No_Lote": "491", "CUADRILLA": "2", "Area_campo": "1071", "Descripcio": "Vías de acceso urbanización Santa María de Robledo: maquinazo ampliado en dos metros a un costado de la vía de acceso a Santa María Campestre (Carrera 94), tramo del bosque." },
+    "7054": { "Microruta": "Z2CC0271", "No_Lote": "491", "CUADRILLA": "2", "Area_campo": "1106", "Descripcio": "Vías de acceso urbanización Santa María de Robledo: maquinazo ampliado en dos metros al otro costado de la vía de acceso a Santa María Campestre (Carrera 94), tramo del bosque." }
   },
   "nuevos": [
     // Lote 287 (Z2CC0090): la zona principal no estaba dibujada. Zonas verdes trazadas sobre la ortofoto 2025 (vegetación sin edificios ni canchas de OSM), 24/10/2026.
