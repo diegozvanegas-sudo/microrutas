@@ -9,12 +9,15 @@
 //   armarArboles(visitas, base, hoy)     -> el de afectación a árboles, solo con esas visitas y su tabla de árboles
 //   armar(visitas, base, hoy)            -> el requerimiento (mismo objeto del formulario) con sus microrrutas y evidencias
 //   textoPreaviso(cuad, visitas)         -> el mensaje del pre aviso al contratista (a los 5 días hábiles)
+//   conReportes(lista, reportes)         -> la misma lista con v.reporte = { fecha, cuad } si el contratista la reportó
+//                                           como ejecutada (reportes de WhatsApp del 📊 Cruce)
 
 // Días hábiles desde la visita para que el requerimiento quede listo (lo fijó la interventoría); AVISO: a los 5 días
 // hábiles sin corregir se le manda al contratista el pre aviso (lo fijó la interventoría el 17/11/2026)
 import { esFestivo } from '../horas/distribucion.js';
 import { esNoSubsanable } from '../subsanaciones/estado.js';
 import { arbolesEn } from './plantillas.js';
+import { normMr } from '../cruce/cruce.js';
 
 export var PLAZO_REQ = 8, AVISO = 5;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
@@ -108,6 +111,32 @@ export function yaRequeridas(historial) {
     return out;
 }
 
+// ---------- Reportes de ejecución del contratista (📊 Cruce) ----------
+// reportes: [{ fecha, cuad, items: [{ mr, lote }] }]. El de la visita es el del día de ejecución que dice la visita; si no
+// lo hay, el último antes de la visita (hasta 45 días atrás: de ahí para atrás es de otro ciclo de corte)
+var VENTANA_REP = 45;
+export function reporteDe(v, reportes) {
+    var mr = normMr(v.mr), desde = v.fecha ? mas(v.fecha, -VENTANA_REP) : '', mejor = null;
+    if (!mr) return null;
+    (reportes || []).forEach(function (r) {
+        if (!r || !r.fecha || !(r.items || []).some(function (i) { return normMr(i.mr) === mr; })) return;
+        if (v.ejec && r.fecha === v.ejec) { mejor = { fecha: r.fecha, cuad: String(r.cuad || ''), exacto: true }; return; }
+        if (mejor && mejor.exacto) return;
+        if (r.fecha <= v.fecha && r.fecha >= desde && (!mejor || r.fecha > mejor.fecha)) mejor = { fecha: r.fecha, cuad: String(r.cuad || '') };
+    });
+    return mejor ? { fecha: mejor.fecha, cuad: mejor.cuad } : null;
+}
+export function conReportes(lista, reportes) {
+    return (lista || []).map(function (v) { return Object.assign({}, v, { reporte: reporteDe(v, reportes) }); });
+}
+// Texto de la evidencia «Reportes de ejecución»: una línea por visita que el contratista reportó como ejecutada
+function textoReportes(visitas) {
+    return visitas.filter(function (v) { return v.reporte; }).map(function (v) {
+        return rotuloVisita(v) + ': reportado por el contratista como ejecutado el ' + aTexto(v.reporte.fecha) + (v.reporte.cuad ? ' (cuadrilla ' + v.reporte.cuad + ')' : '') +
+            (v.tipo === 'norealizado' ? '; en la visita del ' + aTexto(v.fecha) + ' se encontró no realizado.' : '.');
+    }).join('\n');
+}
+
 function lista(v) { return v.length < 2 ? v.join('') : v.slice(0, -1).join(', ') + ' y ' + v[v.length - 1]; }
 export function rotuloVisita(v) { return v.mr + (v.lote ? ' (' + v.lote + ')' : ''); }
 // Títulos de las evidencias del requerimiento automático. En la de ENVIO van los pantallazos guardados de cada visita
@@ -130,7 +159,7 @@ export function armarArboles(visitas, base, hoy) {
                 tipos: v.novedades.filter(function (t) { return esNoSubsanable(t, false); }) };
         }),
         evidencias: [
-            { titulo: EVID_REPORTE, texto: '' },
+            { titulo: EVID_REPORTE, texto: textoReportes(sel) },
             { titulo: EVID_ENVIO, texto: sel.map(function (v) {
                 return rotuloVisita(v) + ': afectación a árboles reportada el ' + aTexto(v.fecha) + ' (no subsanable).';
             }).join('\n') },
@@ -155,11 +184,11 @@ export function armar(visitas, base, hoy) {
         asunto: que + (cuads.length ? (cuads.length === 1 ? ' · cuadrilla ' : ' · cuadrillas ') + lista(cuads) : ''),
         novedades: visitas.map(function (v) { return { micro: v.mr || v.lote, fecha: v.fecha, tipos: v.novedades.slice() }; }),
         evidencias: [
-            { titulo: EVID_REPORTE, texto: '' },
+            { titulo: EVID_REPORTE, texto: textoReportes(visitas) },
             { titulo: EVID_ENVIO, texto: visitas.map(function (v) {
                 // Antes del plazo (📨 Crear requerimiento de una visita, p. ej. un daño no subsanable) no se dice «sin corrección»
                 if (v.noSubsanable) return rotuloVisita(v) + ': novedades enviadas el ' + aTexto(v.fecha) + '; incluye afectación a árboles, que no es subsanable.';
-                return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? 'reportado como no realizado el ' : 'novedades enviadas el ') + aTexto(v.fecha) +
+                return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? (v.reporte ? 'reportado como ejecutado y encontrado no realizado el ' : 'reportado como no realizado el ') : 'novedades enviadas el ') + aTexto(v.fecha) +
                     (v.listo ? ', ' + v.dias + ' días hábiles sin corrección.' : ' (' + v.dias + (v.dias === 1 ? ' día hábil' : ' días hábiles') + ' desde la visita).');
             }).join('\n') },
             { titulo: EVID_INSPECCION, texto: '' }

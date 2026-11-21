@@ -11,7 +11,7 @@
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { valorItem, hoy } from '../subsanaciones/util.js';
 import { crearApi } from '../api.js';
-import { candidatas, porCuadrilla, yaRequeridas, armar, armarArboles, hayArboles, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
+import { candidatas, conReportes, porCuadrilla, yaRequeridas, armar, armarArboles, hayArboles, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
 import { crearAnexos, carpeta, carpetaReporte, seBorra, TIPOS } from './anexos.js';
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -36,13 +36,28 @@ export function iniciarListos(dep) {
             return { registros: c.registros, items: c.items || [] };
         }
     }
+    // Reportes de ejecución del contratista (📊 Cruce): de la base si hay sesión; si no, la copia del equipo. Solo se leen
+    // (subirlos o borrarlos es cosa del Cruce). Sin ellos la lista sale igual, solo sin la fecha del reporte.
+    async function leerReportes() {
+        var mios = [];
+        try { mios = JSON.parse(localStorage.getItem('cruce_reportes')) || []; } catch (e) { mios = []; }
+        if (!dep.supabase) return mios;
+        try {
+            var res = await dep.supabase.from('reportes_ejecucion').select('fecha, cuadrilla, items');
+            if (res.error) return mios;
+            var vistos = {}, todos = res.data.map(function (f) { return { fecha: f.fecha, cuad: String(f.cuadrilla), items: f.items || [] }; });
+            todos.forEach(function (r) { vistos[r.fecha + '|' + r.cuad] = 1; });
+            // Lo del equipo que todavía no se ha subido también cuenta
+            return todos.concat(mios.filter(function (r) { return !vistos[r.fecha + '|' + r.cuad]; }));
+        } catch (e) { return mios; }
+    }
     async function cargar() {
         $('rl-estado').hidden = false;
         $('rl-estado').textContent = 'Buscando las visitas sin corregir…';
         $('rl-actualizar').disabled = true;
         try {
-            var d = await leerVisitas();
-            visitas = candidatas(d.registros, hoy(), itemsNoDe(d.items));
+            var d = await leerVisitas(), reportes = await leerReportes();
+            visitas = conReportes(candidatas(d.registros, hoy(), itemsNoDe(d.items)), reportes);
             try {
                 porVisita = await anexos.listar(visitas.map(function (v) { return v.id; }));
                 // Más la imagen del reporte de la cuadrilla que se guardó al crear la pre-ruta (una por fecha de ejecución y
@@ -104,6 +119,9 @@ export function iniciarListos(dep) {
                 '<span class="rl-dias ' + (v.listo ? 'listo' : v.preaviso ? 'pronto' : '') + '">' + (v.noSubsanable ? '🌳 No subsanable' : v.listo ? plural(v.dias, 'día hábil', 'días hábiles') : 'faltan ' + plural(v.faltan, 'día hábil', 'días hábiles')) + '</span></div>' +
             '<div class="sub">' + (v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) +
                 (v.noSubsanable ? ' · afectación a árboles: va de una a requerimiento (no se espera el plazo ni el pre aviso)' : v.listo ? '' : ' · se cumple el ' + esc(aTexto(v.cumple))) + '</div>' +
+            // 📋 Lo que reportó el contratista: si dijo que lo hizo y la visita lo encontró sin hacer, se resalta
+            (v.reporte ? '<div class="rl-rep' + (v.tipo === 'norealizado' ? ' rl-rep-mal">⚠️ Reportado como ejecutado el ' + esc(aTexto(v.reporte.fecha)) + ' y la visita lo encontró sin hacer' :
+                '">📋 Reportado como ejecutado el ' + esc(aTexto(v.reporte.fecha))) + (v.reporte.cuad ? ' · cuadrilla ' + esc(v.reporte.cuad) : '') + '</div>' : '') +
             (v.tipo === 'novedad' && v.novedades.length ? '<div class="rl-nov">' + esc(v.novedades.join(' · ')) + '</div>' : '') +
             (v.preaviso ? '<div class="rl-pre-estado ' + (pre ? 'ok">✓ Pre aviso enviado el ' + esc(aTexto(String(pre.fecha).slice(0, 10))) : 'falta">⚠️ Falta el pantallazo del pre aviso') + '</div>' : '') +
             (r ? '<div class="rl-ya">✓ Ya está en el requerimiento ' + esc(r.radicado || 'sin radicado') + ' (' + esc(r.estado) + ')</div>' : '') +
