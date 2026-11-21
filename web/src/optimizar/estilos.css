@@ -52,9 +52,9 @@
 /* Solo el dibujo de respaldo: los svg de Leaflet (la bandera del crédito, las líneas) no se tocan */
 .oz-mapa > svg { display: block; width: 100%; height: auto; }
 .oz-mapa > svg g.apagado { opacity: .12; }
-.oz-map { height: 520px; background: #e5e7eb; }
+.oz-map { height: clamp(560px, 78vh, 980px); background: #e5e7eb; }
 .oz-mapas.grande { grid-template-columns: 1fr; }
-.oz-mapas.grande .oz-map { height: 78vh; }
+.oz-mapas.grande .oz-map { height: 88vh; }
 
 /* Día que se ve en los mapas y opciones */
 .oz-diasel { display: flex; flex-wrap: wrap; gap: 6px; }
@@ -113,6 +113,6 @@
     .oz-acciones, .oz-acciones button { width: 100%; }
     .oz-dato b { font-size: 18px; }
     .oz-dias { max-height: none; overflow: visible; }
-    .oz-map { height: 380px; }
-    .oz-mapas.grande .oz-map { height: 70vh; }
+    .oz-map { height: clamp(420px, 68vh, 640px); }
+    .oz-mapas.grande .oz-map { height: 80vh; }
 }
