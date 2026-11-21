@@ -5,7 +5,7 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { estadoWhatsapp, conectarWhatsapp, desconectarWhatsapp, gruposWhatsapp, enviarTexto, enviarArchivo } from './cliente.js';
+import { estadoWhatsapp, conectarWhatsapp, desconectarWhatsapp, gruposWhatsapp, enviarTexto, enviarArchivo, estadoBot, activarBot } from './cliente.js';
 
 var $ = function (id) { return document.getElementById(id); };
 var grupos = [], admin = false, vigilar = null;
@@ -109,6 +109,29 @@ async function enviar() {
     }
 }
 
+// 🤖 Bot: si Evolution le está mandando los mensajes recibidos a la función whatsapp-bot
+function pintarBot(d, error) {
+    var activo = !!(d && d.activo);
+    $('bot-badge').textContent = error ? 'Sin revisar' : activo ? 'Activo' : 'Apagado';
+    $('bot-badge').className = 'badge ' + (activo ? 'ok' : 'pend');
+    $('bot-ayuda').textContent = error ? 'No se pudo revisar el bot: ' + error
+        : d && !d.configurado ? 'Falta poner BOT_SECRETO en los secretos de Supabase y publicar la función whatsapp-bot (ver supabase/functions/whatsapp-bot/index.ts).'
+        : activo ? 'Evolution le manda los mensajes al bot. Pruebe escribiendo «ayuda» desde un número autorizado.'
+        : 'El bot está apagado: no responde nada.' + (admin ? ' Toque «Activar bot».' : ' Pídale al administrador que lo active.');
+    $('btn-bot-activar').hidden = !admin || activo || !!error || !(d && d.configurado);
+    $('btn-bot-apagar').hidden = !admin || !activo;
+}
+async function revisarBot() {
+    try { pintarBot(await estadoBot()); } catch (e) { pintarBot(null, motivo(e)); }
+}
+async function ponerBot(activo) {
+    var b = activo ? $('btn-bot-activar') : $('btn-bot-apagar'), txt = b.textContent;
+    b.disabled = true; b.textContent = activo ? 'Activando…' : 'Apagando…';
+    try { pintarBot(await activarBot(activo)); toast(activo ? '🤖 Bot activo' : 'Bot apagado'); }
+    catch (e) { toast('No se pudo: ' + motivo(e)); }
+    finally { b.disabled = false; b.textContent = txt; }
+}
+
 async function arrancar() {
     iniciarEncabezado();
     $('btn-estado').onclick = revisar;
@@ -126,6 +149,9 @@ async function arrancar() {
         if (p) { $('para').value = p.dataset.probar; $('mensaje').focus(); $('mensaje').scrollIntoView({ block: 'center' }); }
     };
     $('btn-enviar').onclick = enviar;
+    $('btn-bot-revisar').onclick = revisarBot;
+    $('btn-bot-activar').onclick = function () { ponerBot(true); };
+    $('btn-bot-apagar').onclick = function () { if (confirm('¿Apagar el bot? Dejará de responder y de guardar los reportes que lleguen por WhatsApp.')) ponerBot(false); };
     $('btn-recargar').onclick = revisar;
     if (!configurado) { pintarEstado('', 'Falta la conexión con Supabase (.env).'); return; }
     var usuario = await asegurarSesion(supabase);
@@ -133,7 +159,8 @@ async function arrancar() {
     $('btn-salir').onclick = function () { cerrarSesion(supabase); };
     var permisos = await aplicarPermisos(supabase, usuario);
     admin = !!(permisos && permisos.admin);
-    if (await revisar() === 'open') cargarGrupos();
+    if (await revisar() === 'open') { cargarGrupos(); revisarBot(); }
+    else pintarBot(null, 'el número no está conectado.');
 }
 
 arrancar();

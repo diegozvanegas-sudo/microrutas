@@ -152,6 +152,8 @@ main.req label input[type="checkbox"], #dlg-config label input[type="checkbox"] 
 .rl-estado { padding: 10px 12px; border-radius: 8px; background: #f1f5f9; color: #475569; font-size: 13px; margin-bottom: 10px; }
 .rl-estado[hidden], .rl-aviso[hidden], .rl-pie[hidden] { display: none; }
 .rl-aviso { padding: 10px 12px; border-radius: 8px; background: #fff7ed; color: #9a3412; font-size: 13px; margin-bottom: 10px; }
+/* 📊 Atrasados que no se pudieron revisar (sin programación o cuadrillas sin reportes) */
+.rl-atr-aviso { padding: 8px 12px; border-radius: 8px; background: #eff6ff; color: #1e3a8a; border-left: 3px solid #2563eb; font-size: 13px; margin-bottom: 10px; overflow-wrap: anywhere; }
 .rl-cuenta { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin-bottom: 12px; }
 .rl-dato { border: 1px solid var(--line); border-radius: 10px; padding: 8px 10px; display: grid; background: #f8fafc; min-width: 0; }
 .rl-dato b { font-size: 22px; line-height: 1.2; font-variant-numeric: tabular-nums; }

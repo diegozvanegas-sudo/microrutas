@@ -15,7 +15,7 @@ const CORS = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-const SOLO_ADMIN = new Set(['conectar', 'desconectar']);
+const SOLO_ADMIN = new Set(['conectar', 'desconectar', 'activarBot', 'desactivarBot']);
 
 function json(datos: unknown, status = 200) {
   return new Response(JSON.stringify(datos), { status, headers: { ...CORS, 'Content-Type': 'application/json' } });
@@ -71,6 +71,26 @@ function tipoMedio(mime: string) {
   if (/^video\//.test(mime)) return 'video';
   if (/^audio\//.test(mime)) return 'audio';
   return 'document';
+}
+
+// ---------- 🤖 Bot (supabase/functions/whatsapp-bot) ----------
+// Evolution manda cada mensaje recibido a la función del bot, con su secreto en la dirección. Solo hay un webhook por
+// instancia: activar el bot lo deja apuntando ahí; desactivarlo lo apaga.
+function urlBot() {
+  const secreto = Deno.env.get('BOT_SECRETO') || '';
+  if (!secreto) throw new ErrorEvo(400, 'Falta configurar BOT_SECRETO en los secretos de Supabase (el mismo de la función whatsapp-bot).');
+  return Deno.env.get('SUPABASE_URL') + '/functions/v1/whatsapp-bot?t=' + encodeURIComponent(secreto);
+}
+async function estadoBot() {
+  const d = await evo('GET', '/webhook/find/' + INSTANCIA).catch(() => null);
+  const url = String(d?.url || d?.webhook?.url || ''), activo = !!(d?.enabled ?? d?.webhook?.enabled) && /\/functions\/v1\/whatsapp-bot/.test(url);
+  // La dirección se muestra sin el secreto
+  return { activo, url: url.replace(/([?&]t=)[^&]*/, '$1…'), configurado: !!Deno.env.get('BOT_SECRETO') };
+}
+// Evolution v2 (evolution-api/docker-compose.yml): POST /webhook/set/<instancia> { webhook: { enabled, url, events } }
+async function ponerBot(activo: boolean) {
+  await evo('POST', '/webhook/set/' + INSTANCIA, { webhook: { enabled: activo, url: urlBot(), events: ['MESSAGES_UPSERT'], byEvents: false, base64: false } });
+  return estadoBot();
 }
 
 // ---------- Envíos programados (tabla whatsapp_programados, migración 0020) ----------
@@ -153,6 +173,12 @@ Deno.serve(async (req) => {
       case 'desconectar':
         await evo('DELETE', '/instance/logout/' + INSTANCIA);
         return json({ ok: true });
+      case 'estadoBot':
+        return json(await estadoBot());
+      case 'activarBot':
+        return json(await ponerBot(true));
+      case 'desactivarBot':
+        return json(await ponerBot(false));
       case 'grupos': {
         const d = await evo('GET', '/group/fetchAllGroups/' + INSTANCIA + '?getParticipants=false');
         const grupos = (Array.isArray(d) ? d : []).map((g: any) => ({ id: g.id, nombre: g.subject || g.id, miembros: g.size || 0 }))

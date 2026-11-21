@@ -17,6 +17,9 @@ export function estadoWhatsapp() { return llamar({ accion: 'estado' }); }
 export function conectarWhatsapp(numero) { return llamar({ accion: 'conectar', numero: numero || '' }); }
 export function desconectarWhatsapp() { return llamar({ accion: 'desconectar' }); }
 export function gruposWhatsapp() { return llamar({ accion: 'grupos' }).then(function (d) { return d.grupos || []; }); }
+// 🤖 Bot (supabase/functions/whatsapp-bot): si Evolution le manda los mensajes recibidos; activarlo es solo del administrador
+export function estadoBot() { return llamar({ accion: 'estadoBot' }); }
+export function activarBot(activo) { return llamar({ accion: activo ? 'activarBot' : 'desactivarBot' }); }
 export function enviarTexto(para, texto) { return llamar({ accion: 'enviarTexto', para: para, texto: texto }); }
 
 // archivo: File o Blob (PDF, imagen…); texto: va como pie del archivo

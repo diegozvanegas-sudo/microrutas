@@ -83,6 +83,20 @@
     </section>
 
     <section class="tarjeta">
+        <h2>🤖 Bot <span class="badge" id="bot-badge">…</span></h2>
+        <p class="ayuda">Con el bot activo, los números autorizados le escriben al número de envío y les responde: <b>ayuda</b>, <b>pendientes</b> (o <b>pendientes 2</b>),
+            <b>listos</b> y <b>lote 491</b>. Si pegan un «REPORTE MICRORRUTAS EJECUTADAS», o llega a un grupo autorizado, se guarda en 📊 Cruce (en el grupo no responde nada).
+            A otros números no les contesta. Los números y grupos autorizados se ponen en los secretos de Supabase (BOT_NUMEROS y BOT_GRUPOS_REPORTES).</p>
+        <p class="ayuda" id="bot-ayuda">Revisando…</p>
+        <div class="acciones">
+            <button type="button" class="secundario" id="btn-bot-revisar">↻ Revisar</button>
+            <span class="espacio"></span>
+            <button type="button" class="peligro" id="btn-bot-apagar" hidden>Apagar bot</button>
+            <button type="button" class="primario" id="btn-bot-activar" hidden>🤖 Activar bot</button>
+        </div>
+    </section>
+
+    <section class="tarjeta">
         <h2>👥 Grupos <span class="sub" id="grupos-cuenta"></span></h2>
         <p class="ayuda">Los grupos donde está el número conectado. El ID (…@g.us) es el que se usa para enviar desde la aplicación.</p>
         <div class="acciones">

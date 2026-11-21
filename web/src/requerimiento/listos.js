@@ -9,6 +9,8 @@
 //   armarArboles(visitas, base, hoy)     -> el de afectación a árboles, solo con esas visitas y su tabla de árboles
 //   armar(visitas, base, hoy)            -> el requerimiento (mismo objeto del formulario) con sus microrrutas y evidencias
 //   textoPreaviso(cuad, visitas)         -> el mensaje del pre aviso al contratista (a los 5 días hábiles)
+//   atrasados(prog, reportes, registros, hoy) -> los lotes programados que ya pasaron su día y nadie reportó (📊 Cruce):
+//                                           listos a los 10 días hábiles del día programado
 //   conReportes(lista, reportes)         -> la misma lista con v.reporte = { fecha, cuad } si el contratista la reportó
 //                                           como ejecutada (reportes de WhatsApp del 📊 Cruce)
 
@@ -17,7 +19,7 @@
 import { esFestivo } from '../horas/distribucion.js';
 import { esNoSubsanable } from '../subsanaciones/estado.js';
 import { arbolesEn } from './plantillas.js';
-import { normMr } from '../cruce/cruce.js';
+import { normMr, cruzar } from '../cruce/cruce.js';
 
 export var PLAZO_REQ = 8, AVISO = 5;
 var NO_REALIZADO = 'LOTE NO REALIZADO';
@@ -111,6 +113,38 @@ export function yaRequeridas(historial) {
     return out;
 }
 
+// ---------- Lotes atrasados del 📊 Cruce ----------
+// Programados en el Excel del mes, ya pasó su día y la cuadrilla no los ha reportado como hechos (ni tienen la X en el
+// Excel). A los 10 días hábiles del día programado pasan a requerimiento (lo fijó la interventoría el 21/11/2026).
+// Solo se cuentan en las cuadrillas que tienen reportes cargados en ese mes: sin reportes no se sabe qué hizo y todo
+// saldría como atrasado. Si la interventoría ya visitó el lote después de su día, sigue el camino de la visita.
+export var PLAZO_ATRASO = 10;
+export function atrasados(prog, reportes, registros, hoy) {
+    if (!prog || !prog.mes) return { lista: [], sinReportes: [] };
+    var r = cruzar(prog, reportes || [], hoy), conRep = {}, visto = {}, sinRep = {};
+    (reportes || []).forEach(function (x) { if (x.fecha && x.fecha.slice(0, 7) === prog.mes && x.cuad) conRep[String(x.cuad)] = 1; });
+    (registros || []).forEach(function (v) {
+        if (esOp(v)) return;
+        var mr = normMr(v.MICRORRUTA), f = aIso(v['FECHA DE LA VISITA']);
+        if (mr && f && (!visto[mr] || f > visto[mr])) visto[mr] = f;
+    });
+    var lista = [];
+    r.todas.forEach(function (f) {
+        if (f.estado !== 'atrasado' || !f.plan) return;
+        var cuad = String(f.cuad || '');
+        if (!conRep[cuad]) { sinRep[cuad || '?'] = (sinRep[cuad || '?'] || 0) + 1; return; }
+        var mr = normMr(f.mr) || String(f.mr || '').toUpperCase();
+        if (visto[mr] && visto[mr] >= f.plan) return;
+        var dias = habiles(f.plan, hoy), z = mr.match(/^Z(\d+)/), lote = f.lote && !/^N\/?A$/i.test(f.lote) ? String(f.lote) : '';
+        var id = 'ATR-' + prog.mes + '-Q' + f.q + '-' + mr;
+        lista.push({ id: id, clave: id, tipo: 'atrasado', mr: mr, lote: lote, cuad: cuad, zona: z ? z[1] : '', ejec: '', fecha: f.plan, q: f.q,
+            dias: dias, faltan: Math.max(0, PLAZO_ATRASO - dias), cumple: fechaListo(f.plan, PLAZO_ATRASO), listo: dias >= PLAZO_ATRASO,
+            preaviso: false, noSubsanable: false, arboles: 0, novedades: ['Microrruta programada sin ejecutar'] });
+    });
+    return { lista: lista.sort(function (a, b) { return b.dias - a.dias || a.mr.localeCompare(b.mr); }),
+        sinReportes: Object.keys(sinRep).sort(ordenCuad).map(function (c) { return { cuad: c, lotes: sinRep[c] }; }) };
+}
+
 // ---------- Reportes de ejecución del contratista (📊 Cruce) ----------
 // reportes: [{ fecha, cuad, items: [{ mr, lote }] }]. El de la visita es el del día de ejecución que dice la visita; si no
 // lo hay, el último antes de la visita (hasta 45 días atrás: de ahí para atrás es de otro ciclo de corte)
@@ -176,7 +210,8 @@ export function armar(visitas, base, hoy) {
         fechas.push(v.fecha);
     });
     cuads.sort(ordenCuad); zonas.sort(); fechas.sort();
-    var soloNoReal = visitas.every(function (v) { return v.tipo === 'norealizado'; }), hayNoReal = visitas.some(function (v) { return v.tipo === 'norealizado'; });
+    var sinHacer = function (v) { return v.tipo === 'norealizado' || v.tipo === 'atrasado'; };
+    var soloNoReal = visitas.every(sinHacer), hayNoReal = visitas.some(sinHacer);
     var que = soloNoReal ? 'Microrrutas no ejecutadas' : 'Novedades en posoperación sin corrección' + (hayNoReal ? ' y microrrutas no ejecutadas' : '');
     var d = Object.assign({}, base, {
         id: null, fecha: hoy, zonas: zonas, eventoDesde: fechas[0] || '', eventoHasta: fechas[fechas.length - 1] || '',
@@ -187,6 +222,7 @@ export function armar(visitas, base, hoy) {
             { titulo: EVID_REPORTE, texto: textoReportes(visitas) },
             { titulo: EVID_ENVIO, texto: visitas.map(function (v) {
                 // Antes del plazo (📨 Crear requerimiento de una visita, p. ej. un daño no subsanable) no se dice «sin corrección»
+                if (v.tipo === 'atrasado') return rotuloVisita(v) + ': programada para el ' + aTexto(v.fecha) + ' (Q' + v.q + '); ' + v.dias + ' días hábiles sin reporte de ejecución.';
                 if (v.noSubsanable) return rotuloVisita(v) + ': novedades enviadas el ' + aTexto(v.fecha) + '; incluye afectación a árboles, que no es subsanable.';
                 return rotuloVisita(v) + ': ' + (v.tipo === 'norealizado' ? (v.reporte ? 'reportado como ejecutado y encontrado no realizado el ' : 'reportado como no realizado el ') : 'novedades enviadas el ') + aTexto(v.fecha) +
                     (v.listo ? ', ' + v.dias + ' días hábiles sin corrección.' : ' (' + v.dias + (v.dias === 1 ? ' día hábil' : ' días hábiles') + ' desde la visita).');
@@ -215,7 +251,7 @@ export function plantillaPara(visitas, plantillas) {
         var a = (plantillas || []).filter(function (x) { return x.tabla === 'arboles' || /ARBOL/.test(plano(x.id + ' ' + x.nombre)); })[0];
         return a ? a.id : '';
     }
-    var noReal = visitas.every(function (v) { return v.tipo === 'norealizado'; });
+    var noReal = visitas.every(function (v) { return v.tipo === 'norealizado' || v.tipo === 'atrasado'; });
     var re = noReal ? /NO (SE )?(EJECUT|REALIZ)|SIN EJECUT/ : /POSOPERACION|SIN CORRECCION|SIN SUBSANA/;
     var p = (plantillas || []).filter(function (x) { return re.test(plano(x.nombre + ' ' + x.asunto)); })[0];
     return p ? p.id : '';

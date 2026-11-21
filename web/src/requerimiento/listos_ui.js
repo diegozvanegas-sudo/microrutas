@@ -11,7 +11,7 @@
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { valorItem, hoy } from '../subsanaciones/util.js';
 import { crearApi } from '../api.js';
-import { candidatas, conReportes, porCuadrilla, yaRequeridas, armar, armarArboles, hayArboles, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
+import { candidatas, conReportes, atrasados, PLAZO_ATRASO, porCuadrilla, yaRequeridas, armar, armarArboles, hayArboles, plantillaPara, aTexto, textoPreaviso, PLAZO_REQ, AVISO, EVID_REPORTE, EVID_ENVIO } from './listos.js';
 import { crearAnexos, carpeta, carpetaReporte, seBorra, TIPOS } from './anexos.js';
 
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -51,6 +51,16 @@ export function iniciarListos(dep) {
             return todos.concat(mios.filter(function (r) { return !vistos[r.fecha + '|' + r.cuad]; }));
         } catch (e) { return mios; }
     }
+    // Lo que no se pudo revisar de los atrasados: sin programación en el equipo o cuadrillas sin reportes cargados
+    function pintarAvisoAtrasos(prog, atr) {
+        var el = $('rl-atr-aviso'), t = '';
+        if (!el) return;
+        if (!prog) t = '📊 Lotes atrasados: este equipo no tiene el Excel de programación del mes. Cárguelo en 📊 Cruce para que los lotes sin hacer ' + PLAZO_ATRASO + ' días hábiles después de su día también salgan aquí.';
+        else if (atr.sinReportes.length) t = '📊 Lotes atrasados (programación de ' + prog.mes + '): ' + atr.sinReportes.map(function (c) { return 'la cuadrilla ' + c.cuad + ' (' + plural(c.lotes, 'lote', 'lotes') + ')'; }).join(', ') +
+            ' no tiene reportes de ejecución cargados este mes, así que no se sabe qué hizo y sus lotes no se cuentan como atrasados. Pegue sus reportes en 📊 Cruce.';
+        el.hidden = !t;
+        el.textContent = t;
+    }
     async function cargar() {
         $('rl-estado').hidden = false;
         $('rl-estado').textContent = 'Buscando las visitas sin corregir…';
@@ -58,6 +68,12 @@ export function iniciarListos(dep) {
         try {
             var d = await leerVisitas(), reportes = await leerReportes();
             visitas = conReportes(candidatas(d.registros, hoy(), itemsNoDe(d.items)), reportes);
+            // 📊 Lotes atrasados: con la programación del mes que quedó en este equipo (📅 Programación del día / 📊 Cruce)
+            var prog = null;
+            try { prog = (JSON.parse(localStorage.getItem('programacion_cache')) || {}).prog || null; } catch (e) { prog = null; }
+            var atr = atrasados(prog, reportes, d.registros, hoy());
+            visitas = visitas.concat(atr.lista);
+            pintarAvisoAtrasos(prog, atr);
             try {
                 porVisita = await anexos.listar(visitas.map(function (v) { return v.id; }));
                 // Más la imagen del reporte de la cuadrilla que se guardó al crear la pre-ruta (una por fecha de ejecución y
@@ -110,14 +126,14 @@ export function iniciarListos(dep) {
                 '<button type="button" data-rl-quitar="' + esc(a.ruta) + '" data-v="' + esc(v.id) + '" aria-label="Quitar el anexo ' + esc(a.nombre) + '" title="Quitar este anexo">✕</button></span>';
         }).join('') + (sinAnexos ? '' : '<button type="button" class="secundario pequeno" data-rl-agregar="' + esc(v.id) + '" data-tipo="' + esc(tipoInicial) + '">📎 Agregar imagen</button>') + '</div>';
     }
-    function tipoInicial(v) { return v.preaviso && !deTipo(v, 'preaviso').length ? 'preaviso' : v.tipo === 'norealizado' || !deTipo(v, 'reporte').length && v.listo ? 'reporte' : 'envio'; }
+    function tipoInicial(v) { if (v.tipo === 'atrasado') return 'reporte'; return v.preaviso && !deTipo(v, 'preaviso').length ? 'preaviso' : v.tipo === 'norealizado' || !deTipo(v, 'reporte').length && v.listo ? 'reporte' : 'envio'; }
     function htmlVisita(v, ya, conCasilla) {
         var r = ya[v.clave], pre = v.preaviso && deTipo(v, 'preaviso')[0];
         return '<div class="rl-visita' + (r ? ' ya' : '') + '">' +
             (conCasilla ? '<input type="checkbox" data-rl-v="' + esc(v.clave) + '"' + (r ? ' disabled' : marcadas[v.clave] ? ' checked' : '') + ' aria-label="Incluir ' + esc(v.mr) + ' en el requerimiento">' : '') +
             '<div class="rl-datos"><div class="rl-tit"><b>' + (v.lote ? 'Lote ' + esc(v.lote) : esc(v.mr)) + '</b>' + (v.lote ? '<span class="sub">' + esc(v.mr) + '</span>' : '') +
                 '<span class="rl-dias ' + (v.listo ? 'listo' : v.preaviso ? 'pronto' : '') + '">' + (v.noSubsanable ? '🌳 No subsanable' : v.listo ? plural(v.dias, 'día hábil', 'días hábiles') : 'faltan ' + plural(v.faltan, 'día hábil', 'días hábiles')) + '</span></div>' +
-            '<div class="sub">' + (v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) +
+            '<div class="sub">' + (v.tipo === 'atrasado' ? '📊 Programado (Q' + esc(v.q) + ') y sin reporte de ejecución desde' : v.tipo === 'norealizado' ? 'Lote no realizado, visto' : 'Novedades enviadas') + ' el ' + esc(aTexto(v.fecha)) +
                 (v.noSubsanable ? ' · afectación a árboles: va de una a requerimiento (no se espera el plazo ni el pre aviso)' : v.listo ? '' : ' · se cumple el ' + esc(aTexto(v.cumple))) + '</div>' +
             // 📋 Lo que reportó el contratista: si dijo que lo hizo y la visita lo encontró sin hacer, se resalta
             (v.reporte ? '<div class="rl-rep' + (v.tipo === 'norealizado' ? ' rl-rep-mal">⚠️ Reportado como ejecutado el ' + esc(aTexto(v.reporte.fecha)) + ' y la visita lo encontró sin hacer' :
