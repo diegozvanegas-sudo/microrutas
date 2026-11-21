@@ -538,17 +538,57 @@
         return 'https://www.google.com/maps/dir/?api=1' + (desde ? '&origin=' + desde : '') +
             '&destination=' + dest.lat.toFixed(6) + ',' + dest.lng.toFixed(6) + '&travelmode=driving';
     }
+    // Polígonos de la capa como [[anillo exterior, huecos...], ...] con anillos de [lat, lng] (para la vista 3D)
+    function poligonosCapa(capa) {
+        var a = capa.getLatLngs(), aPar = function (r) { return r.map(function (p) { return [p.lat, p.lng]; }); };
+        if (!a.length) return [];
+        if (a[0] instanceof L.LatLng) return [[aPar(a)]];
+        if (a[0].length && a[0][0] instanceof L.LatLng) return [a.map(aPar)];
+        return a.map(function (pol) { return pol.map(aPar); });
+    }
     // Street View de Google en ese punto (en el celular abre la app de Maps); toma la foto de calle más cercana
     function urlCalle(ll) {
         return 'https://www.google.com/maps/@?api=1&map_action=pano&viewpoint=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6);
     }
     // El enlace se arma al tocarlo: así usa la ubicación de ese momento aunque la ficha lleve rato abierta
-    var capaFicha = null;
+    var capaFicha = null, alturas3d = {}; // alturas3d: altura del terreno por punto (🌎 Ver en 3D), para no pedirla otra vez
     document.addEventListener('click', function (ev) {
         var a = ev.target.closest && ev.target.closest('a[data-ir]');
         if (a && capaFicha) a.href = urlComoLlegar(puntoCercano(capaFicha));
         var calle = ev.target.closest && ev.target.closest('a[data-calle]');
         if (calle && capaFicha) calle.href = urlCalle(puntoCercano(capaFicha));
+        // 🌎 Vista 3D: el enlace y el KML se arman al tocarlos con el contorno del lote de la ficha
+        var earth = ev.target.closest && ev.target.closest('a[data-earth], [data-earth-kml]');
+        if (earth && capaFicha) {
+            var F = window.FichaLote, pols = poligonosCapa(capaFicha), enc = F && F.encuadre && F.encuadre(pols);
+            if (!enc) { ev.preventDefault(); toast('La vista 3D todavía está cargando. Intente de nuevo en un momento.'); }
+            else if (earth.hasAttribute('data-earth')) {
+                // Con la altura del terreno ya leída el enlace sale de una; si no, se abre la pestaña ya (que el celular no la
+                // bloquee) y se manda a Earth cuando llega la altura (máximo 3 s)
+                var clave3d = enc.centro.map(function (x) { return x.toFixed(5); }).join(',');
+                if (clave3d in alturas3d) earth.href = F.urlEarth(enc.centro, enc.rango, alturas3d[clave3d]);
+                else {
+                    ev.preventDefault();
+                    var w = window.open('', '_blank');
+                    toast('Abriendo Google Earth…');
+                    F.alturaTerreno(enc.centro).then(function (h) {
+                        if (h != null) alturas3d[clave3d] = h;
+                        var u = F.urlEarth(enc.centro, enc.rango, h);
+                        if (w && !w.closed) w.location.href = u; else location.href = u;
+                    });
+                }
+            }
+            else {
+                var p = capaFicha.lote, nombre = p.l && p.l !== 'NA' ? 'Lote ' + p.l : (p.m || 'Lote');
+                var kml = F.kmlLote({ nombre: nombre, descripcion: [p.m, p.d].filter(Boolean).join(' · '), poligonos: pols });
+                var enlace = document.createElement('a');
+                enlace.href = URL.createObjectURL(new Blob([kml], { type: 'application/vnd.google-earth.kml+xml' }));
+                enlace.download = nombre.replace(/[^\w.-]+/g, '_') + '_3D.kml';
+                document.body.appendChild(enlace); enlace.click(); enlace.remove();
+                setTimeout(function () { URL.revokeObjectURL(enlace.href); }, 4000);
+                toast('KML descargado: ábralo con Google Earth. En Earth Pro, el vuelo alrededor está en la lista de lugares.');
+            }
+        }
         var punto = ev.target.closest && ev.target.closest('[data-aqui-punto]');
         if (punto) {
             ev.preventDefault();
@@ -1148,7 +1188,10 @@
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
                 // Otras formas de llegar, más pequeñas: ocupan un solo renglón
                 '<div class="acc-otras"><a class="boton secundario" href="https://waze.com/ul?ll=' + ll + '&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>' +
-                '<a class="boton secundario" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Street View</a></div>' +
+                '<a class="boton secundario" data-calle href="' + esc(urlCalle(puntoCercano(capa))) + '" target="_blank" rel="noopener">🚶 Street View</a>' +
+                // 🌎 Google Earth inclinado sobre el lote; el KML trae el contorno y un vuelo alrededor (taludes, accesos, árboles)
+                '<a class="boton secundario" data-earth href="https://earth.google.com/web/" target="_blank" rel="noopener" title="Ver el lote en 3D en Google Earth">🌎 Ver en 3D</a>' +
+                '<button type="button" class="boton secundario" data-earth-kml title="Descargar el contorno con un vuelo alrededor para abrir en Google Earth">⬇️ KML 3D</button></div>' +
             '</div></div>';
     }
     // Lo de la base llega después de abrir la ficha (src/mapa): si sigue abierta la del mismo lote, se vuelve a pintar

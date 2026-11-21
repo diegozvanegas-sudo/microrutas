@@ -6,6 +6,7 @@
 //   Base (con sesión): reportes_ejecucion, descuentos y auditorias_zv
 import { supabase, configurado } from '../supabase.js';
 import { infoLote, chipReporte, htmlAvisos, htmlMas } from './ficha.js';
+import { encuadre, urlEarth, kmlLote, alturaTerreno } from './earth.js';
 
 function leer(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
@@ -29,7 +30,9 @@ function fuentes() {
 // La copia del equipo se lee de nuevo en cada ficha (es rápido): así se ve lo recién guardado en otra pestaña
 window.FichaLote = {
     info: function (lote) { return infoLote(lote, fuentes(), hoy()); },
-    chipReporte: chipReporte, htmlAvisos: htmlAvisos, htmlMas: htmlMas
+    chipReporte: chipReporte, htmlAvisos: htmlAvisos, htmlMas: htmlMas,
+    // 🌎 Vista 3D en Google Earth (enlace y KML con vuelo alrededor del lote)
+    encuadre: encuadre, urlEarth: urlEarth, kmlLote: kmlLote, alturaTerreno: alturaTerreno
 };
 window.dispatchEvent(new Event('ficha-lista'));
 
