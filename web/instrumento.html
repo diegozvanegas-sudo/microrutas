@@ -77,6 +77,8 @@
         <div class="ins-traer"><b id="ins-titulo-traer">⚡ Traer de mi revisión</b><div class="ins-chips" id="ins-revisiones"><span class="sub">Leyendo…</span></div></div>
         <datalist id="ins-comunas"></datalist>
         <datalist id="ins-rutas"></datalist>
+        <div class="ins-ajustando" id="ins-ajustando" hidden><span id="ins-ajustando-txt"></span>
+            <span class="ins-acc"><button type="button" class="secundario pequeno" id="ins-ajustando-cancelar">Cancelar</button><button type="button" class="primario pequeno" id="ins-ajustando-listo">✓ Guardar en la fila</button></span></div>
         <div id="ins-form"></div>
         <p class="ins-falta" id="ins-falta" role="status"></p>
         <div class="ins-pie">
@@ -84,6 +86,39 @@
             <button type="button" class="secundario" id="ins-copiar">🔗 Copiar enlace</button>
             <button type="button" class="primario" id="ins-abrir">📝 Abrir formulario lleno</button>
         </div>
+    </section>
+    <section class="panel ins-panel lote" id="lote" hidden>
+        <div class="lote-titulo"><h2>📋 Varias de una vez</h2><span class="sub" id="lote-cuenta"></span></div>
+        <p class="sub">Para todas las rutas del día: lo de arriba (inspector, fecha, respuestas) sirve de base para todas; cada fila trae su ruta, su zona y las novedades de su revisión si la registró.</p>
+        <div class="lote-paso"><b>1. Pegue el reporte del día</b>
+            <textarea id="lote-texto" rows="5" placeholder="Pegue aquí el reporte tal cual: Zona 1 / - Z1R19DOM / … / Placa KTN355: realizando actividad C683…"></textarea>
+            <div class="ins-acc"><button type="button" class="secundario" id="lote-vaciar">Vaciar lista</button><button type="button" class="primario" id="lote-armar">Armar filas</button></div>
+        </div>
+        <div id="lote-pasos" hidden>
+            <div class="lote-paso"><b>2. Fotos → un PDF por ruta</b>
+                <p class="sub" id="lote-fotos-estado"></p>
+                <div class="ins-acc">
+                    <label class="boton secundario lote-elegir">📷 Elegir fotos o .zip<input type="file" id="lote-archivos" accept="image/*,.zip" multiple hidden></label>
+                    <button type="button" class="secundario" id="lote-marca" hidden></button>
+                    <button type="button" class="primario" id="lote-pdfs" disabled>⬇️ Descargar los PDF (.zip)</button>
+                </div>
+                <div id="lote-sin" class="lote-sin" hidden><b>Fotos sin ruta</b> <span class="sub">(elija a qué fila van)</span><ul class="lote-fotos" id="lote-sin-lista"></ul></div>
+            </div>
+            <div class="lote-paso"><b>3. Enlace de Drive</b>
+                <div class="ins-chips" id="lote-modo" role="group" aria-label="Cómo va el enlace">
+                    <button type="button" class="ins-chip" data-modo="carpeta">📁 Una carpeta para todas</button>
+                    <button type="button" class="ins-chip" data-modo="fila">🔗 Un enlace por ruta</button>
+                </div>
+                <div id="lote-carpeta-caja"><input id="lote-carpeta" type="url" inputmode="url" placeholder="Enlace de la carpeta de Drive con los PDF (compartida: cualquiera con el enlace)"></div>
+                <div id="lote-enlaces-caja" hidden><p class="sub">Escriba cada enlace en su fila, o péguelos todos aquí en el mismo orden de la lista (en Drive: seleccione los PDF en ese orden → Compartir → Copiar enlaces).</p>
+                    <textarea id="lote-enlaces" rows="3" placeholder="https://drive.google.com/…&#10;https://drive.google.com/…"></textarea>
+                    <div class="ins-acc"><button type="button" class="secundario" id="lote-repartir">Repartir en orden</button></div></div>
+            </div>
+            <div class="lote-paso" id="lote-contratistas-caja"><b>Contratista de cada zona</b> <span class="sub">(se elige una vez y queda para la próxima)</span><div class="lote-contratistas" id="lote-contratistas"></div></div>
+            <b class="lote-paso-tit">4. Abrir cada uno y pulsar «Enviar» en Google</b>
+            <ul class="lote-filas" id="lote-filas"></ul>
+        </div>
+        <p class="nota-privada">La lista queda en este equipo hasta «Vaciar lista». Las fotos no se guardan: si cierra la página, vuelva a elegirlas para armar los PDF.</p>
     </section>
     <h2 class="ins-cab-hist">Abiertos desde este equipo</h2>
     <ul class="ins-hist" id="ins-hist"></ul>

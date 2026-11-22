@@ -11,9 +11,12 @@ import { $, toast } from '../subsanaciones/ui.js';
 import { hoy } from '../diario/comun.js';
 import { OPCIONES, vacio, comunaDe, aliadoDe, enlace, faltantes, desdeRevision, conCuenta,
     OPC_DOM, PERSONAL, SERVICIO, vacioDom, contratistaDe, enlaceDom, faltantesDom, desdeRevisionDom } from './comun.js';
+import { iniciarLote, repintarLote, marcarAbierta, guardarAjuste } from './lote_ui.js';
 
 var PREF = 'instrumento_pref', BORRADOR = 'instrumento_borrador', BORRADOR_DOM = 'instrumento_borrador_dom', HISTORIAL = 'instrumento_historial', TIPO = 'instrumento_tipo';
 var pref = {}, datos = null, datosDom = null, tipo = 'choque', revisiones = [];
+// Al «Ajustar» una fila de Varias de una vez, el formulario de arriba muestra esa fila; lo común queda en plantillaDom
+var editando = null, plantillaDom = null;
 function leer(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function guardar(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch (e) { /* sin almacenamiento: sigue funcionando */ } }
 function esc(s) { return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) { return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]; }); }
@@ -72,6 +75,9 @@ function pintar() {
     $('ins-form').innerHTML = tipo === 'dom' ? pintarDom() : pintarChoque();
     pintarRevisiones();
     pintarEstado();
+    $('ins-ajustando').hidden = !(tipo === 'dom' && editando);
+    if (editando) $('ins-ajustando-txt').textContent = '✏️ Ajustando ' + datosDom.ruta + ': lo que cambie aquí queda solo en esa fila.';
+    repintarLote();
 }
 function pintarEstado() {
     var f = tipo === 'dom' ? faltantesDom(datosDom) : faltantes(datos);
@@ -79,7 +85,7 @@ function pintarEstado() {
     $('ins-falta').className = 'ins-falta' + (f.length ? '' : ' ok');
     $('ins-abrir').disabled = !!f.length;
 }
-function guardarTodo() { guardar(BORRADOR, datos); guardar(BORRADOR_DOM, datosDom); }
+function guardarTodo() { guardar(BORRADOR, datos); guardar(BORRADOR_DOM, editando ? plantillaDom : datosDom); if (!editando) repintarLote(); }
 
 // Revisiones de los últimos 7 días: plan de choque para el primero, LV y RyT para el de domingos
 function deTipo() { return revisiones.filter(function (r) { return tipo === 'dom' ? r.tipo === 'lv' || r.tipo === 'ryt' : r.tipo === 'plan'; }); }
@@ -154,6 +160,35 @@ async function arrancar() {
     datosDom = Object.assign(vacioDom(hoy(), pref), leer(BORRADOR_DOM, {}) || {});
     $('ins-comunas').innerHTML = COMUNAS_SUGERIDAS().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
     $('ins-cuenta').value = pref.cuenta || '';
+    iniciarLote({
+        tipo: function () { return tipo; },
+        base: function () { return editando ? plantillaDom : datosDom; },
+        pref: function () { return pref; },
+        revisiones: function () { return revisiones; },
+        editando: function () { return editando; },
+        contratista: function (zona, c) {
+            pref.contratistasDom = Object.assign({}, pref.contratistasDom, { [zona]: c });
+            guardar(PREF, pref);
+        },
+        ajustar: function (id, d) {
+            if (!editando) plantillaDom = datosDom;
+            editando = id; datosDom = JSON.parse(JSON.stringify(d));
+            pintar(); window.scrollTo({ top: 0, behavior: 'smooth' });
+        },
+        abrir: function (url, d, id) {
+            window.open(url, '_blank', 'noopener');
+            pref.inspectorDom = d.inspector;
+            if (d.zona && d.contratista) pref.contratistasDom = Object.assign({}, pref.contratistasDom, { [d.zona]: d.contratista });
+            guardar(PREF, pref);
+            var h = leer(HISTORIAL, []);
+            h.unshift({ form: 'dom', fecha: d.fecha, zona: d.zona, ruta: d.ruta, tipo: d.instrumento, url: url, abierto: new Date().toISOString() });
+            guardar(HISTORIAL, h.slice(0, 60));
+            marcarAbierta(id); pintarHistorial(); pintarRevisiones();
+            toast('Formulario de ' + d.ruta + ' abierto: revise y pulse «Enviar» allá.');
+        }
+    });
+    $('ins-ajustando-listo').onclick = function () { guardarAjuste(editando, datosDom); datosDom = plantillaDom; editando = null; plantillaDom = null; guardarTodo(); pintar(); toast('Cambios guardados en la fila.'); };
+    $('ins-ajustando-cancelar').onclick = function () { datosDom = plantillaDom; editando = null; plantillaDom = null; pintar(); };
     pintar(); pintarHistorial();
 
     $('ins-tipos').onclick = function (ev) { var b = ev.target.closest('[data-tipo]'); if (b) { tipo = b.dataset.tipo; guardar(TIPO, tipo); pintar(); } };
