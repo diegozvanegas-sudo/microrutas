@@ -98,3 +98,5 @@ main.ins { max-width: 1600px; margin: 0 auto; padding: 14px 16px 40px; }
     /* El formulario queda a la vista mientras se recorre la lista de la derecha */
     .ins-izq { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; scrollbar-width: thin; }
 }
+.lote-subir { justify-content: space-between !important; align-items: center; }
+.lote-subir .sub { flex: 1 1 240px; margin: 0; font-size: 12.5px; }

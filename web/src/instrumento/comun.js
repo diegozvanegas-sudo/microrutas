@@ -140,8 +140,18 @@ export function zonaDom(zona, turno) {
     return 'Zona 7 ' + (turno === 'Noche' ? 'Noche' : turno === 'Tarde' || turno === 'Intermedio' ? 'PM' : 'AM');
 }
 // De una revisión de LV o RyT (✅ Revisión) a las preguntas del instrumento: «No» si algo de ese grupo no cumplió
+// Revisión con las preguntas del instrumento (✅ Revisión desde el 23/11/2026): pasa tal cual
+var DE_REVISION = { p_lugar: 'lugar', p_uniforme: 'uniforme', p_herramientas: 'herramientas', p_epp_estado: 'eppEstado', p_epp_uso: 'eppUso',
+    s_frecuencia: 'frecuencia', s_recorrido: 'recorrido', s_calidad: 'calidad' };
 export function desdeRevisionDom(r) {
     var ops = r.operarios || [], items = r.items || {};
+    if (items.formato === 'instrumento') {
+        var d = { fecha: r.fecha || '', ruta: String(r.ruta || '').trim(), zona: zonaDom(r.zona, r.turno),
+            instrumento: r.tipo === 'ryt' ? 'Recolección y Transporte' : 'Limpieza vial', verificacion: items.verificacion || 'Operacion',
+            contratista: items.contratista || '', fotos: /^https?:\/\//i.test(r.enlace || '') ? r.enlace : '' };
+        Object.keys(DE_REVISION).forEach(function (k) { d[DE_REVISION[k]] = items[k] === 'no' ? 'No' : 'Si'; });
+        return d;
+    }
     var falla = function (pruebas) { return ops.some(function (o) { return Object.keys(o.items || {}).some(function (k) { return o.items[k] === 'no' && pruebas(k); }); }); };
     var sn = function (malo) { return malo ? 'No' : 'Si'; };
     var rutaMal = items.r_ruta === 'no';

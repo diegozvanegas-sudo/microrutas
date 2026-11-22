@@ -41,7 +41,8 @@ var HERRAMIENTAS_LV = [
     ['h_estado', 'Herramientas en buen estado', 'Herramientas en mal estado']
 ];
 
-export var CHECKLIST = {
+// Checklist de antes del 23/11/2026 (por ruta y por operario): las revisiones guardadas así se siguen mostrando con él
+var ANTES = {
     lv: {
         ruta: [
             ['r_ruta', 'Va por la ruta asignada', 'Fuera de la ruta asignada'],
@@ -61,7 +62,30 @@ export var CHECKLIST = {
             ['r_derrames', 'Sin derrames', 'Con derrames']
         ],
         operario: [['EPP', EPP], ['Herramientas', HERRAMIENTA_ESTADO]]
-    },
+    }
+};
+
+// LV y RyT: las mismas preguntas del formulario «2026 Instrumento Domingos» (Personal y Servicio, Sí o No), para abrirlo
+// lleno desde 🧾 Instrumentos. Sin checklist por operario. items.contratista e items.verificacion van aparte (listas)
+var PERSONAL_INS = [
+    ['p_lugar', 'El personal se encontró realizando labores en su lugar de trabajo', 'Personal fuera de su lugar de trabajo'],
+    ['p_uniforme', 'Uniforme en buen estado y conforme a las especificaciones', 'Uniforme en mal estado o fuera de especificaciones'],
+    ['p_herramientas', 'Herramientas en buen estado', 'Herramientas en mal estado'],
+    ['p_epp_estado', 'EPP en buen estado', 'EPP en mal estado'],
+    ['p_epp_uso', 'Hace uso de los EPP en el momento de la inspección', 'No hace uso de los EPP']
+];
+var SERVICIO_INS = [
+    ['s_frecuencia', 'Cumple la frecuencia establecida', 'No cumple la frecuencia establecida'],
+    ['s_recorrido', 'Cumple el recorrido y la ruta establecida', 'No cumple el recorrido o la ruta establecida'],
+    ['s_calidad', 'Prestación del servicio con calidad', 'Prestación del servicio sin calidad']
+];
+var INSTRUMENTO = { ruta: PERSONAL_INS.concat(SERVICIO_INS), operario: [], grupos: [['Personal', PERSONAL_INS], ['Servicio', SERVICIO_INS]], siNo: true };
+export var CONTRATISTAS = ['FUDEA', 'FUNTRAEV'];
+export var VERIFICACIONES = ['Operacion', 'Posoperacion', 'Despacho'];
+
+export var CHECKLIST = {
+    lv: INSTRUMENTO,
+    ryt: INSTRUMENTO,
     plan: {
         ruta: [
             ['r_personal', 'Personal programado presente', 'Falta personal programado'],
@@ -73,7 +97,18 @@ export var CHECKLIST = {
     }
 };
 
-function itemsOperario(tipo) { return CHECKLIST[tipo].operario.reduce(function (t, g) { return t.concat(g[1]); }, []); }
+// ¿Revisión con el checklist de antes? (tiene puntos de entonces, o checklist por operario). Vacía o nueva: el de ahora
+export function esFormatoViejo(r) {
+    if (!r || r.tipo === 'plan' || !ANTES[r.tipo]) return false;
+    var it = r.items || {};
+    if (it.formato === 'instrumento') return false;
+    var ids = ANTES[r.tipo].ruta.map(function (i) { return i[0]; });
+    return Object.keys(it).some(function (k) { return ids.indexOf(k) !== -1; }) || (r.operarios || []).some(function (o) { return Object.keys(o.items || {}).length; });
+}
+export function checklistDe(r) { return esFormatoViejo(r) ? ANTES[r.tipo] : CHECKLIST[r.tipo]; }
+function itemsOperario(r) { return checklistDe(r).operario.reduce(function (t, g) { return t.concat(g[1]); }, []); }
+// Lo que se guarda al empezar una revisión: en LV y RyT, la marca del formato y la verificación más común
+export function itemsNuevos(tipo) { return tipo === 'plan' ? {} : { formato: 'instrumento', verificacion: 'Operacion' }; }
 
 export function zonaDeCodigo(codigo) { var m = /^Z(\d+)/i.exec(String(codigo || '').trim()); return m ? m[1] : ''; }
 // Solo enlaces web: lo demás (javascript:, etc.) no se abre
@@ -85,12 +120,12 @@ export function turnoPorHora(hora) { return hora < 5 || hora >= 17 ? 'Noche' : h
 
 // Lo que no cumple de una revisión, ya en palabras: ["Juan: Rastrillo con bolsa", "Con papeleo", …]
 export function novedadesDe(r) {
-    var out = CHECKLIST[r.tipo].ruta.filter(function (i) { return (r.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
+    var out = checklistDe(r).ruta.filter(function (i) { return (r.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
     if (String(r.novedad || '').trim()) out.push(r.novedad.trim());
     if (enlaceSeguro(r.enlace)) out.push('Evidencia: ' + enlaceSeguro(r.enlace));
     (r.operarios || []).forEach(function (o, k) {
         var quien = String(o.nombre || '').trim() || 'Operario ' + (k + 1);
-        var mal = itemsOperario(r.tipo).filter(function (i) { return (o.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
+        var mal = itemsOperario(r).filter(function (i) { return (o.items || {})[i[0]] === 'no'; }).map(function (i) { return i[2]; });
         if (String(o.novedad || '').trim()) mal.push(o.novedad.trim());
         if (mal.length) out.push(quien + ': ' + mal.join(', '));
         if (enlaceSeguro(o.enlace)) out.push(quien + ', evidencia: ' + enlaceSeguro(o.enlace));
@@ -101,8 +136,8 @@ export function novedadesDe(r) {
 // Un punto agregado después (4.º dato) no cuenta en las revisiones de antes de esa fecha
 export function sinMarcar(r) {
     var vale = function (i) { return !i[3] || !r.fecha || String(r.fecha) >= i[3]; };
-    var n = CHECKLIST[r.tipo].ruta.filter(function (i) { return vale(i) && !(r.items || {})[i[0]]; }).length;
-    (r.operarios || []).forEach(function (o) { n += itemsOperario(r.tipo).filter(function (i) { return vale(i) && !(o.items || {})[i[0]]; }).length; });
+    var n = checklistDe(r).ruta.filter(function (i) { return vale(i) && !(r.items || {})[i[0]]; }).length;
+    (r.operarios || []).forEach(function (o) { n += itemsOperario(r).filter(function (i) { return vale(i) && !(o.items || {})[i[0]]; }).length; });
     return n;
 }
 // La evidencia sola no es novedad
@@ -128,10 +163,10 @@ export function ordenarRevisiones(lista) {
     return lista.slice().sort(function (a, b) { return String(b.fecha).localeCompare(String(a.fecha)) || String(b.creado || b.actualizado || '').localeCompare(String(a.creado || a.actualizado || '')); });
 }
 // Puntos del checklist con su respuesta, para el detalle: [[título, [[punto, si|no|na|''], …]], …]
-export function detalleOperario(tipo, o) {
-    return CHECKLIST[tipo].operario.map(function (g) { return [g[0], g[1].map(function (i) { return [i[1], (o.items || {})[i[0]] || '']; })]; });
+export function detalleOperario(tipo, o, r) {
+    return (r ? checklistDe(r) : CHECKLIST[tipo]).operario.map(function (g) { return [g[0], g[1].map(function (i) { return [i[1], (o.items || {})[i[0]] || '']; })]; });
 }
-export function detalleRuta(r) { return CHECKLIST[r.tipo].ruta.map(function (i) { return [i[1], (r.items || {})[i[0]] || '']; }); }
+export function detalleRuta(r) { return checklistDe(r).ruta.map(function (i) { return [i[1], (r.items || {})[i[0]] || '']; }); }
 export function nombreRevision(r) { return r.ruta + (r.control ? ' (Control ' + r.control + ')' : ''); }
 
 // ok si lo marcado cumple; "no" si algo no cumple; vacío si no se marcó nada
@@ -143,8 +178,13 @@ function saludo(hora) { return hora < 12 ? 'Buen día' : hora < 18 ? 'Buena tard
 var SERVICIO = { lv: 'ruta de Limpieza Vial', ryt: 'ruta de Recolección y Transporte', plan: 'Plan de choque' };
 // El mensaje de una sola revisión, como se manda al grupo al terminar de verificar
 export function textoRevision(r, hora) {
-    var lineas = [];
-    CHECKLIST[r.tipo].operario.forEach(function (g) {
+    var lineas = [], c = checklistDe(r);
+    // Formato del instrumento: «Personal: ok/no» y «Servicio: ok/no» con lo marcado en la ruta
+    (c.grupos || []).forEach(function (g) {
+        var res = resumenGrupo(g[1].map(function (i) { return (r.items || {})[i[0]]; }).filter(Boolean));
+        if (res) lineas.push(g[0] + ': ' + res);
+    });
+    c.operario.forEach(function (g) {
         var v = [];
         (r.operarios || []).forEach(function (o) { g[1].forEach(function (i) { var x = (o.items || {})[i[0]]; if (x) v.push(x); }); });
         var res = resumenGrupo(v);

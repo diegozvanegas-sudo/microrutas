@@ -199,3 +199,8 @@ main.dos-columnas .volquetas { grid-column: 1 / -1; }
     .marca-item button { flex: 1; min-height: 42px; }
     #btn-nueva { padding: 8px 10px; }
 }
+/* Fotos del registro (formato del instrumento): al guardar → PDF → Drive */
+.rev-fotos { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin: 10px 0 4px; }
+.rev-fotos .boton { min-height: 40px; display: inline-flex; align-items: center; cursor: pointer; }
+.rev-fotos .sub { flex: 1 1 220px; font-size: 12.5px; }
+.marca-item.si-no button { min-width: 64px; }

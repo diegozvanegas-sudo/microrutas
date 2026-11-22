@@ -8,6 +8,7 @@ import { recorteMarca, coordenadasMarca, fechaMarca } from '../subsanaciones/mar
 import { leerImagenes } from '../subsanaciones/ocr.js';
 import { imagenesDeZips, descargar } from '../subsanaciones/zippdf.js';
 import { enlaceDom, faltantesDom, conCuenta, desdeRevisionDom, PERSONAL, SERVICIO, OPC_DOM } from './comun.js';
+import { subirPdf, nombreCarpeta, idCliente } from '../drive.js';
 import { leerReporte, datosDeFila, tramosDe, filaDeFoto, nombrePdf, repartirEnlaces } from './lote.js';
 
 var LOTE = 'instrumento_lote';
@@ -63,6 +64,7 @@ function pintar() {
     $('lote-marca').hidden = !sinGps.filter(function (p) { return !p.marcaLeida; }).length;
     $('lote-marca').textContent = '🔤 Leer la marca de agua de las ' + sinGps.filter(function (p) { return !p.marcaLeida; }).length + ' sin GPS';
     $('lote-pdfs').disabled = !conFotos || ocupado;
+    $('lote-subir').disabled = !conFotos || ocupado;
     $('lote-modo').querySelectorAll('[data-modo]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.modo === estado.modo); });
     $('lote-carpeta-caja').hidden = estado.modo !== 'carpeta';
     $('lote-enlaces-caja').hidden = estado.modo !== 'fila';
@@ -163,6 +165,23 @@ async function descargarPdfs() {
     ocupado = false; pintar();
 }
 
+// Cada PDF a Drive y su enlace a la fila (pasa a «un enlace por ruta»)
+async function subirTodos() {
+    if (ocupado) return;
+    if (!idCliente()) return toast('Primero conecte Google Drive: ✅ Revisión › ⋯ Más › ☁️ Google Drive.');
+    ocupado = true; pintar();
+    var con = estado.filas.filter(function (f) { return fotosDe(f.id).length; }), bien = 0, mal = [];
+    for (var i = 0; i < con.length; i++) {
+        $('lote-fotos-estado').textContent = 'Subiendo ' + (i + 1) + ' de ' + con.length + ' (' + con[i].ruta + ')…';
+        try {
+            var pdf = await pdfDe(con[i]), r = await subirPdf(pdf.bytes, pdf.nombre, ctx.base().fecha);
+            con[i].enlace = r.enlace; bien++;
+        } catch (e) { mal.push(con[i].ruta + ': ' + e.message); if (/permiso|ventana|ID de cliente|venció/i.test(e.message)) break; }
+    }
+    if (bien) estado.modo = 'fila';
+    guardar(); ocupado = false; pintar();
+    toast(bien + ' de ' + con.length + ' PDF subidos a «' + nombreCarpeta(ctx.base().fecha) + '».' + (mal.length ? ' No se pudo: ' + mal.join('; ') : ' Los enlaces ya están en cada fila.'));
+}
 function armar() {
     var nuevas = leerReporte($('lote-texto').value);
     if (!nuevas.length) return toast('No encontré rutas (Z1R19DOM…) ni placas en el texto. Pegue el reporte tal cual.');
@@ -177,6 +196,8 @@ function armar() {
             var v = desdeRevisionDom(r), c = {};
             PERSONAL.concat(SERVICIO).forEach(function (q) { if (v[q[0]] === 'No') c[q[0]] = 'No'; });
             if (v.verificacion !== 'Operacion') c.verificacion = v.verificacion;
+            if (v.contratista) c.contratista = v.contratista;
+            if (v.fotos) f.enlace = v.fotos;
             f.cambios = c; f.turno = r.turno;
         }
         return f;
@@ -212,6 +233,7 @@ export function iniciarLote(c) {
         pintar();
     };
     $('lote-pdfs').onclick = descargarPdfs;
+    $('lote-subir').onclick = subirTodos;
     $('lote-modo').onclick = function (ev) { var b = ev.target.closest('[data-modo]'); if (b) { estado.modo = b.dataset.modo; guardar(); pintar(); } };
     $('lote-carpeta').oninput = function () { estado.carpeta = this.value.trim(); guardar(); pintarSinFoco(); };
     $('lote-repartir').onclick = function () {

@@ -9,8 +9,11 @@ import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { esc, hoy, nombreDia } from '../diario/comun.js';
 import { esFestivo } from '../horas/distribucion.js';
 import { respaldoGuardar, respaldoBorrar, respaldoTodo, fallaLocalStorage } from '../almacen.js';
+import { examinar, fotosAPdf } from '../subsanaciones/fotospdf.js';
+import { descargar } from '../subsanaciones/zippdf.js';
+import { idCliente, fijarIdCliente, correoDrive, fijarCorreoDrive, conectado, conectar, desconectar, subirPdf, nombreCarpeta, ID_CLIENTE } from '../drive.js';
 import { GUIA, avanceGuia, lineasGuia, revisionRepetida } from './guia.js';
-import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta } from './comun.js';
+import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta, checklistDe, itemsNuevos, esFormatoViejo, CONTRATISTAS, VERIFICACIONES } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
 var $ = function (id) { return document.getElementById(id); };
@@ -18,6 +21,8 @@ var revisiones = [], cola = {}, fecha = hoy(), form = null, reporteFinal = false
 var CAPAS_NOMBRES = { lv: ['rutas_lv', 'barrido_dom', 'barrido_manana', 'barrido_tarde', 'barrido_noche'], ryt: ['rutas_ryt'], plan: [] };
 var nombres = {}, pedidas = {}, usuarios = {}, abiertos = {}, filtroEstado = '';
 var usuarioId = null;
+// Fotos del registro de la revisión abierta: no se guardan en el equipo (pesan); al guardar se arma el PDF y se sube a Drive
+var fotosForm = [];
 var TAMANOS = [5, 10, 15, 20, 25, 30], porPagina = 10, pagina = 1, firmaFiltros = '';
 var FILTROS = ['f-texto', 'f-tipo', 'f-zona', 'f-turno', 'f-dia', 'f-usuario'];
 
@@ -54,7 +59,7 @@ function toast(msg) {
 function idNuevo() { return crypto.randomUUID(); }
 function formVacio(tipo, ruta, zona) {
     return { id: idNuevo(), fecha: fecha, turno: leer('revision_turno_' + hoy(), '') || turnoPorHora(new Date().getHours()), tipo: tipo || 'lv', ruta: ruta || '', zona: zona || zonaDeCodigo(ruta), control: '',
-             items: {}, operarios: [operarioVacio()], novedad: '', enlace: '' };
+             items: itemsNuevos(tipo || 'lv'), operarios: (tipo || 'lv') === 'plan' ? [operarioVacio()] : [], novedad: '', enlace: '' };
 }
 
 // ---------- Códigos de ruta para autocompletar: de las capas del mapa, solo los nombres ----------
@@ -80,16 +85,23 @@ function pintarSugerencias() {
 }
 
 // ---------- Formulario ----------
-function botones(ambito, id, valor) {
-    return '<div class="marca-item" role="group">' + [['si', 'Cumple'], ['no', 'No cumple'], ['na', 'N/A']].map(function (o) {
+// En el formato del instrumento solo Sí y No (el formulario no acepta N/A)
+function botones(ambito, id, valor, siNo) {
+    return '<div class="marca-item' + (siNo ? ' si-no' : '') + '" role="group">' + (siNo ? [['si', 'Sí'], ['no', 'No']] : [['si', 'Cumple'], ['no', 'No cumple'], ['na', 'N/A']]).map(function (o) {
         return '<button type="button" class="m-' + o[0] + '" data-ambito="' + ambito + '" data-item="' + id + '" data-valor="' + o[0] + '" aria-pressed="' + (valor === o[0]) + '">' + o[1] + '</button>';
     }).join('') + '</div>';
 }
-function filaItem(ambito, item, valores) {
-    return '<div class="fila-item"><span>' + esc(item[1]) + '</span>' + botones(ambito, item[0], valores[item[0]]) + '</div>';
+function filaItem(ambito, item, valores, siNo) {
+    return '<div class="fila-item"><span>' + esc(item[1]) + '</span>' + botones(ambito, item[0], valores[item[0]], siNo) + '</div>';
+}
+// Contratista que se usó la última vez en cada zona (para no elegirlo en cada revisión)
+function contratistaZona(z) { return (leer('revision_contratistas', {}) || {})[String(z || '').trim()] || ''; }
+function listaItem(k, et, ops, valor) {
+    return '<label>' + et + '<select data-item-campo="' + k + '"><option value="">Elija…</option>' + ops.map(function (o) { return '<option' + (o === valor ? ' selected' : '') + '>' + o + '</option>'; }).join('') + '</select></label>';
 }
 function pintarForm() {
-    var c = CHECKLIST[form.tipo], esPlan = form.tipo === 'plan', quien = form.tipo === 'ryt' ? 'Tripulante' : 'Operario';
+    var c = checklistDe(form), esPlan = form.tipo === 'plan', quien = form.tipo === 'ryt' ? 'Tripulante' : 'Operario', ins = !!c.grupos;
+    if (ins && !form.items.contratista && contratistaZona(form.zona)) form.items.contratista = contratistaZona(form.zona);
     $('tipos').querySelectorAll('[data-tipo]').forEach(function (b) { b.setAttribute('aria-pressed', b.dataset.tipo === form.tipo); });
     $('form').innerHTML =
         '<div class="campos">' +
@@ -99,12 +111,18 @@ function pintarForm() {
             '<label>Fecha<input type="date" data-campo="fecha" value="' + esc(form.fecha) + '"></label>' +
             '<label>Turno<select data-campo="turno">' + TURNOS.map(function (t) { return '<option' + (t === form.turno ? ' selected' : '') + '>' + t + '</option>'; }).join('') + '</select></label>' +
             (form.tipo === 'ryt' ? '<label>Control o vehículo<input data-campo="control" value="' + esc(form.control) + '" placeholder="Ej.: 595"></label>' : '') +
+            (ins ? listaItem('contratista', 'Contratista', CONTRATISTAS, form.items.contratista) + listaItem('verificacion', 'Tipo de verificación', VERIFICACIONES, form.items.verificacion) : '') +
         '</div>' +
-        (form.tipo === 'ryt' ? '<label class="check-despacho"><input type="checkbox" data-en-despacho' + (form.items.en_despacho === 'si' ? ' checked' : '') + '> Verificada en despacho (base de operación)</label>' : '') +
+        (form.tipo === 'ryt' && !ins ? '<label class="check-despacho"><input type="checkbox" data-en-despacho' + (form.items.en_despacho === 'si' ? ' checked' : '') + '> Verificada en despacho (base de operación)</label>' : '') +
+        (ins ? c.grupos.map(function (g, n) {
+            return '<h3>' + g[0] + (n ? '' : ' <button type="button" class="secundario pequeno" data-todo="ruta">✓ Todo Sí</button>') + '</h3>' + g[1].map(function (i) { return filaItem('ruta', i, form.items, true); }).join('');
+        }).join('') :
         '<h3>De la ruta <button type="button" class="secundario pequeno" data-todo="ruta">✓ Todo cumple</button></h3>' +
-        c.ruta.map(function (i) { return filaItem('ruta', i, form.items); }).join('') +
+        c.ruta.map(function (i) { return filaItem('ruta', i, form.items); }).join('')) +
         '<label class="bloque">Novedad de la ruta<textarea data-campo="novedad" rows="2">' + esc(form.novedad) + '</textarea></label>' +
-        '<label class="bloque">Enlace de la evidencia (opcional)<input data-campo="enlace" type="url" inputmode="url" value="' + esc(form.enlace) + '" placeholder="https://…"></label>' +
+        (ins ? '<div class="rev-fotos"><label class="boton secundario">📷 Fotos del registro<input type="file" data-fotos accept="image/*" multiple hidden></label>' +
+            '<span class="sub" id="rev-fotos-txt">' + textoFotos() + '</span></div>' : '') +
+        '<label class="bloque">' + (ins ? 'Enlace del registro fotográfico' : 'Enlace de la evidencia (opcional)') + '<input data-campo="enlace" type="url" inputmode="url" value="' + esc(form.enlace) + '" placeholder="https://…"></label>' +
         form.operarios.map(function (o, k) {
             return '<div class="operario" data-op="' + k + '">' +
                 '<div class="op-cab"><label>' + quien + ' ' + (k + 1) + '<input data-op-campo="nombre" value="' + esc(o.nombre) + '" placeholder="Nombre"></label>' +
@@ -117,7 +135,7 @@ function pintarForm() {
                 '<label class="bloque">Enlace de la evidencia (opcional)<input data-op-campo="enlace" type="url" inputmode="url" value="' + esc(o.enlace) + '" placeholder="https://…"></label>' +
             '</div>';
         }).join('') +
-        '<button type="button" class="secundario" data-mas-op>+ Otro ' + quien.toLowerCase() + '</button>';
+        (ins ? '' : '<button type="button" class="secundario" data-mas-op>+ Otro ' + quien.toLowerCase() + '</button>');
     pintarSugerencias();
     pedirNombres(form.tipo);
     pintarRepetida();
@@ -133,6 +151,28 @@ function pintarRepetida() {
     el.textContent = x ? textoRepetida(x) : '';
     $('btn-guardar').disabled = !!x;
 }
+function textoFotos() {
+    if (!fotosForm.length) return 'Al guardar, las fotos se vuelven un PDF y se suben a su Drive (' + (conectado() ? 'conectado' : idCliente() ? 'se conecta al guardar' : 'falta conectar: ⋯ Más › ☁️ Google Drive') + '); el enlace queda solo.';
+    return fotosForm.length + (fotosForm.length === 1 ? ' foto' : ' fotos') + ' · al guardar se arma el PDF y se sube a Drive.';
+}
+// PDF de las fotos → Drive → enlace en la revisión. Sin Drive o sin señal: se descarga el PDF para subirlo a mano
+async function subirFotos() {
+    var p = String(form.fecha || '').split('-'), nombre = form.ruta.toUpperCase() + '_' + (p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : form.fecha) + '.pdf';
+    $('btn-guardar').textContent = 'Armando el PDF…';
+    var lista = await examinar(fotosForm);
+    lista.sort(function (a, b) { return String(a.fecha || a.nombre).localeCompare(String(b.fecha || b.nombre)); });
+    var pdf = await fotosAPdf(lista, { diseno: 'carta4', reducir: true, nombre: nombre, devolver: true }, function () {});
+    if (!pdf.bytes) throw new Error('Ninguna foto se pudo poner en el PDF.');
+    try {
+        $('btn-guardar').textContent = 'Subiendo a Drive…';
+        var r = await subirPdf(pdf.bytes, pdf.nombre, form.fecha);
+        form.enlace = r.enlace;
+        toast('PDF subido a Drive (' + nombreCarpeta(form.fecha) + ', ' + r.compartido + ').');
+    } catch (e) {
+        descargar(pdf.bytes, pdf.nombre, 'application/pdf');
+        toast('No se pudo subir a Drive (' + e.message + '). Se descargó el PDF: súbalo y pegue el enlace con Editar.');
+    }
+}
 function esGuardada(id) { return !!cola[id] || revisiones.some(function (r) { return r.id === id; }); }
 function guardarBorrador() { escribir(BORRADOR, form); }
 function abrirForm(datos) {
@@ -142,7 +182,7 @@ function abrirForm(datos) {
     $('dlg').scrollTop = 0;
 }
 function marcarTodo(ambito) {
-    var c = CHECKLIST[form.tipo];
+    var c = checklistDe(form);
     if (ambito === 'ruta') c.ruta.forEach(function (i) { if (!form.items[i[0]]) form.items[i[0]] = 'si'; });
     else c.operario.forEach(function (g) { g[1].forEach(function (i) { var it = form.operarios[+ambito].items; if (!it[i[0]]) it[i[0]] = 'si'; }); });
 }
@@ -165,6 +205,12 @@ async function guardar() {
     if (!form.fecha) form.fecha = hoy();
     var repetida = revisionRepetida(todas(), form);
     if (repetida) return toast(textoRepetida(repetida));
+    if (fotosForm.length && checklistDe(form).grupos) {
+        $('btn-guardar').disabled = true;
+        try { await subirFotos(); } catch (e) { toast('No se pudo armar el PDF: ' + e.message); }
+        $('btn-guardar').disabled = false; $('btn-guardar').textContent = 'Guardar revisión';
+        fotosForm = [];
+    }
     var r = JSON.parse(JSON.stringify(form)), faltan = sinMarcar(r);
     $('btn-guardar').disabled = true;
     // Queda en el celular antes de intentar: si la señal se cae a mitad, no se pierde
@@ -271,16 +317,17 @@ function paginador(total) {
         '<button type="button" class="secundario pequeno" data-pagina="' + (pagina + 1) + '"' + (pagina === paginas ? ' disabled' : '') + '>Siguiente ›</button></div>';
 }
 var RESPUESTA = { si: 'Cumple', no: 'No cumple', na: 'N/A', '': 'Sin marcar' };
-function puntos(lista) {
-    return lista.map(function (p) { return '<div class="punto"><span>' + esc(p[0]) + '</span><span class="' + (p[1] || 'sin-marcar') + '">' + RESPUESTA[p[1]] + '</span></div>'; }).join('');
+function puntos(lista, siNo) {
+    return lista.map(function (p) { return '<div class="punto"><span>' + esc(p[0]) + '</span><span class="' + (p[1] || 'sin-marcar') + '">' + (siNo && p[1] ? (p[1] === 'si' ? 'Sí' : 'No') : RESPUESTA[p[1]]) + '</span></div>'; }).join('');
 }
 function enlaceHtml(u) { u = enlaceSeguro(u); return u ? '<div class="bloque"><a href="' + esc(u) + '" target="_blank" rel="noopener">🔗 Ver evidencia</a></div>' : ''; }
 function detalle(r) {
-    return '<div class="detalle-grid"><div class="detalle-bloque"><h4>De la ruta</h4>' + puntos(detalleRuta(r)) +
+    var it = r.items || {}, ins = !!checklistDe(r).grupos, extra = [it.contratista && 'Contratista: ' + it.contratista, it.verificacion && 'Verificación: ' + it.verificacion].filter(Boolean).join(' · ');
+    return '<div class="detalle-grid"><div class="detalle-bloque"><h4>' + (ins ? 'Personal y servicio' : 'De la ruta') + '</h4>' + (extra ? '<div class="sub">' + esc(extra) + '</div>' : '') + puntos(detalleRuta(r), ins) +
             (r.novedad ? '<div class="bloque">' + esc(r.novedad) + '</div>' : '') + enlaceHtml(r.enlace) + '</div>' +
         (r.operarios || []).map(function (o, k) {
             return '<div class="detalle-bloque"><h4>' + esc(o.nombre || (r.tipo === 'ryt' ? 'Tripulante ' : 'Operario ') + (k + 1)) + '</h4>' +
-                detalleOperario(r.tipo, o).map(function (g) { return '<div class="grupo-item">' + esc(g[0]) + '</div>' + puntos(g[1]); }).join('') +
+                detalleOperario(r.tipo, o, r).map(function (g) { return '<div class="grupo-item">' + esc(g[0]) + '</div>' + puntos(g[1]); }).join('') +
                 (o.novedad ? '<div class="bloque">' + esc(o.novedad) + '</div>' : '') + enlaceHtml(o.enlace) + '</div>';
         }).join('') + '</div>';
 }
@@ -414,7 +461,7 @@ function arrancarEventos() {
         if (!b || b.dataset.tipo === form.tipo) return;
         form.tipo = b.dataset.tipo;
         // Cada tipo tiene su lista de puntos; la marca de uno no cuenta en otro
-        form.items = {}; form.operarios.forEach(function (o) { o.items = {}; });
+        form.items = itemsNuevos(form.tipo); form.operarios = form.tipo === 'plan' ? [operarioVacio()] : [];
         pintarForm(); guardarBorrador();
     };
     $('form').addEventListener('input', function (ev) {
@@ -428,6 +475,20 @@ function arrancarEventos() {
         guardarBorrador();
     });
     $('form').addEventListener('change', function (ev) {
+        // Listas del formato instrumento. Despacho también marca en_despacho (reporte de la noche y revisiones repetidas)
+        var ic = ev.target.dataset && ev.target.dataset.itemCampo;
+        if (ic) {
+            if (ev.target.value) form.items[ic] = ev.target.value; else delete form.items[ic];
+            if (ic === 'verificacion') { if (ev.target.value === 'Despacho') form.items.en_despacho = 'si'; else delete form.items.en_despacho; pintarRepetida(); }
+            if (ic === 'contratista' && form.zona) { var cz = leer('revision_contratistas', {}) || {}; cz[String(form.zona).trim()] = ev.target.value; escribir('revision_contratistas', cz); }
+            return guardarBorrador();
+        }
+        if (ev.target.hasAttribute('data-fotos')) {
+            // Volver a elegir reemplaza las anteriores
+            fotosForm = Array.from(ev.target.files || []); ev.target.value = '';
+            $('rev-fotos-txt').textContent = textoFotos();
+            return;
+        }
         if (!ev.target.hasAttribute('data-en-despacho')) return;
         if (ev.target.checked) form.items.en_despacho = 'si'; else delete form.items.en_despacho;
         pintarRepetida();
@@ -472,7 +533,7 @@ function arrancarEventos() {
         var b = ev.target.closest('[data-guia-nueva]');
         if (!b) return;
         var deBase = b.dataset.guiaNueva === 'despacho', f = formVacio(deBase ? 'ryt' : b.dataset.guiaNueva, '', b.dataset.zona);
-        if (deBase) f.items.en_despacho = 'si';
+        if (deBase) { f.items.en_despacho = 'si'; f.items.verificacion = 'Despacho'; }
         f.fecha = fecha;
         f.turno = GUIA[claveGuia()].turno;
         abrirForm(f);
@@ -482,11 +543,29 @@ function arrancarEventos() {
         navigator.clipboard.writeText($('msg-texto').textContent).then(function () { toast('Mensaje copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
     };
     // Cancelar descarta lo escrito; cerrar con la × lo deja para seguir después
-    $('btn-cancelar').onclick = function () { form = formVacio(form.tipo); guardarBorrador(); $('dlg').close(); };
+    $('btn-cancelar').onclick = function () { fotosForm = []; form = formVacio(form.tipo); guardarBorrador(); $('dlg').close(); };
     $('dlg-cerrar').onclick = function () { $('dlg').close(); };
+    // ☁️ Google Drive: conectar la cuenta (y, si la app no lo trae, el ID de cliente)
+    var pintarDrive = function () {
+        $('drive-id-caja').hidden = !!ID_CLIENTE;
+        $('drive-id').value = idCliente(); $('drive-correo').value = correoDrive();
+        $('drive-estado').textContent = conectado() ? '✓ Conectado: los PDF van a «Instrumentos dd-mm-aaaa» en su Drive.' : idCliente() ? 'Sin conectar. Toque Conectar (o se conecta solo al guardar una revisión con fotos).' : 'Falta el ID de cliente de Google.';
+        $('drive-desconectar').hidden = !conectado();
+    };
+    $('btn-drive').onclick = function () { pintarDrive(); $('dlg-drive').showModal(); };
+    $('drive-cerrar').onclick = $('drive-x').onclick = function () { $('dlg-drive').close(); };
+    $('drive-id').oninput = function () { fijarIdCliente(this.value); };
+    $('drive-correo').oninput = function () { fijarCorreoDrive(this.value); };
+    $('drive-conectar').onclick = async function () {
+        this.disabled = true; this.textContent = 'Conectando…';
+        try { await conectar(false); toast('Drive conectado.'); } catch (e) { toast(e.message); }
+        this.disabled = false; this.textContent = 'Conectar'; pintarDrive();
+    };
+    $('drive-desconectar').onclick = function () { desconectar(); pintarDrive(); toast('Drive desconectado.'); };
     $('btn-nueva').onclick = function () {
         var b = leer(BORRADOR, null);
-        abrirForm(b && CHECKLIST[b.tipo] && !esGuardada(b.id) ? b : formVacio(form.tipo));
+        // Un borrador con el checklist de antes (por operario) no se retoma: la revisión nueva va con las preguntas del instrumento
+        abrirForm(b && CHECKLIST[b.tipo] && !esGuardada(b.id) && !esFormatoViejo(b) ? b : formVacio(b && CHECKLIST[b.tipo] ? b.tipo : form.tipo));
     };
     FILTROS.forEach(function (id) { $(id).addEventListener(id === 'f-texto' ? 'input' : 'change', pintarLista); });
     $('btn-limpiar').onclick = function () { FILTROS.forEach(function (id) { $(id).value = ''; }); filtroEstado = ''; pintarLista(); };
@@ -511,7 +590,7 @@ function arrancarEventos() {
         var e = ev.target.closest('[data-editar]');
         if (e) {
             var copia = JSON.parse(JSON.stringify(buscar(e.dataset.editar)));
-            if (!copia.operarios.length) copia.operarios = [operarioVacio()];
+            if (!copia.operarios.length && checklistDe(copia).operario.length) copia.operarios = [operarioVacio()];
             return abrirForm(copia);
         }
         var d = ev.target.closest('[data-eliminar]');

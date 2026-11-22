@@ -59,6 +59,7 @@
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
         <div class="menu-lista">
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <button type="button" class="item-menu" id="btn-drive">☁️ Google Drive</button>
             <hr>
             <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
             <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
@@ -129,6 +130,23 @@
         <div class="pie-form">
             <button type="button" class="secundario" id="btn-cancelar">Cancelar</button>
             <button type="button" class="primario" id="btn-guardar">Guardar revisión</button>
+        </div>
+    </div>
+</dialog>
+
+<dialog id="dlg-drive" aria-labelledby="drive-titulo">
+    <div class="dlg-cuerpo">
+        <div class="dlg-cab"><h2 id="drive-titulo">☁️ Google Drive</h2><button type="button" class="quitar" id="drive-x" aria-label="Cerrar">×</button></div>
+        <p class="sub">Las fotos de cada revisión de LV o RyT se vuelven un PDF y se suben a su Drive, a la carpeta «Instrumentos dd-mm-aaaa», compartidas con enlace; el enlace queda en la revisión para el formulario del instrumento. La app solo puede ver los archivos que ella misma sube.</p>
+        <div class="campos">
+            <label class="ancho" id="drive-id-caja">ID de cliente de Google<input id="drive-id" autocomplete="off" placeholder="1234…apps.googleusercontent.com"></label>
+            <label class="ancho">Correo institucional<input id="drive-correo" type="email" inputmode="email" autocomplete="email" placeholder="nombre@colmayor.edu.co"></label>
+        </div>
+        <p class="sub" id="drive-estado" role="status"></p>
+        <div class="pie-form">
+            <button type="button" class="secundario" id="drive-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="drive-desconectar" hidden>Desconectar</button>
+            <button type="button" class="primario" id="drive-conectar">Conectar</button>
         </div>
     </div>
 </dialog>

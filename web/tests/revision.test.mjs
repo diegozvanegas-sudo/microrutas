@@ -42,21 +42,37 @@ test('turno según la hora', () => {
 test('novedades: por ruta y por operario, y el rastrillo con bolsa', () => {
     assert.deepEqual(novedadesDe(lv), ['Con papeleo', 'Juan: Rastrillo con bolsa o costal', 'Juan, evidencia: https://x.co/1', 'Operario 2: Sin guantes, Llegó tarde']);
 });
-test('sin marcar: cuenta ruta y cada operario', () => {
-    assert.equal(sinMarcar(ryt), 4);
-    assert.equal(sinMarcar({ tipo: 'lv', items: {}, operarios: [] }), 6);
-    assert.equal(sinMarcar({ tipo: 'ryt', items: {}, operarios: [{ items: {} }] }), 9);
+test('sin marcar: las nuevas cuentan las 8 preguntas del instrumento; las viejas, ruta y cada operario', () => {
+    assert.equal(sinMarcar(ryt), 8, 'revisión vacía: formato del instrumento');
+    assert.equal(sinMarcar({ tipo: 'lv', items: {}, operarios: [] }), 8);
+    assert.equal(sinMarcar({ tipo: 'ryt', items: { r_ruta: 'si' }, operarios: [{ items: {} }] }), 3 + 5, 'vieja: 4 de la ruta (1 marcado) + 5 del tripulante');
 });
 test('LV: carnet, EPP y herramientas de los anexos de barrido; los puntos nuevos no cuentan en revisiones viejas', () => {
     const op = { nombre: 'Ana', items: { d_carnet: 'no', epp_gafas: 'no', h_palin: 'no', h_cono: 'na', h_rastrillo: 'no' }, novedad: '', enlace: '' };
     const r = { tipo: 'lv', ruta: 'Z5R501', zona: '5', fecha: '2026-11-22', items: { r_bolsas: 'no' }, novedad: '', enlace: '', operarios: [op] };
     assert.deepEqual(novedadesDe(r), ['Bolsas abiertas o fuera de punto visible', 'Ana: Sin carnet visible, Sin gafas, Sin palín, Rastrillo con bolsa o costal']);
-    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-22', items: {}, operarios: [{ items: {} }] }), 6 + 1 + 7 + 8);
-    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-10', items: {}, operarios: [{ items: {} }] }), 5 + 0 + 4 + 6, 'antes del cambio: solo los puntos de entonces');
+    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-22', items: { r_ruta: 'si' }, operarios: [{ items: {} }] }), 5 + 1 + 7 + 8);
+    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-10', items: { r_ruta: 'si' }, operarios: [{ items: {} }] }), 4 + 0 + 4 + 6, 'antes del cambio: solo los puntos de entonces');
     assert.equal(sinMarcar({ tipo: 'plan', fecha: '2026-11-22', items: {}, operarios: [{ items: {} }] }), 4 + 4 + 6, 'plan de choque sin cambios');
-    const t = textoRevision({ ...r, items: {}, operarios: [{ items: { d_carnet: 'si', epp_botas: 'si', h_escoba: 'si' } }] }, 11);
+    const t = textoRevision({ ...r, items: { r_ruta: 'si' }, operarios: [{ items: { d_carnet: 'si', epp_botas: 'si', h_escoba: 'si' } }] }, 11);
     assert.ok(t.includes('Documentos: ok\nEPP: ok\nHerramientas: ok'));
     assert.ok(textoRevision(r, 11).includes('Documentos: no'));
+});
+test('revisión con las preguntas del instrumento: Sí/No, novedades, mensaje y paso a 🧾 Instrumentos', async () => {
+    const { itemsNuevos, esFormatoViejo, checklistDe } = await import('../src/revision/comun.js');
+    const { desdeRevisionDom } = await import('../src/instrumento/comun.js');
+    assert.deepEqual(itemsNuevos('lv'), { formato: 'instrumento', verificacion: 'Operacion' });
+    assert.deepEqual(itemsNuevos('plan'), {});
+    const r = { tipo: 'lv', ruta: 'Z1R22DOM', zona: '1', fecha: '2026-11-23', turno: 'Mañana', novedad: '', enlace: 'https://drive.google.com/x', operarios: [],
+        items: { formato: 'instrumento', verificacion: 'Operacion', contratista: 'FUDEA', p_lugar: 'si', p_uniforme: 'si', p_herramientas: 'si', p_epp_estado: 'no', p_epp_uso: 'no', s_frecuencia: 'si', s_recorrido: 'si', s_calidad: 'si' } };
+    assert.equal(esFormatoViejo(r), false); assert.equal(checklistDe(r).grupos.length, 2);
+    assert.deepEqual(novedadesDe(r), ['EPP en mal estado', 'No hace uso de los EPP', 'Evidencia: https://drive.google.com/x']);
+    assert.equal(sinMarcar(r), 0);
+    assert.ok(textoRevision(r, 9).includes('Personal: no\nServicio: ok'));
+    assert.deepEqual(desdeRevisionDom(r), { fecha: '2026-11-23', ruta: 'Z1R22DOM', zona: 'Zona 1', instrumento: 'Limpieza vial', verificacion: 'Operacion', contratista: 'FUDEA',
+        fotos: 'https://drive.google.com/x', lugar: 'Si', uniforme: 'Si', herramientas: 'Si', eppEstado: 'No', eppUso: 'No', frecuencia: 'Si', recorrido: 'Si', calidad: 'Si' });
+    assert.equal(esFormatoViejo(lv), true, 'la de antes (con operarios) sigue con su checklist');
+    assert.deepEqual(novedadesDe(lv)[0], 'Con papeleo');
 });
 test('reporte: por zona y servicio, con novedades al final', () => {
     const t = textoReporte([ryt, lv, lv], { turno: 'Noche' });
