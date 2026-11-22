@@ -40,12 +40,23 @@ test('turno según la hora', () => {
     assert.deepEqual([3, 5, 8, 10, 16, 17, 21].map(turnoPorHora), ['Noche', 'Mañana', 'Diurno', 'Intermedio', 'Intermedio', 'Noche', 'Noche']);
 });
 test('novedades: por ruta y por operario, y el rastrillo con bolsa', () => {
-    assert.deepEqual(novedadesDe(lv), ['Con papeleo', 'Juan: Rastrillo con bolsa', 'Juan, evidencia: https://x.co/1', 'Operario 2: Sin guantes, Llegó tarde']);
+    assert.deepEqual(novedadesDe(lv), ['Con papeleo', 'Juan: Rastrillo con bolsa o costal', 'Juan, evidencia: https://x.co/1', 'Operario 2: Sin guantes, Llegó tarde']);
 });
 test('sin marcar: cuenta ruta y cada operario', () => {
     assert.equal(sinMarcar(ryt), 4);
-    assert.equal(sinMarcar({ tipo: 'lv', items: {}, operarios: [] }), 5);
+    assert.equal(sinMarcar({ tipo: 'lv', items: {}, operarios: [] }), 6);
     assert.equal(sinMarcar({ tipo: 'ryt', items: {}, operarios: [{ items: {} }] }), 9);
+});
+test('LV: carnet, EPP y herramientas de los anexos de barrido; los puntos nuevos no cuentan en revisiones viejas', () => {
+    const op = { nombre: 'Ana', items: { d_carnet: 'no', epp_gafas: 'no', h_palin: 'no', h_cono: 'na', h_rastrillo: 'no' }, novedad: '', enlace: '' };
+    const r = { tipo: 'lv', ruta: 'Z5R501', zona: '5', fecha: '2026-11-22', items: { r_bolsas: 'no' }, novedad: '', enlace: '', operarios: [op] };
+    assert.deepEqual(novedadesDe(r), ['Bolsas abiertas o fuera de punto visible', 'Ana: Sin carnet visible, Sin gafas, Sin palín, Rastrillo con bolsa o costal']);
+    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-22', items: {}, operarios: [{ items: {} }] }), 6 + 1 + 7 + 8);
+    assert.equal(sinMarcar({ tipo: 'lv', fecha: '2026-11-10', items: {}, operarios: [{ items: {} }] }), 5 + 0 + 4 + 6, 'antes del cambio: solo los puntos de entonces');
+    assert.equal(sinMarcar({ tipo: 'plan', fecha: '2026-11-22', items: {}, operarios: [{ items: {} }] }), 4 + 4 + 6, 'plan de choque sin cambios');
+    const t = textoRevision({ ...r, items: {}, operarios: [{ items: { d_carnet: 'si', epp_botas: 'si', h_escoba: 'si' } }] }, 11);
+    assert.ok(t.includes('Documentos: ok\nEPP: ok\nHerramientas: ok'));
+    assert.ok(textoRevision(r, 11).includes('Documentos: no'));
 });
 test('reporte: por zona y servicio, con novedades al final', () => {
     const t = textoReporte([ryt, lv, lv], { turno: 'Noche' });

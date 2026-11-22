@@ -21,6 +21,26 @@ var HERRAMIENTAS_BARRIDO = [
 ];
 var HERRAMIENTA_ESTADO = [['h_estado', 'Herramientas en buen estado', 'Herramientas en mal estado']];
 
+// Solo LV: lo que piden los anexos de barrido (LV-FUDEA p. 8-9, LV-FUNTRAEV p. 9). El 4.º dato es desde qué fecha
+// existe el punto: en las revisiones de antes no cuenta como «sin marcar»
+var NUEVOS_LV = '2026-11-22';
+var DOCUMENTOS_LV = [['d_carnet', 'Carnet visible', 'Sin carnet visible', NUEVOS_LV]];
+var EPP_LV = EPP.concat([
+    ['epp_gafas', 'Gafas', 'Sin gafas', NUEVOS_LV],
+    ['epp_tapabocas', 'Tapabocas', 'Sin tapabocas', NUEVOS_LV],
+    ['epp_capa', 'Capa impermeable (si llueve)', 'Sin capa impermeable', NUEVOS_LV]
+]);
+var HERRAMIENTAS_LV = [
+    ['h_escoba', 'Escoba', 'Sin escoba'],
+    ['h_recogedor', 'Recogedor', 'Sin recogedor'],
+    ['h_palin', 'Palín', 'Sin palín', NUEVOS_LV],
+    ['h_carro', 'Carrito porta bolsas', 'Sin carrito porta bolsas'],
+    ['h_bolsas', 'Bolsas del color de EMVARIAS', 'Sin bolsas del color de EMVARIAS'],
+    ['h_cono', 'Cono reflectivo', 'Sin cono reflectivo', NUEVOS_LV],
+    ['h_rastrillo', 'Rastrillo sin bolsa ni costal', 'Rastrillo con bolsa o costal'],
+    ['h_estado', 'Herramientas en buen estado', 'Herramientas en mal estado']
+];
+
 export var CHECKLIST = {
     lv: {
         ruta: [
@@ -28,9 +48,10 @@ export var CHECKLIST = {
             ['r_mapa', 'Tiene el mapa de la ruta', 'Sin mapa de la ruta'],
             ['r_sentido', 'Barre en sentido contrario al flujo vehicular', 'No barre en sentido contrario al flujo vehicular'],
             ['r_papeleo', 'Sin papeleo', 'Con papeleo'],
-            ['r_cordoneo', 'Cordoneo al día', 'Falta cordoneo']
+            ['r_cordoneo', 'Cordoneo al día', 'Falta cordoneo'],
+            ['r_bolsas', 'Bolsas cerradas en punto visible', 'Bolsas abiertas o fuera de punto visible', NUEVOS_LV]
         ],
-        operario: [['EPP', EPP], ['Herramientas', HERRAMIENTAS_BARRIDO]]
+        operario: [['Documentos', DOCUMENTOS_LV], ['EPP', EPP_LV], ['Herramientas', HERRAMIENTAS_LV]]
     },
     ryt: {
         ruta: [
@@ -77,9 +98,11 @@ export function novedadesDe(r) {
     return out;
 }
 // Cuántos puntos faltan por marcar: la revisión se puede guardar, pero se avisa
+// Un punto agregado después (4.º dato) no cuenta en las revisiones de antes de esa fecha
 export function sinMarcar(r) {
-    var n = CHECKLIST[r.tipo].ruta.filter(function (i) { return !(r.items || {})[i[0]]; }).length;
-    (r.operarios || []).forEach(function (o) { n += itemsOperario(r.tipo).filter(function (i) { return !(o.items || {})[i[0]]; }).length; });
+    var vale = function (i) { return !i[3] || !r.fecha || String(r.fecha) >= i[3]; };
+    var n = CHECKLIST[r.tipo].ruta.filter(function (i) { return vale(i) && !(r.items || {})[i[0]]; }).length;
+    (r.operarios || []).forEach(function (o) { n += itemsOperario(r.tipo).filter(function (i) { return vale(i) && !(o.items || {})[i[0]]; }).length; });
     return n;
 }
 // La evidencia sola no es novedad
