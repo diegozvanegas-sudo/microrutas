@@ -601,8 +601,11 @@ function arrancarEventos() {
     $('drive-carpeta').oninput = function () { fijarCarpetaPrincipal(this.value); $('drive-ruta').textContent = 'Los PDF quedan en: Mi unidad › ' + carpetaPrincipal() + ' › una carpeta por día.'; };
     $('drive-conectar').onclick = async function () {
         this.disabled = true; this.textContent = 'Conectando…';
-        try { await conectar(false); toast('Drive conectado.'); } catch (e) { toast(e.message); }
+        var ok = false;
+        try { await conectar(false); ok = true; } catch (e) { toast(e.message); }
         this.disabled = false; this.textContent = 'Conectar'; pintarDrive();
+        // Conectado: la ventana se cierra sola y el aviso dice a dónde van los PDF
+        if (ok) { $('dlg-drive').close(); toast('Drive conectado: los PDF van a Mi unidad › ' + carpetaPrincipal() + ' › carpeta del día.'); }
     };
     $('drive-desconectar').onclick = function () { desconectar(); pintarDrive(); toast('Drive desconectado.'); };
     $('btn-nueva').onclick = function () {
