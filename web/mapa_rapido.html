@@ -34,7 +34,9 @@
     /* Computador: los botones bajan a otra fila en vez de salirse de la pantalla; el filtro de rutas va en su propia fila */
     @media (min-width: 761px) { .chips { flex-wrap: wrap; overflow-x: visible; row-gap: 6px; } }
     .salto { flex-basis: 100%; height: 0; }
-    .grupo, .grupo-cuerpo { display: contents; }
+    .grupo, .grupo-cuerpo, .fila-quitar { display: contents; }
+    .chip.quitar-todo { color: #b91c1c; border-color: #fca5a5; }
+    .chip.quitar-todo:disabled { color: var(--muted); border-color: var(--line); opacity: .55; cursor: default; }
     .sec { display: none; }
     .et-grupo { flex: none; align-self: center; font-size: 12px; font-weight: 650; color: var(--muted); margin-right: 2px; }
     #estado { font-size: 12px; color: var(--muted); min-height: 16px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -213,7 +215,11 @@
         #hoja-capas .asa, #hoja-capas .hoja-cab { touch-action: none; cursor: grab; }
         #hoja-capas .chips { display: block; overflow: visible; padding: 0; }
         #hoja-capas .grupo { display: block; border-top: 1px solid var(--line); }
-        #hoja-capas .grupo:first-child { border-top: 0; }
+        #hoja-capas .grupo:first-child, #hoja-capas .fila-quitar + .grupo { border-top: 0; }
+        /* En el celular «Quitar todo» va en la cabecera, junto a Listo (el de la barra del computador se esconde) */
+        #hoja-capas .fila-quitar { display: none; }
+        .hoja-acc { display: flex; align-items: center; gap: 8px; }
+        #hoja-quitar { padding: 10px 14px; font-size: 14px; min-height: 40px; border-radius: 10px; }
         #hoja-capas .sec { display: flex; align-items: center; gap: 8px; width: 100%; padding: 12px 2px; background: none; color: var(--ink); border-radius: 0; font-size: 16px; text-align: left; }
         #hoja-capas .sec .res { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; color: var(--muted); font-size: 13px; font-weight: 500; text-align: right; }
         #hoja-capas .sec .flecha { flex: none; width: 18px; color: var(--muted); }
@@ -294,7 +300,7 @@
     <button type="button" class="primario" id="sel-crear">Crear pre-ruta</button></div>
 <button type="button" class="primario" id="btn-capas" aria-controls="hoja-capas">🗂 Capas</button>
 <div id="hoja-capas" role="dialog" aria-label="Capas del mapa"><div class="asa"></div>
-    <div class="hoja-cab"><b>Capas del mapa</b><button type="button" class="primario" id="hoja-listo">Listo</button></div>
+    <div class="hoja-cab"><b>Capas del mapa</b><span class="hoja-acc"><button type="button" class="chip quitar-todo" id="hoja-quitar" title="Apagar de una vez cuadrillas, herramientas, predios, capas, microrrutas y guía">✕ Quitar todo</button><button type="button" class="primario" id="hoja-listo">Listo</button></span></div>
     <div id="hoja-cuerpo"></div></div>
 <div class="toast" id="toast"></div>
 
@@ -1588,8 +1594,11 @@
         var puestas = function (lista) { return lista.filter(function (k) { return capasActivas.indexOf(k) !== -1; }).map(function (k) { return NOMBRES_CAPA[k]; }); };
         var modos = [vencidos && '⏰ Vencidos', seleccion && '☑ Pre-ruta', verPrecision && '◎ GPS'].filter(Boolean);
         var filtroTxt = filtroRutas.z.map(function (z) { return 'Z' + z; }).concat(filtroRutas.j.map(textoJornada));
+        var hayAlgo = activas.length || modos.length || capasActivas.length || guiaPref.on.length || guiaPref.hoy || filtroTxt.length ||
+            OPC_PREDIOS.some(function (o) { return predPref[o[0]]; });
         $('chips').innerHTML =
-            seccion('cuad', 'Cuadrillas', activas.length ? activas.map(function (c) { return c === 'sin' ? 'S/C' : 'C' + c; }).join(', ') : 'ninguna', '',
+            '<div class="fila-quitar"><button type="button" class="chip quitar-todo" data-quitar-todo' + (hayAlgo ? '' : ' disabled') +
+                ' title="Apagar de una vez cuadrillas, herramientas, predios, capas, microrrutas y guía">✕ Quitar todo</button></div>' +            seccion('cuad', 'Cuadrillas', activas.length ? activas.map(function (c) { return c === 'sin' ? 'S/C' : 'C' + c; }).join(', ') : 'ninguna', '',
                 '<button type="button" class="chip" data-todas aria-pressed="' + todas + '" title="Cargar todas las cuadrillas">Todas</button>' +
                 ordenCuad.map(function (c) {
                     var info = IDX.cuadrillas[c], on = activas.indexOf(c) !== -1, cargando = on && !grupos[c];
@@ -1625,6 +1634,7 @@
                     JORNADAS.map(function (p) {
                         return '<button type="button" class="chip filtro" data-fjor="' + p[0] + '" aria-pressed="' + (filtroRutas.j.indexOf(p[0]) !== -1) + '" title="Solo las rutas de esta jornada">' + p[1] + '</button>';
                     }).join('')) : '');
+        $('hoja-quitar').disabled = !hayAlgo;
         var n = 0, kb = 0;
         activas.forEach(function (c) { n += IDX.cuadrillas[c].n; kb += IDX.cuadrillas[c].kb; });
         var faltan = activas.filter(function (c) { return !grupos[c]; }).length;
@@ -1657,9 +1667,33 @@
         if (capasExtra[k]) capasExtra[k].addTo(map);
         else cargarArchivo('capa_' + k, function () { if (capasActivas.indexOf(k) !== -1) capasExtra[k].addTo(map); });
     }
+    // «✕ Quitar todo»: deja el mapa limpio de una vez (cuadrillas, herramientas, predios, capas, microrrutas, guía y filtro)
+    function quitarTodo() {
+        if (seleccion) modoSel(false);
+        if (barridoSel.length) { quitarBarridoSel(); cerrarFicha(); }
+        if (vencidos) { vencidos = false; guardar('rapido_vencidos', false); repintarLotes(); if (!estadoRuta) $('leyenda').hidden = true; }
+        if (verPrecision) { verPrecision = false; guardar('rapido_precision', false); pintarCirculo(); }
+        if (OPC_PREDIOS.some(function (o) { return predPref[o[0]]; })) {
+            OPC_PREDIOS.forEach(function (o) { predPref[o[0]] = false; });
+            guardar('rapido_predios', predPref);
+            capaPredios.clearLayers();
+            pintarBuscador();
+            pintarControlPrivados();
+        }
+        capasActivas.slice().forEach(function (k) { mostrarCapa(k, false); });
+        capasActivas = [];
+        guardar('rapido_capas', capasActivas);
+        if (guiaPref.on.length || guiaPref.hoy) { guiaPref.on = []; guiaPref.hoy = false; guardar('rapido_guia', guiaPref); pintarGuia(false); }
+        if (filtroRutas.z.length || filtroRutas.j.length) { filtroRutas = { z: [], j: [] }; guardar('rapido_filtro_rutas', filtroRutas); filtrarRutas(); }
+        activas = [];
+        mostrarCuadrillas(false);
+        toast('Se quitó todo del mapa. Elija de nuevo lo que quiere ver.');
+    }
+    $('hoja-quitar').onclick = quitarTodo;
     $('chips').onclick = function (ev) {
         var b = ev.target.closest('button');
         if (!b) return;
+        if (b.hasAttribute('data-quitar-todo')) return quitarTodo();
         if (b.dataset.sec) {
             plegadas[b.dataset.sec] = !plegadas[b.dataset.sec];
             guardar('rapido_secciones', plegadas);
