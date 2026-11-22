@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#167a55">
+    <link rel="icon" type="image/png" href="icons/icono-192.png">
+    <link rel="apple-touch-icon" href="icons/icono-192.png">
+    <title>Pregúntale a Claude</title>
+</head>
+<body>
+<header>
+    <div class="marca">
+        <span class="logo" aria-hidden="true">🤖</span>
+        <div class="nombre"><h1>Pregúntale a Claude</h1><div class="lema">Preguntas sobre el mapa, las revisiones, las visitas y el contrato</div></div>
+    </div>
+    <!-- Un desplegable por servicio: Zonas verdes, General (sirve a todos) y LV y RyT. El mapa completo está en "Más" -->
+    <nav class="nav-app" aria-label="Secciones">
+        <details class="nav-menu">
+            <summary>🌿 <span>Zonas verdes</span></summary>
+            <div class="nav-menu-lista">
+                <a href="subsanaciones.html" title="Visitas a los lotes, novedades y pre-rutas">📋 Subsanaciones</a>
+                <a href="mapa_rapido.html" title="Mapa principal de lotes, rutas y visitas">🗺️ Mapa</a>
+                <a href="pqr.html" title="Leer una queja y armar la respuesta">📝 PQR</a>
+                <a href="radicar.html" title="Dejar lista una PQR para radicarla en el formulario de EMVARIAS">🏛️ Radicar PQR</a>
+                <a href="subsanaciones.html#auditar" title="Subir el ZIP de fotos de una cuadrilla y que el motor del PC haga la auditoría">🔍 Auditar ZIP</a>
+                <a href="cruce.html" title="Lo programado por quincena y día contra lo que las cuadrillas reportaron hecho: dónde va cada una">📊 Cruce programado / realizado</a>
+                <a href="optimizar.html" title="La programación del mes contra una armada por sectores: lotes cercanos el mismo día y quincenales a 14 días">🛣️ Programación por cercanía</a>
+                <a href="descuentos.html" title="Documento de descuento de área (cerramiento, predio privado, obra…) con el área dibujada en el mapa">💸 Descuentos</a>
+                <a href="contrato.html?doc=GUIA-CAMPO" id="nav-guia" hidden title="Qué revisar en campo del corte de césped, con ejemplos y lo que dice el contrato">🧭 Guía de campo</a>
+                <a href="requerimiento.html" id="nav-req" hidden title="Requerimientos de interventoría al contratista, en PDF para enviar por correo">📨 Requerimientos</a>
+                <a href="espartillos.html" title="Los espartillos por zona y comuna, con lo programado y ejecutado en el mes">🌾 Espartillos</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>📂 <span>General</span></summary>
+            <div class="nav-menu-lista">
+                <a href="pendientes.html" title="Lo que queda por hacer">📌 Pendientes</a>
+                <a href="informe.html" title="Reporte diario de actividades">🗒️ Informe</a>
+                <a href="contrato.html" id="nav-contrato" hidden title="Contratos, convenios y mapas mentales">📜 Contrato</a>
+                <a href="cronogramas.html" title="Recorridos y frecuencias por zona, con su guía en el mapa">🗓️ Cronogramas</a>
+                <a href="programados.html" title="Mensajes de WhatsApp que salen solos a la hora elegida">⏰ Envíos programados</a>
+                <a href="preguntar.html" aria-current="page" title="Preguntas sobre el mapa, las revisiones, las visitas y el contrato; las responde Claude desde el PC">🤖 Pregúntale a Claude</a>
+            </div>
+        </details>
+        <details class="nav-menu">
+            <summary>🚛 <span>LV y RyT</span></summary>
+            <div class="nav-menu-lista">
+                <a href="horas.html" title="Validar las horas extras con la hora real y los horarios">⏱️ Horas extras</a>
+                <a href="horarios.html" title="Horario de salida de cada ruta de recolección">🕒 Horarios de rutas</a>
+                <a href="revision.html" title="Checklist de LV, RyT y plan de choque, por ruta y por operario">✅ Revisión</a>
+                <a href="despacho.html" title="Reporte de asignación, retrasos, volquetas, motocarros y Stand By">🚦 Despacho</a>
+            </div>
+        </details>
+    </nav>
+    <details class="menu-mas">
+        <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
+        <div class="menu-lista">
+            <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <hr>
+            <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
+            <a class="item-menu" id="menu-usuarios" href="usuarios.html" hidden>👥 Usuarios</a>
+            <a class="item-menu" id="menu-whatsapp" href="whatsapp.html" hidden>💬 WhatsApp</a>
+            <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
+        </div>
+    </details>
+</header>
+<main class="preg">
+    <div class="preg-aviso" id="preg-aviso" role="alert" hidden></div>
+    <section class="panel preg-panel">
+        <h2>🤖 Pregúntale a Claude</h2>
+        <p class="sub">Escriba lo que necesita, como se lo pediría a una persona: un recorrido, un reporte, qué dice el contrato… Claude lee solo los datos que su cuenta puede ver y no cambia nada. Lo responde el PC de la oficina con el plan de Claude: si está apagado, la pregunta espera en cola.</p>
+        <div class="preg-motor off" id="preg-motor">Revisando el PC…</div>
+        <div class="preg-sigue" id="preg-sigue" hidden><span id="preg-sigue-txt"></span><button type="button" class="secundario pequeno" id="preg-sigue-quitar">✕ Pregunta nueva</button></div>
+        <label for="preg-texto" class="sub">Su pregunta <span>(el texto se guarda en este equipo hasta enviarlo)</span></label>
+        <textarea id="preg-texto" maxlength="4000" placeholder="Ej.: Ármame un recorrido por las zonas 1, 3 y 5 para verificar que la ciudad esté limpia"></textarea>
+        <div class="preg-fila">
+            <div class="preg-chips" id="preg-modelos" role="group" aria-label="Tipo de respuesta"></div>
+            <button type="button" class="primario" id="preg-enviar">Preguntar</button>
+        </div>
+        <div class="preg-chips" id="preg-ejemplos" aria-label="Ejemplos"></div>
+    </section>
+    <div class="preg-cab-lista"><h2>Mis preguntas</h2><span class="sub" id="preg-cuenta"></span></div>
+    <ul class="preg-lista" id="preg-lista"><li class="sub preg-vacio">Cargando…</li></ul>
+    <p class="nota-privada">🔒 Cada quien ve solo sus preguntas (el administrador ve todas). ⚡ Rápida usa Claude Sonnet; 🧠 A fondo usa Claude Opus (más lenta, gasta más del plan).</p>
+</main>
+<div class="toast" id="toast"></div>
+<script type="module" src="/src/preguntar/main.js"></script>
+</body>
+</html>

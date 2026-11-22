@@ -1,0 +1,47 @@
+/* preguntar.html (usa también los estilos generales de subsanaciones). Clases con prefijo preg- */
+main.preg { max-width: 900px; margin: 0 auto; padding: 14px 16px 40px; }
+.preg-panel { padding: 16px 18px; display: grid; gap: 10px; }
+.preg-panel h2 { margin: 0; font-size: 17px; }
+.preg-panel .sub { margin: 0; line-height: 1.45; }
+.preg-aviso { margin: 12px 0; padding: 12px 14px; border-radius: 12px; background: #fff7ed; border: 1px solid #fed7aa; color: #9a3412; line-height: 1.5; }
+.preg-aviso[hidden], .preg-sigue[hidden] { display: none; }
+.preg-motor { padding: 8px 10px; border-radius: 8px; font-size: 13.5px; line-height: 1.4; }
+.preg-motor.on { background: #dcfce7; color: #166534; }
+.preg-motor.off { background: #f1f5f9; color: #475569; }
+#preg-texto { display: block; width: 100%; min-height: 110px; border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; font: inherit; font-size: 15px; color: var(--ink); resize: vertical; box-sizing: border-box; }
+#preg-texto:focus { outline: 2px solid var(--brand); outline-offset: 1px; }
+.preg-fila { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; justify-content: space-between; }
+.preg-chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.preg-chip { min-height: 36px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--line); background: #fff; color: var(--ink); font-size: 13.5px; font-weight: 600; text-align: left; }
+.preg-chip[aria-pressed="true"] { border-color: var(--brand); background: #edf8f3; color: var(--brand); box-shadow: inset 0 0 0 1px var(--brand); }
+.preg-chip.ej { font-weight: 500; color: #334155; border-radius: 10px; }
+#preg-enviar { min-height: 42px; padding: 8px 22px; }
+.preg-sigue { display: flex; gap: 8px; align-items: center; justify-content: space-between; padding: 8px 10px; border-radius: 8px; background: #eff6ff; color: #1e3a8a; font-size: 13.5px; }
+.preg-sigue button { flex: none; min-height: 32px; }
+.preg-cab-lista { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; justify-content: space-between; margin: 18px 2px 8px; }
+.preg-cab-lista h2 { margin: 0; font-size: 16px; }
+.preg-lista { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; }
+.preg-hilo { border: 1px solid var(--line); border-radius: 12px; background: #fff; padding: 10px 12px; display: grid; gap: 10px; min-width: 0; }
+.preg-hilo-cab { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; justify-content: space-between; }
+.preg-acc { display: flex; flex-wrap: wrap; gap: 6px; }
+.preg-acc .pequeno { min-height: 34px; }
+.preg-q { display: grid; gap: 6px; border-top: 1px dashed var(--line); padding-top: 10px; min-width: 0; }
+.preg-hilo-cab + .preg-q { border-top: 0; padding-top: 0; }
+.preg-yo { justify-self: end; max-width: 92%; padding: 8px 12px; border-radius: 12px 12px 2px 12px; background: #edf8f3; color: #14532d; white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.45; }
+.preg-est { font-size: 12.5px; font-weight: 700; color: var(--muted); }
+.preg-est.pendiente, .preg-est.respondiendo { color: #92400e; }
+.preg-est.error { color: #b91c1c; }
+.preg-resp { white-space: pre-wrap; overflow-wrap: anywhere; line-height: 1.5; font-size: 14.5px; color: var(--ink); background: #f8fafc; border-radius: 10px; padding: 10px 12px; }
+.preg-resp.plegada { max-height: 4.5em; overflow: hidden; -webkit-mask-image: linear-gradient(#000 50%, transparent); mask-image: linear-gradient(#000 50%, transparent); }
+.preg-resp a { color: #0369a1; }
+.preg-tit { font-size: 15px; }
+.preg-error { padding: 8px 10px; border-radius: 8px; background: #fef2f2; color: #991b1b; font-size: 13.5px; line-height: 1.4; }
+.preg-borrar { color: #b91c1c; background: #fef2f2; }
+.preg-borrar.confirmar { color: #fff; background: #dc2626; }
+.preg-wa { color: #fff; display: inline-flex; align-items: center; box-sizing: border-box; }
+.preg-vacio { padding: 14px; text-align: center; }
+@media (max-width: 760px) {
+    main.preg { padding: 10px 12px 40px; }
+    .preg-panel { padding: 14px; }
+    .preg-fila > #preg-enviar { flex: 1 1 100%; }
+}

@@ -13,7 +13,8 @@
     "usuario": "node scripts/crear_usuario.mjs",
     "contrato": "node scripts/cargar_contrato.mjs",
     "convenios": "node scripts/cargar_convenios.mjs",
-    "guia": "node scripts/cargar_guia.mjs"
+    "guia": "node scripts/cargar_guia.mjs",
+    "asistente": "node scripts/asistente/trabajador.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "^0.12.7",
