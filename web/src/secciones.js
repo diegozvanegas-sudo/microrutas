@@ -28,6 +28,7 @@ export var SECCIONES = [
     { clave: 'cronogramas', nombre: '🗓️ Cronogramas', grupo: 'General', pagina: 'cronogramas.html' },
     { clave: 'programados', nombre: '⏰ Envíos programados', grupo: 'General', pagina: 'programados.html' },
     { clave: 'preguntar', nombre: '🤖 Pregúntale a Claude', grupo: 'General', pagina: 'preguntar.html' },
+    { clave: 'instrumento', nombre: '🧾 Instrumentos', grupo: 'General', pagina: 'instrumento.html' },
     { clave: 'horas', nombre: '⏱️ Horas extras', grupo: 'LV y RyT', pagina: 'horas.html' },
     { clave: 'horarios', nombre: '🕒 Horarios de rutas', grupo: 'LV y RyT', pagina: 'horarios.html' },
     { clave: 'revision', nombre: '✅ Revisión', grupo: 'LV y RyT', pagina: 'revision.html' },
