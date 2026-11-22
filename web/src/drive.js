@@ -8,7 +8,8 @@
 export var ID_CLIENTE = '931360801241-87o75er1am6v3n4obgvav7te5cp56mla.apps.googleusercontent.com';
 var ALCANCE = 'https://www.googleapis.com/auth/drive.file';
 var GIS = 'https://accounts.google.com/gsi/client';
-var CLAVE_ID = 'drive_id_cliente', CLAVE_CORREO = 'drive_correo';
+var CLAVE_ID = 'drive_id_cliente', CLAVE_CORREO = 'drive_correo', CLAVE_PRINCIPAL = 'drive_carpeta', CLAVE_ULTIMA = 'drive_ultima_carpeta';
+export var PRINCIPAL = 'Instrumentos interventoría';
 var token = null, vence = 0, cliente = null, carpetas = {};
 
 function leer(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
@@ -17,6 +18,11 @@ export function idCliente() { return ID_CLIENTE || leer(CLAVE_ID); }
 export function fijarIdCliente(v) { guardar(CLAVE_ID, String(v || '').trim()); cliente = null; }
 export function correoDrive() { return leer(CLAVE_CORREO); }
 export function fijarCorreoDrive(v) { guardar(CLAVE_CORREO, String(v || '').trim()); cliente = null; }
+// Carpeta principal en «Mi unidad» (se cambia en ⚙ Drive); adentro, una por día
+export function carpetaPrincipal() { return leer(CLAVE_PRINCIPAL) || PRINCIPAL; }
+export function fijarCarpetaPrincipal(v) { guardar(CLAVE_PRINCIPAL, String(v || '').trim()); carpetas = {}; }
+// Enlace de la última carpeta del día a la que se subió algo (para «Abrir la carpeta en Drive»)
+export function ultimaCarpeta() { return leer(CLAVE_ULTIMA); }
 export function conectado() { return !!token && Date.now() < vence; }
 
 function cargarGis() {
@@ -59,26 +65,32 @@ async function api(url, opciones) {
     if (!r.ok) { var t = await r.text(); throw new Error('Drive respondió ' + r.status + ': ' + t.slice(0, 160)); }
     return r.json();
 }
-// Nombre de la carpeta del día: «Instrumentos 23-11-2026»
-export function nombreCarpeta(fecha) {
+// Nombre de la carpeta del día: «23-11-2026»
+export function nombreDia(fecha) {
     var p = String(fecha || '').split('-');
-    return 'Instrumentos ' + (p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : fecha);
+    return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : String(fecha || '');
 }
-async function carpeta(nombre) {
-    if (carpetas[nombre]) return carpetas[nombre];
-    var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and mimeType = 'application/vnd.google-apps.folder' and trashed = false";
+// Ruta que se muestra: «Instrumentos interventoría › 23-11-2026»
+export function nombreCarpeta(fecha) { return carpetaPrincipal() + ' › ' + nombreDia(fecha); }
+// Busca (o crea) una carpeta por nombre dentro de otra ('root' = Mi unidad). Con el permiso drive.file solo se ven las
+// carpetas que creó la app: si la persona hizo una a mano con el mismo nombre, la app crea la suya al lado
+async function carpeta(nombre, padre) {
+    var k = padre + '/' + nombre;
+    if (carpetas[k]) return carpetas[k];
+    var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and mimeType = 'application/vnd.google-apps.folder' and '" + padre + "' in parents and trashed = false";
     var hay = await api('https://www.googleapis.com/drive/v3/files?fields=files(id)&q=' + encodeURIComponent(q));
-    if (hay.files && hay.files.length) return (carpetas[nombre] = hay.files[0].id);
+    if (hay.files && hay.files.length) return (carpetas[k] = hay.files[0].id);
     var nueva = await api('https://www.googleapis.com/drive/v3/files?fields=id', {
-        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, mimeType: 'application/vnd.google-apps.folder' })
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, mimeType: 'application/vnd.google-apps.folder', parents: [padre] })
     });
-    return (carpetas[nombre] = nueva.id);
+    return (carpetas[k] = nueva.id);
 }
 // Sube el PDF (bytes) a la carpeta del día y lo comparte con enlace. Devuelve { id, enlace }.
 // Si ya hay uno con el mismo nombre en esa carpeta (se volvió a guardar la revisión), lo reemplaza
 export async function subirPdf(bytes, nombre, fecha) {
     await conectar(true);
-    var dir = await carpeta(nombreCarpeta(fecha));
+    var dir = await carpeta(nombreDia(fecha), await carpeta(carpetaPrincipal(), 'root'));
+    guardar(CLAVE_ULTIMA, 'https://drive.google.com/drive/folders/' + dir);
     var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and '" + dir + "' in parents and trashed = false";
     var previo = (await api('https://www.googleapis.com/drive/v3/files?fields=files(id)&q=' + encodeURIComponent(q))).files || [];
     var meta = previo.length ? {} : { name: nombre, parents: [dir], mimeType: 'application/pdf' };

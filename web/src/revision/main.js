@@ -11,9 +11,10 @@ import { esFestivo } from '../horas/distribucion.js';
 import { respaldoGuardar, respaldoBorrar, respaldoTodo, fallaLocalStorage } from '../almacen.js';
 import { examinar, fotosAPdf } from '../subsanaciones/fotospdf.js';
 import { descargar } from '../subsanaciones/zippdf.js';
-import { idCliente, fijarIdCliente, correoDrive, fijarCorreoDrive, conectado, conectar, desconectar, subirPdf, nombreCarpeta, ID_CLIENTE } from '../drive.js';
+import { idCliente, fijarIdCliente, correoDrive, fijarCorreoDrive, conectado, conectar, desconectar, subirPdf, nombreCarpeta, ID_CLIENTE, carpetaPrincipal, fijarCarpetaPrincipal, ultimaCarpeta, PRINCIPAL } from '../drive.js';
+import { FORMATOS, OBSERVACION, mensaje, pide, sugerido } from './mensajes.js';
 import { GUIA, avanceGuia, lineasGuia, revisionRepetida } from './guia.js';
-import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, textoRevision, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta, checklistDe, itemsNuevos, esFormatoViejo, CONTRATISTAS, VERIFICACIONES } from './comun.js';
+import { TIPOS, TURNOS, CHECKLIST, zonaDeCodigo, enlaceSeguro, operarioVacio, turnoPorHora, novedadesDe, sinMarcar, nombreRevision, textoReporte, textoActividades, textoDomingo, textoDetalle, tieneNovedad, filtrarRevisiones, ordenarRevisiones, detalleOperario, detalleRuta, checklistDe, itemsNuevos, esFormatoViejo, CONTRATISTAS, VERIFICACIONES } from './comun.js';
 
 var COLA = 'revisiones_cola', CACHE = 'revisiones_cache', BORRADOR = 'revision_borrador';
 var $ = function (id) { return document.getElementById(id); };
@@ -211,6 +212,7 @@ async function guardar() {
         $('btn-guardar').disabled = false; $('btn-guardar').textContent = 'Guardar revisión';
         fotosForm = [];
     }
+    if (checklistDe(form).grupos) form.operarios = [];
     var r = JSON.parse(JSON.stringify(form)), faltan = sinMarcar(r);
     $('btn-guardar').disabled = true;
     // Queda en el celular antes de intentar: si la señal se cae a mitad, no se pierde
@@ -229,10 +231,33 @@ async function guardar() {
     if (hecho || aLocal) toast((hecho ? 'Revisión guardada.' : '📴 Guardada en este celular; se enviará al volver la señal.') + (faltan ? ' Quedaron ' + faltan + ' puntos sin marcar.' : ''));
 }
 // El mensaje de una revisión, listo para el grupo: sale al guardar y con el botón Mensaje de la lista
-function verMensaje(r) {
-    var t = textoRevision(r, new Date().getHours());
+// 📲 Mensaje: el formato se recuerda por servicio; documentos, extintor, placa y observación (lo que la revisión no
+// pregunta) se recuerdan por revisión en este equipo
+var msgR = null, msgFormato = 'corto', msgExtra = {};
+function pintarMensaje() {
+    var p = pide(msgFormato, msgR), sn = function (k, et) {
+        return '<div class="msg-sn"><span>' + et + '</span>' + [['si', 'OK'], ['no', 'NO']].map(function (o) {
+            return '<button type="button" class="msg-chip" data-msg-sn="' + k + '" data-valor="' + o[0] + '" aria-pressed="' + ((msgExtra[k] || 'si') === o[0]) + '">' + o[1] + '</button>';
+        }).join('') + '</div>';
+    };
+    $('msg-extra').innerHTML = (p.documentos ? sn('documentos', 'Documentos') : '') + (p.extintor ? sn('extintor', 'Extintor') : '') +
+        (p.placa ? '<label class="msg-campo">Placa<input data-msg-campo="placa" value="' + esc(msgExtra.placa || '') + '" placeholder="Ej.: KTN357" autocapitalize="characters"></label>' : '') +
+        (p.observacion ? '<label class="msg-campo ancho">Observación<input data-msg-campo="observacion" value="' + esc(msgExtra.observacion || '') + '" placeholder="' + esc(OBSERVACION) + '"></label>' : '');
+    $('msg-extra').hidden = !$('msg-extra').innerHTML;
+    pintarTextoMensaje();
+}
+function pintarTextoMensaje() {
+    var t = mensaje(msgR, msgFormato, msgExtra, new Date().getHours());
     $('msg-texto').textContent = t;
     $('msg-whatsapp').href = 'https://wa.me/?text=' + encodeURIComponent(t);
+}
+function verMensaje(r) {
+    msgR = r;
+    msgFormato = leer('revision_msg_formato_' + r.tipo, '') || sugerido(r);
+    if (!FORMATOS.some(function (f) { return f[0] === msgFormato; })) msgFormato = 'corto';
+    msgExtra = leer('revision_msg_extra_' + r.id, {}) || {};
+    $('msg-formato').innerHTML = FORMATOS.map(function (f) { return '<option value="' + f[0] + '"' + (f[0] === msgFormato ? ' selected' : '') + '>' + f[1] + '</option>'; }).join('');
+    pintarMensaje();
     $('dlg-msg').showModal();
 }
 async function sincronizar() {
@@ -325,7 +350,7 @@ function detalle(r) {
     var it = r.items || {}, ins = !!checklistDe(r).grupos, extra = [it.contratista && 'Contratista: ' + it.contratista, it.verificacion && 'Verificación: ' + it.verificacion].filter(Boolean).join(' · ');
     return '<div class="detalle-grid"><div class="detalle-bloque"><h4>' + (ins ? 'Personal y servicio' : 'De la ruta') + '</h4>' + (extra ? '<div class="sub">' + esc(extra) + '</div>' : '') + puntos(detalleRuta(r), ins) +
             (r.novedad ? '<div class="bloque">' + esc(r.novedad) + '</div>' : '') + enlaceHtml(r.enlace) + '</div>' +
-        (r.operarios || []).map(function (o, k) {
+        (ins ? [] : r.operarios || []).map(function (o, k) {
             return '<div class="detalle-bloque"><h4>' + esc(o.nombre || (r.tipo === 'ryt' ? 'Tripulante ' : 'Operario ') + (k + 1)) + '</h4>' +
                 detalleOperario(r.tipo, o, r).map(function (g) { return '<div class="grupo-item">' + esc(g[0]) + '</div>' + puntos(g[1]); }).join('') +
                 (o.novedad ? '<div class="bloque">' + esc(o.novedad) + '</div>' : '') + enlaceHtml(o.enlace) + '</div>';
@@ -398,13 +423,13 @@ function pintarLista() {
         paginador(lista.length) +
         '<table><thead><tr><th>Ruta</th><th>Servicio</th><th>Fecha y turno</th><th>Personas</th><th>Estado</th><th>Novedades</th><th></th></tr></thead><tbody>' +
         trozo.map(function (r) {
-            var nov = novedadesDe(r).filter(function (n) { return !/^evidencia: |, evidencia: /i.test(n); }), falta = sinMarcar(r), n = (r.operarios || []).length;
+            var nov = novedadesDe(r).filter(function (n) { return !/^evidencia: |, evidencia: /i.test(n); }), falta = sinMarcar(r), n = checklistDe(r).grupos ? 0 : (r.operarios || []).length;
             var quien = usuarios[r.usuario] ? '👤 ' + esc(usuarios[r.usuario]) : '';
             return '<tr class="fila-rev' + (abiertos[r.id] ? ' abierta' : '') + '" data-fila="' + esc(r.id) + '">' +
                 '<td class="c-ruta"><span class="tit-ruta">' + esc(nombreRevision(r)) + '</span><div class="sub">' + (r.zona ? 'Zona ' + esc(r.zona) : 'Sin zona') + '</div></td>' +
                 '<td class="c-extra">' + esc(TIPOS[r.tipo]) + '</td>' +
                 '<td class="c-fecha"><span class="solo-pc">' + esc(nombreDia(r.fecha)) + '</span><span class="solo-cel">' + esc(diaCorto(r.fecha)) + '</span><div class="sub">' + esc(r.turno) + (quien ? '<span class="solo-pc"> · ' + quien + '</span>' : '') + '</div></td>' +
-                '<td class="c-extra">' + n + (n === 1 ? ' persona' : ' personas') + (quien ? '<span class="solo-cel"> · ' + quien + '</span>' : '') + (falta ? '<div class="sub">' + falta + ' sin marcar</div>' : '') + '</td>' +
+                '<td class="c-extra">' + (n ? n + (n === 1 ? ' persona' : ' personas') : esc((r.items || {}).contratista || '—')) + (quien ? '<span class="solo-cel"> · ' + quien + '</span>' : '') + (falta ? '<div class="sub">' + falta + ' sin marcar</div>' : '') + '</td>' +
                 '<td class="c-estado"><span class="badge ' + (nov.length ? 'novedad"><span class="solo-pc">CON </span>NOVEDAD' : 'ok"><span class="solo-pc">SIN NOVEDAD</span><span class="solo-cel">OK</span>') + '</span>' + (cola[r.id] ? '<div class="c-cola"><span class="badge local">📴<span class="solo-pc"> Sin enviar</span></span></div>' : '') + '</td>' +
                 '<td class="c-extra">' + (nov.length ? nov.map(function (x) { return '<span class="chip-no">' + esc(x) + '</span>'; }).join('') : '<span class="sub">Ninguna</span>') + '</td>' +
                 '<td class="acciones"><button type="button" class="secundario pequeno" data-ver="' + esc(r.id) + '" aria-expanded="' + !!abiertos[r.id] + '">' + (abiertos[r.id] ? 'Ocultar ▴' : 'Ver detalles ▾') + '</button>' +
@@ -539,6 +564,20 @@ function arrancarEventos() {
         abrirForm(f);
     });
     $('msg-cerrar').onclick = function () { $('dlg-msg').close(); };
+    $('msg-formato').onchange = function () { msgFormato = this.value; escribir('revision_msg_formato_' + msgR.tipo, msgFormato); pintarMensaje(); };
+    $('msg-extra').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-msg-sn]');
+        if (!b) return;
+        msgExtra[b.dataset.msgSn] = b.dataset.valor; escribir('revision_msg_extra_' + msgR.id, msgExtra);
+        b.parentNode.querySelectorAll('button').forEach(function (x) { x.setAttribute('aria-pressed', x === b); });
+        pintarTextoMensaje();
+    });
+    $('msg-extra').addEventListener('input', function (ev) {
+        var k = ev.target.dataset.msgCampo;
+        if (!k) return;
+        msgExtra[k] = ev.target.value; escribir('revision_msg_extra_' + msgR.id, msgExtra);
+        pintarTextoMensaje();
+    });
     $('msg-copiar').onclick = function () {
         navigator.clipboard.writeText($('msg-texto').textContent).then(function () { toast('Mensaje copiado.'); }, function () { toast('No se pudo copiar: seleccione el texto y cópielo.'); });
     };
@@ -549,13 +588,17 @@ function arrancarEventos() {
     var pintarDrive = function () {
         $('drive-id-caja').hidden = !!ID_CLIENTE;
         $('drive-id').value = idCliente(); $('drive-correo').value = correoDrive();
-        $('drive-estado').textContent = conectado() ? '✓ Conectado: los PDF van a «Instrumentos dd-mm-aaaa» en su Drive.' : idCliente() ? 'Sin conectar. Toque Conectar (o se conecta solo al guardar una revisión con fotos).' : 'Falta el ID de cliente de Google.';
+        $('drive-carpeta').value = carpetaPrincipal() === PRINCIPAL ? '' : carpetaPrincipal();
+        $('drive-ruta').textContent = 'Los PDF quedan en: Mi unidad › ' + carpetaPrincipal() + ' › una carpeta por día (p. ej. ' + nombreCarpeta(hoy()).split(' › ').pop() + ').';
+        $('drive-abrir').hidden = !ultimaCarpeta(); if (ultimaCarpeta()) $('drive-abrir').href = ultimaCarpeta();
+        $('drive-estado').textContent = conectado() ? '✓ Conectado: los PDF van a «' + carpetaPrincipal() + '» › carpeta del día, en su Drive.' : idCliente() ? 'Sin conectar. Toque Conectar (o se conecta solo al guardar una revisión con fotos).' : 'Falta el ID de cliente de Google.';
         $('drive-desconectar').hidden = !conectado();
     };
     $('btn-drive').onclick = function () { pintarDrive(); $('dlg-drive').showModal(); };
     $('drive-cerrar').onclick = $('drive-x').onclick = function () { $('dlg-drive').close(); };
     $('drive-id').oninput = function () { fijarIdCliente(this.value); };
     $('drive-correo').oninput = function () { fijarCorreoDrive(this.value); };
+    $('drive-carpeta').oninput = function () { fijarCarpetaPrincipal(this.value); $('drive-ruta').textContent = 'Los PDF quedan en: Mi unidad › ' + carpetaPrincipal() + ' › una carpeta por día.'; };
     $('drive-conectar').onclick = async function () {
         this.disabled = true; this.textContent = 'Conectando…';
         try { await conectar(false); toast('Drive conectado.'); } catch (e) { toast(e.message); }
