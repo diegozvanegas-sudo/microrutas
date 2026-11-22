@@ -19,11 +19,14 @@ filtrarlas en el mapa.
 Al final cada ruta se pega al eje de las calles de OpenStreetMap (ajustar_a_calles.py); --sin-calles lo omite.
 Escribe public/data/rapido/capa_<capa>.js y lo agrega a indice.js. Necesita: pip install pymupdf numpy shapely
 """
-import json, os, random, re, sys, urllib.parse, urllib.request
+import json, os, random, re, sys, time, urllib.parse, urllib.request
 import numpy as np
 import pymupdf
 
 AGREGAR = '--agregar' in sys.argv
+# --ruta-roja: plano de UNA ruta (Z4R01DOM_PM_2026.pdf): la ruta es el trazo rojo puro de 0,96 (no el de 1,92 de colores
+# de los macro); se descarta la muestra de la leyenda (debajo de «CONVENCIONES») y todo va al único código del plano
+RUTA_ROJA = '--ruta-roja' in sys.argv
 PDF, CAPA, DESC, JORNADA = [a for a in sys.argv[1:] if not a.startswith('--')][:4]
 AQUI = os.path.dirname(os.path.abspath(__file__))
 SALIDA = os.path.join(AQUI, '..', 'public', 'data', 'rapido')
@@ -42,7 +45,8 @@ for t, p in lineas_txt:
     m = re.match(r'^(Cl|Cll|Cr)\.?\s*(\d+[A-Z]?)$', t)
     if m: calles.append((('Calle ' if m.group(1).startswith('Cl') else 'Carrera ') + m.group(2), p))
 def nombre_ruta(t):
-    if re.match(r'^Z\d+R\d+[A-Z]?(?:_[A-Z]+|NOC)$', t): return t
+    # Z7R191B_DOM, Z2R01_SCTDOM, Z7R417NOC, y los de 2025-2026 sin guion: Z1R19DOM, Z1R01DOM_PM, Z5R01NOC_DOM
+    if re.match(r'^Z\d+R\d+(?:[A-Z]?_[A-Z]+|[A-Z]?NOC(?:_DOM)?|[A-Z]*DOM(?:_PM)?)$', t): return t
     if re.match(r'^Z\d+R\d+LaS$', t, re.I): return t.upper()
     m = re.match(r'^0(\d)(\d{3})\d{2}$', t)
     return m and 'Z%sR%sLAS' % m.groups()
@@ -50,10 +54,17 @@ rutas_txt = [(nombre_ruta(t), p) for t, p in lineas_txt if nombre_ruta(t)]
 print(len(calles), 'nombres de calle,', len(rutas_txt), 'nombres de ruta')
 
 # ---------- Calles de OpenStreetMap alrededor del plano (se ubica a ojo: el centro de Medellín) ----------
+CACHE_NOMBRES = os.path.join(AQUI, '.cache_osm_calles_nombre.json')  # no se versiona (como .cache_osm_vias.json)
 def osm(bbox):
+    # Se descarga una vez y sirve 60 días: así una tanda de planos no le pide lo mismo a Overpass cada vez
+    if os.path.exists(CACHE_NOMBRES) and time.time() - os.path.getmtime(CACHE_NOMBRES) < 60 * 86400:
+        guardado = json.load(open(CACHE_NOMBRES, encoding='utf-8'))
+        if guardado.get('bbox') == bbox: return guardado['elements']
     q = '[out:json][timeout:90];way["highway"]["name"](%s);out body geom;' % bbox
     req = urllib.request.Request('https://overpass-api.de/api/interpreter', urllib.parse.urlencode({'data': q}).encode(), headers={'User-Agent': 'microrutas-interventoria'})
-    return json.load(urllib.request.urlopen(req, timeout=120))['elements']
+    elementos = json.load(urllib.request.urlopen(req, timeout=120))['elements']
+    json.dump({'bbox': bbox, 'elements': elementos}, open(CACHE_NOMBRES, 'w', encoding='utf-8'))
+    return elementos
 por_nombre, nodos_nombre, coord = {}, {}, {}
 for e in osm('6.15,-75.70,6.35,-75.48'):
     g = np.array([a_m(p['lat'], p['lon']) for p in e['geometry']])
@@ -106,7 +117,7 @@ def ubicar(junto, margen):
 # Los planos vienen a distinta escala (el de la Zona 7 Noche es apaisado y más alejado que el de domingos): se prueban
 # varias distancias entre nombres, en orden, y se queda la primera que cuadra (o la de menor error si ninguna)
 pruebas = []
-for junto, margen in ((45, 60), (60, 100), (30, 60)):
+for junto, margen in ((45, 60), (60, 100), (30, 60)) + (((90, 120), (130, 160), (180, 220)) if RUTA_ROJA else ()):
     r = ubicar(junto, margen)
     if r: pruebas.append(r)
     if r and r[0] <= 12: break
@@ -121,9 +132,20 @@ def hexa(c): return '#%02x%02x%02x' % tuple(round(v * 255) for v in c)
 # partidas en pedacitos: se juntan los pedazos chicos (< 9 unidades) del mismo color que estén a menos de 6 unidades.
 # El círculo está hecho de muchos tramos cortos; el cuadrado de 4 o 5.
 trazos, pedazos = [], []
+if RUTA_ROJA:
+    # La leyenda (caja de «CONVENCIONES», abajo a la derecha) trae una muestra del trazo rojo: se descarta
+    conv = [p for t, p in lineas_txt if t.upper().startswith('CONVENCIONES')]
+    def en_leyenda(d): return bool(conv) and d['rect'].x1 > conv[0][0] - 60 and d['rect'].y0 > conv[0][1] - 10
+    # El código sale del nombre del archivo (Z4R01DOM_PM_2026.pdf → Z4R01DOM_PM): algunos planos traen rótulos viejos
+    base = re.sub(r'_(?:19|20)\d\d$', '', os.path.splitext(os.path.basename(PDF))[0]).upper()
+    if not nombre_ruta(base): sys.exit('El nombre del archivo no es un código de ruta: ' + base)
+    rotulo = [p for t, p in lineas_txt if t.upper() == base]
+    rutas_txt = [(base, rotulo[0] if rotulo else np.array([page.rect.width / 2, page.rect.height / 2]))]
 for d in page.get_drawings():
     col = d.get('color')
-    if not col or abs((d.get('width') or 0) - 1.92) > 0.05: continue
+    if RUTA_ROJA:
+        if not col or tuple(round(v, 2) for v in col) != (1.0, 0.0, 0.0) or abs((d.get('width') or 0) - 0.96) > 0.05 or en_leyenda(d): continue
+    elif not col or abs((d.get('width') or 0) - 1.92) > 0.05: continue
     lineas, act = [], None
     for it in d['items']:
         if it[0] != 'l': continue
@@ -196,7 +218,11 @@ for t in sorted(rutas):
     r = rutas[t]
     if not r['trazos']: continue
     g = [codificar(aplicar(M, l)) for i in r['trazos'] for l in trazos[i]['lineas'] if len(l) > 1]
-    it = {'n': t, 'z': DESC, 'j': JORNADA, 'c': r['color'], 'g': g}
+    color = r['color']
+    if RUTA_ROJA:  # todas vienen en rojo: un color por número de ruta para distinguir las vecinas en el mapa
+        PALETA = ['#e6194b', '#3cb44b', '#4363d8', '#f58231', '#911eb4', '#42d4f4', '#f032e6', '#9a6324', '#469990', '#800000']
+        color = PALETA[int(re.match(r'Z\d+R(\d+)', t).group(1)) % len(PALETA)]
+    it = {'n': t, 'z': DESC, 'j': JORNADA, 'c': color, 'g': g}
     for k in ('i', 'f'):
         if r.get(k): it[k] = [a_ll_pdf(p) for p in r[k]]
     items.append(it)
@@ -210,7 +236,9 @@ ruta_js = os.path.join(SALIDA, 'capa_%s.js' % CAPA)
 if AGREGAR and os.path.exists(ruta_js):
     antes = open(ruta_js, encoding='utf-8').read()
     antes = json.loads(antes[antes.index(',') + 1:antes.rindex(')')])['items']
-    items = [x for x in antes if x.get('z') != DESC] + items
+    # Un macro reemplaza todo lo de su descripción; un plano de una ruta (--ruta-roja), solo esa ruta
+    nuevos = set(x['n'] for x in items)
+    items = [x for x in antes if x.get('z') != DESC or (RUTA_ROJA and x['n'] not in nuevos)] + items
 js = 'cargarCapa(%s,%s);\n' % (json.dumps(CAPA), json.dumps({'tipo': 'linea', 'items': items}, ensure_ascii=False, separators=(',', ':')))
 open(ruta_js, 'w', encoding='utf-8').write(js)
 kb = round(len(js.encode()) / 1024)
