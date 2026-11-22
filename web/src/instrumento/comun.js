@@ -71,10 +71,18 @@ export function textoOperarios(n) {
     return n === 10 ? '10.' : n === 12 ? '12.' : String(n);
 }
 
-// Si Chrome abre el formulario con otra cuenta de Google («Necesitas acceso»), /u/N/ elige la N-ésima cuenta del navegador
+// Abrir con la cuenta institucional aunque Chrome tenga otra por defecto («Necesitas acceso»): con el correo, Google usa
+// authuser=correo; con un número (forma vieja), /u/N/ elige la N-ésima cuenta del navegador
+export function esCorreo(t) { return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(t || '').trim()); }
 export function conCuenta(url, cuenta) {
     var n = String(cuenta == null ? '' : cuenta).trim();
+    if (esCorreo(n)) return url + (url.indexOf('?') === -1 ? '?' : '&') + 'authuser=' + encodeURIComponent(n);
     return /^\d$/.test(n) ? url.replace('/forms/d/', '/forms/u/' + n + '/d/') : url;
+}
+// Pantalla de Google para entrar o elegir la cuenta, y de ahí al formulario
+export function enlaceLogin(cuenta, destino) {
+    var n = String(cuenta || '').trim();
+    return 'https://accounts.google.com/AccountChooser?' + (esCorreo(n) ? 'Email=' + encodeURIComponent(n) + '&' : '') + 'continue=' + encodeURIComponent(destino);
 }
 
 // ---------- 📅 2026 Instrumento Domingos (LV y RyT de domingos y festivos) ----------

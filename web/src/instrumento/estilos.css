@@ -1,5 +1,5 @@
 /* instrumento.html (usa también los estilos generales de subsanaciones). Clases con prefijo ins- */
-main.ins { max-width: 860px; margin: 0 auto; padding: 14px 16px 40px; }
+main.ins { max-width: 1600px; margin: 0 auto; padding: 14px 16px 40px; }
 .ins-panel { padding: 16px 18px; display: grid; gap: 12px; }
 .ins-panel h2 { margin: 0; font-size: 17px; }
 .ins-panel .sub { margin: 0; line-height: 1.45; }
@@ -81,3 +81,20 @@ main.ins { max-width: 860px; margin: 0 auto; padding: 14px 16px 40px; }
 .lote-sin { padding: 8px 10px; border-radius: 8px; background: #fff7ed; border: 1px solid #fed7aa; display: grid; gap: 6px; }
 #lote-contratistas-caja[hidden] { display: none; }
 .lote-contratistas { display: grid; gap: 6px; }
+/* Cuenta de Google (arriba) */
+.ins-cuenta { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; padding: 10px 14px; margin-bottom: 14px; border: 1px solid var(--line); border-radius: 12px; background: #fff; }
+.ins-cuenta-tit { font-weight: 700; font-size: 14px; }
+#ins-cuenta { flex: 1 1 260px; min-width: 0; max-width: 420px; width: auto; min-height: 40px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 14px; }
+#ins-login { min-height: 40px; }
+.ins-cuenta .sub { flex: 1 1 220px; margin: 0; font-size: 12.5px; }
+.ins-cuenta .ins-ok { color: #166534; }
+/* Dos columnas en pantalla ancha: el formulario a la izquierda; Varias de una vez y lo abierto a la derecha */
+.ins-cols { display: grid; gap: 16px; align-items: start; }
+.ins-izq, .ins-der { display: grid; gap: 14px; min-width: 0; align-content: start; }
+.ins-der .lote { margin-top: 0; }
+.ins-hist-panel h2 { margin: 0; font-size: 16px; }
+@media (min-width: 1180px) {
+    .ins-cols { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+    /* El formulario queda a la vista mientras se recorre la lista de la derecha */
+    .ins-izq { position: sticky; top: 12px; max-height: calc(100vh - 24px); overflow-y: auto; scrollbar-width: thin; }
+}

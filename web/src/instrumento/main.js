@@ -9,7 +9,7 @@ import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast } from '../subsanaciones/ui.js';
 import { hoy } from '../diario/comun.js';
-import { OPCIONES, vacio, comunaDe, aliadoDe, enlace, faltantes, desdeRevision, conCuenta,
+import { OPCIONES, vacio, comunaDe, aliadoDe, enlace, faltantes, desdeRevision, conCuenta, enlaceLogin, esCorreo, FORMULARIO, DOMINGOS,
     OPC_DOM, PERSONAL, SERVICIO, vacioDom, contratistaDe, enlaceDom, faltantesDom, desdeRevisionDom } from './comun.js';
 import { iniciarLote, repintarLote, marcarAbierta, guardarAjuste } from './lote_ui.js';
 
@@ -121,6 +121,11 @@ function pintarHistorial() {
             '<button type="button" class="secundario pequeno" data-quitar="' + i + '" aria-label="Quitar">✕</button></span></li>';
     }).join('') : '<li class="sub">Aún no ha abierto ninguno desde este equipo.</li>';
 }
+function pintarCuenta() {
+    var c = String(pref.cuenta || '').trim();
+    $('ins-cuenta-estado').textContent = esCorreo(c) ? '✓ Los formularios se abren con esta cuenta.' : c ? 'Escriba el correo completo.' : 'Si Google dice «Necesitas acceso», escriba aquí su correo institucional.';
+    $('ins-cuenta-estado').className = 'sub' + (esCorreo(c) ? ' ins-ok' : '');
+}
 function urlActual() { return conCuenta(tipo === 'dom' ? enlaceDom(datosDom) : enlace(datos), pref.cuenta); }
 function abrir() {
     if ((tipo === 'dom' ? faltantesDom(datosDom) : faltantes(datos)).length) return;
@@ -160,6 +165,7 @@ async function arrancar() {
     datosDom = Object.assign(vacioDom(hoy(), pref), leer(BORRADOR_DOM, {}) || {});
     $('ins-comunas').innerHTML = COMUNAS_SUGERIDAS().map(function (c) { return '<option value="' + esc(c) + '">'; }).join('');
     $('ins-cuenta').value = pref.cuenta || '';
+    pintarCuenta();
     iniciarLote({
         tipo: function () { return tipo; },
         base: function () { return editando ? plantillaDom : datosDom; },
@@ -192,7 +198,8 @@ async function arrancar() {
     pintar(); pintarHistorial();
 
     $('ins-tipos').onclick = function (ev) { var b = ev.target.closest('[data-tipo]'); if (b) { tipo = b.dataset.tipo; guardar(TIPO, tipo); pintar(); } };
-    $('ins-cuenta').oninput = function () { pref.cuenta = $('ins-cuenta').value.trim(); guardar(PREF, pref); };
+    $('ins-cuenta').oninput = function () { pref.cuenta = $('ins-cuenta').value.trim(); guardar(PREF, pref); pintarCuenta(); };
+    $('ins-login').onclick = function () { window.open(enlaceLogin(pref.cuenta, tipo === 'dom' ? DOMINGOS : FORMULARIO), '_blank', 'noopener'); };
     $('ins-form').addEventListener('input', function (ev) {
         var el = ev.target.closest('[data-campo]');
         if (!el) return;

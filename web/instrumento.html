@@ -67,67 +67,76 @@
     </details>
 </header>
 <main class="ins">
-    <section class="panel ins-panel">
-        <h2>🧾 Instrumentos de Google</h2>
-        <p class="sub">Elija el formulario, llene lo del día (o tráigalo de una revisión) y toque «Abrir formulario lleno»: se abre el formulario de Google con todo puesto, en su cuenta de Google. Revise y pulse <b>Enviar</b> allá (la app no lo envía). El inspector y lo de cada zona quedan guardados en este equipo para la próxima.</p>
-        <div class="ins-chips ins-tipos" id="ins-tipos" role="group" aria-label="Formulario">
-            <button type="button" class="ins-chip" data-tipo="choque">⚡ V3 Instrumento plan de choque</button>
-            <button type="button" class="ins-chip" data-tipo="dom">📅 2026 Instrumento Domingos</button>
-        </div>
-        <div class="ins-traer"><b id="ins-titulo-traer">⚡ Traer de mi revisión</b><div class="ins-chips" id="ins-revisiones"><span class="sub">Leyendo…</span></div></div>
-        <datalist id="ins-comunas"></datalist>
-        <datalist id="ins-rutas"></datalist>
-        <div class="ins-ajustando" id="ins-ajustando" hidden><span id="ins-ajustando-txt"></span>
-            <span class="ins-acc"><button type="button" class="secundario pequeno" id="ins-ajustando-cancelar">Cancelar</button><button type="button" class="primario pequeno" id="ins-ajustando-listo">✓ Guardar en la fila</button></span></div>
-        <div id="ins-form"></div>
-        <p class="ins-falta" id="ins-falta" role="status"></p>
-        <div class="ins-pie">
-            <button type="button" class="secundario" id="ins-nuevo">↺ Nuevo</button>
-            <button type="button" class="secundario" id="ins-copiar">🔗 Copiar enlace</button>
-            <button type="button" class="primario" id="ins-abrir">📝 Abrir formulario lleno</button>
-        </div>
-    </section>
-    <section class="panel ins-panel lote" id="lote" hidden>
-        <div class="lote-titulo"><h2>📋 Varias de una vez</h2><span class="sub" id="lote-cuenta"></span></div>
-        <p class="sub">Para todas las rutas del día: lo de arriba (inspector, fecha, respuestas) sirve de base para todas; cada fila trae su ruta, su zona y las novedades de su revisión si la registró.</p>
-        <div class="lote-paso"><b>1. Pegue el reporte del día</b>
-            <textarea id="lote-texto" rows="5" placeholder="Pegue aquí el reporte tal cual: Zona 1 / - Z1R19DOM / … / Placa KTN355: realizando actividad C683…"></textarea>
-            <div class="ins-acc"><button type="button" class="secundario" id="lote-vaciar">Vaciar lista</button><button type="button" class="primario" id="lote-armar">Armar filas</button></div>
-        </div>
-        <div id="lote-pasos" hidden>
-            <div class="lote-paso"><b>2. Fotos → un PDF por ruta</b>
-                <p class="sub" id="lote-fotos-estado"></p>
-                <div class="ins-acc">
-                    <label class="boton secundario lote-elegir">📷 Elegir fotos o .zip<input type="file" id="lote-archivos" accept="image/*,.zip" multiple hidden></label>
-                    <button type="button" class="secundario" id="lote-marca" hidden></button>
-                    <button type="button" class="primario" id="lote-pdfs" disabled>⬇️ Descargar los PDF (.zip)</button>
-                </div>
-                <div id="lote-sin" class="lote-sin" hidden><b>Fotos sin ruta</b> <span class="sub">(elija a qué fila van)</span><ul class="lote-fotos" id="lote-sin-lista"></ul></div>
+    <div class="ins-cuenta" id="ins-cuenta-barra">
+        <span class="ins-cuenta-tit">🔐 Cuenta de Google</span>
+        <input id="ins-cuenta" type="email" inputmode="email" autocomplete="email" placeholder="Su correo institucional (ej.: nombre@colmayor.edu.co)" aria-label="Correo institucional de Google">
+        <button type="button" class="secundario" id="ins-login">Iniciar sesión / elegir cuenta</button>
+        <span class="sub" id="ins-cuenta-estado"></span>
+    </div>
+    <div class="ins-cols">
+        <div class="ins-izq">
+        <section class="panel ins-panel">
+            <h2>🧾 Instrumentos de Google</h2>
+            <p class="sub">Elija el formulario, llene lo del día (o tráigalo de una revisión) y toque «Abrir formulario lleno»: se abre el formulario de Google con todo puesto, en su cuenta de Google. Revise y pulse <b>Enviar</b> allá (la app no lo envía). El inspector y lo de cada zona quedan guardados en este equipo para la próxima.</p>
+            <div class="ins-chips ins-tipos" id="ins-tipos" role="group" aria-label="Formulario">
+                <button type="button" class="ins-chip" data-tipo="choque">⚡ V3 Instrumento plan de choque</button>
+                <button type="button" class="ins-chip" data-tipo="dom">📅 2026 Instrumento Domingos</button>
             </div>
-            <div class="lote-paso"><b>3. Enlace de Drive</b>
-                <div class="ins-chips" id="lote-modo" role="group" aria-label="Cómo va el enlace">
-                    <button type="button" class="ins-chip" data-modo="carpeta">📁 Una carpeta para todas</button>
-                    <button type="button" class="ins-chip" data-modo="fila">🔗 Un enlace por ruta</button>
-                </div>
-                <div id="lote-carpeta-caja"><input id="lote-carpeta" type="url" inputmode="url" placeholder="Enlace de la carpeta de Drive con los PDF (compartida: cualquiera con el enlace)"></div>
-                <div id="lote-enlaces-caja" hidden><p class="sub">Escriba cada enlace en su fila, o péguelos todos aquí en el mismo orden de la lista (en Drive: seleccione los PDF en ese orden → Compartir → Copiar enlaces).</p>
-                    <textarea id="lote-enlaces" rows="3" placeholder="https://drive.google.com/…&#10;https://drive.google.com/…"></textarea>
-                    <div class="ins-acc"><button type="button" class="secundario" id="lote-repartir">Repartir en orden</button></div></div>
+            <div class="ins-traer"><b id="ins-titulo-traer">⚡ Traer de mi revisión</b><div class="ins-chips" id="ins-revisiones"><span class="sub">Leyendo…</span></div></div>
+            <datalist id="ins-comunas"></datalist>
+            <datalist id="ins-rutas"></datalist>
+            <div class="ins-ajustando" id="ins-ajustando" hidden><span id="ins-ajustando-txt"></span>
+                <span class="ins-acc"><button type="button" class="secundario pequeno" id="ins-ajustando-cancelar">Cancelar</button><button type="button" class="primario pequeno" id="ins-ajustando-listo">✓ Guardar en la fila</button></span></div>
+            <div id="ins-form"></div>
+            <p class="ins-falta" id="ins-falta" role="status"></p>
+            <div class="ins-pie">
+                <button type="button" class="secundario" id="ins-nuevo">↺ Nuevo</button>
+                <button type="button" class="secundario" id="ins-copiar">🔗 Copiar enlace</button>
+                <button type="button" class="primario" id="ins-abrir">📝 Abrir formulario lleno</button>
             </div>
-            <div class="lote-paso" id="lote-contratistas-caja"><b>Contratista de cada zona</b> <span class="sub">(se elige una vez y queda para la próxima)</span><div class="lote-contratistas" id="lote-contratistas"></div></div>
-            <b class="lote-paso-tit">4. Abrir cada uno y pulsar «Enviar» en Google</b>
-            <ul class="lote-filas" id="lote-filas"></ul>
+        </section>
         </div>
-        <p class="nota-privada">La lista queda en este equipo hasta «Vaciar lista». Las fotos no se guardan: si cierra la página, vuelva a elegirlas para armar los PDF.</p>
-    </section>
-    <h2 class="ins-cab-hist">Abiertos desde este equipo</h2>
-    <ul class="ins-hist" id="ins-hist"></ul>
-    <details class="ins-ajuste">
-        <summary>⚙ ¿Google dice «Necesitas acceso»?</summary>
-        <p class="sub">Pasa cuando Chrome abre el formulario con otra cuenta de Google (la personal). Escriba aquí el número de la cuenta institucional en ese navegador (0 es la primera de la lista de cuentas, 1 la segunda…) y vuelva a abrirlo. Vacío: la que Chrome tenga por defecto.</p>
-        <label>Cuenta de Google número <input id="ins-cuenta" inputmode="numeric" maxlength="1" placeholder="Ej.: 1"></label>
-    </details>
-    <p class="nota-privada">🔒 Lo que escribe queda solo en este equipo. El envío lo hace usted en Google, con su sesión.</p>
+        <div class="ins-der">
+        <section class="panel ins-panel lote" id="lote" hidden>
+            <div class="lote-titulo"><h2>📋 Varias de una vez</h2><span class="sub" id="lote-cuenta"></span></div>
+            <p class="sub">Para todas las rutas del día: el formulario de la izquierda (inspector, fecha, respuestas) sirve de base para todas; cada fila trae su ruta, su zona y las novedades de su revisión si la registró.</p>
+            <div class="lote-paso"><b>1. Pegue el reporte del día</b>
+                <textarea id="lote-texto" rows="5" placeholder="Pegue aquí el reporte tal cual: Zona 1 / - Z1R19DOM / … / Placa KTN355: realizando actividad C683…"></textarea>
+                <div class="ins-acc"><button type="button" class="secundario" id="lote-vaciar">Vaciar lista</button><button type="button" class="primario" id="lote-armar">Armar filas</button></div>
+            </div>
+            <div id="lote-pasos" hidden>
+                <div class="lote-paso"><b>2. Fotos → un PDF por ruta</b>
+                    <p class="sub" id="lote-fotos-estado"></p>
+                    <div class="ins-acc">
+                        <label class="boton secundario lote-elegir">📷 Elegir fotos o .zip<input type="file" id="lote-archivos" accept="image/*,.zip" multiple hidden></label>
+                        <button type="button" class="secundario" id="lote-marca" hidden></button>
+                        <button type="button" class="primario" id="lote-pdfs" disabled>⬇️ Descargar los PDF (.zip)</button>
+                    </div>
+                    <div id="lote-sin" class="lote-sin" hidden><b>Fotos sin ruta</b> <span class="sub">(elija a qué fila van)</span><ul class="lote-fotos" id="lote-sin-lista"></ul></div>
+                </div>
+                <div class="lote-paso"><b>3. Enlace de Drive</b>
+                    <div class="ins-chips" id="lote-modo" role="group" aria-label="Cómo va el enlace">
+                        <button type="button" class="ins-chip" data-modo="carpeta">📁 Una carpeta para todas</button>
+                        <button type="button" class="ins-chip" data-modo="fila">🔗 Un enlace por ruta</button>
+                    </div>
+                    <div id="lote-carpeta-caja"><input id="lote-carpeta" type="url" inputmode="url" placeholder="Enlace de la carpeta de Drive con los PDF (compartida: cualquiera con el enlace)"></div>
+                    <div id="lote-enlaces-caja" hidden><p class="sub">Escriba cada enlace en su fila, o péguelos todos aquí en el mismo orden de la lista (en Drive: seleccione los PDF en ese orden → Compartir → Copiar enlaces).</p>
+                        <textarea id="lote-enlaces" rows="3" placeholder="https://drive.google.com/…&#10;https://drive.google.com/…"></textarea>
+                        <div class="ins-acc"><button type="button" class="secundario" id="lote-repartir">Repartir en orden</button></div></div>
+                </div>
+                <div class="lote-paso" id="lote-contratistas-caja"><b>Contratista de cada zona</b> <span class="sub">(se elige una vez y queda para la próxima)</span><div class="lote-contratistas" id="lote-contratistas"></div></div>
+                <b class="lote-paso-tit">4. Abrir cada uno y pulsar «Enviar» en Google</b>
+                <ul class="lote-filas" id="lote-filas"></ul>
+            </div>
+            <p class="nota-privada">La lista queda en este equipo hasta «Vaciar lista». Las fotos no se guardan: si cierra la página, vuelva a elegirlas para armar los PDF.</p>
+        </section>
+            <section class="panel ins-panel ins-hist-panel">
+                <h2>Abiertos desde este equipo</h2>
+                <ul class="ins-hist" id="ins-hist"></ul>
+            </section>
+        </div>
+    </div>
+    <p class="nota-privada">🔒 Lo que escribe (y su correo) queda solo en este equipo. El envío lo hace usted en Google, con su sesión.</p>
 </main>
 <div class="toast" id="toast"></div>
 <script type="module" src="/src/instrumento/main.js"></script>

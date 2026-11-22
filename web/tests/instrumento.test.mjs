@@ -78,3 +78,11 @@ test('sección: Instrumentos está en el menú General', async () => {
     assert.equal(s.grupo, 'General');
     assert.equal(s.pagina, 'instrumento.html');
 });
+test('cuenta de Google con el correo: authuser y pantalla para elegir la cuenta', async () => {
+    const { conCuenta, enlaceLogin, DOMINGOS } = await import('../src/instrumento/comun.js');
+    assert.equal(conCuenta(DOMINGOS + '?usp=pp_url&entry.1=a', 'ana@colmayor.edu.co'), DOMINGOS + '?usp=pp_url&entry.1=a&authuser=ana%40colmayor.edu.co');
+    assert.equal(conCuenta(DOMINGOS, 'ana@colmayor.edu.co'), DOMINGOS + '?authuser=ana%40colmayor.edu.co');
+    assert.equal(conCuenta(DOMINGOS, 'ana@'), DOMINGOS, 'correo incompleto: sin cambios');
+    assert.equal(enlaceLogin('ana@colmayor.edu.co', DOMINGOS), 'https://accounts.google.com/AccountChooser?Email=ana%40colmayor.edu.co&continue=' + encodeURIComponent(DOMINGOS));
+    assert.equal(enlaceLogin('', DOMINGOS), 'https://accounts.google.com/AccountChooser?continue=' + encodeURIComponent(DOMINGOS));
+});
