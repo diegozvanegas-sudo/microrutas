@@ -36,8 +36,10 @@ export function fechaCorta(f) {
     return m ? m[3] + '/' + m[2] + '/' + m[1] + ' ' + m[4] + ':' + m[5] : '';
 }
 export function pieDeFoto(n, foto) {
-    return [n + '. ' + foto.nombre, foto.fecha ? fechaCorta(foto.fecha) : 'sin fecha de captura',
-        foto.gps ? foto.gps.lat.toFixed(6) + ', ' + foto.gps.lon.toFixed(6) : 'sin GPS'].join('  ·  ');
+    // Sin GPS no se pone nada (ni el aviso)
+    var partes = [n + '. ' + foto.nombre, foto.fecha ? fechaCorta(foto.fecha) : 'sin fecha de captura'];
+    if (foto.gps) partes.push(foto.gps.lat.toFixed(6) + ', ' + foto.gps.lon.toFixed(6));
+    return partes.join('  ·  ');
 }
 
 // Rótulo grande sobre la foto (p. ej. "Lote 477 · Z2CC0257"): franja oscura abajo a la izquierda con letra blanca,

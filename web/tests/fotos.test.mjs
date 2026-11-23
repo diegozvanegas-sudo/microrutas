@@ -46,5 +46,6 @@ test('orden por fecha de la foto (sin fecha: la del archivo) o por nombre', () =
 test('pie de foto con fecha, hora y GPS, o el aviso de lo que falta', () => {
   assert.equal(fechaCorta('2026-10-22 08:15:03'), '22/10/2026 08:15');
   assert.equal(pieDeFoto(3, { nombre: 'a.jpg', fecha: '2026-10-22 08:15:03', gps: { lat: 6.251833, lon: -75.563583 } }), '3. a.jpg  ·  22/10/2026 08:15  ·  6.251833, -75.563583');
-  assert.equal(pieDeFoto(1, { nombre: 'b.jpg', fecha: null, gps: null }), '1. b.jpg  ·  sin fecha de captura  ·  sin GPS');
+  assert.equal(pieDeFoto(1, { nombre: 'b.jpg', fecha: null, gps: null }), '1. b.jpg  ·  sin fecha de captura');
+  assert.equal(pieDeFoto(4, { nombre: '218834.jpg', fecha: '2026-11-22 11:22:13', gps: null }), '4. 218834.jpg  ·  22/11/2026 11:22');
 });
