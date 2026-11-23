@@ -8,8 +8,8 @@ import { recorteMarca, coordenadasMarca, fechaMarca } from '../subsanaciones/mar
 import { leerImagenes } from '../subsanaciones/ocr.js';
 import { imagenesDeZips, descargar } from '../subsanaciones/zippdf.js';
 import { enlaceDom, faltantesDom, conCuenta, desdeRevisionDom, PERSONAL, SERVICIO, OPC_DOM } from './comun.js';
-import { subirPdf, nombreCarpeta, idCliente } from '../drive.js';
-import { leerReporte, datosDeFila, tramosDe, filaDeFoto, nombrePdf, repartirEnlaces } from './lote.js';
+import { subirPdf, nombreCarpeta, idCliente, buscarEnlaces, carpetaBuscada } from '../drive.js';
+import { leerReporte, datosDeFila, tramosDe, filaDeFoto, nombrePdf, repartirEnlaces, elementosDeFilas } from './lote.js';
 
 var LOTE = 'instrumento_lote';
 var ctx = null, estado = { filas: [], modo: 'carpeta', carpeta: '' }, fotos = [], geo = null, ocupado = false, abiertasFotos = {};
@@ -234,6 +234,23 @@ export function iniciarLote(c) {
     };
     $('lote-pdfs').onclick = descargarPdfs;
     $('lote-subir').onclick = subirTodos;
+    $('lote-carpeta-buscar').value = carpetaBuscada();
+    // 🔎 Buscar enlaces: lee la carpeta (buscarEnlaces de drive.js, el mismo para cualquier sección) y llena cada fila
+    $('lote-buscar').onclick = async function () {
+        var url = $('lote-carpeta-buscar').value.trim(), b = this;
+        if (!url) return toast('Pegue el enlace de la carpeta de Drive.');
+        if (!estado.filas.length) return toast('Primero arme las filas con el reporte del día.');
+        b.disabled = true; b.textContent = 'Buscando…'; $('lote-buscar-txt').textContent = 'Leyendo la carpeta…';
+        try {
+            var r = await buscarEnlaces(url, elementosDeFilas(estado.filas)), nombre = function (id) { var f = estado.filas.filter(function (x) { return x.id === id; })[0]; return f ? f.ruta + (f.nota ? ' (' + f.nota + ')' : '') : id; };
+            estado.filas.forEach(function (f) { if (r.enlaces[f.id]) f.enlace = r.enlaces[f.id]; });
+            estado.modo = 'fila'; guardar(); pintar();
+            var puestos = Object.keys(r.enlaces).length;
+            $('lote-buscar-txt').textContent = '✓ ' + puestos + ' de ' + estado.filas.length + ' filas con su enlace (' + r.total + ' archivos en la carpeta).' +
+                (r.sinArchivo.length ? ' Sin archivo: ' + r.sinArchivo.map(nombre).join(', ') + '.' : '') + (r.sobran.length ? ' No se usaron: ' + r.sobran.join(', ') + '.' : '');
+        } catch (e) { $('lote-buscar-txt').textContent = '⚠ ' + e.message; }
+        b.disabled = false; b.textContent = '🔎 Buscar enlaces';
+    };
     $('lote-modo').onclick = function (ev) { var b = ev.target.closest('[data-modo]'); if (b) { estado.modo = b.dataset.modo; guardar(); pintar(); } };
     $('lote-carpeta').oninput = function () { estado.carpeta = this.value.trim(); guardar(); pintarSinFoco(); };
     $('lote-repartir').onclick = function () {

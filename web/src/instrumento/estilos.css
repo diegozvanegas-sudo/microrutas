@@ -100,3 +100,9 @@ main.ins { max-width: 1600px; margin: 0 auto; padding: 14px 16px 40px; }
 }
 .lote-subir { justify-content: space-between !important; align-items: center; }
 .lote-subir .sub { flex: 1 1 240px; margin: 0; font-size: 12.5px; }
+.lote-buscar { display: grid; gap: 6px; padding: 10px; border-radius: 8px; background: #f0f9ff; border: 1px solid #bae6fd; margin-bottom: 8px; }
+.lote-buscar b { font-size: 13.5px; }
+.lote-buscar .sub { margin: 0; font-size: 12.5px; }
+.lote-buscar-fila { display: flex; flex-wrap: wrap; gap: 8px; }
+.lote-buscar-fila input { flex: 1 1 260px; min-width: 0; min-height: 40px; font: inherit; font-size: 14px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; }
+.lote-buscar-fila button { min-height: 40px; }

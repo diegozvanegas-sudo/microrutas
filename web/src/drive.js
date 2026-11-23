@@ -71,6 +71,90 @@ export function conectar(silencioso) {
     pendiente.then(limpiar, limpiar);
     return pendiente;
 }
+// ---------- Leer una carpeta que hizo la persona (para traer el enlace de cada PDF) ----------
+// drive.file no deja ver lo que no creó la app: para listar una carpeta hecha a mano se pide aparte el permiso de solo
+// ver los nombres (drive.metadata.readonly). No deja abrir, cambiar ni borrar nada. Se pide en el toque del botón
+var ALCANCE_LECTURA = 'https://www.googleapis.com/auth/drive.metadata.readonly', CLAVE_LECTURA = 'drive_token_lectura';
+var lectura = null, venceLectura = 0, pendienteLectura = null;
+try { var l0 = JSON.parse(localStorage.getItem(CLAVE_LECTURA) || 'null'); if (l0 && l0.v > Date.now()) { lectura = l0.t; venceLectura = l0.v; } } catch (e) { /* sin almacenamiento */ }
+export function conectarLectura() {
+    if (lectura && Date.now() < venceLectura) return Promise.resolve(lectura);
+    if (pendienteLectura) return pendienteLectura;
+    var id = idCliente();
+    if (!id) return Promise.reject(new Error('Falta el ID de cliente de Google (⚙ Drive).'));
+    pendienteLectura = new Promise(function (ok, mal) {
+        var pedirL = function () {
+            window.google.accounts.oauth2.initTokenClient({
+                client_id: id, scope: ALCANCE_LECTURA, hint: correoDrive() || undefined,
+                callback: function (r) {
+                    if (r.error) return mal(new Error(r.error === 'access_denied' ? 'No se dio permiso para ver la carpeta.' : 'Google no dio el permiso (' + r.error + ').'));
+                    lectura = r.access_token; venceLectura = Date.now() + (Number(r.expires_in) || 3600) * 1000 - 60000;
+                    try { localStorage.setItem(CLAVE_LECTURA, JSON.stringify({ t: lectura, v: venceLectura })); } catch (e) { /* sin almacenamiento */ }
+                    ok(lectura);
+                },
+                error_callback: function (e) { mal(new Error(e && e.type === 'popup_closed' ? 'Se cerró la ventana de Google sin dar permiso.' : 'No se abrió la ventana de Google (¿bloqueador de ventanas?). Vuelva a tocar el botón.')); }
+            }).requestAccessToken({ prompt: '' });
+        };
+        if (window.google && window.google.accounts && window.google.accounts.oauth2) pedirL(); else cargarGis().then(pedirL, mal);
+    });
+    var fin = function () { pendienteLectura = null; };
+    pendienteLectura.then(fin, fin);
+    return pendienteLectura;
+}
+// «https://drive.google.com/drive/u/3/folders/1tr…» → «1tr…» (también acepta el id solo o ?id=)
+export function idCarpeta(url) {
+    var t = String(url || '').trim(), m = /folders\/([\w-]{10,})/.exec(t) || /[?&]id=([\w-]{10,})/.exec(t);
+    return m ? m[1] : /^[\w-]{20,}$/.test(t) ? t : '';
+}
+// Archivos de la carpeta (sin subcarpetas): [{ id, nombre, enlace, tipo }]
+export async function archivosDeCarpeta(url) {
+    var id = idCarpeta(url);
+    if (!id) throw new Error('Ese no parece un enlace de carpeta de Drive (debe tener «/folders/…»).');
+    var t = await conectarLectura(), out = [], pagina = '';
+    do {
+        var q = "'" + id + "' in parents and trashed = false and mimeType != 'application/vnd.google-apps.folder'";
+        var r = await fetch('https://www.googleapis.com/drive/v3/files?pageSize=1000&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=nextPageToken,files(id,name,webViewLink,mimeType)&q=' + encodeURIComponent(q) + (pagina ? '&pageToken=' + pagina : ''),
+            { headers: { Authorization: 'Bearer ' + t } });
+        if (r.status === 401) { lectura = null; try { localStorage.removeItem(CLAVE_LECTURA); } catch (e) { /* nada */ } throw new Error('El permiso venció: vuelva a tocar el botón.'); }
+        if (r.status === 404) throw new Error('No se encontró la carpeta (¿es de otra cuenta? Conecte la cuenta dueña de la carpeta).');
+        if (!r.ok) throw new Error('Drive respondió ' + r.status + ': ' + (await r.text()).slice(0, 160));
+        var d = await r.json();
+        (d.files || []).forEach(function (f) { out.push({ id: f.id, nombre: f.name, enlace: f.webViewLink || 'https://drive.google.com/file/d/' + f.id + '/view', tipo: f.mimeType }); });
+        pagina = d.nextPageToken || '';
+    } while (pagina);
+    return out;
+}
+// ---------- Emparejar archivos con lo que sea (rutas, lotes, placas…), por el nombre: reutilizable ----------
+// Palabras del nombre, sin tildes y en mayúscula: «Z3R17DOM_Parque-Boston_22-11-2026.pdf» → [Z3R17DOM, PARQUE, BOSTON, 22, 11, 2026]
+export function palabrasArchivo(t) { return String(t || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toUpperCase().replace(/\.(PDF|ZIP|JPE?G|PNG|XLSX?|DOCX?|HEIC)$/, '').split(/[^A-Z0-9]+/).filter(Boolean); }
+// archivos: [{ nombre, enlace, tipo }]. elementos: [{ id, claves: [...] (basta una en el nombre), requiere: [...] (todas),
+// evita: [[...], …] (no puede tener todas las de ninguno), prioridad (los de mayor van primero) }].
+// Cada archivo va a un solo elemento; se prefieren los PDF. Devuelve { enlaces: {id: enlace}, archivos: {id: nombre}, sinArchivo: [id], sobran: [nombre] }
+export function emparejarArchivos(archivos, elementos) {
+    var lista = (archivos || []).map(function (a) { return Object.assign({ p: palabrasArchivo(a.nombre), pdf: a.tipo === 'application/pdf' || /\.pdf$/i.test(a.nombre || '') }, a); });
+    var tiene = function (a, w) { return a.p.indexOf(String(w).toUpperCase()) !== -1; };
+    var usados = {}, enlaces = {}, nombres = {};
+    (elementos || []).slice().sort(function (x, y) { return (y.prioridad || 0) - (x.prioridad || 0); }).forEach(function (el) {
+        var cand = lista.filter(function (a) {
+            return !usados[a.enlace] && (el.claves || []).some(function (c) { return tiene(a, c); }) &&
+                (el.requiere || []).every(function (w) { return tiene(a, w); }) &&
+                !(el.evita || []).some(function (g) { return g.length && g.every(function (w) { return tiene(a, w); }); });
+        }).sort(function (a, b) { return (b.pdf ? 1 : 0) - (a.pdf ? 1 : 0); });
+        if (cand.length) { enlaces[el.id] = cand[0].enlace; nombres[el.id] = cand[0].nombre; usados[cand[0].enlace] = 1; }
+    });
+    return { enlaces: enlaces, archivos: nombres, sinArchivo: (elementos || []).filter(function (el) { return !enlaces[el.id]; }).map(function (el) { return el.id; }),
+        sobran: lista.filter(function (a) { return !usados[a.enlace]; }).map(function (a) { return a.nombre; }) };
+}
+// Todo en uno (para cualquier sección): lee la carpeta y le da a cada elemento el enlace de su archivo.
+// Llamarla en el toque del botón (puede pedir el permiso de ver la carpeta). Recuerda la carpeta para la próxima
+export async function buscarEnlaces(carpetaUrl, elementos) {
+    var archivos = await archivosDeCarpeta(carpetaUrl);
+    fijarCarpetaBuscada(carpetaUrl);
+    return Object.assign({ total: archivos.length }, emparejarArchivos(archivos, elementos));
+}
+// Última carpeta leída (para no volver a pegarla)
+export function carpetaBuscada() { return leer('drive_carpeta_busqueda'); }
+export function fijarCarpetaBuscada(v) { guardar('drive_carpeta_busqueda', String(v || '').trim()); }
 export function desconectar() {
     if (token && window.google && window.google.accounts) window.google.accounts.oauth2.revoke(token, function () {});
     token = null; vence = 0; carpetas = {};
@@ -89,7 +173,8 @@ export function nombreDia(fecha) {
     return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : String(fecha || '');
 }
 // Ruta que se muestra: «Instrumentos interventoría › 23-11-2026»
-export function nombreCarpeta(fecha) { return carpetaPrincipal() + ' › ' + nombreDia(fecha); }
+// principal: otra carpeta principal (p. ej. «Subsanaciones»); sin ella, la de los instrumentos
+export function nombreCarpeta(fecha, principal) { return (principal || carpetaPrincipal()) + ' › ' + nombreDia(fecha); }
 // Busca (o crea) una carpeta por nombre dentro de otra ('root' = Mi unidad). Con el permiso drive.file solo se ven las
 // carpetas que creó la app: si la persona hizo una a mano con el mismo nombre, la app crea la suya al lado
 async function carpeta(nombre, padre) {
@@ -105,9 +190,9 @@ async function carpeta(nombre, padre) {
 }
 // Sube el PDF (bytes) a la carpeta del día y lo comparte con enlace. Devuelve { id, enlace }.
 // Si ya hay uno con el mismo nombre en esa carpeta (se volvió a guardar la revisión), lo reemplaza
-export async function subirPdf(bytes, nombre, fecha) {
+export async function subirPdf(bytes, nombre, fecha, principal) {
     await conectar(true);
-    var dir = await carpeta(nombreDia(fecha), await carpeta(carpetaPrincipal(), 'root'));
+    var dir = await carpeta(nombreDia(fecha), await carpeta(principal || carpetaPrincipal(), 'root'));
     guardar(CLAVE_ULTIMA, 'https://drive.google.com/drive/folders/' + dir);
     var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and '" + dir + "' in parents and trashed = false";
     var previo = (await api('https://www.googleapis.com/drive/v3/files?fields=files(id)&q=' + encodeURIComponent(q))).files || [];

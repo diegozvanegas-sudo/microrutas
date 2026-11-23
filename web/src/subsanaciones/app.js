@@ -1058,12 +1058,13 @@ export function iniciar(api, CFG) {
     // ---------- 📷 Fotos → PDF → Drive (EVIDENCIA de la visita) ----------
     // Sin Drive conectado, el botón conecta primero (la ventana de Google tiene que salir en el toque, no después de
     // armar el PDF). Conectado: elige las fotos, arma el PDF, lo sube a «carpeta principal › día» y pega el enlace
-    var evSubiendo = false;
+    // Carpeta propia en «Mi unidad»: Subsanaciones › carpeta del día (aparte de los instrumentos)
+    var CARPETA_SUBS = 'Subsanaciones', evSubiendo = false;
     function pintarEvDrive(texto) {
         var c = driveConectado();
         $('ev-drive').textContent = evSubiendo ? 'Subiendo…' : c ? '📷 Fotos → PDF → Drive' : '☁️ Conectar Drive para subir fotos';
         $('ev-drive').disabled = evSubiendo || !driveId();
-        $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a su Drive y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.');
+        $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a su Drive (Mi unidad › ' + CARPETA_SUBS + ' › carpeta del día) y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.');
     }
     $('ev-drive').onclick = function () {
         if (driveConectado()) { $('ev-fotos').value = ''; return $('ev-fotos').click(); }
@@ -1083,10 +1084,10 @@ export function iniciar(api, CFG) {
             if (!pdf.bytes) throw new Error('ninguna foto se pudo poner en el PDF');
             pintarEvDrive('Subiendo a Drive…');
             try {
-                var sub = await subirPdf(pdf.bytes, pdf.nombre, f);
+                var sub = await subirPdf(pdf.bytes, pdf.nombre, f, CARPETA_SUBS);
                 var campo = form.querySelector('[data-campo="EVIDENCIA"]');
                 campo.value = sub.enlace; campo.dispatchEvent(new Event('input', { bubbles: true }));
-                evSubiendo = false; pintarEvDrive('✓ Subido a ' + nombreCarpeta(f) + ' (' + sub.compartido + '). Enlace en EVIDENCIA: falta Guardar.');
+                evSubiendo = false; pintarEvDrive('✓ Subido a Mi unidad › ' + nombreCarpeta(f, CARPETA_SUBS) + ' (' + sub.compartido + '). Enlace en EVIDENCIA: falta Guardar.');
             } catch (e) {
                 descargar(pdf.bytes, pdf.nombre, 'application/pdf');
                 evSubiendo = false; pintarEvDrive('⚠ No se pudo subir (' + e.message + '). Se descargó el PDF: súbalo y pegue el enlace.');

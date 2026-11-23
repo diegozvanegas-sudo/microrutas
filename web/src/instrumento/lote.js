@@ -1,6 +1,7 @@
 // 🧾 Instrumentos · «Varias de una vez» (formulario de domingos): del reporte pegado a una fila por ruta o vehículo, y cada
 // foto del día a la ruta que pasa más cerca (trazos de la capa Barrido dom/fest del mapa). Sin pantalla, para npm test.
 import { vacioDom, zonaDom, contratistaDe } from './comun.js';
+import { emparejarArchivos, palabrasArchivo } from '../drive.js';
 
 // Reporte de WhatsApp → filas. Entiende «Zona 3» como encabezado, «- Z3R17DOM (Parque Boston)» como ruta con nota y
 // «Placa KTN355: realizando actividad C683 (recolección)» como vehículo de RyT. Una ruta repetida con otra nota es otra fila
@@ -94,4 +95,21 @@ export function repartirEnlaces(texto, filas) {
     var out = {};
     filas.forEach(function (f, i) { if (enlaces[i]) out[f.id] = enlaces[i]; });
     return { enlaces: out, sobran: Math.max(0, enlaces.length - filas.length), faltan: Math.max(0, filas.length - enlaces.length) };
+}
+
+// Archivos de una carpeta de Drive → enlace de cada fila, por el nombre del archivo (emparejarArchivos de drive.js):
+// «Z1R19DOM_22-11-2026.pdf» → Z1R19DOM; «KTN355-c683_22-11-2026.pdf» → el vehículo C683 (placa KTN355);
+// «Z3R17DOM_Parque-Boston_….pdf» → la fila Z3R17DOM (Parque Boston) y el otro Z3R17DOM → la fila sin nota.
+export function elementosDeFilas(filas) {
+    var notas = {};
+    filas.forEach(function (f) { if (f.nota && f.tipo !== 'ryt') (notas[f.ruta] = notas[f.ruta] || []).push(palabrasArchivo(f.nota)); });
+    return filas.map(function (f) {
+        var np = f.nota ? palabrasArchivo(f.nota.replace(/^placa\s*/i, '')) : [];
+        if (f.tipo === 'ryt') return { id: f.id, claves: [f.ruta].concat(np), prioridad: 1 };   // vehículo: la actividad o la placa
+        return { id: f.id, claves: [f.ruta], requiere: np, evita: np.length ? [] : notas[f.ruta] || [], prioridad: np.length ? 2 : 0 };
+    });
+}
+export function enlacesDeArchivos(archivos, filas) {
+    var r = emparejarArchivos(archivos, elementosDeFilas(filas)), nombre = function (id) { var f = filas.filter(function (x) { return x.id === id; })[0]; return f.ruta + (f.nota ? ' (' + f.nota + ')' : ''); };
+    return { enlaces: r.enlaces, archivos: r.archivos, sinArchivo: r.sinArchivo.map(nombre), sobran: r.sobran };
 }

@@ -121,7 +121,12 @@
                         <button type="button" class="ins-chip" data-modo="fila">🔗 Un enlace por ruta</button>
                     </div>
                     <div id="lote-carpeta-caja"><input id="lote-carpeta" type="url" inputmode="url" placeholder="Enlace de la carpeta de Drive con los PDF (compartida: cualquiera con el enlace)"></div>
-                    <div id="lote-enlaces-caja" hidden><p class="sub">Escriba cada enlace en su fila, o péguelos todos aquí en el mismo orden de la lista (en Drive: seleccione los PDF en ese orden → Compartir → Copiar enlaces).</p>
+                    <div id="lote-enlaces-caja" hidden>
+                    <div class="lote-buscar"><b>🔎 Buscar el enlace de cada PDF en una carpeta de Drive</b>
+                        <p class="sub">Pegue el enlace de la carpeta donde subió los PDF: cada uno va a su fila por el nombre (Z1R19DOM_… → Z1R19DOM; KTN355-c683_… → el vehículo C683). La primera vez Google pide permiso para ver los nombres de los archivos (no puede cambiar nada).</p>
+                        <div class="lote-buscar-fila"><input id="lote-carpeta-buscar" type="url" inputmode="url" placeholder="https://drive.google.com/drive/folders/…"><button type="button" class="primario" id="lote-buscar">🔎 Buscar enlaces</button></div>
+                        <p class="sub" id="lote-buscar-txt" role="status"></p></div>
+                    <p class="sub">O escriba cada enlace en su fila, o péguelos todos aquí en el mismo orden de la lista (en Drive: seleccione los PDF en ese orden → Compartir → Copiar enlaces).</p>
                         <textarea id="lote-enlaces" rows="3" placeholder="https://drive.google.com/…&#10;https://drive.google.com/…"></textarea>
                         <div class="ins-acc"><button type="button" class="secundario" id="lote-repartir">Repartir en orden</button></div></div>
                 </div>

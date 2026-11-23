@@ -61,3 +61,17 @@ test('PDF y enlaces pegados de una vez', () => {
     const filas = [{ id: 'a' }, { id: 'b' }, { id: 'c' }];
     assert.deepEqual(repartirEnlaces('https://drive.google.com/1\nhttps://drive.google.com/2', filas), { enlaces: { a: 'https://drive.google.com/1', b: 'https://drive.google.com/2' }, sobran: 0, faltan: 1 });
 });
+test('enlaces por nombre de archivo: rutas, vehículos por placa o actividad, y la nota (Parque Boston)', async () => {
+    const { enlacesDeArchivos } = await import('../src/instrumento/lote.js');
+    const filas = leerReporte('Zona 1\n- Z1R19DOM\n- Z1R03DOM\nZona 3\n- Z3R17DOM\n- Z3R17DOM (Parque Boston)\n- Placa KTN355: realizando actividad C683 (recolección)\n- Placa WMO327: realizando actividad C583 (recolección)');
+    const nombres = ['Z1R19DOM_22-11-2026.pdf', 'Z1R19DOM.zip', 'Z3R17DOM_22-11-2026.pdf', 'Z3R17DOM_Parque-Boston_22-11-2026.pdf', 'KTN355-c683_22-11-2026.pdf', 'WMO327-C583_22-11-2026.pdf', 'Z3R02DOM_22-11-2026.pdf'];
+    const archivos = nombres.map((n, i) => ({ nombre: n, enlace: 'https://drive.google.com/file/d/' + i + '/view', tipo: /pdf$/.test(n) ? 'application/pdf' : 'application/zip' }));
+    const r = enlacesDeArchivos(archivos, filas), de = (ruta, nota) => r.enlaces[filas.find((f) => f.ruta === ruta && (f.nota || '') === (nota || '')).id];
+    assert.equal(de('Z1R19DOM'), archivos[0].enlace, 'el PDF antes que el .zip');
+    assert.equal(de('Z3R17DOM'), archivos[2].enlace);
+    assert.equal(de('Z3R17DOM', 'Parque Boston'), archivos[3].enlace);
+    assert.equal(de('C683', 'Placa KTN355'), archivos[4].enlace);
+    assert.equal(de('C583', 'Placa WMO327'), archivos[5].enlace);
+    assert.deepEqual(r.sinArchivo, ['Z1R03DOM']);
+    assert.deepEqual(r.sobran, ['Z1R19DOM.zip', 'Z3R02DOM_22-11-2026.pdf']);
+});
