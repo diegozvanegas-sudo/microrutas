@@ -25,6 +25,7 @@ import { revisarFotos, MAX_FOTOS } from './fotos.js';
 import { leerImagenes, ordenarPorNombre } from './ocr.js';
 import { mezclarRutas, tocaReleer } from './prerutas.js';
 import { iniciarUbicar } from './ubicar_ui.js';
+import { leerLotes as leerLotesVl, cuadrillas as cuadrillasVl, lotesParaElegir, registroDeLote as registroDeLoteVl, nombreLote as nombreLoteVl } from './varios.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
 import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
@@ -705,6 +706,9 @@ export function iniciar(api, CFG) {
         }
         // El tipo no se cambia al editar: cada tipo vive en su propia hoja
         $('tipo-visita').hidden = !!editando;
+        // Varios lotes: solo en una visita nueva que no viene de un lote puntual (pre-ruta, mapa)
+        $('vl-modo').hidden = !!editando || !!contexto;
+        if (!vlGuardando) limpiarVarios();
         aplicarTipo(editando ? (esOp(editando) ? OP : EJ) : tipo || r.TIPO || EJ, r, !editando);
         if (editando && esOp(editando)) $('dlg-titulo').textContent = 'Editar ' + editando.ID + ' · operación';
         mostrarDireccion();
@@ -777,8 +781,11 @@ export function iniciar(api, CFG) {
 
     form.addEventListener('submit', function (ev) {
         ev.preventDefault();
+        if (vlGuardando) return;
         var r = datosFormulario();
-        if (!r.MICRORRUTA && !r.LOTE) { toast('Indique la microrruta o el lote.'); return; }
+        if (varios && !editando) {
+            if (!elegidos.length) { $('vl-texto').focus(); $('vl-panel').scrollIntoView({ block: 'center' }); toast('Elija al menos un lote: escríbalos o márquelos en la lista.'); return; }
+        } else if (!r.MICRORRUTA && !r.LOTE) { toast('Indique la microrruta o el lote.'); return; }
         // Obligatorios: interventor siempre y fecha de ejecución en la visita de lote ejecutado (la de operación no la tiene)
         var falta = function (campo, msg) { var el = form.querySelector('[data-campo="' + campo + '"]'); el.focus(); el.scrollIntoView({ block: 'center' }); toast(msg); };
         if (!String(r.INTERVENTOR || '').trim()) return falta('INTERVENTOR', 'Escriba el interventor (iniciales).');
@@ -799,6 +806,7 @@ export function iniciar(api, CFG) {
                 toast('Quedó en NO. Revise y vuelva a guardar.');
             });
         }
+        if (varios && !editando) return guardarVarios(r);
         seguirGuardando(r);
     });
     function seguirGuardando(r) {
@@ -1151,6 +1159,144 @@ export function iniciar(api, CFG) {
         if (!mrEl.value && mrPorLote[this.value.trim()]) completar(mrPorLote[this.value.trim()]);
         else mostrarReciente();
     });
+
+    // ---------- ➕ Varios lotes a la vez (varios.js) ----------
+    // Una sola visita llenada (fecha, interventor, ítems, observaciones) se guarda en cada lote elegido. Los lotes se
+    // escriben o se marcan en la lista por cuadrilla. Al cerrar la ventana se borra lo elegido; la cuadrilla se recuerda
+    var varios = false, elegidos = [], vlGuardando = false, VL_MAX = 200, PREF_VL_CUAD = 'subsanaciones_vl_cuad';
+    $('vl-cuad').innerHTML = '<option value="">Todas</option>' + cuadrillasVl(LOTES).map(function (c) { return '<option value="' + esc(c) + '">Cuadrilla ' + esc(c) + '</option>'; }).join('');
+    try { var cuadGuardada = localStorage.getItem(PREF_VL_CUAD); if (cuadGuardada && $('vl-cuad').querySelector('option[value="' + cuadGuardada + '"]')) $('vl-cuad').value = cuadGuardada; } catch (e) {}
+    function modoVarios(si) {
+        varios = !!si;
+        form.classList.toggle('varios', varios);
+        $('vl-panel').hidden = !varios;
+        $(varios ? 'vl-varios' : 'vl-uno').checked = true;
+        pintarVarios();
+    }
+    function limpiarVarios() {
+        elegidos = [];
+        $('vl-texto').value = '';
+        $('vl-buscar').value = '';
+        $('vl-malos').hidden = true;
+        $('vl-malos').textContent = '';
+        $('vl-fichas').innerHTML = '';
+        $('vl-lista').innerHTML = '';
+        modoVarios(false);
+    }
+    // ¿Ese lote ya tiene una visita de este tipo el día de la visita? (para avisar, no para impedir)
+    function vlYaHoy(mr) {
+        if (tipoForm === OP) return false;
+        var v = visitaReciente(mr, (LOTES[mr] || {}).lote || '', null, form.querySelector('[data-campo="FECHA DE LA VISITA"]').value);
+        return !!(v && v.d === 0);
+    }
+    function pintarVarios() {
+        $('btn-guardar').textContent = varios && elegidos.length ? 'Guardar ' + elegidos.length + (elegidos.length === 1 ? ' visita' : ' visitas') : 'Guardar';
+        if (!varios) return;
+        var n = elegidos.length, hoyYa = elegidos.filter(vlYaHoy);
+        $('vl-cuenta').textContent = n ? n + (n === 1 ? ' lote elegido' : ' lotes elegidos') + (hoyYa.length ? ' · ⚠ ' + hoyYa.length + ' ya con visita ese día' : '') : 'Ningún lote elegido: escríbalos o márquelos en la lista';
+        $('vl-quitar').hidden = !n;
+        $('vl-fichas').innerHTML = elegidos.map(function (mr) {
+            var ya = hoyYa.indexOf(mr) !== -1;
+            return '<span class="vl-ficha' + (ya ? ' vl-hoy' : '') + '"' + (ya ? ' title="Ya tiene una visita registrada ese día"' : '') + '>' + (ya ? '⚠ ' : '') + esc(nombreLoteVl(mr, LOTES)) +
+                '<button type="button" data-vl-quitar="' + esc(mr) + '" aria-label="Quitar ' + esc(mr) + '">×</button></span>';
+        }).join('');
+        var todos = lotesParaElegir(LOTES, $('vl-cuad').value, $('vl-buscar').value), lista = todos.slice(0, VL_MAX);
+        $('vl-lista').innerHTML = lista.length ? lista.map(function (mr) {
+            var p = LOTES[mr] || {}, ya = vlYaHoy(mr), dir = String(p.d || '').slice(0, 90);
+            return '<label class="vl-lote' + (ya ? ' vl-hoy' : '') + '"><input type="checkbox" value="' + esc(mr) + '"' + (elegidos.indexOf(mr) !== -1 ? ' checked' : '') + '>' +
+                '<span><b>' + esc(nombreLoteVl(mr, LOTES)) + '</b><small>' + [p.cuad ? 'Cuadrilla ' + esc(p.cuad) : '', esc(dir), ya ? '<b>⚠ ya tiene visita ese día</b>' : ''].filter(Boolean).join(' · ') + '</small></span></label>';
+        }).join('') : '<div class="sub" style="padding:10px">Ningún lote coincide con la búsqueda.</div>';
+        var faltan = lista.filter(function (mr) { return elegidos.indexOf(mr) === -1; });
+        $('vl-todos').hidden = !lista.length || !($('vl-cuad').value || $('vl-buscar').value.trim());
+        $('vl-todos').textContent = faltan.length ? '☑ Elegir los ' + lista.length + ' de la lista' : '☐ Quitar los ' + lista.length + ' de la lista';
+        $('vl-mas').textContent = todos.length > VL_MAX ? 'Se muestran ' + VL_MAX + ' de ' + todos.length + ': elija la cuadrilla o busque para ver los demás.' : '';
+    }
+    function agregarVl(mrs) { mrs.forEach(function (mr) { if (elegidos.indexOf(mr) === -1) elegidos.push(mr); }); pintarVarios(); }
+    function agregarEscritos() {
+        var t = $('vl-texto').value, l = leerLotesVl(t, LOTES, mrPorLote);
+        if (!t.trim()) return toast('Escriba los lotes o microrrutas separados por comas, p. ej.: 115, 116, Z1CC0105');
+        agregarVl(l.mrs);
+        $('vl-malos').hidden = !l.malos.length;
+        $('vl-malos').textContent = l.malos.length ? '⚠ No están en la programación: ' + l.malos.join(', ') + '. Revise el número (quedaron escritos para corregirlos).' : '';
+        $('vl-texto').value = l.malos.join(', ');
+        if (l.mrs.length) toast(l.mrs.length + (l.mrs.length === 1 ? ' lote agregado' : ' lotes agregados'));
+    }
+    document.querySelectorAll('[name="vl-modo"]').forEach(function (el) { el.addEventListener('change', function () { modoVarios(el.value === 'varios'); }); });
+    $('vl-agregar').onclick = agregarEscritos;
+    // Enter en los campos de la lista no guarda el formulario
+    $('vl-texto').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); agregarEscritos(); } });
+    $('vl-buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') ev.preventDefault(); });
+    $('vl-buscar').addEventListener('input', pintarVarios);
+    $('vl-cuad').addEventListener('change', function () { try { localStorage.setItem(PREF_VL_CUAD, this.value); } catch (e) {} pintarVarios(); });
+    $('vl-lista').addEventListener('change', function (ev) {
+        var c = ev.target;
+        if (!c.value) return;
+        if (c.checked) agregarVl([c.value]);
+        else { elegidos = elegidos.filter(function (mr) { return mr !== c.value; }); pintarVarios(); }
+    });
+    $('vl-fichas').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-vl-quitar]');
+        if (!b) return;
+        elegidos = elegidos.filter(function (mr) { return mr !== b.dataset.vlQuitar; });
+        pintarVarios();
+    });
+    $('vl-quitar').onclick = function () { elegidos = []; pintarVarios(); };
+    $('vl-todos').onclick = function () {
+        var lista = lotesParaElegir(LOTES, $('vl-cuad').value, $('vl-buscar').value, VL_MAX), faltan = lista.filter(function (mr) { return elegidos.indexOf(mr) === -1; });
+        if (faltan.length) agregarVl(faltan);
+        else { elegidos = elegidos.filter(function (mr) { return lista.indexOf(mr) === -1; }); pintarVarios(); }
+    };
+    form.querySelector('[data-campo="FECHA DE LA VISITA"]').addEventListener('change', pintarVarios);
+    document.querySelectorAll('[name="tipo-visita"]').forEach(function (el) { el.addEventListener('change', pintarVarios); });
+    // Mientras guarda no se cierra (Esc); al cerrar se borra lo elegido
+    dlg.addEventListener('cancel', function (ev) { if (vlGuardando) ev.preventDefault(); });
+    dlg.addEventListener('close', function () { if (!vlGuardando) limpiarVarios(); });
+    // Una visita por lote, una tras otra; las que no se pudieron quedan elegidas para volver a intentar
+    function guardarVarios(comun) {
+        var lista = elegidos.slice(), ya = lista.filter(vlYaHoy);
+        var seguir = ya.length ? confirmar('¿Guardar también los que ya tienen visita?', ya.map(function (mr) { return nombreLoteVl(mr, LOTES); }).join(', ') +
+            (ya.length === 1 ? ' ya tiene' : ' ya tienen') + ' una visita registrada ese día. Si fue un error, quítelos de la lista antes de guardar.', 'Guardar ' + lista.length, 'Revisar') : Promise.resolve(true);
+        return seguir.then(function (si) {
+            if (!si) return;
+            vlGuardando = true;
+            ocupado(true);
+            $('dlg-cerrar').disabled = true;
+            var guardados = [], mal = [];
+            return lista.reduce(function (p, mr, i) {
+                return p.then(function () {
+                    $('btn-guardar').textContent = 'Guardando ' + (i + 1) + ' de ' + lista.length + '…';
+                    return enviar('crear', { registro: registroDeLoteVl(comun, mr, LOTES), tipo: tipoForm }).then(function (d) {
+                        var nuevo = canonico(d.registro);
+                        registros.unshift(nuevo);
+                        guardados.push(nuevo);
+                        elegidos = elegidos.filter(function (x) { return x !== mr; });
+                    }, function (err) { mal.push(nombreLoteVl(mr, LOTES) + ' (' + err.message + ')'); });
+                });
+            }, Promise.resolve()).then(function () {
+                vlGuardando = false;
+                ocupado(false);
+                $('dlg-cerrar').disabled = false;
+                if (guardados.length) {
+                    ordenarRegistros();
+                    guardarCache();
+                    llenarSelect('f-zona', 'ZONA', 'Zona: todas');
+                    llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
+                    llenarDias();
+                    llenarUsuarios();
+                    pintar();
+                }
+                var conNo = guardados.filter(function (r) { return itemsEnNo(r).length; });
+                if (mal.length) {
+                    pintarVarios();
+                    aviso('<b>' + guardados.length + ' de ' + lista.length + ' visitas guardadas.</b> No se pudieron: ' + mal.map(esc).join(', ') + '. Siguen elegidos: vuelva a tocar Guardar.');
+                    return;
+                }
+                dlg.close();
+                toast(guardados.length + (guardados.length === 1 ? ' visita guardada' : ' visitas guardadas') + (conNo.length ? ' · ' + conNo.length + ' con novedad' : ' · sin novedad'));
+                if (conNo.length) mostrarWaDia(conNo, comun['FECHA DE LA VISITA'] || aTexto(hoy()));
+            });
+        });
+    }
 
     // Desde el mapa: subsanaciones.html?mr=Z2CC0067&lote=264
     var desdeUrlHecho = false;

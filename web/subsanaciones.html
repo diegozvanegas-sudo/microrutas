@@ -135,21 +135,43 @@
             <input type="radio" name="tipo-visita" id="tipo-ej" value="EJECUCIÓN" checked><label for="tipo-ej">🌿 Lote ejecutado<small>Revisión después del corte</small></label>
             <input type="radio" name="tipo-visita" id="tipo-op" value="OPERACIÓN"><label for="tipo-op">🦺 Durante la operación<small>PMT, valla, mallas, EPP…</small></label>
         </div>
+        <!-- ➕ Varios lotes a la vez (src/subsanaciones/varios.js): solo en visitas nuevas, de los dos tipos -->
+        <div class="vl-modo" id="vl-modo" role="radiogroup" aria-label="Cuántos lotes">
+            <input type="radio" name="vl-modo" id="vl-uno" value="uno" checked><label for="vl-uno">Un lote</label>
+            <input type="radio" name="vl-modo" id="vl-varios" value="varios"><label for="vl-varios">➕ Varios lotes a la vez</label>
+        </div>
         <div class="contexto" id="dlg-contexto" hidden></div>
         <div class="recordatorios" id="dlg-recordatorios" hidden></div>
         <div class="grid">
-            <div class="doble buscador">
+            <div class="ancho vl" id="vl-panel" hidden>
+                <div class="sub">Lo que llene abajo (fecha, interventor, ítems y observaciones) se guarda igual en cada lote, cada uno con su microrruta, cuadrilla, zona y área.</div>
+                <div class="vl-cabeza"><b id="vl-cuenta">Ningún lote elegido</b>
+                    <button type="button" class="secundario pequeno" id="vl-quitar" hidden>Quitar todos</button></div>
+                <div class="vl-fichas" id="vl-fichas"></div>
+                <div class="vl-fila">
+                    <label>ESCRIBIR LOTES <input id="vl-texto" placeholder="Ej.: 115, 116, Z1CC0105" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="done"></label>
+                    <button type="button" class="secundario" id="vl-agregar">Agregar</button>
+                </div>
+                <div class="vl-malos" id="vl-malos" hidden></div>
+                <div class="vl-fila">
+                    <label>CUADRILLA <select id="vl-cuad"></select></label>
+                    <label class="vl-crece">BUSCAR EN LA LISTA <input id="vl-buscar" placeholder="Lote, microrruta o dirección" enterkeyhint="search"></label>
+                </div>
+                <div class="vl-lista" id="vl-lista"></div>
+                <div class="vl-pie-lista"><button type="button" class="secundario pequeno" id="vl-todos" hidden></button><span class="sub" id="vl-mas"></span></div>
+            </div>
+            <div class="doble buscador solo-uno">
                 <label>MICRORRUTA <input data-campo="MICRORRUTA" data-buscar="mr" placeholder="Microrruta, lote o dirección" autocapitalize="characters" autocorrect="off" spellcheck="false" enterkeyhint="search"></label>
                 <button type="button" class="limpiar" data-limpiar aria-label="Borrar microrruta y lote" hidden>×</button>
             </div>
-            <div class="buscador">
+            <div class="buscador solo-uno">
                 <label>LOTE <input data-campo="LOTE" data-buscar="lote" inputmode="numeric" placeholder="N.º de lote" enterkeyhint="search"></label>
             </div>
-            <label>ÁREA M2 <input data-campo="ÁREA M2"></label>
-            <div class="direccion sub" id="dlg-direccion"></div>
-            <div class="reciente" id="dlg-reciente" hidden></div>
-            <label>ZONA <input data-campo="ZONA"></label>
-            <label>CUADRILLA <input data-campo="CUADRILLA"></label>
+            <label class="solo-uno">ÁREA M2 <input data-campo="ÁREA M2"></label>
+            <div class="direccion sub solo-uno" id="dlg-direccion"></div>
+            <div class="reciente solo-uno" id="dlg-reciente" hidden></div>
+            <label class="solo-uno">ZONA <input data-campo="ZONA"></label>
+            <label class="solo-uno">CUADRILLA <input data-campo="CUADRILLA"></label>
             <label class="doble">INTERVENTOR <span class="obligatorio" title="Obligatorio">*</span> <input data-campo="INTERVENTOR" placeholder="Iniciales"></label>
             <label class="doble" id="campo-ejecucion">FECHA DE EJECUCIÓN <span class="obligatorio" title="Obligatorio">*</span> <input type="date" data-campo="FECHA DE EJECUCIÓN"></label>
             <label class="doble" id="campo-visita">FECHA DE LA VISITA <input type="date" data-campo="FECHA DE LA VISITA"></label>

@@ -89,6 +89,39 @@ dialog { overscroll-behavior: contain; }
 .tipo-visita input:checked + label { border-color: var(--brand); background: #edf8f3; box-shadow: inset 0 0 0 1px var(--brand); }
 .tipo-visita #tipo-op:checked + label { border-color: #c2410c; background: #fff7ed; box-shadow: inset 0 0 0 1px #c2410c; }
 .tipo-visita input:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; }
+/* ➕ Varios lotes a la vez (varios.js) */
+.vl-modo { display: flex; gap: 6px; margin: -6px 0 14px; padding: 3px; border-radius: 10px; background: #f1f5f9; }
+.vl-modo[hidden] { display: none; }
+.vl-modo input { position: absolute; opacity: 0; pointer-events: none; }
+.vl-modo label { flex: 1; margin: 0; padding: 8px 10px; min-height: 36px; display: flex; align-items: center; justify-content: center; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--muted); text-align: center; }
+.vl-modo input:checked + label { background: #fff; color: var(--ink); box-shadow: 0 1px 3px rgba(15, 23, 42, .15); }
+.vl-modo input:focus-visible + label { outline: 2px solid var(--brand); outline-offset: 2px; }
+#form.varios .solo-uno { display: none !important; }
+.vl { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: #f8fafc; }
+.vl[hidden] { display: none; }
+.vl-cabeza { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+.vl-fichas { display: flex; flex-wrap: wrap; gap: 6px; max-height: 150px; overflow-y: auto; }
+.vl-fichas:empty { display: none; }
+.vl-ficha { display: inline-flex; align-items: center; gap: 4px; padding: 3px 4px 3px 9px; border-radius: 8px; background: #edf8f3; font-size: 13px; color: var(--ink); }
+.vl-ficha.vl-hoy { background: #fff7ed; color: #9a3412; }
+.vl-ficha button { min-width: 28px; min-height: 28px; padding: 0; border: 0; border-radius: 6px; background: transparent; color: inherit; font-size: 16px; line-height: 1; cursor: pointer; }
+.vl-ficha button:hover { background: rgba(15, 23, 42, .08); }
+.vl-fila { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; }
+.vl-fila label { flex: 1 1 160px; margin: 0; }
+.vl-fila .vl-crece { flex: 2 1 200px; }
+.vl-fila > button { min-height: 40px; }
+.vl-malos { padding: 7px 10px; border-radius: 8px; background: #fff7ed; color: #9a3412; font-size: 13px; }
+.vl-malos[hidden] { display: none; }
+.vl-lista { max-height: 240px; overflow-y: auto; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
+.vl-lista:empty { display: none; }
+.vl-lote { display: flex; align-items: flex-start; gap: 10px; margin: 0; padding: 9px 10px; min-height: 44px; border-bottom: 1px solid var(--line); cursor: pointer; font-weight: 400; font-size: 13px; color: var(--ink); }
+.vl-lote:last-child { border-bottom: 0; }
+.vl-lote input { width: 18px; height: 18px; margin: 1px 0 0; flex: none; }
+.vl-lote span { min-width: 0; overflow-wrap: anywhere; }
+.vl-lote small { display: block; color: var(--muted); }
+.vl-lote.vl-hoy small b { color: #9a3412; }
+.vl-pie-lista { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.vl-pie-lista:has(button[hidden]):has(.sub:empty) { display: none; }
 /* "Tener en cuenta" de la visita durante la operación: informativo, no se guarda */
 .recordatorios { margin: 0 0 14px; padding: 10px 12px 10px 14px; border-radius: 10px; background: #fffbeb; border: 1px solid #fde68a; border-left: 4px solid #d97706; font-size: 13px; line-height: 1.45; color: #78350f; }
 .recordatorios b { display: block; margin-bottom: 4px; font-size: 13px; color: #92400e; }
