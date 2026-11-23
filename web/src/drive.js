@@ -181,23 +181,61 @@ function cargarPicker() {
 }
 // Número del proyecto de Google Cloud (va al inicio del ID de cliente): el selector lo pide para dar el permiso
 export function numeroProyecto(id) { var m = /^(\d+)-/.exec(String(id || '')); return m ? m[1] : ''; }
-// Abre el selector. Devuelve { id, nombre } de la carpeta elegida, o null si se cerró sin elegir.
-// Llamarla en el toque del botón: si falta el permiso, primero sale la ventana de Google
-export async function elegirCarpeta() {
-    await conectar(false);
-    await cargarPicker();
-    var g = window.google.picker;
-    return new Promise(function (ok) {
-        var mias = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder');
-        var unidades = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setEnableDrives(true).setMimeTypes('application/vnd.google-apps.folder');
-        var b = new g.PickerBuilder().addView(mias).addView(unidades).enableFeature(g.Feature.SUPPORT_DRIVES)
-            .setOAuthToken(token).setAppId(numeroProyecto(idCliente())).setLocale('es').setTitle('Elija la carpeta para los PDF')
-            .setCallback(function (d) {
-                if (d.action === g.Action.PICKED && d.docs && d.docs[0]) ok({ id: d.docs[0].id, nombre: d.docs[0].name || 'Carpeta elegida' });
-                else if (d.action === g.Action.CANCEL) ok(null);
-            });
-        if (CLAVE_API) b.setDeveloperKey(CLAVE_API);
-        b.build().setVisible(true);
+// El selector mide mínimo 566 × 350 px y se centra con medidas fijas: en el celular (≈ 390 px) queda corrido y
+// cortado. En pantallas angostas se pone a pantalla completa (solo toca las clases del selector de Google)
+var ESTILO_PICKER = '@media (max-width: 700px), (max-height: 500px) {' +
+    '.picker-dialog { left: 0 !important; top: 0 !important; width: 100vw !important; height: 100vh !important; height: 100dvh !important; max-width: none !important; border: 0 !important; border-radius: 0 !important; }' +
+    '.picker-dialog-content, .picker-dialog-content iframe, .picker-dialog iframe { width: 100% !important; height: 100% !important; }' +
+    '.picker-dialog-title { display: none !important; } }' +
+    '.picker-dialog, .picker-dialog-bg { z-index: 2147483000 !important; }';
+function ponerEstiloPicker() {
+    if (document.getElementById('estilo-picker')) return;
+    var s = document.createElement('style'); s.id = 'estilo-picker'; s.textContent = ESTILO_PICKER;
+    document.head.appendChild(s);
+}
+export var ESPERA_SELECTOR = 25000;
+var cancelarSelectorActual = null;
+// Cierra el selector o deja de esperarlo (si se quedó cargando o la ventana de Google no volvió): elegirCarpeta da null
+export function cancelarSelector() { if (cancelarSelectorActual) cancelarSelectorActual(); }
+// Abre el selector. Devuelve { id, nombre } de la carpeta elegida, o null si se cerró sin elegir o se canceló.
+// Llamarla en el toque del botón: si falta el permiso, primero sale la ventana de Google.
+// Si el selector no aparece en ESPERA_SELECTOR ms, falla con un aviso (no se queda «Abriendo…» para siempre)
+// opciones.espera: otro tiempo de espera (ms). opciones.antesDeMostrar: se llama justo antes de que aparezca (p. ej. para que un <dialog> modal no lo tape)
+export function elegirCarpeta(opciones) {
+    var picker = null, vigilante = null, listo = false;
+    return new Promise(function (ok, mal) {
+        var fin = function (f, v) {
+            if (listo) return; listo = true;
+            clearTimeout(vigilante); cancelarSelectorActual = null;
+            if (picker) { try { picker.setVisible(false); picker.dispose(); } catch (e) { /* ya cerrado */ } }
+            f(v);
+        };
+        cancelarSelectorActual = function () { fin(ok, null); };
+        conectar(false).then(function () {
+            // Desde aquí (ya con permiso) el selector tiene ESPERA_SELECTOR ms para cargar y aparecer en la página
+            vigilante = setTimeout(function () {
+                if (!document.querySelector('.picker-dialog')) fin(mal, new Error('El selector de carpetas de Google no abrió.'));
+            }, (opciones && opciones.espera) || ESPERA_SELECTOR);
+            return cargarPicker();
+        }).then(function () {
+            if (listo) return;
+            var g = window.google.picker;
+            var mias = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder');
+            var unidades = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setEnableDrives(true).setMimeTypes('application/vnd.google-apps.folder');
+            var b = new g.PickerBuilder().addView(mias).addView(unidades).enableFeature(g.Feature.SUPPORT_DRIVES)
+                .setOAuthToken(token).setAppId(numeroProyecto(idCliente())).setLocale('es').setTitle('Elija la carpeta para los PDF')
+                .setCallback(function (d) {
+                    if (d.action === g.Action.PICKED && d.docs && d.docs[0]) fin(ok, { id: d.docs[0].id, nombre: d.docs[0].name || 'Carpeta elegida' });
+                    else if (d.action === g.Action.CANCEL) fin(ok, null);
+                });
+            if (CLAVE_API) b.setDeveloperKey(CLAVE_API);
+            var ancho = window.innerWidth || 1051, alto = window.innerHeight || 650;
+            b.setSize(Math.max(566, Math.min(1051, ancho - 32)), Math.max(350, Math.min(650, alto - 32)));
+            ponerEstiloPicker();
+            picker = b.build();
+            if (opciones && opciones.antesDeMostrar) opciones.antesDeMostrar();
+            picker.setVisible(true);
+        }).catch(function (e) { fin(mal, e); });
     });
 }
 

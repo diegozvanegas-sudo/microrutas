@@ -28,7 +28,7 @@ import { iniciarUbicar } from './ubicar_ui.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
 import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
-import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId, elegirCarpeta as driveElegirCarpeta } from '../drive.js';
+import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId, elegirCarpeta as driveElegirCarpeta, cancelarSelector as driveCancelarSelector } from '../drive.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -1071,8 +1071,8 @@ export function iniciar(api, CFG) {
         var c = driveConectado(), ocupado = evSubiendo || evEligiendo;
         $('ev-drive').textContent = evSubiendo ? 'Subiendo…' : c ? '📷 Fotos → PDF → Drive' : '☁️ Conectar Drive para subir fotos';
         $('ev-drive').disabled = ocupado || !driveId();
-        $('ev-carpeta').disabled = ocupado || !driveId();
-        $('ev-carpeta').textContent = evEligiendo ? 'Abriendo…' : carpetaSubs() ? '📁 Cambiar carpeta' : '📁 Elegir carpeta';
+        $('ev-carpeta').disabled = evSubiendo || !driveId();  // mientras se elige, sirve para cancelar
+        $('ev-carpeta').textContent = evEligiendo ? '✕ Cancelar' : carpetaSubs() ? '📁 Cambiar carpeta' : '📁 Elegir carpeta';
         $('ev-carpeta-quitar').hidden = !carpetaSubs(); $('ev-carpeta-quitar').disabled = ocupado;
         $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a ' + destinoSubs() + ' › carpeta del día y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.') +
             (texto ? '' : ' La carpeta elegida se recuerda en este equipo.');
@@ -1081,20 +1081,19 @@ export function iniciar(api, CFG) {
     // mientras se elige, la visita pasa a ventana normal (sin disparar su «close», que limpia cosas) y luego vuelve
     var cierresCallados = 0;
     window.addEventListener('close', function (ev) { if (ev.target === dlg && cierresCallados > 0) { cierresCallados--; ev.stopImmediatePropagation(); } }, true);
-    function dlgSinModal() { if (dlg.open) { cierresCallados++; dlg.close(); dlg.show(); } }
-    function dlgModal() { if (dlg.open) { cierresCallados++; dlg.close(); dlg.showModal(); } }
+    function dlgSinModal() { if (dlg.open && dlg.matches(':modal')) { cierresCallados++; dlg.close(); dlg.show(); } }
+    function dlgModal() { if (dlg.open && !dlg.matches(':modal')) { cierresCallados++; dlg.close(); dlg.showModal(); } }
     $('ev-carpeta').onclick = function () {
-        evEligiendo = true; pintarEvDrive(driveConectado() ? 'Abriendo sus carpetas de Drive…' : 'Abriendo la ventana de Google…');
+        if (evEligiendo) return driveCancelarSelector();
+        evEligiendo = true; pintarEvDrive(driveConectado() ? 'Abriendo sus carpetas de Drive… Si no aparece, toque «✕ Cancelar».' : 'Abriendo la ventana de Google… Si no vuelve, toque «✕ Cancelar».');
         // El permiso se pide en este mismo toque (si no, el navegador bloquea la ventana); el selector sale después
-        var promesa = driveElegirCarpeta();
-        var abrir = setTimeout(dlgSinModal, 0);
-        promesa.then(function (c) {
-            clearTimeout(abrir); dlgModal(); evEligiendo = false;
+        driveElegirCarpeta({ antesDeMostrar: dlgSinModal }).then(function (c) {
+            dlgModal(); evEligiendo = false;
             if (!c) return pintarEvDrive('No se eligió carpeta: sigue ' + destinoSubs() + '.');
             try { localStorage.setItem(CLAVE_CARPETA, JSON.stringify(c)); } catch (e) { /* sin almacenamiento: vale solo hasta recargar */ }
             pintarEvDrive('✓ Los PDF irán a 📁 ' + c.nombre + ' › carpeta del día. Ahora toque «📷 Fotos → PDF → Drive».');
         }, function (e) {
-            clearTimeout(abrir); dlgModal(); evEligiendo = false;
+            dlgModal(); evEligiendo = false;
             pintarEvDrive('⚠ ' + e.message + (/permiso|ventana de Google|ID de cliente/i.test(e.message) ? '' : ' Si el selector no abre, revise que la «Google Picker API» esté activada en el proyecto Microrrutas de Google Cloud.'));
         });
     };

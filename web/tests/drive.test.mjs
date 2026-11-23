@@ -51,3 +51,39 @@ test('subirPdf: con carpeta elegida usa su id (sin buscar en Mi unidad) y pide u
         assert.ok(llamadas.every(l => !l.url.includes('supportsAllDrives')), 'sin carpeta elegida las llamadas no cambian');
     } finally { delete globalThis.localStorage; delete globalThis.fetch; }
 });
+test('elegirCarpeta: en el celular no se queda «Abriendo…» (tamaño, aviso si no aparece, cancelar)', async () => {
+    const mem = { drive_token: JSON.stringify({ t: 'tok', v: Date.now() + 3600e3 }) };
+    const head = [], visibles = [];
+    let enPagina = false, callback = null, tamano = null, mostrado = 0;
+    class Vista { constructor() {} setIncludeFolders() { return this; } setSelectFolderEnabled() { return this; } setMimeTypes() { return this; } setEnableDrives() { return this; } }
+    class Constructor {
+        addView() { return this; } enableFeature() { return this; } setOAuthToken() { return this; } setAppId() { return this; } setLocale() { return this; }
+        setTitle() { return this; } setDeveloperKey() { return this; } setCallback(f) { callback = f; return this; } setSize(a, b) { tamano = [a, b]; return this; }
+        build() { return { setVisible(v) { visibles.push(v); if (v && mostrarDe) enPagina = true; }, dispose() {} }; }
+    }
+    let mostrarDe = true;
+    globalThis.localStorage = { getItem: k => mem[k] ?? null, setItem: (k, v) => { mem[k] = String(v); }, removeItem: k => { delete mem[k]; } };
+    globalThis.window = { innerWidth: 390, innerHeight: 844, google: { picker: { DocsView: Vista, PickerBuilder: Constructor, ViewId: {}, Feature: {}, Action: { PICKED: 'picked', CANCEL: 'cancel' } } } };
+    globalThis.document = { getElementById: () => null, createElement: () => ({}), head: { appendChild: x => head.push(x) }, querySelector: () => (enPagina ? {} : null) };
+    try {
+        const d = await import('../src/drive.js?picker=' + Date.now());
+        // Elegir: tamaño mínimo que acepta Google, estilo de pantalla completa y aviso antes de mostrarse
+        let p = d.elegirCarpeta({ antesDeMostrar: () => mostrado++ });
+        await new Promise(r => setTimeout(r, 10));
+        assert.deepEqual(tamano, [566, 650], 'en 390 px se pide el mínimo y el estilo lo pone a pantalla completa');
+        const estilo = head.filter(x => x.id === 'estilo-picker');
+        assert.ok(estilo.length === 1 && /max-width: 700px/.test(estilo[0].textContent) && /100vw/.test(estilo[0].textContent));
+        assert.equal(mostrado, 1);
+        callback({ action: 'picked', docs: [{ id: 'C1', name: 'Equipo' }] });
+        assert.deepEqual(await p, { id: 'C1', nombre: 'Equipo' });
+        // Cancelar mientras espera: da null y cierra el selector
+        p = d.elegirCarpeta(); await new Promise(r => setTimeout(r, 10));
+        d.cancelarSelector();
+        assert.equal(await p, null); assert.equal(visibles.at(-1), false);
+        // Si el selector nunca aparece en la página: error claro, no espera eterna
+        mostrarDe = false; enPagina = false;
+        p = d.elegirCarpeta({ espera: 30 });
+        await assert.rejects(p, /no abrió/);
+        d.cancelarSelector();  // sin selector abierto no pasa nada
+    } finally { delete globalThis.localStorage; delete globalThis.window; delete globalThis.document; }
+});
