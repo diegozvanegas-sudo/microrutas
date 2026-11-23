@@ -175,6 +175,10 @@
                     <label class="doble">FECHA SUBSANACIÓN <input type="date" data-campo="FECHA SUBSANACIÓN"></label>
                     <label class="doble">REGISTRADO POR <input data-campo="REGISTRADO POR" readonly title="Lo pone la base de datos con el usuario que inició sesión"></label>
                     <label class="ancho">EVIDENCIA (link de fotos / Drive) <input type="url" data-campo="EVIDENCIA" placeholder="https://"></label>
+                    <!-- Fotos → PDF → Drive de quien registra: el enlace queda en EVIDENCIA (src/drive.js, como en ✅ Revisión) -->
+                    <div class="ancho ev-drive"><button type="button" class="secundario pequeno" id="ev-drive"></button>
+                        <input type="file" id="ev-fotos" accept="image/*" multiple hidden>
+                        <span class="sub" id="ev-drive-txt"></span></div>
                     <label class="ancho">OBSERVACIÓN SUBSANACIÓN <textarea data-campo="OBSERVACIÓN SUBSANACIÓN"></textarea></label>
                 </div>
             </fieldset>

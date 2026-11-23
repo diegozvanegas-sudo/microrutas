@@ -28,6 +28,7 @@ import { iniciarUbicar } from './ubicar_ui.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
 import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
+import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId } from '../drive.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -1053,6 +1054,48 @@ export function iniciar(api, CFG) {
         form.querySelector('[data-campo="MICRORRUTA"]').focus();
     };
     dlg.addEventListener('close', cerrarSugerencias);
+
+    // ---------- 📷 Fotos → PDF → Drive (EVIDENCIA de la visita) ----------
+    // Sin Drive conectado, el botón conecta primero (la ventana de Google tiene que salir en el toque, no después de
+    // armar el PDF). Conectado: elige las fotos, arma el PDF, lo sube a «carpeta principal › día» y pega el enlace
+    var evSubiendo = false;
+    function pintarEvDrive(texto) {
+        var c = driveConectado();
+        $('ev-drive').textContent = evSubiendo ? 'Subiendo…' : c ? '📷 Fotos → PDF → Drive' : '☁️ Conectar Drive para subir fotos';
+        $('ev-drive').disabled = evSubiendo || !driveId();
+        $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a su Drive y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.');
+    }
+    $('ev-drive').onclick = function () {
+        if (driveConectado()) { $('ev-fotos').value = ''; return $('ev-fotos').click(); }
+        pintarEvDrive('Abriendo la ventana de Google…');
+        driveConectar(false).then(function () { pintarEvDrive('✓ Drive conectado. Ahora toque «📷 Fotos → PDF → Drive».'); },
+            function (e) { pintarEvDrive('⚠ ' + e.message); });
+    };
+    $('ev-fotos').onchange = async function () {
+        var archivos = Array.from(this.files || []);
+        if (!archivos.length) return;
+        var r = datosFormulario(), f = aInput(r['FECHA SUBSANACIÓN']) || aInput(r['FECHA DE LA VISITA']) || hoy(), p = f.split('-');
+        var nombre = [String(r.MICRORRUTA || '').trim().toUpperCase(), r.LOTE && r.LOTE !== 'NA' ? 'Lote' + r.LOTE : '', r['FECHA SUBSANACIÓN'] ? 'subsanacion' : 'visita', p[2] + '-' + p[1] + '-' + p[0]].filter(Boolean).join('_') + '.pdf';
+        evSubiendo = true; pintarEvDrive('Armando el PDF con ' + archivos.length + (archivos.length === 1 ? ' foto…' : ' fotos…'));
+        try {
+            var lista = ordenarFotos(await examinar(archivos), 'fecha');
+            var pdf = await fotosAPdf(lista, { diseno: 'carta4', reducir: true, nombre: nombre, devolver: true }, function () {});
+            if (!pdf.bytes) throw new Error('ninguna foto se pudo poner en el PDF');
+            pintarEvDrive('Subiendo a Drive…');
+            try {
+                var sub = await subirPdf(pdf.bytes, pdf.nombre, f);
+                var campo = form.querySelector('[data-campo="EVIDENCIA"]');
+                campo.value = sub.enlace; campo.dispatchEvent(new Event('input', { bubbles: true }));
+                evSubiendo = false; pintarEvDrive('✓ Subido a ' + nombreCarpeta(f) + ' (' + sub.compartido + '). Enlace en EVIDENCIA: falta Guardar.');
+            } catch (e) {
+                descargar(pdf.bytes, pdf.nombre, 'application/pdf');
+                evSubiendo = false; pintarEvDrive('⚠ No se pudo subir (' + e.message + '). Se descargó el PDF: súbalo y pegue el enlace.');
+            }
+        } catch (e) { evSubiendo = false; pintarEvDrive('⚠ No se pudo armar el PDF: ' + e.message); }
+    };
+    // Al abrir la visita, el estado del botón vuelve a empezar (no queda el mensaje de la anterior)
+    dlg.addEventListener('close', function () { if (!evSubiendo) pintarEvDrive(); });
+    pintarEvDrive();
 
     function completar(mr) {
         var p = LOTES[mr];

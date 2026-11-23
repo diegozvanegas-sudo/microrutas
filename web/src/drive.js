@@ -23,45 +23,63 @@ export function carpetaPrincipal() { return leer(CLAVE_PRINCIPAL) || PRINCIPAL; 
 export function fijarCarpetaPrincipal(v) { guardar(CLAVE_PRINCIPAL, String(v || '').trim()); carpetas = {}; }
 // Enlace de la última carpeta del día a la que se subió algo (para «Abrir la carpeta en Drive»)
 export function ultimaCarpeta() { return leer(CLAVE_ULTIMA); }
+// El permiso dura ~1 hora: se guarda en el equipo para que siga sirviendo al recargar o al cambiar de sección
+// (solo deja tocar los archivos que creó la app). Desconectar lo borra
+var CLAVE_TOKEN = 'drive_token';
+try { var t0 = JSON.parse(localStorage.getItem(CLAVE_TOKEN) || 'null'); if (t0 && t0.v > Date.now()) { token = t0.t; vence = t0.v; } } catch (e) { /* sin almacenamiento */ }
 export function conectado() { return !!token && Date.now() < vence; }
 
+var gisListo = null;
 function cargarGis() {
     if (window.google && window.google.accounts && window.google.accounts.oauth2) return Promise.resolve();
-    return new Promise(function (ok, mal) {
+    return gisListo || (gisListo = new Promise(function (ok, mal) {
         var s = document.createElement('script');
         s.src = GIS; s.async = true;
         s.onload = function () { ok(); };
-        s.onerror = function () { mal(new Error('No se pudo cargar el inicio de sesión de Google (revise la conexión).')); };
+        s.onerror = function () { gisListo = null; mal(new Error('No se pudo cargar el inicio de sesión de Google (revise la conexión).')); };
         document.head.appendChild(s);
-    });
+    }));
 }
-// Pide (o renueva) el permiso. La primera vez Google muestra su ventana; luego, mientras dure la sesión, casi siempre no
-export async function conectar(silencioso) {
-    if (conectado()) return token;
-    var id = idCliente();
-    if (!id) throw new Error('Falta el ID de cliente de Google (⚙ Drive).');
-    await cargarGis();
-    return new Promise(function (ok, mal) {
-        cliente = window.google.accounts.oauth2.initTokenClient({
-            client_id: id, scope: ALCANCE, hint: correoDrive() || undefined,
-            callback: function (r) {
-                if (r.error) return mal(new Error(r.error === 'access_denied' ? 'No se dio permiso a Drive.' : 'Google no dio el permiso (' + r.error + ').'));
-                token = r.access_token; vence = Date.now() + (Number(r.expires_in) || 3600) * 1000 - 60000;
-                ok(token);
-            },
-            error_callback: function (e) { mal(new Error(e && e.type === 'popup_closed' ? 'Se cerró la ventana de Google sin dar permiso.' : 'No se abrió la ventana de Google (¿bloqueador de ventanas?).')); }
-        });
-        cliente.requestAccessToken({ prompt: silencioso ? '' : (token ? '' : 'consent') });
+// Se carga apenas se abre la página: así, al tocar «Conectar» o «Guardar», la ventana de Google sale en ese mismo toque
+// (si sale después de una espera, el navegador la bloquea)
+if (typeof document !== 'undefined' && idCliente()) cargarGis().catch(function () { /* se intenta otra vez al conectar */ });
+function pedir(id, silencioso, ok, mal) {
+    cliente = window.google.accounts.oauth2.initTokenClient({
+        client_id: id, scope: ALCANCE, hint: correoDrive() || undefined,
+        callback: function (r) {
+            if (r.error) return mal(new Error(r.error === 'access_denied' ? 'No se dio permiso a Drive.' : 'Google no dio el permiso (' + r.error + ').'));
+            token = r.access_token; vence = Date.now() + (Number(r.expires_in) || 3600) * 1000 - 60000;
+            try { localStorage.setItem(CLAVE_TOKEN, JSON.stringify({ t: token, v: vence })); } catch (e) { /* sin almacenamiento */ }
+            ok(token);
+        },
+        error_callback: function (e) { mal(new Error(e && e.type === 'popup_closed' ? 'Se cerró la ventana de Google sin dar permiso.' : 'No se abrió la ventana de Google (¿bloqueador de ventanas?). Toque «Conectar Drive» y vuelva a intentar.')); }
     });
+    cliente.requestAccessToken({ prompt: silencioso ? '' : (token ? '' : 'consent') });
+}
+// Pide (o renueva) el permiso. Llamarla dentro del toque de la persona (sin esperas antes) para que la ventana no se bloquee
+var pendiente = null;
+export function conectar(silencioso) {
+    if (conectado()) return Promise.resolve(token);
+    if (pendiente) return pendiente;  // ya hay una ventana de Google abierta: se espera esa
+    var id = idCliente();
+    if (!id) return Promise.reject(new Error('Falta el ID de cliente de Google (⚙ Drive).'));
+    pendiente = new Promise(function (ok, mal) {
+        if (window.google && window.google.accounts && window.google.accounts.oauth2) return pedir(id, silencioso, ok, mal);
+        cargarGis().then(function () { pedir(id, silencioso, ok, mal); }, mal);
+    });
+    var limpiar = function () { pendiente = null; };
+    pendiente.then(limpiar, limpiar);
+    return pendiente;
 }
 export function desconectar() {
     if (token && window.google && window.google.accounts) window.google.accounts.oauth2.revoke(token, function () {});
     token = null; vence = 0; carpetas = {};
+    try { localStorage.removeItem(CLAVE_TOKEN); } catch (e) { /* sin almacenamiento */ }
 }
 
 async function api(url, opciones) {
     var r = await fetch(url, Object.assign({}, opciones, { headers: Object.assign({ Authorization: 'Bearer ' + token }, (opciones || {}).headers) }));
-    if (r.status === 401) { token = null; throw new Error('La sesión de Google venció: vuelva a conectar Drive.'); }
+    if (r.status === 401) { token = null; vence = 0; try { localStorage.removeItem(CLAVE_TOKEN); } catch (e) { /* nada */ } throw new Error('La sesión de Google venció: vuelva a conectar Drive.'); }
     if (!r.ok) { var t = await r.text(); throw new Error('Drive respondió ' + r.status + ': ' + t.slice(0, 160)); }
     return r.json();
 }

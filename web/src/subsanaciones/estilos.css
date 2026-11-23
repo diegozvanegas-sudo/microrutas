@@ -956,3 +956,7 @@ tr:has(+ tr.fila-detalle:not([hidden])) td { border-bottom: 0; background: #f8fa
 .cu-grupo > summary { cursor: pointer; padding: 10px 12px; font-weight: 650; }
 .cu-grupo ul { margin: 0; padding: 0 12px 10px 30px; font-size: 13px; line-height: 1.5; }
 .cu-grupo.cu-alerta > summary { color: #991b1b; }
+/* 📷 Fotos → PDF → Drive (EVIDENCIA) */
+.ev-drive { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: center; }
+.ev-drive button { min-height: 38px; }
+.ev-drive .sub { flex: 1 1 220px; font-size: 12.5px; }

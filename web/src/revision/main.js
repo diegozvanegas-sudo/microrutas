@@ -207,6 +207,8 @@ async function guardar() {
     var repetida = revisionRepetida(todas(), form);
     if (repetida) return toast(textoRepetida(repetida));
     if (fotosForm.length && checklistDe(form).grupos) {
+        // El permiso de Drive se pide aquí mismo, en el toque de Guardar (si se pide después de armar el PDF, el navegador bloquea la ventana)
+        if (!conectado() && idCliente()) conectar(true).catch(function () { /* el error sale al subir */ });
         $('btn-guardar').disabled = true;
         try { await subirFotos(); } catch (e) { toast('No se pudo armar el PDF: ' + e.message); }
         $('btn-guardar').disabled = false; $('btn-guardar').textContent = 'Guardar revisión';
