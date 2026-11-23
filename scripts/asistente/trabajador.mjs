@@ -3,9 +3,11 @@
 // Cada 5 s toma la pregunta pendiente más vieja de public.preguntas (0028), arma una carpeta con los datos que ESA persona
 // puede ver (consulta con su sesión: la base aplica sus reglas; el contrato solo con permiso), corre Claude Code del PC
 // (plan, sin API) en esa carpeta con permiso SOLO de leer, y guarda la respuesta. Cada 30 s marca asistente_latido.
+// Trabaja SIEMPRE en la misma carpeta fija (%LOCALAPPDATA%Microrrutasasistentepregunta), que se vacía antes y después de
+// cada pregunta: no se mezcla con Temp ni con otros programas, y en Claude Code del PC queda un solo proyecto, no uno por pregunta.
 // Necesita DATABASE_URL en .env y `claude` con sesión iniciada.
 import { spawn } from 'node:child_process';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, cpSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync, readdirSync, rmSync, existsSync, cpSync } from 'node:fs';
 import { tmpdir, homedir, hostname } from 'node:os';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -15,7 +17,8 @@ import { MODELOS, prepararPoligonos, resumirCapa, aCsv, aJsonl, instrucciones, a
 
 var RAIZ = join(dirname(fileURLToPath(import.meta.url)), '..', '..');
 var CAPAS = join(RAIZ, 'web', 'public', 'data', 'rapido');
-var BASE_TMP = join(tmpdir(), 'microrutas-asistente');
+var BASE_TMP = process.env.LOCALAPPDATA ? join(process.env.LOCALAPPDATA, 'Microrrutas', 'asistente') : join(homedir(), '.cache', 'microrutas-asistente');
+var CARPETA = join(BASE_TMP, 'pregunta'), VIEJA = join(tmpdir(), 'microrutas-asistente');
 var ESPERA = 5000, LATIDO = 30000, TIEMPO_MAX = 10 * 60 * 1000;
 var DIAS = ['domingo', 'lunes', 'martes', 'miércoles', 'jueves', 'viernes', 'sábado'];
 var log = function () { console.log.apply(console, ['[asistente ' + new Date().toLocaleTimeString('es-CO') + ']'].concat([].slice.call(arguments))); };
@@ -111,7 +114,9 @@ function correrClaude(carpeta, sistema, prompt, modelo) {
 }
 
 async function responder(db, mapa, q) {
-    var carpeta = mkdtempSync(join(BASE_TMP, 'p-'));
+    var carpeta = CARPETA;
+    rmSync(carpeta, { recursive: true, force: true });
+    mkdirSync(carpeta, { recursive: true });
     try {
         var base = await exportarBase(db, q.usuario, carpeta);
         if (!base.permisos.microrutas) return { ok: false, texto: 'Esta cuenta no tiene acceso a Microrrutas.' };
@@ -124,7 +129,7 @@ async function responder(db, mapa, q) {
             mapa.join('\n') + '\n\n## Base de datos (lo que esta persona puede ver)\n' + base.hechos.join('\n') + '\n\n' +
             'Glosario: LV = limpieza vial (barrido); RyT = recolección y transporte; DOM = ruta de domingo y festivo; zonas EMV 1 a 7 + corregimientos; ' +
             'C1…C11 = cuadrillas de corte de césped; Q1/Q2 = quincenas.\n');
-        var sistema = join(carpeta, '..', 'sistema-' + q.id + '.txt');
+        var sistema = join(BASE_TMP, 'sistema.txt');
         writeFileSync(sistema, instrucciones({ nombre: base.nombre, hoy: fecha, diaSemana: DIAS[new Date(fecha + 'T12:00:00').getDay()], contrato: !!base.permisos.contrato }));
         var historial = (await db.query("select texto, respuesta, estado from public.preguntas where hilo = $1 and id <> $2 and creado < $3 order by creado", [q.hilo, q.id, q.creado])).rows;
         try { return await correrClaude(carpeta, sistema, armarPrompt(q.texto, historial), MODELOS[q.modelo] || MODELOS.rapido); }
@@ -138,14 +143,20 @@ async function latir(db, info) {
 
 async function main() {
     mkdirSync(BASE_TMP, { recursive: true });
+    rmSync(VIEJA, { recursive: true, force: true }); // la carpeta de Temp que se usaba antes
     var mapa = prepararMapa(), db = await conectar(), ocupado = null, ultimoLatido = 0;
-    // Lo que quedó «respondiendo» si el PC se apagó a mitad vuelve a la cola
-    var vuelta = await db.query("update public.preguntas set estado = 'pendiente', tomado = null where estado = 'respondiendo' and tomado < now() - interval '15 minutes'");
+    // Lo que quedó «respondiendo» de antes (se apagó o reinició el motor a mitad) vuelve a la cola de una vez: el motor arranca
+    // un solo trabajador por PC (iniciar.py no se abre dos veces), así que nadie más la está respondiendo.
+    var vuelta = await db.query("update public.preguntas set estado = 'pendiente', tomado = null where estado = 'respondiendo'");
     if (vuelta.rowCount) log(vuelta.rowCount, 'pregunta(s) vuelven a la cola');
     log('Prendido. Esperando preguntas (Ctrl+C para apagar).');
     for (;;) {
         try {
-            if (Date.now() - ultimoLatido > LATIDO) { await latir(db, { equipo: hostname(), ocupado: ocupado }); ultimoLatido = Date.now(); }
+            if (Date.now() - ultimoLatido > LATIDO) {
+                await latir(db, { equipo: hostname(), ocupado: ocupado }); ultimoLatido = Date.now();
+                // Y si alguna se queda trabada más que el tiempo máximo de una respuesta, también vuelve a la cola
+                await db.query("update public.preguntas set estado = 'pendiente', tomado = null where estado = 'respondiendo' and tomado < now() - interval '15 minutes'");
+            }
             var r = await db.query("update public.preguntas set estado = 'respondiendo', tomado = now() where id = (select id from public.preguntas where estado = 'pendiente' order by creado limit 1 for update skip locked) returning *");
             var q = r.rows[0];
             if (!q) { await new Promise(function (ok) { setTimeout(ok, ESPERA); }); continue; }

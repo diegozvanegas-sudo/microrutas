@@ -194,6 +194,8 @@ export var HALLAZGOS = [
     // ---------- Personal y seguridad ----------
     { t: 'Personal sin uniforme distintivo', c: 'uniforme distintivo dotacion ropa identificacion carne',
         m: 'Se evidencia personal sin el uniforme distintivo del contrato. Favor garantizar la dotación completa e identificable.' },
+    { t: 'Carné sin foto visible', c: 'carne carnet escarapela identificacion foto visible sin foto borrosa tapada',
+        m: 'Se evidencia operario con el carné de identificación sin foto visible. Favor garantizar que todo el personal porte el carné a la vista, con foto y nombre legibles, durante la operación.' },
     { t: 'EPP incompleto del guadañador', c: 'careta canilleras peto carnaza botas dielectricas guantes gafas tapabocas guadanador',
         m: 'Se evidencia guadañador sin el EPP completo (careta, gafas, protección auditiva, canilleras, peto de carnaza, guantes y botas dieléctricas). Favor corregir antes de continuar.' },
     { t: 'Alcohol o sustancias', c: 'alcohol borracho tragos sustancias psicoactivas drogas',
