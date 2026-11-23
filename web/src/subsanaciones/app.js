@@ -28,7 +28,7 @@ import { iniciarUbicar } from './ubicar_ui.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
 import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
-import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId } from '../drive.js';
+import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId, elegirCarpeta as driveElegirCarpeta } from '../drive.js';
 
 // api: crearApi(supabase) de src/api.js (null si falta configurar). CFG: { url } = hay base de datos.
 export function iniciar(api, CFG) {
@@ -1059,13 +1059,49 @@ export function iniciar(api, CFG) {
     // Sin Drive conectado, el botón conecta primero (la ventana de Google tiene que salir en el toque, no después de
     // armar el PDF). Conectado: elige las fotos, arma el PDF, lo sube a «carpeta principal › día» y pega el enlace
     // Carpeta propia en «Mi unidad»: Subsanaciones › carpeta del día (aparte de los instrumentos)
-    var CARPETA_SUBS = 'Subsanaciones', evSubiendo = false;
-    function pintarEvDrive(texto) {
-        var c = driveConectado();
-        $('ev-drive').textContent = evSubiendo ? 'Subiendo…' : c ? '📷 Fotos → PDF → Drive' : '☁️ Conectar Drive para subir fotos';
-        $('ev-drive').disabled = evSubiendo || !driveId();
-        $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a su Drive (Mi unidad › ' + CARPETA_SUBS + ' › carpeta del día) y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.');
+    // «📁 Elegir carpeta»: una carpeta que ya existe en su Drive (también compartida); adentro va la del día. Se recuerda
+    // en el equipo (preferencia) hasta «↺ Carpeta de siempre»
+    var CARPETA_SUBS = 'Subsanaciones', CLAVE_CARPETA = 'subs_drive_carpeta', evSubiendo = false, evEligiendo = false;
+    function carpetaSubs() {
+        try { var c = JSON.parse(localStorage.getItem(CLAVE_CARPETA) || 'null'); if (c && c.id) return c; } catch (e) { /* sin almacenamiento */ }
+        return null;
     }
+    function destinoSubs() { var c = carpetaSubs(); return c ? '📁 ' + c.nombre : 'Mi unidad › ' + CARPETA_SUBS; }
+    function pintarEvDrive(texto) {
+        var c = driveConectado(), ocupado = evSubiendo || evEligiendo;
+        $('ev-drive').textContent = evSubiendo ? 'Subiendo…' : c ? '📷 Fotos → PDF → Drive' : '☁️ Conectar Drive para subir fotos';
+        $('ev-drive').disabled = ocupado || !driveId();
+        $('ev-carpeta').disabled = ocupado || !driveId();
+        $('ev-carpeta').textContent = evEligiendo ? 'Abriendo…' : carpetaSubs() ? '📁 Cambiar carpeta' : '📁 Elegir carpeta';
+        $('ev-carpeta-quitar').hidden = !carpetaSubs(); $('ev-carpeta-quitar').disabled = ocupado;
+        $('ev-drive-txt').textContent = texto || (c ? 'Elija las fotos: se arma el PDF, se sube a ' + destinoSubs() + ' › carpeta del día y el enlace queda en EVIDENCIA.' : 'Conecte su Drive (cuenta institucional) y luego elija las fotos. El permiso dura una hora, aunque recargue la página.') +
+            (texto ? '' : ' La carpeta elegida se recuerda en este equipo.');
+    }
+    // El selector de Google se pone en la página, y con la visita abierta en modal quedaría detrás sin poder tocarse:
+    // mientras se elige, la visita pasa a ventana normal (sin disparar su «close», que limpia cosas) y luego vuelve
+    var cierresCallados = 0;
+    window.addEventListener('close', function (ev) { if (ev.target === dlg && cierresCallados > 0) { cierresCallados--; ev.stopImmediatePropagation(); } }, true);
+    function dlgSinModal() { if (dlg.open) { cierresCallados++; dlg.close(); dlg.show(); } }
+    function dlgModal() { if (dlg.open) { cierresCallados++; dlg.close(); dlg.showModal(); } }
+    $('ev-carpeta').onclick = function () {
+        evEligiendo = true; pintarEvDrive(driveConectado() ? 'Abriendo sus carpetas de Drive…' : 'Abriendo la ventana de Google…');
+        // El permiso se pide en este mismo toque (si no, el navegador bloquea la ventana); el selector sale después
+        var promesa = driveElegirCarpeta();
+        var abrir = setTimeout(dlgSinModal, 0);
+        promesa.then(function (c) {
+            clearTimeout(abrir); dlgModal(); evEligiendo = false;
+            if (!c) return pintarEvDrive('No se eligió carpeta: sigue ' + destinoSubs() + '.');
+            try { localStorage.setItem(CLAVE_CARPETA, JSON.stringify(c)); } catch (e) { /* sin almacenamiento: vale solo hasta recargar */ }
+            pintarEvDrive('✓ Los PDF irán a 📁 ' + c.nombre + ' › carpeta del día. Ahora toque «📷 Fotos → PDF → Drive».');
+        }, function (e) {
+            clearTimeout(abrir); dlgModal(); evEligiendo = false;
+            pintarEvDrive('⚠ ' + e.message + (/permiso|ventana de Google|ID de cliente/i.test(e.message) ? '' : ' Si el selector no abre, revise que la «Google Picker API» esté activada en el proyecto Microrrutas de Google Cloud.'));
+        });
+    };
+    $('ev-carpeta-quitar').onclick = function () {
+        try { localStorage.removeItem(CLAVE_CARPETA); } catch (e) { /* nada */ }
+        pintarEvDrive('Los PDF vuelven a ' + destinoSubs() + ' › carpeta del día.');
+    };
     $('ev-drive').onclick = function () {
         if (driveConectado()) { $('ev-fotos').value = ''; return $('ev-fotos').click(); }
         pintarEvDrive('Abriendo la ventana de Google…');
@@ -1084,13 +1120,13 @@ export function iniciar(api, CFG) {
             if (!pdf.bytes) throw new Error('ninguna foto se pudo poner en el PDF');
             pintarEvDrive('Subiendo a Drive…');
             try {
-                var sub = await subirPdf(pdf.bytes, pdf.nombre, f, CARPETA_SUBS);
+                var destino = carpetaSubs() || CARPETA_SUBS, sub = await subirPdf(pdf.bytes, pdf.nombre, f, destino);
                 var campo = form.querySelector('[data-campo="EVIDENCIA"]');
                 campo.value = sub.enlace; campo.dispatchEvent(new Event('input', { bubbles: true }));
-                evSubiendo = false; pintarEvDrive('✓ Subido a Mi unidad › ' + nombreCarpeta(f, CARPETA_SUBS) + ' (' + sub.compartido + '). Enlace en EVIDENCIA: falta Guardar.');
+                evSubiendo = false; pintarEvDrive('✓ Subido a ' + (carpetaSubs() ? '📁 ' : 'Mi unidad › ') + nombreCarpeta(f, destino) + ' (' + sub.compartido + '). Enlace en EVIDENCIA: falta Guardar.');
             } catch (e) {
                 descargar(pdf.bytes, pdf.nombre, 'application/pdf');
-                evSubiendo = false; pintarEvDrive('⚠ No se pudo subir (' + e.message + '). Se descargó el PDF: súbalo y pegue el enlace.');
+                evSubiendo = false; pintarEvDrive('⚠ No se pudo subir (' + e.message + '). Se descargó el PDF: súbalo y pegue el enlace.' + (carpetaSubs() && / 40[34]/.test(e.message) ? ' Puede que ya no tenga acceso a la carpeta elegida: toque «📁 Cambiar carpeta» o «↺ Carpeta de siempre».' : ''));
             }
         } catch (e) { evSubiendo = false; pintarEvDrive('⚠ No se pudo armar el PDF: ' + e.message); }
     };

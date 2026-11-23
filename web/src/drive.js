@@ -161,6 +161,46 @@ export function desconectar() {
     try { localStorage.removeItem(CLAVE_TOKEN); } catch (e) { /* sin almacenamiento */ }
 }
 
+// ---------- Elegir una carpeta que ya existe (selector de Google, «Google Picker») ----------
+// Con drive.file la app no ve las carpetas hechas a mano; al elegirla en el selector de Google, Google le da permiso
+// a la app sobre esa carpeta (solo esa) y la app puede crear adentro la carpeta del día. Sirve para «Mi unidad»,
+// «Compartidos conmigo» y unidades compartidas. Necesita la «Google Picker API» activada en el proyecto de Google Cloud.
+// CLAVE_API: clave de navegador (opcional; Google la recomienda). No es secreta, como el ID de cliente
+export var CLAVE_API = '';
+var PICKER = 'https://apis.google.com/js/api.js', pickerListo = null;
+function cargarPicker() {
+    if (window.google && window.google.picker) return Promise.resolve();
+    return pickerListo || (pickerListo = new Promise(function (ok, mal) {
+        var falla = function () { pickerListo = null; mal(new Error('No se pudo cargar el selector de carpetas de Google (revise la conexión).')); };
+        var cargar = function () { window.gapi.load('picker', { callback: ok, onerror: falla }); };
+        if (window.gapi && window.gapi.load) return cargar();
+        var s = document.createElement('script');
+        s.src = PICKER; s.async = true; s.onload = cargar; s.onerror = falla;
+        document.head.appendChild(s);
+    }));
+}
+// Número del proyecto de Google Cloud (va al inicio del ID de cliente): el selector lo pide para dar el permiso
+export function numeroProyecto(id) { var m = /^(\d+)-/.exec(String(id || '')); return m ? m[1] : ''; }
+// Abre el selector. Devuelve { id, nombre } de la carpeta elegida, o null si se cerró sin elegir.
+// Llamarla en el toque del botón: si falta el permiso, primero sale la ventana de Google
+export async function elegirCarpeta() {
+    await conectar(false);
+    await cargarPicker();
+    var g = window.google.picker;
+    return new Promise(function (ok) {
+        var mias = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setMimeTypes('application/vnd.google-apps.folder');
+        var unidades = new g.DocsView(g.ViewId.FOLDERS).setIncludeFolders(true).setSelectFolderEnabled(true).setEnableDrives(true).setMimeTypes('application/vnd.google-apps.folder');
+        var b = new g.PickerBuilder().addView(mias).addView(unidades).enableFeature(g.Feature.SUPPORT_DRIVES)
+            .setOAuthToken(token).setAppId(numeroProyecto(idCliente())).setLocale('es').setTitle('Elija la carpeta para los PDF')
+            .setCallback(function (d) {
+                if (d.action === g.Action.PICKED && d.docs && d.docs[0]) ok({ id: d.docs[0].id, nombre: d.docs[0].name || 'Carpeta elegida' });
+                else if (d.action === g.Action.CANCEL) ok(null);
+            });
+        if (CLAVE_API) b.setDeveloperKey(CLAVE_API);
+        b.build().setVisible(true);
+    });
+}
+
 async function api(url, opciones) {
     var r = await fetch(url, Object.assign({}, opciones, { headers: Object.assign({ Authorization: 'Bearer ' + token }, (opciones || {}).headers) }));
     if (r.status === 401) { token = null; vence = 0; try { localStorage.removeItem(CLAVE_TOKEN); } catch (e) { /* nada */ } throw new Error('La sesión de Google venció: vuelva a conectar Drive.'); }
@@ -173,38 +213,47 @@ export function nombreDia(fecha) {
     return p.length === 3 ? p[2] + '-' + p[1] + '-' + p[0] : String(fecha || '');
 }
 // Ruta que se muestra: «Instrumentos interventoría › 23-11-2026»
-// principal: otra carpeta principal (p. ej. «Subsanaciones»); sin ella, la de los instrumentos
-export function nombreCarpeta(fecha, principal) { return (principal || carpetaPrincipal()) + ' › ' + nombreDia(fecha); }
+// principal: otra carpeta principal (p. ej. «Subsanaciones»), o una elegida en el selector ({ id, nombre });
+// sin ella, la de los instrumentos
+export function nombreCarpeta(fecha, principal) {
+    var p = principal && typeof principal === 'object' ? principal.nombre : principal;
+    return (p || carpetaPrincipal()) + ' › ' + nombreDia(fecha);
+}
 // Busca (o crea) una carpeta por nombre dentro de otra ('root' = Mi unidad). Con el permiso drive.file solo se ven las
-// carpetas que creó la app: si la persona hizo una a mano con el mismo nombre, la app crea la suya al lado
-async function carpeta(nombre, padre) {
+// carpetas que creó la app: si la persona hizo una a mano con el mismo nombre, la app crea la suya al lado.
+// td: parámetros para unidades compartidas (solo cuando la carpeta se eligió en el selector)
+async function carpeta(nombre, padre, td) {
+    td = td || '';
     var k = padre + '/' + nombre;
     if (carpetas[k]) return carpetas[k];
     var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and mimeType = 'application/vnd.google-apps.folder' and '" + padre + "' in parents and trashed = false";
-    var hay = await api('https://www.googleapis.com/drive/v3/files?fields=files(id)&q=' + encodeURIComponent(q));
+    var hay = await api('https://www.googleapis.com/drive/v3/files?fields=files(id)' + td + '&q=' + encodeURIComponent(q));
     if (hay.files && hay.files.length) return (carpetas[k] = hay.files[0].id);
-    var nueva = await api('https://www.googleapis.com/drive/v3/files?fields=id', {
+    var nueva = await api('https://www.googleapis.com/drive/v3/files?fields=id' + (td ? '&supportsAllDrives=true' : ''), {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ name: nombre, mimeType: 'application/vnd.google-apps.folder', parents: [padre] })
     });
     return (carpetas[k] = nueva.id);
 }
 // Sube el PDF (bytes) a la carpeta del día y lo comparte con enlace. Devuelve { id, enlace }.
-// Si ya hay uno con el mismo nombre en esa carpeta (se volvió a guardar la revisión), lo reemplaza
+// Si ya hay uno con el mismo nombre en esa carpeta (se volvió a guardar la revisión), lo reemplaza.
+// principal: nombre de la carpeta en «Mi unidad», o { id, nombre } de una elegida con elegirCarpeta()
 export async function subirPdf(bytes, nombre, fecha, principal) {
     await conectar(true);
-    var dir = await carpeta(nombreDia(fecha), await carpeta(principal || carpetaPrincipal(), 'root'));
+    var elegida = principal && typeof principal === 'object' && principal.id;
+    var td = elegida ? '&supportsAllDrives=true&includeItemsFromAllDrives=true' : '', sd = elegida ? '&supportsAllDrives=true' : '';
+    var dir = await carpeta(nombreDia(fecha), elegida ? principal.id : await carpeta(principal || carpetaPrincipal(), 'root'), td);
     guardar(CLAVE_ULTIMA, 'https://drive.google.com/drive/folders/' + dir);
     var q = "name = '" + nombre.replace(/'/g, "\\'") + "' and '" + dir + "' in parents and trashed = false";
-    var previo = (await api('https://www.googleapis.com/drive/v3/files?fields=files(id)&q=' + encodeURIComponent(q))).files || [];
+    var previo = (await api('https://www.googleapis.com/drive/v3/files?fields=files(id)' + td + '&q=' + encodeURIComponent(q))).files || [];
     var meta = previo.length ? {} : { name: nombre, parents: [dir], mimeType: 'application/pdf' };
     var limite = 'microrutas' + Math.random().toString(36).slice(2);
     var cuerpo = new Blob(['--' + limite + '\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n' + JSON.stringify(meta) + '\r\n--' + limite + '\r\nContent-Type: application/pdf\r\n\r\n', bytes, '\r\n--' + limite + '--'], { type: 'multipart/related; boundary=' + limite });
-    var url = previo.length ? 'https://www.googleapis.com/upload/drive/v3/files/' + previo[0].id + '?uploadType=multipart&fields=id,webViewLink'
-        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink';
+    var url = previo.length ? 'https://www.googleapis.com/upload/drive/v3/files/' + previo[0].id + '?uploadType=multipart&fields=id,webViewLink' + sd
+        : 'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&fields=id,webViewLink' + sd;
     var f = await api(url, { method: previo.length ? 'PATCH' : 'POST', body: cuerpo });
     var compartido = 'cualquiera con el enlace';
     try {
-        await api('https://www.googleapis.com/drive/v3/files/' + f.id + '/permissions?fields=id', {
+        await api('https://www.googleapis.com/drive/v3/files/' + f.id + '/permissions?fields=id' + sd, {
             method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'reader', type: 'anyone' })
         });
     } catch (e) {
@@ -213,7 +262,7 @@ export async function subirPdf(bytes, nombre, fecha, principal) {
         compartido = 'sin compartir (la organización no lo permite)';
         if (dominio) {
             try {
-                await api('https://www.googleapis.com/drive/v3/files/' + f.id + '/permissions?fields=id', {
+                await api('https://www.googleapis.com/drive/v3/files/' + f.id + '/permissions?fields=id' + sd, {
                     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'reader', type: 'domain', domain: dominio })
                 });
                 compartido = 'solo con ' + dominio;

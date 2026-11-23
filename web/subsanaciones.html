@@ -177,6 +177,8 @@
                     <label class="ancho">EVIDENCIA (link de fotos / Drive) <input type="url" data-campo="EVIDENCIA" placeholder="https://"></label>
                     <!-- Fotos → PDF → Drive de quien registra: el enlace queda en EVIDENCIA (src/drive.js, como en ✅ Revisión) -->
                     <div class="ancho ev-drive"><button type="button" class="secundario pequeno" id="ev-drive"></button>
+                        <button type="button" class="secundario pequeno" id="ev-carpeta" title="Elegir en su Drive la carpeta donde van los PDF (se recuerda en este equipo)">📁 Elegir carpeta</button>
+                        <button type="button" class="secundario pequeno" id="ev-carpeta-quitar" hidden title="Volver a Mi unidad › Subsanaciones">↺ Carpeta de siempre</button>
                         <input type="file" id="ev-fotos" accept="image/*" multiple hidden>
                         <span class="sub" id="ev-drive-txt"></span></div>
                     <label class="ancho">OBSERVACIÓN SUBSANACIÓN <textarea data-campo="OBSERVACIÓN SUBSANACIÓN"></textarea></label>
