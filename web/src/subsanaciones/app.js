@@ -23,7 +23,7 @@ import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 import { leerImagenes, ordenarPorNombre } from './ocr.js';
-import { mezclarRutas, tocaReleer } from './prerutas.js';
+import { mezclarRutas, tocaReleer, revisadosDeRuta } from './prerutas.js';
 import { iniciarUbicar } from './ubicar_ui.js';
 import { leerLotes as leerLotesVl, cuadrillas as cuadrillasVl, lotesParaElegir, registroDeLote as registroDeLoteVl, nombreLote as nombreLoteVl } from './varios.js';
 import { crearLibreta } from './lugares.js';
@@ -1626,6 +1626,31 @@ export function iniciar(api, CFG) {
         return 'https://www.google.com/maps/dir/?api=1' + (origen ? '&origin=' + origen : '') + '&destination=' + puntoMaps(t[t.length - 1]) +
             (t.length > 1 ? '&waypoints=' + t.slice(0, -1).map(puntoMaps).join('%7C') : '') + '&travelmode=driving';
     }
+    // Revisados de varias pre-rutas, sin repetir y sin los que siguen pendientes (ids del mapa en "quitar")
+    function revisadosDe(lista, quitar) {
+        var vistos = {};
+        return lista.reduce(function (out, ruta) {
+            return out.concat(revisadosDeRuta(ruta.cuad, ruta.paradas, registros, function (r, campo) { return aInput(r[campo]); }, quitar).filter(function (x) {
+                var id = idMapaRev(x);
+                if (vistos[id]) return false;
+                vistos[id] = 1;
+                return true;
+            }));
+        }, []);
+    }
+    function idMapaRev(x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; }
+    // Enlace al mapa rápido: pendientes (numerados en orden) y luego los revisados con su estado y su visita
+    function urlMapaRuta(pend, revisados, vencidos, curso) {
+        var ids = function (f) { return revisados.filter(f).map(idMapaRev).join(','); };
+        var cerrada = function (x) { return x.visita.ESTADO === 'CERRADO'; };
+        return 'mapa_rapido.html?lote=' + pend.concat(revisados.map(idMapaRev)).join(',') +
+            '&hechos=' + ids(function (x) { return !cerrada(x) && x.visita.ESTADO !== 'PENDIENTE'; }) +
+            '&subsanar=' + ids(function (x) { return x.visita.ESTADO === 'PENDIENTE'; }) +
+            '&cerrados=' + ids(cerrada) +
+            '&curso=' + (curso || []).join(',') +
+            '&vencidos=' + vencidos.join(',') +
+            '&visitas=' + revisados.map(function (x) { return idMapaRev(x) + ':' + x.visita.ID; }).join(',');
+    }
     function pintarRutaCompleta() {
         if (rutas.length < 2) return '';
         var orden = rutaCompleta();
@@ -1654,9 +1679,10 @@ export function iniciar(api, CFG) {
                     return '<a class="boton ' + (k ? 'secundario' : 'primario') + ' pequeno" target="_blank" rel="noopener" data-ir-tramo="' + k + '" href="' + esc(urlTramo(tramos, k)) + '">' +
                         (tramos.length > 1 ? 'Tramo ' + (k + 1) + ' · ' + (desde === hasta ? 'lote ' + desde : desde + '–' + hasta) : 'Ruta completa en Google Maps') + '</a>';
                 }).join('') +
-                // &hechos= vacío: el mapa los pinta como pre-ruta (rojo por revisar) y los que pasaron el plazo en fucsia
-                '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + orden.map(idMapa).join(',') + '&hechos=' +
-                    '&vencidos=' + orden.filter(function (x) { var pz = plazoDe(x); return pz && pz.resta < 0; }).map(idMapa).join(',')) + '">Ver todos en el mapa</a>' +
+                // Pendientes en rojo (los que pasaron el plazo en fucsia) y, al final, los ya revisados de esas cuadrillas
+                // en verde / por subsanar / cerrados (al revisarse salen de la pre-ruta: se buscan en las visitas)
+                '<a class="boton secundario pequeno" href="' + esc(urlMapaRuta(orden.map(idMapa), revisadosDe(rutas, orden.map(idMapa)),
+                    orden.filter(function (x) { var pz = plazoDe(x); return pz && pz.resta < 0; }).map(idMapa))) + '">Ver todos en el mapa</a>' +
                 '<label class="tramo-sel">Lotes por tramo <select data-tramo>' + TRAMOS.map(function (n) {
                     return '<option value="' + n + '"' + (n === TRAMO ? ' selected' : '') + '>' + n + '</option>';
                 }).join('') + '</select></label>' +
@@ -1874,15 +1900,13 @@ export function iniciar(api, CFG) {
             var enMapa = paradas.filter(function (x) { return x.lote || x.mr; });
             var idMapa = function (x) { return enMapaPorLote(x.lote) || !x.mr ? x.lote : x.mr; };
             var cerrada = function (x) { return x.visita && x.visita.ESTADO === 'CERRADO'; };
-            var urlTodos = enMapa.length ? 'mapa_rapido.html?lote=' + enMapa.map(idMapa).join(',') +
-                '&hechos=' + enMapa.filter(function (x) { return x.visita && !cerrada(x) && x.visita.ESTADO !== 'PENDIENTE'; }).map(idMapa).join(',') +
-                '&subsanar=' + enMapa.filter(function (x) { return x.visita && x.visita.ESTADO === 'PENDIENTE'; }).map(idMapa).join(',') +
-                '&cerrados=' + enMapa.filter(cerrada).map(idMapa).join(',') +
-                '&curso=' + enMapa.filter(function (x) { return x.encurso; }).map(idMapa).join(',') +
+            // Revisados: las paradas con visita y los que ya salieron de la pre-ruta al revisarse (se buscan en las visitas)
+            var revisadas = enMapa.filter(function (x) { return x.visita; }).map(function (x) { return { lote: x.lote, mr: x.mr, visita: x.visita }; })
+                .concat(revisadosDe([ruta], enMapa.map(idMapa)));
+            var urlTodos = enMapa.length ? urlMapaRuta(enMapa.filter(function (x) { return !x.visita; }).map(idMapa), revisadas,
                 // Sin visita y con el plazo de PLAZO_DIAS ya pasado: el mapa los pinta de otro color
-                '&vencidos=' + enMapa.filter(function (x) { return x.plazo && x.plazo.resta < 0; }).map(idMapa).join(',') +
-                // lote:ID de la visita, para el botón "Ver detalles de la visita" en la ficha del mapa
-                '&visitas=' + enMapa.filter(function (x) { return x.visita; }).map(function (x) { return idMapa(x) + ':' + x.visita.ID; }).join(',') : '';
+                enMapa.filter(function (x) { return !x.visita && x.plazo && x.plazo.resta < 0; }).map(idMapa),
+                enMapa.filter(function (x) { return x.encurso; }).map(idMapa)) : '';
             var prev = posicion, prevUsted = !!posicion;
             var plegada = !abiertas[ruta.cuad || ''];
             // Cada pre-ruta con el color de su cuadrilla (el mismo del mapa rápido) para distinguirlas de un vistazo
