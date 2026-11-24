@@ -248,6 +248,19 @@
     .yo-fila .yo-txt b.yo-espera { color: var(--muted); font-weight: 400; font-style: italic; }
     .yo-fila .copiar { flex: none; min-height: 36px; padding: 4px 12px; font-size: 12.5px; }
     .yo-fila .copiar:disabled { opacity: .45; cursor: default; }
+    /* ⭐ Operaciones especiales de la programación: estrella en un círculo del color de su estado; punteada = aproximada */
+    .esp-pin span { display: grid; place-items: center; width: 30px; height: 30px; border-radius: 50%; border: 3px solid #fff; font-size: 14px; box-shadow: 0 1px 4px rgba(0,0,0,.5); }
+    .esp-aprox span { border-style: dashed; }
+    .ficha-esp .esp-estado { margin-top: 8px; padding: 7px 10px; border-left: 4px solid #64748b; border-radius: 8px; background: var(--bg); font-weight: 700; }
+    .esp-lista { list-style: none; margin: 10px 0; padding: 0; display: grid; gap: 6px; max-height: 50vh; overflow-y: auto; }
+    .esp-lista li { min-width: 0; }
+    .esp-lista button { box-sizing: border-box; white-space: normal; display: flex; align-items: center; gap: 10px; width: 100%; min-height: 44px; padding: 7px 10px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); color: var(--ink); font: inherit; text-align: left; cursor: pointer; }
+    .esp-lista i { flex: none; width: 12px; height: 12px; border-radius: 50%; }
+    .esp-lista span { flex: 1; min-width: 0; }
+    .esp-lista b { display: block; overflow-wrap: anywhere; }
+    .esp-lista small { display: block; color: var(--muted); font-size: 12px; }
+    .esp-lista .esp-sin { color: #b91c1c; font-weight: 700; }
+    .ficha-lote .acciones button:disabled[data-esp-gps] { opacity: .5; }
     .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
     .etiqueta-zona::before { display: none; }
     /* Armar pre-ruta tocando lotes: barra abajo con los elegidos */
@@ -1593,6 +1606,150 @@
         return n;
     }
 
+    // ---------- ⭐ Operaciones especiales: las de la programación cargada en Subsanaciones (Programación del día) ----------
+    // Salen del Excel guardado en este equipo (programacion_cache): cambian cada vez que se sube otro. Cada una se ubica sola
+    // por su dirección (aproximada, solo dentro de la zona de los lotes) y se puede corregir a mano: el punto corregido
+    // queda guardado en este equipo (especiales_puntos) y vale para los Excel siguientes con el mismo código de ruta.
+    var espOn = leer('rapido_especiales', false), espPuntos = leer('especiales_puntos', {}), capaEsp = null, espUbic = {}, espFijando = null, espBuscando = false;
+    function especiales() {
+        var pd = leer('programacion_cache', null);
+        return pd && pd.prog && Array.isArray(pd.prog.especiales) ? pd.prog.especiales.filter(function (e) { return e && e.ruta; }) : [];
+    }
+    function claveEsp(e) { return String(e.ruta || '').trim().toUpperCase(); }
+    function ddmm(f) { return /^\d{4}-\d{2}-\d{2}$/.test(f || '') ? f.slice(8, 10) + '/' + f.slice(5, 7) : ''; }
+    // ejecutado (verde) · sin ejecutar con la fecha ya pasada (rojo) · toca en los próximos 7 días (naranja) · más adelante o sin fecha (gris)
+    function estadoEsp(e) {
+        var h = hoyISO(), p = e.proxima || '';
+        if (e.ejecutado) return { k: 'hecho', color: '#16a34a', txt: '✓ Ejecutado' + (ddmm(e.ejecutado) ? ' el ' + ddmm(e.ejecutado) : '') + (e.cuadrilla ? ' · cuadrilla ' + e.cuadrilla : '') };
+        if (p && p < h) return { k: 'atrasado', color: '#dc2626', txt: '⚠ Sin ejecutar · tocaba el ' + ddmm(p) };
+        var dif = p ? Math.round((new Date(p + 'T00:00:00Z') - new Date(h + 'T00:00:00Z')) / 864e5) : null;
+        if (dif != null && dif <= 7) return { k: 'pronto', color: '#ea580c', txt: dif === 0 ? '⏰ Toca hoy' : '⏰ Toca el ' + ddmm(p) };
+        return { k: 'luego', color: '#64748b', txt: p ? 'Próxima: ' + ddmm(p) : 'Sin fecha próxima en el Excel' };
+    }
+    // Dónde está: el punto corregido a mano o el que se encontró por la dirección → { ll, aprox } o null
+    function puntoEsp(e) {
+        var f = espPuntos[claveEsp(e)];
+        if (f && f.p) return { ll: L.latLng(f.p), aprox: '', fijado: true };
+        var u = espUbic[claveEsp(e)];
+        return u ? { ll: L.latLng(u.lat, u.lng), aprox: u.aprox || 'aproximada' } : null;
+    }
+    function zonaLotes() {
+        var cajas = ordenCuad.map(function (k) { return L.latLngBounds(IDX.cuadrillas[k].b); });
+        var zona = cajas.reduce(function (z, b) { return z.extend(b); }, L.latLngBounds(cajas[0].getSouthWest(), cajas[0].getNorthEast())).pad(0.1);
+        return { zona: zona, enLotes: function (ll) { return cajas.some(function (b) { return b.contains([ll.lat, ll.lng]); }); },
+                 cerca: function (ll) { return cajas.some(function (b) { return b.pad(0.05).contains([ll.lat, ll.lng]); }); } };
+    }
+    // Una por una (las que no están en los cruces guardados se buscan en línea): se pinta a medida que aparecen
+    function ubicarEspeciales() {
+        if (espBuscando || !window.leerDireccion || !window.ubicarDireccion) return;
+        var faltan = especiales().filter(function (e) { var k = claveEsp(e); return !espPuntos[k] && !(k in espUbic) && e.dir; });
+        if (!faltan.length) return;
+        espBuscando = true;
+        var z = zonaLotes(), caja = [z.zona.getSouth(), z.zona.getWest(), z.zona.getNorth(), z.zona.getEast()];
+        (function sig(i) {
+            if (i >= faltan.length || !espOn) {
+                espBuscando = false; pintarEspeciales();
+                if (document.querySelector('.esp-lista')) verListaEsp();
+                return;
+            }
+            var e = faltan[i], k = claveEsp(e), d = window.leerDireccion(e.dir);
+            if (!d) { espUbic[k] = null; return sig(i + 1); }
+            window.ubicarDireccion(d, caja, z.enLotes).then(function (c) {
+                // Fuera de la zona de alguna cuadrilla no se acepta (la misma placa existe en Bello, Itagüí…); es lo mismo
+                // que el buscador llama «fuera de la zona de los lotes»
+                espUbic[k] = c && z.cerca(c) ? c : null;
+            }, function () { espUbic[k] = null; }).then(function () { pintarEspeciales(); sig(i + 1); });
+        })(0);
+    }
+    function pintarEspeciales() {
+        if (capaEsp) { map.removeLayer(capaEsp); capaEsp = null; }
+        if (!espOn) return;
+        capaEsp = L.layerGroup();
+        especiales().forEach(function (e, i) {
+            var pt = puntoEsp(e);
+            if (!pt) return;
+            var st = estadoEsp(e);
+            L.marker(pt.ll, { icon: L.divIcon({ className: 'esp-pin' + (pt.aprox ? ' esp-aprox' : ''), html: '<span style="background:' + st.color + '">⭐</span>', iconSize: [30, 30], iconAnchor: [15, 15] }),
+                title: e.ruta + ' · ' + st.txt, zIndexOffset: 900 })
+                .on('click', function () { verEspecial(i); }).addTo(capaEsp);
+        });
+        capaEsp.addTo(map);
+    }
+    function fichaEspecial(i) {
+        var e = especiales()[i], pt = puntoEsp(e), st = estadoEsp(e), ll = pt && pt.ll, l = ll && loteEn(ll);
+        var dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
+        var google = 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent([e.ruta, e.dir].filter(Boolean).join(', ') + ', Medellín, Antioquia');
+        return '<div class="ficha-lote ficha-esp">' +
+            '<div class="cab"><span class="titulo">⭐ ' + esc(e.ruta) + '</span></div>' +
+            '<div class="mr">Operación especial · ' + esc([e.dir, e.escenario && e.escenario !== e.ruta ? e.escenario : ''].filter(Boolean).join(' · ')) + '</div>' +
+            '<div class="esp-estado" style="border-left-color:' + st.color + '">' + esc(st.txt) + '</div>' +
+            '<div class="datos">' + dato('Área', e.area ? e.area.toLocaleString('es-CO') + ' m²' : '') + dato('Próxima', ddmm(e.proxima)) + dato('Cuadrilla', e.cuadrilla) + '</div>' +
+            (e.obs && e.obs !== '-' ? '<div class="bloque"><span class="et">Observaciones</span><div class="txt">' + esc(e.obs) + '</div></div>' : '') +
+            '<div class="bloque"><span class="et">Ubicación</span><div class="txt">' +
+                (!pt ? '<b>Sin ubicar:</b> la dirección no se encontró en el mapa. Búsquela en Google Maps y corríjala aquí con «📌 Poner el punto».' :
+                 pt.fijado ? '📌 Corregida a mano en este equipo · ' + esc(coordTxt(ll)) :
+                 '≈ ' + esc(pt.aprox) + ' (por la dirección) · ' + esc(coordTxt(ll)) + '. Si no es ahí, corríjala con «📌 Poner el punto».') + '</div>' +
+                (l ? '<div class="sub-f" style="margin-top:4px">No es un lote. Lote vecino: ' + esc(textoLote(l)) + '</div>' : '') + '</div>' +
+            '<div class="acciones">' +
+                (ll ? '<a class="boton primario" href="' + esc(urlRuta(origen(), ll)) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' : '') +
+                '<a class="boton secundario' + (ll ? '' : ' ancho') + '" href="' + esc(google) + '" target="_blank" rel="noopener">🔎 Buscar en Google Maps</a>' +
+                '<button type="button" class="boton secundario" data-esp-fijar="' + i + '">📌 Poner el punto</button>' +
+                '<button type="button" class="boton secundario" data-esp-gps="' + i + '"' + (miPos ? '' : ' disabled title="Sin GPS todavía"') + '>📍 Estoy aquí</button>' +
+                (pt && pt.fijado ? '<button type="button" class="boton secundario ancho" data-esp-soltar="' + i + '">↺ Volver a la dirección</button>' : '') +
+            '</div></div>';
+    }
+    function verEspecial(i) {
+        var pt = puntoEsp(especiales()[i]);
+        abrirPanel(fichaEspecial(i), pt ? pt.ll : map.getCenter());
+    }
+    // Lista de todas: cuántas hay, cuántas sin ubicar, y desde ahí se abre o se corrige cada una
+    function listaEspeciales() {
+        var L2 = especiales(), sin = L2.filter(function (e) { return !puntoEsp(e); }).length;
+        var orden = L2.map(function (e, i) { return i; }).sort(function (a, b) { return (!!puntoEsp(L2[b]) ? 0 : 1) - (!!puntoEsp(L2[a]) ? 0 : 1) || String(L2[a].proxima || '9').localeCompare(String(L2[b].proxima || '9')); });
+        return '<div class="ficha-lote ficha-esp">' +
+            '<div class="cab"><span class="titulo">⭐ Especiales</span></div>' +
+            '<div class="mr">' + L2.length + ' en la programación cargada' + (sin ? ' · <b>' + sin + ' sin ubicar</b>' : ' · todas ubicadas') + (espBuscando ? ' · buscando direcciones…' : '') + '</div>' +
+            '<ul class="esp-lista">' + orden.map(function (i) {
+                var e = L2[i], st = estadoEsp(e), pt = puntoEsp(e);
+                return '<li><button type="button" data-esp-ver="' + i + '"><i style="background:' + st.color + '"></i><span><b>' + esc(e.ruta) + '</b><small>' + esc(st.txt) +
+                    (pt ? (pt.aprox ? ' · ≈ aproximada' : '') : ' · <span class="esp-sin">sin ubicar</span>') + '</small></span></button></li>';
+            }).join('') + '</ul>' +
+            '<div class="mr">Salen del Excel de programación cargado en Subsanaciones (en este equipo). Los puntos corregidos a mano se guardan aquí.</div></div>';
+    }
+    function verListaEsp() { abrirPanel(listaEspeciales(), map.getCenter(), true); }
+    function fijarEspecial(i, ll) {
+        var e = especiales()[i];
+        espPuntos[claveEsp(e)] = { p: [+ll.lat.toFixed(6), +ll.lng.toFixed(6)], hora: Date.now() };
+        guardar('especiales_puntos', espPuntos);
+        espFijando = null; map.getContainer().style.cursor = '';
+        pintarEspeciales();
+        verEspecial(i);
+        toast('📌 Punto de ' + e.ruta + ' guardado en este equipo.');
+    }
+    document.addEventListener('click', function (ev) {
+        var b = ev.target.closest && ev.target.closest('[data-esp-ver], [data-esp-fijar], [data-esp-gps], [data-esp-soltar], [data-esp-lista]');
+        if (!b) return;
+        if (b.hasAttribute('data-esp-lista')) { if (movil.matches) plegarBarra(true); return verListaEsp(); }
+        var i = +(b.dataset.espVer || b.dataset.espFijar || b.dataset.espGps || b.dataset.espSoltar), e = especiales()[i];
+        if (!e) return;
+        if (b.hasAttribute('data-esp-ver')) { var pt = puntoEsp(e); if (pt) map.setView(pt.ll, Math.max(map.getZoom(), 17)); return verEspecial(i); }
+        if (b.hasAttribute('data-esp-gps')) return miPos && fijarEspecial(i, miPos);
+        if (b.hasAttribute('data-esp-soltar')) { delete espPuntos[claveEsp(e)]; guardar('especiales_puntos', espPuntos); pintarEspeciales(); toast('Vuelve al punto de la dirección.'); return verEspecial(i); }
+        espFijando = i; map.closePopup(); cerrarFicha();
+        map.getContainer().style.cursor = 'crosshair';
+        toast('Toque el mapa donde queda ' + e.ruta + '.');
+    });
+    function alternarEspeciales() {
+        espOn = !espOn;
+        guardar('rapido_especiales', espOn);
+        pintarEspeciales();
+        pintarChips();
+        if (!espOn) return toast('Especiales apagados');
+        ubicarEspeciales();
+        var n = especiales().length;
+        toast(n + ' operaciones especiales de la programación. Toque «📋 Lista» para ver las que faltan por ubicar.');
+    }
+
     // Secciones de la hoja de capas (celular): cada una se contrae tocando su título, que dice lo que tiene puesto.
     // En el computador el título no se ve y los botones siguen en la barra (antes: el separador o la etiqueta "antes").
     var plegadas = leer('rapido_secciones', { capas: true });
@@ -1611,7 +1768,7 @@
         var puestas = function (lista) { return lista.filter(function (k) { return capasActivas.indexOf(k) !== -1; }).map(function (k) { return NOMBRES_CAPA[k]; }); };
         var modos = [vencidos && '⏰ Vencidos', seleccion && '☑ Pre-ruta', verPrecision && '◎ GPS'].filter(Boolean);
         var filtroTxt = filtroRutas.z.map(function (z) { return 'Z' + z; }).concat(filtroRutas.j.map(textoJornada));
-        var hayAlgo = activas.length || modos.length || capasActivas.length || guiaPref.on.length || guiaPref.hoy || filtroTxt.length ||
+        var hayAlgo = activas.length || modos.length || capasActivas.length || guiaPref.on.length || guiaPref.hoy || filtroTxt.length || espOn ||
             OPC_PREDIOS.some(function (o) { return predPref[o[0]]; });
         $('chips').innerHTML =
             '<div class="fila-quitar"><button type="button" class="chip quitar-todo" data-quitar-todo' + (hayAlgo ? '' : ' disabled') +
@@ -1642,6 +1799,10 @@
                         esc((g.icono ? g.icono + ' ' : '') + g.titulo.split(' · ')[0]) + '</button>';
                 }).join('') +
                 '<button type="button" class="chip capa" data-guia-hoy aria-pressed="' + !!guiaPref.hoy + '" title="Mostrar solo los corredores que tocan ese día">📅 Solo el ' + DIAS_GUIA[diaGuia()] + '</button>') : '') +
+            // ⭐ Especiales: solo si hay programación cargada en este equipo con operaciones especiales
+            (especiales().length ? seccion('especiales', '⭐ Especiales', espOn ? especiales().length + ' en el mapa' : 'apagados', '<span class="separador"></span>',
+                '<button type="button" class="chip capa" data-esp-on aria-pressed="' + espOn + '" title="Operaciones especiales de la programación cargada en Subsanaciones">⭐ Especiales (' + especiales().length + ')</button>' +
+                (espOn ? '<button type="button" class="chip capa" data-esp-lista title="Todas las especiales: estado y las que faltan por ubicar">📋 Lista</button>' : '')) : '') +
             // Con alguna capa de rutas puesta: filtro por zona (Z1, Z2...) y por jornada; sin ninguno marcado salen todas
             (puestas(ksRuta).length ?
                 seccion('filtro', 'Filtrar rutas por zona y jornada', filtroTxt.join(', ') || 'todas', '<span class="salto"></span><span class="et-grupo">Rutas por zona y jornada:</span>',
@@ -1702,6 +1863,7 @@
         guardar('rapido_capas', capasActivas);
         if (guiaPref.on.length || guiaPref.hoy) { guiaPref.on = []; guiaPref.hoy = false; guardar('rapido_guia', guiaPref); pintarGuia(false); }
         if (filtroRutas.z.length || filtroRutas.j.length) { filtroRutas = { z: [], j: [] }; guardar('rapido_filtro_rutas', filtroRutas); filtrarRutas(); }
+        if (espOn) { espOn = false; guardar('rapido_especiales', false); pintarEspeciales(); }
         activas = [];
         mostrarCuadrillas(false);
         toast('Se quitó todo del mapa. Elija de nuevo lo que quiere ver.');
@@ -1749,6 +1911,7 @@
             mostrarCapa(k, j === -1);
             pintarChips();
         }
+        if (b.hasAttribute('data-esp-on')) return alternarEspeciales();
         if (b.dataset.guia || b.hasAttribute('data-guia-hoy')) {
             if (b.dataset.guia) {
                 var gi = guiaPref.on.indexOf(b.dataset.guia);
@@ -2158,6 +2321,7 @@
     $('btn-buscar').onclick = buscar;
     $('buscar').addEventListener('keydown', function (ev) { if (ev.key === 'Enter') { ev.preventDefault(); buscar(); } });
     map.on('click', function (e) {
+        if (espFijando != null) return fijarEspecial(espFijando, e.latlng);
         if (modoPin) return ponerPin(e.latlng);
         limpiarResaltado(); cerrarFicha(); quitarBarridoSel(); capaPredios.clearLayers();
         if (movil.matches && !plegada) plegarBarra(true);
@@ -2798,6 +2962,8 @@
         }
     } else if (guiaPref.dia != null) { guiaPref.dia = null; guardar('rapido_guia', guiaPref); }   // el día elegido vale solo para ese enlace
     if (guias.length) { pintarGuia(!!guiaUrl && !q.get('lote') && !q.get('mr')); pintarChips(); }
+    // ⭐ Especiales prendidos la última vez (y solo si sigue habiendo programación con especiales)
+    if (espOn && especiales().length) { pintarEspeciales(); ubicarEspeciales(); }
     // ?puntos=…: las direcciones de un mensaje, numeradas (solas o junto con ?lote=)
     if (q.get('puntos') && pintarPuntosUrl(q.get('puntos')) && !q.get('lote') && !q.get('mr')) map.fitBounds(cajaPuntosUrl().pad(0.3), { maxZoom: 18 });
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto
