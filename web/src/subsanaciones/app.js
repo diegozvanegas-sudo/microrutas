@@ -23,7 +23,7 @@ import { MODOS as MODOS_FECHA, esModoFecha, fechaISO, criterioFecha, cumpleFecha
 import { examinar, ordenar as ordenarFotos, fotosAPdf, fechaCorta, fotoRotulada } from './fotospdf.js';
 import { revisarFotos, MAX_FOTOS } from './fotos.js';
 import { leerImagenes, ordenarPorNombre } from './ocr.js';
-import { mezclarRutas, tocaReleer, revisadosDeRuta } from './prerutas.js';
+import { mezclarRutas, tocaReleer, revisadosDeRuta, claveQuincena } from './prerutas.js';
 import { iniciarUbicar } from './ubicar_ui.js';
 import { leerLotes as leerLotesVl, cuadrillas as cuadrillasVl, lotesParaElegir, registroDeLote as registroDeLoteVl, nombreLote as nombreLoteVl } from './varios.js';
 import { crearLibreta } from './lugares.js';
@@ -1648,10 +1648,12 @@ export function iniciar(api, CFG) {
             (t.length > 1 ? '&waypoints=' + t.slice(0, -1).map(puntoMaps).join('%7C') : '') + '&travelmode=driving';
     }
     // Revisados de varias pre-rutas, sin repetir y sin los que siguen pendientes (ids del mapa en "quitar")
+    // Las revisiones son quincenales: solo los de la quincena de hoy (por la fecha de ejecución o, sin ella, la de la visita)
     function revisadosDe(lista, quitar) {
-        var vistos = {};
+        var vistos = {}, qHoy = claveQuincena(hoy());
+        var deEsta = function (r, ej, vis) { return claveQuincena(ej || vis) === qHoy; };
         return lista.reduce(function (out, ruta) {
-            return out.concat(revisadosDeRuta(ruta.cuad, ruta.paradas, registros, function (r, campo) { return aInput(r[campo]); }, quitar).filter(function (x) {
+            return out.concat(revisadosDeRuta(ruta.cuad, ruta.paradas, registros, function (r, campo) { return aInput(r[campo]); }, quitar, deEsta).filter(function (x) {
                 var id = idMapaRev(x);
                 if (vistos[id]) return false;
                 vistos[id] = 1;

@@ -1,4 +1,5 @@
 import { esOp } from './estado.js';
+import { semanaDia, quincenaDe } from './programacion.js';
 
 // Pre-rutas guardadas en la base (tabla rutas, una por usuario): la base manda en todos los equipos del mismo usuario.
 // Solo se conserva lo de este equipo para las cuadrillas que se cambiaron aquí y que la lectura aún no puede traer.
@@ -24,8 +25,9 @@ export function tocaReleer(ahora, ultimaLectura, leyendo, hayVentana, espera) {
 // misma fecha de ejecución que algún lote de la pre-ruta o hechas desde que se cargó (el criterio de visitaDe).
 // paradas: [{ id, fecha, creada }] con fechas AAAA-MM-DD. registros: visitas, la más reciente primero.
 // fecha(r, campo) → AAAA-MM-DD. quitar: ids que ya van en la lista del mapa (los pendientes).
+// vale(r, ejecución, visita): filtro extra (p. ej. solo la quincena actual: las revisiones son quincenales).
 // Devuelve [{ lote, mr, visita }], uno por lote (su visita más reciente).
-export function revisadosDeRuta(cuad, paradas, registros, fecha, quitar) {
+export function revisadosDeRuta(cuad, paradas, registros, fecha, quitar, vale) {
     var c = String(cuad || '').trim().replace(/^C\s*/i, '');
     if (!c || !paradas || !paradas.length) return [];
     var fechas = {}, desde = '';
@@ -40,6 +42,7 @@ export function revisadosDeRuta(cuad, paradas, registros, fecha, quitar) {
         if (String(r.CUADRILLA || '').trim().replace(/^C\s*/i, '') !== c) return;
         var ej = fecha(r, 'FECHA DE EJECUCIÓN'), vis = fecha(r, 'FECHA DE LA VISITA');
         if (!((ej && fechas[ej]) || (desde && vis && vis >= desde))) return;
+        if (vale && !vale(r, ej, vis)) return;
         var lote = String(r.LOTE || '').trim(), mr = String(r.MICRORRUTA || '').trim().toUpperCase();
         if (lote.toUpperCase() === 'NA') lote = '';
         if (/^\d+$/.test(lote)) lote = String(+lote);
@@ -49,4 +52,10 @@ export function revisadosDeRuta(cuad, paradas, registros, fecha, quitar) {
         out.push({ lote: lote, mr: mr, visita: r });
     });
     return out;
+}
+
+// Quincena de una fecha (aaaa-mm-dd) como en la programación: 'aaaa-mm|1' (semanas 1 y 2) o 'aaaa-mm|2' (de la 3 en adelante)
+export function claveQuincena(f) {
+    var mes = String(f || '').slice(0, 7), sd = /^\d{4}-\d{2}$/.test(mes) && semanaDia(mes, f);
+    return sd ? mes + '|' + quincenaDe(sd.semana) : '';
 }

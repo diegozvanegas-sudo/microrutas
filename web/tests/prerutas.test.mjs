@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mezclarRutas, tocaReleer, revisadosDeRuta } from '../src/subsanaciones/prerutas.js';
+import { mezclarRutas, tocaReleer, revisadosDeRuta, claveQuincena } from '../src/subsanaciones/prerutas.js';
 
 const BASE = [
     { cuadrilla: '2', lote: '400', orden: '1' },
@@ -75,4 +75,26 @@ test('revisados de la pre-ruta: lote NA queda por microrruta y se descarta si la
     const v = [{ ID: 'V9', LOTE: 'NA', MICRORRUTA: 'z4cc0500', CUADRILLA: '4', 'FECHA DE EJECUCIÓN': '20/11/2026', 'FECHA DE LA VISITA': '21/11/2026' }];
     assert.deepEqual(revisadosDeRuta('4', PARADAS, v, iso, []).map(x => [x.lote, x.mr]), [['', 'Z4CC0500']]);
     assert.deepEqual(revisadosDeRuta('4', PARADAS, v, iso, ['Z4CC0500']), []);
+});
+
+test('claveQuincena: como la programación (noviembre 2026: semana 1 desde el lunes 2, Q2 desde el lunes 16)', () => {
+    assert.equal(claveQuincena('2026-11-02'), '2026-11|1');
+    assert.equal(claveQuincena('2026-11-14'), '2026-11|1');
+    assert.equal(claveQuincena('2026-11-15'), '2026-11|1'); // domingo de la semana 2
+    assert.equal(claveQuincena('2026-11-16'), '2026-11|2');
+    assert.equal(claveQuincena('2026-11-30'), '2026-11|2');
+    assert.equal(claveQuincena(''), '');
+});
+
+test('revisados de la pre-ruta: solo los de la quincena actual (las revisiones son quincenales)', () => {
+    const paradas = [{ id: '500', fecha: '2026-11-20', creada: '2026-11-10' }];
+    const v = [
+        { ID: 'A', LOTE: '501', CUADRILLA: '4', 'FECHA DE EJECUCIÓN': '18/11/2026', 'FECHA DE LA VISITA': '19/11/2026' },
+        { ID: 'B', LOTE: '502', CUADRILLA: '4', 'FECHA DE EJECUCIÓN': '12/11/2026', 'FECHA DE LA VISITA': '16/11/2026' }, // ejecutado en Q1
+        { ID: 'C', LOTE: '503', CUADRILLA: '4', 'FECHA DE LA VISITA': '17/11/2026' },                                     // sin ejecución: por la visita
+        { ID: 'D', LOTE: '504', CUADRILLA: '4', 'FECHA DE EJECUCIÓN': '11/11/2026', 'FECHA DE LA VISITA': '13/11/2026' },
+    ];
+    const q = claveQuincena('2026-11-24'), deEsta = (r, ej, vis) => claveQuincena(ej || vis) === q;
+    assert.deepEqual(revisadosDeRuta('4', paradas, v, iso, [], deEsta).map(x => x.lote), ['501', '503']);
+    assert.equal(revisadosDeRuta('4', paradas, v, iso, []).length, 4); // sin filtro salen todas
 });
