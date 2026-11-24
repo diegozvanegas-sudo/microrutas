@@ -240,6 +240,14 @@
     .pin-libre { font-size: 30px; line-height: 32px; filter: drop-shadow(0 2px 3px rgba(0,0,0,.55)); cursor: grab; }
     #btn-pin.activo { color: #fff; background: #d92d20; }
     .ficha-pin .acciones button:disabled { opacity: .6; }
+    /* 🔵 Usted está aquí (tocar el punto azul): un renglón por dato, cada uno con su botón de copiar */
+    .yo-lista { display: grid; gap: 6px; margin: 10px 0; }
+    .yo-fila { display: flex; align-items: center; gap: 8px; background: var(--bg); border-radius: 8px; padding: 6px 6px 6px 10px; min-width: 0; }
+    .yo-fila .yo-txt { flex: 1; min-width: 0; }
+    .yo-fila .yo-txt b { display: block; font-size: 14px; overflow-wrap: anywhere; font-weight: 600; }
+    .yo-fila .yo-txt b.yo-espera { color: var(--muted); font-weight: 400; font-style: italic; }
+    .yo-fila .copiar { flex: none; min-height: 36px; padding: 4px 12px; font-size: 12.5px; }
+    .yo-fila .copiar:disabled { opacity: .45; cursor: default; }
     .etiqueta-zona { background: rgba(255,255,255,.85); border: 0; box-shadow: none; font-weight: 700; padding: 1px 6px; }
     .etiqueta-zona::before { display: none; }
     /* Armar pre-ruta tocando lotes: barra abajo con los elegidos */
@@ -515,10 +523,11 @@
         // El círculo de precisión solo si es razonable: una ubicación por red (±3 km) lo extiende por media ciudad
         miCirculo = e.accuracy <= 500 ? L.circle(e.latlng, { radius: e.accuracy, color: '#2563eb', weight: 1, fillOpacity: .1, interactive: false, pane: 'miPrecision', renderer: rendPrecision }) : null;
         // Halo azul claro + punto con borde blanco grueso: se distingue sobre ortofoto y sobre las rutas de colores
-        var punto = { interactive: false, pane: 'miPunto', renderer: rendPunto };
+        // Se puede tocar (halo y punto): abre "Usted está aquí" con coordenadas, dirección y lote para copiar
+        var punto = { pane: 'miPunto', renderer: rendPunto, bubblingMouseEvents: false };
         miPunto = L.layerGroup([
-            L.circleMarker(e.latlng, L.extend({ radius: 14, stroke: false, fillColor: '#2563eb', fillOpacity: .25 }, punto)),
-            L.circleMarker(e.latlng, L.extend({ radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }, punto))
+            L.circleMarker(e.latlng, L.extend({ radius: 14, stroke: false, fillColor: '#2563eb', fillOpacity: .25 }, punto)).on('click', function () { verYo(); }),
+            L.circleMarker(e.latlng, L.extend({ radius: 8, color: '#fff', weight: 3, fillColor: '#2563eb', fillOpacity: 1 }, punto)).on('click', function () { verYo(); })
         ]).addTo(map);
         pintarCirculo();
         if (centrar) { centrar = false; map.setView(e.latlng, Math.max(map.getZoom(), 17)); }
@@ -2176,10 +2185,12 @@
     function quitarPin() { if (pin) map.removeLayer(pin); pin = null; pinDir = null; cerrarFicha(); map.closePopup(); }
     function fichaPinAbierta() { return !!document.querySelector('.ficha-pin'); }
     // Dirección aproximada de un punto: "Calle 97 #73-20, Castilla, Medellín" (sin conexión o sin dato: null)
-    var cacheDir = {};
-    function direccionDe(ll) {
+    var cacheLugar = {};
+    function direccionDe(ll) { return lugarDe(ll).then(function (l) { return l && l.dir; }); }
+    // Lo que OpenStreetMap sabe del punto: dirección corta, vía, barrio, comuna, ciudad, nombre del sitio y la dirección larga
+    function lugarDe(ll) {
         var k = ll.lat.toFixed(5) + ',' + ll.lng.toFixed(5);
-        if (cacheDir[k]) return Promise.resolve(cacheDir[k]);
+        if (cacheLugar[k]) return Promise.resolve(cacheLugar[k]);
         return fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=es&lat=' + ll.lat + '&lon=' + ll.lng)
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (j) {
@@ -2187,8 +2198,12 @@
                 if (!a) return null;
                 var via = a.road || a.pedestrian || a.footway || a.path || '', num = a.house_number ? ' #' + a.house_number : '';
                 var ciudad = String(a.city || a.town || a.village || '').replace(/^Per[ií]metro Urbano\s+/i, '');
-                var d = [via + num, a.neighbourhood || a.suburb || a.quarter || '', ciudad].filter(Boolean).join(', ');
-                return (cacheDir[k] = d || null);
+                var barrio = a.neighbourhood || a.quarter || '', comuna = a.suburb || a.city_district || '';
+                var d = [via + num, barrio || comuna, ciudad].filter(Boolean).join(', ');
+                return (cacheLugar[k] = {
+                    dir: d || null, via: via + num, barrio: barrio, comuna: comuna !== barrio ? comuna : '', ciudad: ciudad,
+                    nombre: j.name && j.name !== via ? j.name : '', completa: j.display_name || ''
+                });
             })
             .catch(function () { return null; });
     }
@@ -2248,6 +2263,123 @@
     });
     map.on('contextmenu', function (e) { ponerPin(e.latlng); });
     $('btn-pin').onclick = function () { activarModoPin(!modoPin); };
+
+    // ---------- 🔵 Usted está aquí: al tocar el punto azul ----------
+    // Toma la lectura del GPS de ese momento (no se mueve mientras se copia) y muestra cada dato con su 📋:
+    // coordenadas (decimal, grados-minutos-segundos, Plus Code), dirección y barrio (OpenStreetMap, aproximados),
+    // el lote donde está o el más cercano (de las cuadrillas cargadas) y los enlaces de Google Maps y Street View
+    var yo = null;
+    // Plus Code de Google de 10 dígitos (≈14 m): sirve para pegarlo en Maps aunque no haya dirección
+    function plusCode(ll) {
+        var A = '23456789CFGHJMPQRVWX', la = Math.floor((Math.min(Math.max(ll.lat, -90), 89.999999) + 90) * 8000),
+            lo = Math.floor((((ll.lng + 180) % 360 + 360) % 360) * 8000), c = '';
+        for (var i = 0; i < 5; i++) { c = A[la % 20] + A[lo % 20] + c; la = Math.floor(la / 20); lo = Math.floor(lo / 20); }
+        return c.slice(0, 8) + '+' + c.slice(8);
+    }
+    function loteEn(ll) {
+        var dentro = null, cerca = null, dmin = Infinity;
+        Object.keys(grupos).forEach(function (k) {
+            grupos[k].eachLayer(function (capa) {
+                if (dentro || !capa.getBounds || !capa.lote) return;
+                if (contiene(capa, ll)) { dentro = capa; return; }
+                if (!capa.getBounds().pad(0.5).contains(ll) && capa.getBounds().getCenter().distanceTo(ll) > CERCA_M * 4) return;
+                var d = distanciaBorde(capa, ll);
+                if (d < dmin) { dmin = d; cerca = capa; }
+            });
+        });
+        if (dentro) return { capa: dentro, dentro: true, m: 0 };
+        return cerca && dmin <= CERCA_M ? { capa: cerca, dentro: false, m: Math.round(dmin) } : null;
+    }
+    function textoLote(l) {
+        if (!l) return '';
+        var p = l.capa.lote;
+        return [p.l && p.l !== 'NA' ? 'Lote ' + p.l : '', p.m, p.c ? 'Cuadrilla ' + p.c : ''].filter(Boolean).join(' · ') +
+            (l.dentro ? '' : ' (a ' + l.m + ' m)');
+    }
+    function urlMapsPunto(ll) { return 'https://maps.google.com/?q=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6); }
+    function precTxt(m) { return '±' + (m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m) + ' m'); }
+    // Los datos en orden: [clave, etiqueta, valor]; sin valor no sale (salvo la dirección mientras se busca)
+    function datosYo() {
+        var ll = yo.ll, l = yo.lugar || {};
+        return [
+            ['coord', 'Coordenadas', coordTxt(ll)],
+            ['gms', 'Grados, minutos, segundos', gms(ll.lat, 'N', 'S') + ' ' + gms(ll.lng, 'E', 'W')],
+            ['dir', 'Dirección aproximada', l.dir || ''],
+            ['nombre', 'Sitio', l.nombre || ''],
+            ['barrio', 'Barrio', l.barrio || ''],
+            ['comuna', 'Comuna / sector', l.comuna || ''],
+            ['lote', yo.lote && !yo.lote.dentro ? 'Lote más cercano' : 'Lote', textoLote(yo.lote)],
+            ['plus', 'Plus Code', plusCode(ll)],
+            ['maps', 'Enlace de Google Maps', urlMapsPunto(ll)],
+            ['completa', 'Dirección completa (OpenStreetMap)', l.completa || '']
+        ];
+    }
+    function textoYo() {
+        var lineas = ['📍 Ubicación actual (GPS ' + precTxt(yo.prec) + ', ' + yo.horaTxt + ')'];
+        datosYo().forEach(function (d) { if (d[2] && d[0] !== 'completa') lineas.push(d[1] + ': ' + d[2]); });
+        return lineas.join('\n');
+    }
+    function fichaYo() {
+        var hace = Math.round((Date.now() - yo.hora) / 1000);
+        var filas = datosYo().map(function (d) {
+            if (!d[2] && !(d[0] === 'dir' && yo.buscando)) return '';
+            var espera = !d[2];
+            return '<div class="yo-fila"><div class="yo-txt"><span class="et">' + esc(d[1]) + '</span>' +
+                '<b' + (espera ? ' class="yo-espera">Buscando…' : '>' + esc(d[2])) + '</b></div>' +
+                '<button type="button" class="copiar" data-yo-copiar="' + d[0] + '"' + (espera ? ' disabled' : '') + '>📋 Copiar</button></div>';
+        }).join('');
+        var sinDir = !yo.buscando && !(yo.lugar && yo.lugar.dir);
+        return '<div class="ficha-lote ficha-yo">' +
+            '<div class="cab"><span class="titulo">🔵 Usted está aquí</span></div>' +
+            '<div class="mr">GPS ' + esc(precTxt(yo.prec)) + ' · lectura de las ' + esc(yo.horaTxt) + (hace > 90 ? ' (hace ' + Math.round(hace / 60) + ' min)' : '') + '</div>' +
+            (yo.prec > 100 ? '<div class="aviso-aprox">⚠ La ubicación es aproximada (' + esc(precTxt(yo.prec)) + '): active el GPS / ubicación precisa del celular.</div>' : '') +
+            '<div class="yo-lista">' + filas + '</div>' +
+            (sinDir ? '<div class="mr">No se encontró la dirección (sin conexión o sin dato en OpenStreetMap). Las coordenadas sí son las del GPS.</div>' : '') +
+            '<div class="acciones">' +
+                '<button type="button" class="boton primario" data-yo-todo>📋 Copiar todo</button>' +
+                '<button type="button" class="boton secundario" data-yo-enviar>📤 Enviar</button>' +
+                (yo.lote ? '<button type="button" class="boton secundario" data-yo-lote>Ver ' + (yo.lote.dentro ? 'el lote' : 'lote cercano') + '</button>' : '') +
+                '<a class="boton secundario' + (yo.lote ? '' : ' ancho') + '" href="' + esc(urlCalle(yo.ll)) + '" target="_blank" rel="noopener">🚶 Street View</a>' +
+            '</div></div>';
+    }
+    function fichaYoAbierta() { return !!document.querySelector('.ficha-yo'); }
+    function verYo(refrescar) {
+        if (!refrescar) {
+            if (!miPos) return;
+            yo = { ll: miPos, prec: miPrec, hora: miHora, horaTxt: new Date(miHora).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }),
+                   lote: loteEn(miPos), lugar: null, buscando: true };
+            var este = yo;
+            lugarDe(miPos).then(function (l) {
+                if (yo !== este) return;
+                yo.lugar = l; yo.buscando = false;
+                if (fichaYoAbierta()) verYo(true);
+            });
+        }
+        if (!refrescar || !movil.matches) return abrirPanel(fichaYo(), yo.ll, refrescar);
+        var y = $('ficha').scrollTop;
+        $('ficha-contenido').innerHTML = fichaYo();
+        $('ficha').scrollTop = y;
+    }
+    function copiarYo(t, msg) {
+        var listo = function () { toast(msg); };
+        if (navigator.clipboard && window.isSecureContext) return navigator.clipboard.writeText(t).then(listo, function () { copiarViejo(t) && listo(); });
+        if (copiarViejo(t)) listo();
+    }
+    document.addEventListener('click', function (ev) {
+        if (!yo || !ev.target.closest || !ev.target.closest('.ficha-yo')) return;
+        var c = ev.target.closest('[data-yo-copiar]');
+        if (c) {
+            var d = datosYo().filter(function (x) { return x[0] === c.dataset.yoCopiar; })[0];
+            return d && d[2] && copiarYo(d[2], d[1] + ' copiado');
+        }
+        if (ev.target.closest('[data-yo-todo]')) return copiarYo(textoYo(), 'Ubicación copiada: péguela en WhatsApp o en el reporte');
+        if (ev.target.closest('[data-yo-enviar]')) {
+            var t = textoYo();
+            if (navigator.share) return navigator.share({ title: 'Mi ubicación', text: t }).catch(function () {});
+            return window.open('https://wa.me/?text=' + encodeURIComponent(t), '_blank', 'noopener');
+        }
+        if (ev.target.closest('[data-yo-lote]') && yo.lote) { map.closePopup(); verLote(yo.lote.capa, yo.ll); }
+    });
 
     // ---------- 📸 Foto con fecha, GPS y marca de agua (js/camara_marca.js) ----------
     // Usa el GPS real (no la ubicación fijada con "Estoy aquí"): la foto es evidencia de dónde se tomó
