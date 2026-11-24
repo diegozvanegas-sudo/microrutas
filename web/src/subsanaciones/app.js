@@ -841,7 +841,11 @@ export function iniciar(api, CFG) {
             if (i === -1) registros.unshift(nuevo); else registros[i] = nuevo;
             ordenarRegistros();
             guardarCache();
+            var alMapa = volverMapa;
+            volverMapa = '';
+            guardandoVolver = !!alMapa;
             dlg.close();
+            guardandoVolver = false;
             llenarSelect('f-zona', 'ZONA', 'Zona: todas');
             llenarSelect('f-cuadrilla', 'CUADRILLA', 'Cuadrilla: todas');
             llenarDias();
@@ -854,7 +858,14 @@ export function iniciar(api, CFG) {
                 sig = sig && (sig.querySelector('.parada.siguiente') || sig);
                 if (sig) setTimeout(function () { sig.scrollIntoView({ behavior: 'smooth', block: 'center' }); }, 300);
             }
-            if (!era && itemsEnNo(nuevo).length) mostrarWhatsapp(nuevo);
+            var conWa = !era && itemsEnNo(nuevo).length;
+            if (conWa) mostrarWhatsapp(nuevo);
+            // Venía del mapa: regresa al lote (con novedades, después de cerrar el mensaje de WhatsApp)
+            if (alMapa) {
+                toast((era ? 'Actualizado ' : 'Guardado ') + nuevo.ID + ' · ' + nuevo.ESTADO + (conWa ? '. Al cerrar el mensaje vuelve al mapa.' : '. Volviendo al mapa…'));
+                if (conWa) $('dlg-wa').addEventListener('close', function () { irAlMapa(alMapa); }, { once: true });
+                else irAlMapa(alMapa);
+            }
         }).catch(function (err) { toast('No se guardó: ' + err.message); })
           .then(function () { ocupado(false); });
     }
@@ -1303,7 +1314,9 @@ export function iniciar(api, CFG) {
     }
 
     // Desde el mapa: subsanaciones.html?mr=Z2CC0067&lote=264
-    var desdeUrlHecho = false;
+    var desdeUrlHecho = false, volverMapa = '', guardandoVolver = false;
+    // Después de guardar: de vuelta al mapa (un momento para que se lea el aviso de guardado)
+    function irAlMapa(url) { setTimeout(function () { location.href = url; }, 900); }
     // final = datos ya leídos de la hoja (no solo los guardados en el celular)
     function abrirDesdeUrl(final) {
         if (desdeUrlHecho) return;
@@ -1315,6 +1328,14 @@ export function iniciar(api, CFG) {
         if (!mr && !lote && !ver && !sub && !pre) return;
         // Se usa una sola vez: si el celular recarga la pestaña o vuelve a ella, muestra la lista y no el formulario
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
+        // &volver=mapa_rapido.html?...: al guardar la visita (subsanar o registrar) se regresa al mapa con la ficha del lote.
+        // Si se cierra sin guardar, se queda aquí y ya no regresa.
+        var volver = q.get('volver') || '';
+        var abreForm = sub ? !!buscada(sub) && buscada(sub).ESTADO === 'PENDIENTE' : !ver && !pre && !!(mr || lote);
+        if (abreForm && /^mapa_rapido\.html(\?|$)/.test(volver)) {
+            volverMapa = volver;
+            setTimeout(function () { dlg.addEventListener('close', function () { if (!guardandoVolver) volverMapa = ''; }, { once: true }); });
+        }
         // Desde el mapa: subsanaciones.html?preruta=400,532&cuad=2 abre "Crear pre-ruta" con esos lotes ya puestos
         if (pre) return prerutaCon(pre.split(','), q.get('cuad'));
         // Desde el mapa: subsanaciones.html?subsanar=SUB-00042 abre esa visita con los ítems en NO pasados a SI

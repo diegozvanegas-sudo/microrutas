@@ -1198,10 +1198,11 @@
             // Plegado: últimas visitas, auditoría de fotos del ZIP y el día propuesto por cercanía
             (info ? window.FichaLote.htmlMas(info) : '') +
             '<div class="acciones">' +
-                (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '">✓ Marcar subsanado</a>' : '') +
+                // &volver=: al guardar, Subsanaciones regresa a este mapa con la ficha del lote abierta
+                (u && u.ESTADO === 'PENDIENTE' ? '<a class="boton subsanar-btn subs" href="subsanaciones.html?subsanar=' + encodeURIComponent(u.ID) + '&volver=' + encodeURIComponent(urlVolver(idCapa(capa))) + '">✓ Marcar subsanado</a>' : '') +
                 '<a class="boton primario" data-ir href="' + esc(urlComoLlegar(puntoCercano(capa))) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
                 '<button type="button" class="boton secundario" data-aqui>' + (fijada && fijada.id === idCapa(capa) ? '↺ Usar GPS' : '📍 Estoy aquí') + '</button>' +
-                '<a class="boton secundario" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '">📋 Registrar subsanación</a>' +
+                '<a class="boton secundario" href="subsanaciones.html?mr=' + encodeURIComponent(p.m || '') + '&lote=' + encodeURIComponent(lote) + '&volver=' + encodeURIComponent(urlVolver(idCapa(capa))) + '">📋 Registrar subsanación</a>' +
                 // Arma la pre-ruta con solo este lote (en subsanaciones se confirma la cuadrilla y la fecha)
                 '<a class="boton secundario" href="subsanaciones.html?preruta=' + encodeURIComponent(idCapa(capa)) + (p.c ? '&cuad=' + encodeURIComponent(p.c) : '') + '">➕ Pre-ruta</a>' +
                 // Otras formas de llegar, más pequeñas: ocupan un solo renglón
@@ -1336,12 +1337,16 @@
     }
     // 🖊️ Copia el número del lote y abre "Texto a imagen" con él puesto. "Volver al mapa" regresa a los mismos lotes
     // (si el lote venía en el enlace, p. ej. la pre-ruta) o solo a ese lote, y con su ficha abierta (&abrir=)
-    function irANota(id) {
+    // Enlace para volver de Subsanaciones a este mapa: los mismos lotes (si el lote venía en el enlace) o solo ese, con su ficha abierta
+    function urlVolver(id) {
         var q = new URLSearchParams(location.search);
         var enLista = (q.get('lote') || q.get('mr') || '').split(',').map(clave).indexOf(clave(id)) !== -1;
         if (!enLista) q = new URLSearchParams({ lote: id });
         q.set('abrir', id);
-        var url = 'subsanaciones.html?nota=' + encodeURIComponent(id) + '&volver=' + encodeURIComponent('mapa_rapido.html?' + q.toString());
+        return 'mapa_rapido.html?' + q.toString();
+    }
+    function irANota(id) {
+        var url = 'subsanaciones.html?nota=' + encodeURIComponent(id) + '&volver=' + encodeURIComponent(urlVolver(id));
         var ir = function () { location.href = url; };
         if (navigator.clipboard && window.isSecureContext) {
             // Si el portapapeles tarda, se sigue igual: el número ya va puesto en la imagen
