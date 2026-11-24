@@ -1867,6 +1867,8 @@ export function iniciar(api, CFG) {
                 '&subsanar=' + enMapa.filter(function (x) { return x.visita && x.visita.ESTADO === 'PENDIENTE'; }).map(idMapa).join(',') +
                 '&cerrados=' + enMapa.filter(cerrada).map(idMapa).join(',') +
                 '&curso=' + enMapa.filter(function (x) { return x.encurso; }).map(idMapa).join(',') +
+                // Sin visita y con el plazo de PLAZO_DIAS ya pasado: el mapa los pinta de otro color
+                '&vencidos=' + enMapa.filter(function (x) { return x.plazo && x.plazo.resta < 0; }).map(idMapa).join(',') +
                 // lote:ID de la visita, para el botón "Ver detalles de la visita" en la ficha del mapa
                 '&visitas=' + enMapa.filter(function (x) { return x.visita; }).map(function (x) { return idMapa(x) + ':' + x.visita.ID; }).join(',') : '';
             var prev = posicion, prevUsted = !!posicion;

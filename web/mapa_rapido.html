@@ -55,6 +55,8 @@
                   display: grid; place-items: center; font-weight: 700; font-size: 13px; box-shadow: 0 2px 6px rgba(0, 0, 0, .4); }
     /* Pre-ruta: revisados en verde, pendientes en rojo, cerrados en gris */
     .parada-num.pendiente { background: #dc2626; }
+    /* Pasó el plazo de visita (3 días desde la ejecución) y sigue sin revisar: fucsia, con su número */
+    .parada-num.vencido { background: #c026d3; box-shadow: 0 0 0 3px rgba(192, 38, 211, .35), 0 2px 6px rgba(0, 0, 0, .4); }
     /* Direcciones de un mensaje (?puntos=, desde 📍 Ubicar direcciones): cuadro morado con su número, distinto de los círculos de los lotes */
     .dir-num { background: #7c3aed; color: #fff; border: 2px solid #fff; border-radius: 8px 8px 8px 2px; min-width: 30px; width: auto !important; height: 28px !important;
         padding: 0 6px; display: flex; align-items: center; justify-content: center; font: 700 13px/1 system-ui, sans-serif; white-space: nowrap; box-shadow: 0 1px 5px rgba(0,0,0,.5); }
@@ -635,12 +637,13 @@
     // Lotes de una pre-ruta (?lote=...&hechos=...&cerrados=...): el color dice si ya se registró la visita
     var ESTILO_RUTA = {
         pendiente: { color: '#991b1b', weight: 3, fillColor: '#ef4444', fillOpacity: .7 },
+        vencido: { color: '#701a75', weight: 3, fillColor: '#d946ef', fillOpacity: .75 },
         hecho: { color: '#14532d', weight: 3, fillColor: '#22c55e', fillOpacity: .7 },
         subsanar: { color: '#9a3412', weight: 3, fillColor: '#f59e0b', fillOpacity: .75 },
         curso: { color: '#1e3a8a', weight: 3, fillColor: '#3b82f6', fillOpacity: .75 },
         cerrado: { color: '#334155', weight: 3, fillColor: '#94a3b8', fillOpacity: .7, dashArray: '6 4' }
     };
-    var TEXTO_RUTA = { pendiente: 'Falta revisar', hecho: '✓ Ya revisado', subsanar: '⚠ Revisado · falta subsanar', cerrado: '🔒 Lote cerrado', curso: '▶ Cuadrilla trabajando aquí ahora' };
+    var TEXTO_RUTA = { pendiente: 'Falta revisar', vencido: '⚠ Pasó el plazo · falta revisar', hecho: '✓ Ya revisado', subsanar: '⚠ Revisado · falta subsanar', cerrado: '🔒 Lote cerrado', curso: '▶ Cuadrilla trabajando aquí ahora' };
     // Estado de la visita (hoja) -> color del lote en la pre-ruta
     function estadoDeVisita(e) { return e === 'PENDIENTE' ? 'subsanar' : e === 'CERRADO' ? 'cerrado' : 'hecho'; }
     function estiloBase(c) {
@@ -1775,7 +1778,7 @@
         var pendientes = claves.length;
         claves.forEach(function (k) { asegurarCuadrilla(k.cuad, function () { if (--pendientes === 0) listo(); }); });
         function listo() {
-            var capas = [], cuenta = { pendiente: 0, hecho: 0, subsanar: 0, cerrado: 0, curso: 0 };
+            var capas = [], cuenta = { pendiente: 0, vencido: 0, hecho: 0, subsanar: 0, cerrado: 0, curso: 0 };
             marcadores.clearLayers();
             limpiarResaltado();
             enRuta.forEach(function (c) { delete c.rutaEstado; delete c.rutaVisita; c.setStyle(estiloBase(c)); });
@@ -1788,20 +1791,20 @@
                 var rv = est && visitaRuta[k.v] && visitaGuardada(visitaRuta[k.v]);
                 if (rv) est = estadoDeVisita(rv.r.ESTADO);
                 // Pendiente en el enlace pero ya revisado hoy en la app: cuenta como revisado (o por subsanar / cerrado)
-                var vh = est === 'pendiente' && !visitaRuta[k.v] && visitaDeHoy(cs[0]);
+                var vh = (est === 'pendiente' || est === 'vencido') && !visitaRuta[k.v] && visitaDeHoy(cs[0]);
                 if (vh) { est = estadoDeVisita(vh.ESTADO); visitaRuta[k.v] = vh.ID; }
                 if (est) {
                     cuenta[est]++;
                     cs.forEach(function (c) { c.rutaEstado = est; c.rutaVisita = visitaRuta[k.v] || ''; c.setStyle(ESTILO_RUTA[est]); enRuta.push(c); });
                     // Los pendientes encima, para que no los tape un lote vecino ya revisado
-                    if (est === 'pendiente') cs.forEach(function (c) { c.bringToFront(); });
+                    if (est === 'pendiente' || est === 'vencido') cs.forEach(function (c) { c.bringToFront(); });
                 }
                 if (claves.length > 1 && cs.length) {
                     // El número va en el pedazo más grande del lote: el mismo punto con que la pre-ruta mide distancias
                     var mayor = cs.reduce(function (m, c) { return areaMayor(c) > areaMayor(m) ? c : m; });
                     var html =est === 'hecho' ? '✓' : est === 'cerrado' ? '🔒' : est === 'subsanar' ? '!' : est === 'curso' ? '▶' : dirCapa.getLayers().length && !k.esMr ? k.v : String(k.n);   // con direcciones marcadas, el círculo dice el lote (el número es de la dirección)
                     L.marker(puntoLote(mayor), { icon: L.divIcon({ className: 'parada-num' + (est ? ' ' + est : ''), html: html }),
-                        title: (k.esMr ? '' : 'Lote ') + k.v + (est ? ' · ' + TEXTO_RUTA[est] : ''), zIndexOffset: est === 'pendiente' ? 1000 : 0 })
+                        title: (k.esMr ? '' : 'Lote ') + k.v + (est ? ' · ' + TEXTO_RUTA[est] : ''), zIndexOffset: est === 'vencido' ? 1100 : est === 'pendiente' ? 1000 : 0 })
                         .on('click', function () { if (seleccion) alternarSel(cs[0]); else verLote(cs[0]); }).addTo(marcadores);
                 }
             });
@@ -1831,7 +1834,7 @@
         if (!cuenta && vencidos) return leyendaVence();
         $('leyenda').hidden = !cuenta;
         if (!cuenta) return;
-        var tipos = [['pendiente', 'por revisar', 'por revisar'], ['curso', 'en ejecución', 'en ejecución'], ['hecho', 'revisado', 'revisados'],
+        var tipos = [['pendiente', 'por revisar', 'por revisar'], ['vencido', 'pasó el plazo', 'pasaron el plazo'], ['curso', 'en ejecución', 'en ejecución'], ['hecho', 'revisado', 'revisados'],
                      ['subsanar', 'por subsanar', 'por subsanar'], ['cerrado', 'cerrado', 'cerrados']];
         $('leyenda').innerHTML = tipos.filter(function (t) { return cuenta[t[0]] || t[0] === 'pendiente' || t[0] === 'hecho'; }).map(function (t) {
             var e = ESTILO_RUTA[t[0]], n = cuenta[t[0]];
@@ -2628,7 +2631,8 @@
     var q = new URLSearchParams(location.search);
     if (q.has('hechos') || q.has('cerrados')) {
         estadoRuta = {};
-        [['hechos', 'hecho'], ['subsanar', 'subsanar'], ['cerrados', 'cerrado'], ['curso', 'curso']].forEach(function (t) {
+        // &vencidos=: sin visita y con el plazo de 3 días ya pasado (los calcula la pre-ruta de Subsanaciones)
+        [['vencidos', 'vencido'], ['hechos', 'hecho'], ['subsanar', 'subsanar'], ['cerrados', 'cerrado'], ['curso', 'curso']].forEach(function (t) {
             (q.get(t[0]) || '').split(',').map(clave).filter(Boolean).forEach(function (v) { estadoRuta[v] = t[1]; });
         });
         // &visitas=363:SUB-00042,371:SUB-00045
