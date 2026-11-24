@@ -8,7 +8,7 @@ import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { esc, hoy, aTexto } from '../subsanaciones/util.js';
 import { filasHoja, leerProgramacion } from '../subsanaciones/programacion.js';
-import { leerReportes, cruzar, sumarDias, diaCorto, textoDif, textoSituacion, textoCruce, rotulo, esHecho, ESTADOS, claveReporte } from './cruce.js';
+import { leerReportes, cruzar, sumarDias, diaCorto, textoDif, textoSituacion, textoCruce, rotulo, esHecho, ESTADOS, claveReporte, cierres, tituloCierre, textoCierre } from './cruce.js';
 import { crearGuardado } from './guardado.js';
 
 var PROG_CACHE = 'programacion_cache';
@@ -100,8 +100,33 @@ function pintarAvisos() {
     $('cz-avisos-tit').textContent = n ? '⚠ Para revisar en los reportes (' + n + ')' : 'ℹ Reportes de otro mes';
     $('cz-avisos-lista').innerHTML = grupos.join('');
 }
+// ---------- Cierre de la quincena: los 2 últimos días hábiles y hasta 7 días después, con la fecha de hoy ----------
+var listaCierres = [];
+function pintarCierre(prog) {
+    listaCierres = prog ? cierres(prog, reportes, hoy()) : [];
+    $('cz-cierre').hidden = !listaCierres.length;
+    $('cz-cierre').innerHTML = listaCierres.map(function (c, i) {
+        return '<article class="cz-cierre-q ' + (c.faltan.length ? c.estado : 'completa') + '">' +
+            '<h3>' + esc(tituloCierre(c)) + '</h3>' +
+            '<div class="sub">Q' + c.q + ' del ' + esc(diaCorto(c.rango.desde)) + ' al ' + esc(diaCorto(c.rango.hasta)) + ' · ejecutados <b>' + c.hechos + ' de ' + c.total + '</b>' +
+                (c.estado === 'porcerrar' ? ' · ' + (c.quedan === 1 ? 'queda 1 día hábil' : 'quedan ' + c.quedan + ' días hábiles') : '') + '</div>' +
+            c.cuadrillas.map(function (k) {
+                return '<div class="cz-cierre-cuad"><div><b>Cuadrilla ' + esc(k.cuad) + '</b> <span class="sub">· ' + k.faltan.length + ' de ' + k.total + ' sin ejecutar</span>' +
+                        (k.sinReportes ? ' <span class="cz-falta">· no hay reportes suyos cargados este mes: pegue sus reportes antes de reclamar</span>' : '') + '</div>' +
+                    '<div class="cz-chips">' + k.faltan.map(function (f) { return chip(f, f.plan ? diaCorto(f.plan) : 'sin día'); }).join('') + '</div></div>';
+            }).join('') +
+            (c.faltan.length ? '<div class="cz-acc"><a class="boton secundario pequeno" href="' + esc(urlMapa(c.faltan.slice(0, 60))) + '">🗺️ Verlos en el mapa' + (c.faltan.length > 60 ? ' (60)' : '') + '</a>' +
+                '<button type="button" class="secundario pequeno" data-copiar-cierre="' + i + '">📋 Copiar para WhatsApp</button></div>' : '') +
+            '</article>';
+    }).join('');
+}
+function copiar(t, ok) {
+    if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(function () { toast(ok); }, function () { toast('No se pudo copiar.'); });
+    else toast('Este navegador no deja copiar: use el computador o Chrome.');
+}
 function pintar() {
     var prog = progDatos && progDatos.prog;
+    pintarCierre(prog);
     $('cz-prog-estado').innerHTML = prog ? '✓ Programación de <b>' + esc(prog.mes) + '</b> · ' + (prog.q1.length + prog.q2.length) + ' lotes' + (progDatos.archivo ? ' <span class="sub">(' + esc(progDatos.archivo) + (progDatos.cargado ? ', cargada el ' + esc(progDatos.cargado) : '') + ')</span>' : '')
         : '<span class="cz-falta">Falta el Excel de programación del mes.</span>';
     $('cz-elegir').textContent = prog ? '📁 Cambiar el Excel de programación' : '📁 Elegir el Excel de programación';
@@ -211,12 +236,11 @@ async function arrancar() {
     $('cz-antes').onclick = function () { moverFecha(-1); };
     $('cz-despues').onclick = function () { moverFecha(1); };
     $('cz-hoy').onclick = function () { $('cz-fecha').value = hoy(); pintar(); };
-    $('cz-copiar').onclick = function () {
-        if (!res) return;
-        var t = textoCruce(res);
-        if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(t).then(function () { toast('Resumen copiado'); }, function () { toast('No se pudo copiar.'); });
-        else toast('Este navegador no deja copiar: use el computador o Chrome.');
-    };
+    $('cz-copiar').onclick = function () { if (res) copiar(textoCruce(res), 'Resumen copiado'); };
+    $('cz-cierre').addEventListener('click', function (ev) {
+        var b = ev.target.closest('[data-copiar-cierre]'), c = b && listaCierres[+b.dataset.copiarCierre];
+        if (c) copiar(textoCierre(c), 'Cierre de la Q' + c.q + ' copiado');
+    });
     $('cz-pestanas').onclick = function (ev) { var b = ev.target.closest('[data-vista]'); if (b) { vista = b.dataset.vista; pintar(); } };
     $('cz-vista').addEventListener('click', function (ev) {
         var d = ev.target.closest('[data-dia]'), c = ev.target.closest('[data-ver-cuad]');

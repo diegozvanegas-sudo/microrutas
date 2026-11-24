@@ -28,6 +28,8 @@ import { iniciarUbicar } from './ubicar_ui.js';
 import { leerLotes as leerLotesVl, cuadrillas as cuadrillasVl, lotesParaElegir, registroDeLote as registroDeLoteVl, nombreLote as nombreLoteVl } from './varios.js';
 import { crearLibreta } from './lugares.js';
 import { supabase } from '../supabase.js';
+import { crearGuardado as crearGuardadoCruce } from '../cruce/guardado.js';
+import { normMr, sumarReportes, cierres as cierresQuincena, tituloCierre, textoCierre } from '../cruce/cruce.js';
 import { crearAnexos, carpetaReporte } from '../requerimiento/anexos.js';
 import { conectado as driveConectado, conectar as driveConectar, subirPdf, nombreCarpeta, idCliente as driveId, elegirCarpeta as driveElegirCarpeta, cancelarSelector as driveCancelarSelector } from '../drive.js';
 
@@ -111,6 +113,8 @@ export function iniciar(api, CFG) {
             aplicarDatos(d, false);
             guardarCache();
             subirPendientes();
+            // Una vez por apertura: ¿la quincena está por cerrar (o cerró) con lotes programados sin ejecutar?
+            if (!cierreRevisado) { cierreRevisado = true; setTimeout(avisarCierre, 1500); }
         }).catch(function (err) {
             if (cargado) return aviso('Se muestra lo guardado en este celular' + (copia && copia.t ? ' (' + new Date(copia.t).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) + ')' : '') +
                 '. No se pudo actualizar: ' + esc(err.message) + '. Pulse "↻ Actualizar" para reintentar.');
@@ -120,7 +124,7 @@ export function iniciar(api, CFG) {
     }
     // Al volver a la página (otra pestaña, otra app, el celular bloqueado) se lee otra vez la base: así lo que se
     // cambió desde el PC aparece en el celular y al revés, sin tener que pulsar "↻ Actualizar".
-    var leyendo = false, ultimaLectura = 0;
+    var leyendo = false, ultimaLectura = 0, cierreRevisado = false;
     function releerSiToca() {
         if (document.visibilityState !== 'visible' || !CFG.url || !cargado) return;
         if (tocaReleer(Date.now(), ultimaLectura, leyendo, !!document.querySelector('dialog[open]'))) cargar();
@@ -1585,8 +1589,14 @@ export function iniciar(api, CFG) {
             ruta.paradas.forEach(function (p) {
                 var x = infoLote(p.id), cuad = ruta.cuad || 'pre-ruta';
                 if (visitaDe(p, x)) return;
-                if (porId[x.id]) { if (porId[x.id].cuads.indexOf(cuad) === -1) porId[x.id].cuads.push(cuad); return; }
-                x.cuads = [cuad]; x.despues = p.despues; x.encurso = p.encurso;
+                if (porId[x.id]) {
+                    var ya = porId[x.id];
+                    if (ya.cuads.indexOf(cuad) === -1) ya.cuads.push(cuad);
+                    // En dos pre-rutas: el plazo cuenta desde la fecha más vieja
+                    if (p.fecha && (!ya.fecha || p.fecha < ya.fecha)) ya.fecha = p.fecha;
+                    return;
+                }
+                x.cuads = [cuad]; x.despues = p.despues; x.encurso = p.encurso; x.fecha = p.fecha; x.creada = p.creada;
                 porId[x.id] = x;
                 (p.encurso ? curso : lista).push(x);
             });
@@ -1644,7 +1654,9 @@ export function iniciar(api, CFG) {
                     return '<a class="boton ' + (k ? 'secundario' : 'primario') + ' pequeno" target="_blank" rel="noopener" data-ir-tramo="' + k + '" href="' + esc(urlTramo(tramos, k)) + '">' +
                         (tramos.length > 1 ? 'Tramo ' + (k + 1) + ' · ' + (desde === hasta ? 'lote ' + desde : desde + '–' + hasta) : 'Ruta completa en Google Maps') + '</a>';
                 }).join('') +
-                '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + orden.map(idMapa).join(',')) + '">Ver todos en el mapa</a>' +
+                // &hechos= vacío: el mapa los pinta como pre-ruta (rojo por revisar) y los que pasaron el plazo en fucsia
+                '<a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + orden.map(idMapa).join(',') + '&hechos=' +
+                    '&vencidos=' + orden.filter(function (x) { var pz = plazoDe(x); return pz && pz.resta < 0; }).map(idMapa).join(',')) + '">Ver todos en el mapa</a>' +
                 '<label class="tramo-sel">Lotes por tramo <select data-tramo>' + TRAMOS.map(function (n) {
                     return '<option value="' + n + '"' + (n === TRAMO ? ' selected' : '') + '>' + n + '</option>';
                 }).join('') + '</select></label>' +
@@ -2232,6 +2244,67 @@ export function iniciar(api, CFG) {
         if (error) return toast('La imagen del reporte no se guardó' + (bien ? ' completa' : '') + ': ' + error + ' Agréguela en Requerimientos › 📎 Agregar imagen.');
         toast('📋 Imagen del reporte guardada (' + cuads.map(function (c) { return c ? 'C' + c : 'sin cuadrilla'; }).join(', ') + ' · ejec. ' + aTexto(fecha).slice(0, 5) + '): entra sola al requerimiento.');
     }
+    // ---------- Lo ejecutado de la pre-ruta también queda en el 📊 Cruce (src/cruce/) ----------
+    // Se suma al reporte de ese día y cuadrilla (no lo reemplaza: si allá se pegó el reporte completo, queda igual).
+    // lotes: [{ id, fecha, cuad }]. Sin cuadrilla o sin microrruta no se puede cruzar con la programación: se cuentan y se avisa.
+    var guardadoCruce = null, reportesCruce = null;
+    function cruceGuardado() { return guardadoCruce || (guardadoCruce = crearGuardadoCruce(CFG.url && supabase ? supabase : null)); }
+    async function aCruce(lotes) {
+        var por = {}, sinDatos = 0;
+        (lotes || []).forEach(function (l) {
+            var x = infoLote(l.id), mr = normMr(x.mr), c = String(l.cuad || '').replace(/^C/i, '');
+            if (!mr || !c || !l.fecha) { sinDatos++; return; }
+            var k = l.fecha + '|' + c;
+            (por[k] = por[k] || { fecha: l.fecha, cuad: c, items: [], texto: 'Lotes ejecutados cargados en la pre-ruta de Subsanaciones' })
+                .items.push({ mr: mr, lote: x.lote && !/^N\/?A$/i.test(x.lote) ? String(x.lote) : '' });
+        });
+        var nuevos = Object.keys(por).map(function (k) { return por[k]; });
+        if (!nuevos.length) return;
+        try {
+            var g = cruceGuardado(), act = await g.leer(), cambian = sumarReportes(act.reportes, nuevos);
+            reportesCruce = act.reportes;
+            if (!cambian.length) return;
+            var antes = {};
+            act.reportes.forEach(function (r) { antes[r.fecha + '|' + r.cuad] = r.items.length; });
+            var n = cambian.reduce(function (s, r) { return s + r.items.length - (antes[r.fecha + '|' + r.cuad] || 0); }, 0);
+            var res = await g.guardar(cambian);
+            reportesCruce = res.reportes;
+            // Después del aviso de la pre-ruta, para que se alcance a leer
+            setTimeout(function () {
+                toast('📊 ' + (n === 1 ? '1 lote ejecutado quedó' : n + ' lotes ejecutados quedaron') + ' en el Cruce de la quincena' +
+                    (res.aviso ? ' (solo en este equipo: ' + res.aviso.replace(/^Los reportes se guardan solo en este equipo: /, '') + ')' : '') +
+                    (sinDatos ? ' · ' + sinDatos + ' sin cuadrilla o microrruta no se pudieron cruzar' : '') + '.');
+            }, 3500);
+        } catch (e) {
+            toast('Los lotes no quedaron en el 📊 Cruce (' + ((e && e.message) || 'revise la conexión') + '): péguelos allá para que cuenten en la quincena.');
+        }
+    }
+    // ---------- Aviso del cierre de la quincena: lo programado sin ejecutar (los 2 últimos días hábiles y hasta 7 después) ----------
+    // Una vez al día (o si cambia cuántos faltan). Usa la programación de este equipo y los reportes del 📊 Cruce.
+    async function avisarCierre() {
+        if (!progDatos || !progDatos.prog) return;
+        if (!reportesCruce) { try { reportesCruce = (await cruceGuardado().leer()).reportes; } catch (e) { return; } }
+        var cs = cierresQuincena(progDatos.prog, reportesCruce, hoy()).filter(function (c) { return c.faltan.length; });
+        if (!cs.length) return;
+        var clave = hoy() + '|' + cs.map(function (c) { return c.q + c.estado + c.faltan.length; }).join(',');
+        try { if (localStorage.getItem('cierre-avisado') === clave) return; } catch (e) { /* sin almacenamiento: se avisa igual */ }
+        var abierto = document.querySelector('dialog[open]');
+        if (abierto) { abierto.addEventListener('close', function () { setTimeout(avisarCierre, 400); }, { once: true }); return; }
+        try { localStorage.setItem('cierre-avisado', clave); } catch (e) { /* idem */ }
+        // En la ventana: hasta 15 lotes por cuadrilla (la lista completa está en el Cruce); con una sola quincena el título no se repite
+        var cuerpo = cs.map(function (c) {
+            var lin = textoCierre(c).replace(/\*/g, '').split('\n').map(function (l, i, a) {
+                if (i === 0 || !/^Cuadrilla /.test(a[i - 1])) return l;   // solo el renglón de lotes que va debajo de cada cuadrilla
+                var L = l.split(', ');
+                return L.length > 15 ? L.slice(0, 15).join(', ') + ' y ' + (L.length - 15) + ' más' : l;
+            });
+            return (cs.length === 1 ? lin.slice(1) : lin).join('\n');
+        }).join('\n\n');
+        var si = await confirmar(cs.map(tituloCierre).join(' · '),
+            cuerpo + '\n\nSe cuenta lo reportado en el 📊 Cruce (también lo cargado en la pre-ruta) y la X del Excel de programación.',
+            'Ver en el 📊 Cruce', 'Entendido');
+        if (si) location.href = 'cruce.html';
+    }
     // Lotes del mensaje que ya están en alguna tarjeta con otra fecha de ejecución: se pregunta con cuál se quedan.
     // usarNueva: true = la del mensaje, false = la que ya tenían; en las dos el lote queda en una sola tarjeta.
     $('ruta-crear').onclick = function () {
@@ -2271,6 +2344,8 @@ export function iniciar(api, CFG) {
             return confirmar(revisados.length === 1 ? 'Ese lote ya está revisado' : 'Esos lotes ya están revisados',
                 textoRevisados + '\n\nPor eso no se agrega a la pre-ruta. Si la cuadrilla lo volvió a ejecutar, cambie la fecha de ejecución.', 'Entendido');
         }
+        // Para el 📊 Cruce cuentan todos los del mensaje, también los que ya estaban revisados (sí se ejecutaron)
+        var delMensaje = lista.slice();
         if (revisados.length) lista = lista.filter(function (id) { return !revisados.some(function (x) { return x.id === id; }); });
         // El lote que se vuelve a ingresar sale de cualquier otra tarjeta: queda solo en la nueva
         var destino = function (id) { return cuad || cuadDe(id); }, quitadas = [];
@@ -2286,12 +2361,14 @@ export function iniciar(api, CFG) {
         var grupos = {};
         lista.forEach(function (id) { var c = cuad || cuadDe(id); (grupos[c] = grupos[c] || []).push(id); });
         var nuevas = [], existian = [];
+        var alCruce = delMensaje.filter(function (id) { return cursoIds.indexOf(id) === -1; })
+            .map(function (id) { return { id: id, fecha: fechaDe && fechaDe[id] || fecha, cuad: cuad || cuadDe(id) }; });
         Object.keys(grupos).forEach(function (c) {
             if (rutas.some(function (r) { return r.cuad === c; })) existian.push(c);
             // La cuadrilla pasó a otro lote: el que estaba ejecutando ya terminó y queda listo para revisar
             if (curso) rutas.forEach(function (r) {
                 if (r.cuad === c) r.paradas.forEach(function (q) {
-                    if (q.encurso && cursoIds.indexOf(q.id) === -1) { if (!q.fecha) q.fecha = q.encurso.slice(0, 10); q.encurso = ''; }
+                    if (q.encurso && cursoIds.indexOf(q.id) === -1) { if (!q.fecha) q.fecha = q.encurso.slice(0, 10); q.encurso = ''; alCruce.push({ id: q.id, fecha: q.fecha, cuad: c }); }
                 });
             });
             // Un segundo de diferencia por lote: así "orden de llegada" respeta el orden en que venían en el mensaje
@@ -2312,6 +2389,7 @@ export function iniciar(api, CFG) {
         $('dlg-ruta').close();
         pintarRutas();
         if (imgsReporte.length) guardarReporte(imgsReporte, fecha, Object.keys(grupos)).then(function () { imgsReporte.forEach(function (x) { URL.revokeObjectURL(x.url); }); });
+        aCruce(alCruce);
         var nombres = Object.keys(grupos).map(function (c) { return (c ? 'C' + c : 'sin cuadrilla') + ' (' + grupos[c].length + ')'; }).join(', ');
         toast(curso ? 'Trabajando ahora en ' + cursoIds.join(', ') + ' · ' + nombres + '.'
             : (nuevas.length > 1 ? 'Lotes repartidos por cuadrilla: ' + nombres

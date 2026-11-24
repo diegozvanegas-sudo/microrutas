@@ -4,7 +4,9 @@
 //
 //   leerReportes(texto, LOTES)        -> { reportes: [{ fecha, cuad, items: [{ mr, lote }], texto }], avisos: [texto] }
 //   unirReportes(guardados, nuevos)   -> lista con un reporte por fecha y cuadrilla (el nuevo reemplaza al viejo)
+//   sumarReportes(guardados, nuevos)  -> los reportes que cambian al sumarles lotes (pre-ruta de Subsanaciones), sin reemplazar
 //   cruzar(prog, reportes, fecha)     -> { mes, fecha, q, rango, filas, fuera, repetidos, cuadrillas, dias, cuenta }
+//   cierres(prog, reportes, hoy)      -> lo que quedó (o va quedando) sin ejecutar al cierre de cada quincena
 import { fechaPlan, semanaDia, quincenaDe, rangoQuincena } from '../subsanaciones/programacion.js';
 
 // «z1cc125», «Z1CC0125» → Z1CC0125
@@ -93,6 +95,23 @@ export function leerReportes(texto, LOTES) {
     return { reportes: reportes, avisos: avisos };
 }
 export function claveReporte(r) { return r.fecha + '|' + r.cuad; }
+// Lotes ejecutados que llegan por otro lado (la pre-ruta de Subsanaciones): se SUMAN al reporte de ese día y cuadrilla en vez
+// de reemplazarlo, para no borrar el reporte completo que se pegó en el Cruce. Devuelve solo los reportes que cambian, ya
+// unidos, listos para guardar (vacío si todo ya estaba).
+export function sumarReportes(guardados, nuevos) {
+    var por = {}, cambian = {};
+    (guardados || []).forEach(function (r) { por[claveReporte(r)] = r; });
+    (nuevos || []).forEach(function (n) {
+        if (!n || !n.fecha || !n.cuad) return;
+        var k = claveReporte(n), viejo = cambian[k] || por[k];
+        var items = viejo ? viejo.items.slice() : [], hay = {};
+        items.forEach(function (i) { hay[i.mr] = 1; });
+        var suma = (n.items || []).filter(function (i) { if (!i.mr || hay[i.mr]) return false; hay[i.mr] = 1; return true; });
+        if (!suma.length) return;
+        cambian[k] = { fecha: n.fecha, cuad: n.cuad, items: items.concat(suma), texto: viejo ? viejo.texto || '' : n.texto || '' };
+    });
+    return Object.keys(cambian).sort().map(function (k) { return cambian[k]; });
+}
 // Un reporte por fecha y cuadrilla: si llega otro del mismo día y cuadrilla, reemplaza al anterior (corrección del supervisor)
 export function unirReportes(guardados, nuevos) {
     var por = {};
@@ -201,6 +220,58 @@ export function cruzar(prog, reportes, fecha) {
     return { mes: prog.mes, fecha: fecha, q: q, semana: sd.semana, dia: sd.dia, rango: rango, filas: deQ, todas: filas,
         fuera: fuera, repetidos: repetidos, otroMes: otroMes, cuadrillas: cuadrillas, dias: dias, calendario: calendario, cuenta: cuenta,
         choques: deQ.filter(function (f) { return f.choque; }), otraCuad: deQ.filter(function (f) { return f.otraCuad; }) };
+}
+
+// ---------- Cierre de la quincena ----------
+// Lo programado de la quincena que no tiene reporte ni X en el Excel. Se avisa en los últimos DIAS_ANTES_CIERRE días hábiles
+// de la quincena (para alcanzar a reclamar) y durante DIAS_DESPUES_CIERRE días después de cerrada. Lo reportado tarde (en
+// días de la otra quincena) cuenta como hecho.
+//   cierres(prog, reportes, hoy) -> [{ q, rango, estado: 'porcerrar' | 'cerrada', quedan, total, hechos, faltan: [fila],
+//                                      cuadrillas: [{ cuad, total, faltan: [fila], sinReportes }] }]
+//   sinReportes: la cuadrilla no tiene ningún reporte cargado en el mes (puede que falte pegarlos, no que no haya trabajado)
+export var DIAS_ANTES_CIERRE = 2, DIAS_DESPUES_CIERRE = 7;
+export function cierres(prog, reportes, hoy) {
+    if (!prog || !prog.mes || !hoy) return [];
+    var res = cruzar(prog, reportes, hoy), ini = fechaPlan(prog.mes, 1, 1), fin = sumarDias(rangoQuincena(prog, 2).hasta, 7), conRep = {};
+    (reportes || []).forEach(function (r) { if (r.fecha >= ini && r.fecha <= fin) conRep[r.cuad] = 1; });
+    var out = [];
+    [1, 2].forEach(function (q) {
+        var L = res.todas.filter(function (f) { return f.q === q; }), rango = rangoQuincena(prog, q);
+        if (!L.length || hoy < rango.desde) return;
+        var estado, quedan = 0;
+        if (hoy > rango.hasta) {
+            if (diasEntre(rango.hasta, hoy) > DIAS_DESPUES_CIERRE) return;
+            estado = 'cerrada';
+        } else {
+            quedan = habilesEntre(hoy, rango.hasta) + (utc(hoy).getUTCDay() === 0 ? 0 : 1);   // hoy cuenta si no es domingo
+            if (quedan > DIAS_ANTES_CIERRE) return;
+            estado = 'porcerrar';
+        }
+        var faltan = L.filter(function (f) { return !esHecho(f.estado); }), porCuad = {};
+        faltan.forEach(function (f) { (porCuad[f.cuad] = porCuad[f.cuad] || []).push(f); });
+        var porPlan = function (a, b) { return (a.plan === '') - (b.plan === '') || a.plan.localeCompare(b.plan); };
+        out.push({ q: q, rango: rango, estado: estado, quedan: quedan, total: L.length, hechos: L.length - faltan.length, faltan: faltan,
+            cuadrillas: Object.keys(porCuad).sort(ordenCuad).map(function (c) {
+                return { cuad: c, total: L.filter(function (f) { return f.cuad === c; }).length, faltan: porCuad[c].sort(porPlan), sinReportes: !conRep[c] };
+            }) });
+    });
+    return out;
+}
+export function tituloCierre(c) {
+    return c.estado === 'cerrada'
+        ? (c.faltan.length ? '⚠ La Q' + c.q + ' cerró con ' + c.faltan.length + (c.faltan.length === 1 ? ' lote sin ejecutar' : ' lotes sin ejecutar') : '✅ La Q' + c.q + ' cerró con todo lo programado ejecutado')
+        : (c.faltan.length ? '⏳ La Q' + c.q + ' cierra el ' + diaCorto(c.rango.hasta) + ' y faltan ' + c.faltan.length + (c.faltan.length === 1 ? ' lote' : ' lotes') : '✅ La Q' + c.q + ' cierra el ' + diaCorto(c.rango.hasta) + ': ya está todo ejecutado');
+}
+// Para WhatsApp y para la ventana de aviso
+export function textoCierre(c) {
+    var lin = ['📊 *' + tituloCierre(c) + '*', 'Q' + c.q + ' del ' + diaCorto(c.rango.desde) + ' al ' + diaCorto(c.rango.hasta) + ' · ejecutados ' + c.hechos + ' de ' + c.total +
+        (c.estado === 'porcerrar' ? ' · ' + (c.quedan === 1 ? 'queda 1 día hábil' : 'quedan ' + c.quedan + ' días hábiles') : '')];
+    c.cuadrillas.forEach(function (k) {
+        lin.push('');
+        lin.push('*Cuadrilla ' + k.cuad + '* · ' + k.faltan.length + ' de ' + k.total + ' sin ejecutar' + (k.sinReportes ? ' (no hay reportes suyos cargados este mes)' : ''));
+        lin.push(k.faltan.map(function (f) { return rotulo(f) + (f.plan ? ' (' + diaCorto(f.plan) + ')' : ''); }).join(', '));
+    });
+    return lin.join('\n');
 }
 
 // ---------- Textos ----------

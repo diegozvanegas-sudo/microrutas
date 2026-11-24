@@ -175,3 +175,58 @@ test('cruzar: calendario de la quincena y resumen de texto', () => {
     assert.match(t, /no están en la programación: Z9CC0999/);
     assert.ok(esHecho('tarde') && !esHecho('atrasado'));
 });
+
+// ---------- Lotes de la pre-ruta sumados al reporte del día ----------
+test('sumarReportes: suma al reporte del mismo día y cuadrilla sin borrar lo que tenía; lo que ya estaba no cambia nada', async () => {
+    const { sumarReportes } = await import('../src/cruce/cruce.js');
+    const guardados = [Object.assign(rep('2026-11-02', '4', [1]), { texto: 'REPORTE MICRORRUTAS EJECUTADAS' })];
+    const r = sumarReportes(guardados, [rep('2026-11-02', '4', [1, 2]), rep('2026-11-03', '4', [3]), rep('2026-11-03', '4', [3, 5]), rep('2026-11-04', '', [6]), rep('', '4', [7])]);
+    assert.deepEqual(r.map((x) => [x.fecha, x.cuad, x.items.map((i) => i.lote).join(',')]), [['2026-11-02', '4', '1,2'], ['2026-11-03', '4', '3,5']]);
+    assert.equal(r[0].texto, 'REPORTE MICRORRUTAS EJECUTADAS');   // el texto del reporte pegado en el Cruce se conserva
+    assert.deepEqual(sumarReportes(guardados, [rep('2026-11-02', '4', [1])]), []);
+});
+
+// ---------- Cierre de la quincena (Q1: lun 02/11 – sáb 14/11 · Q2: lun 16/11 – sáb 21/11) ----------
+test('cierres: nada que avisar a mitad de quincena', async () => {
+    const { cierres } = await import('../src/cruce/cruce.js');
+    assert.deepEqual(cierres(PROG, REPS, '2026-11-11'), []);
+    assert.deepEqual(cierres(null, REPS, '2026-11-11'), []);
+});
+
+test('cierres: los dos últimos días hábiles avisa lo que falta, por cuadrilla', async () => {
+    const { cierres, tituloCierre, textoCierre } = await import('../src/cruce/cruce.js');
+    const [c] = cierres(PROG, REPS, '2026-11-13');   // viernes: quedan viernes y sábado
+    assert.equal(c.q, 1);
+    assert.equal(c.estado, 'porcerrar');
+    assert.equal(c.quedan, 2);
+    assert.equal(c.total, 10);
+    assert.equal(c.hechos, 7);
+    assert.deepEqual(c.faltan.map((f) => f.lote), ['4', '6', '8']);
+    assert.deepEqual(c.cuadrillas.map((k) => [k.cuad, k.total, k.faltan.map((f) => f.lote).join(','), k.sinReportes]), [['4', 8, '4,6,8', false]]);
+    assert.equal(tituloCierre(c), '⏳ La Q1 cierra el sáb 14/11 y faltan 3 lotes');
+    const t = textoCierre(c);
+    assert.match(t, /ejecutados 7 de 10 · quedan 2 días hábiles/);
+    assert.match(t, /\*Cuadrilla 4\* · 3 de 8 sin ejecutar\n4 \(mar 03\/11\), 6 \(mié 04\/11\), 8$/);
+});
+
+test('cierres: cerrada la quincena, lo reportado tarde cuenta y se avisa hasta 7 días después', async () => {
+    const { cierres, tituloCierre } = await import('../src/cruce/cruce.js');
+    const tarde = REPS.concat([rep('2026-11-16', '4', [4])]);
+    const [c] = cierres(PROG, tarde, '2026-11-16');
+    assert.equal(c.estado, 'cerrada');
+    assert.deepEqual(c.faltan.map((f) => f.lote), ['6', '8']);
+    assert.equal(tituloCierre(c), '⚠ La Q1 cerró con 2 lotes sin ejecutar');
+    // El lunes 23 ya pasaron 9 días del cierre de la Q1: solo sale la Q2 (cerró el sábado 21) con su lote sin reporte
+    const otra = cierres(PROG, tarde, '2026-11-23');
+    assert.deepEqual(otra.map((x) => [x.q, x.estado, x.faltan.map((f) => f.lote).join(',')]), [[2, 'cerrada', '1']]);
+    // Todo hecho: sale el aviso de que cerró completa
+    const todo = cierres(PROG, tarde.concat([rep('2026-11-17', '4', [1])]), '2026-11-23')[0];
+    assert.equal(todo.faltan.length, 0);
+    assert.equal(tituloCierre(todo), '✅ La Q2 cerró con todo lo programado ejecutado');
+});
+
+test('cierres: la cuadrilla sin ningún reporte en el mes se marca (puede que falte pegarlos)', async () => {
+    const { cierres } = await import('../src/cruce/cruce.js');
+    const [c] = cierres(PROG, [], '2026-11-13');
+    assert.equal(c.cuadrillas.find((k) => k.cuad === '4').sinReportes, true);
+});
