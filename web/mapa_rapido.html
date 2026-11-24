@@ -1629,7 +1629,8 @@
     // Dónde está: el punto corregido a mano o el que se encontró por la dirección → { ll, aprox } o null
     function puntoEsp(e) {
         var f = espPuntos[claveEsp(e)];
-        if (f && f.p) return { ll: L.latLng(f.p), aprox: '', fijado: true };
+        if (f && f.borrado) f = null;
+        if (f && f.p) return { ll: L.latLng(f.p), aprox: '', fijado: true, pendiente: !!f.pendiente };
         var u = espUbic[claveEsp(e)];
         return u ? { ll: L.latLng(u.lat, u.lng), aprox: u.aprox || 'aproximada' } : null;
     }
@@ -1642,7 +1643,7 @@
     // Una por una (las que no están en los cruces guardados se buscan en línea): se pinta a medida que aparecen
     function ubicarEspeciales() {
         if (espBuscando || !window.leerDireccion || !window.ubicarDireccion) return;
-        var faltan = especiales().filter(function (e) { var k = claveEsp(e); return !espPuntos[k] && !(k in espUbic) && e.dir; });
+        var faltan = especiales().filter(function (e) { var k = claveEsp(e); return !(espPuntos[k] && espPuntos[k].p && !espPuntos[k].borrado) && !(k in espUbic) && e.dir; });
         if (!faltan.length) return;
         espBuscando = true;
         var z = zonaLotes(), caja = [z.zona.getSouth(), z.zona.getWest(), z.zona.getNorth(), z.zona.getEast()];
@@ -1687,7 +1688,7 @@
             (e.obs && e.obs !== '-' ? '<div class="bloque"><span class="et">Observaciones</span><div class="txt">' + esc(e.obs) + '</div></div>' : '') +
             '<div class="bloque"><span class="et">Ubicación</span><div class="txt">' +
                 (!pt ? '<b>Sin ubicar:</b> la dirección no se encontró en el mapa. Búsquela en Google Maps y corríjala aquí con «📌 Poner el punto».' :
-                 pt.fijado ? '📌 Corregida a mano en este equipo · ' + esc(coordTxt(ll)) :
+                 pt.fijado ? '📌 Corregida a mano · ' + esc(coordTxt(ll)) + (pt.pendiente ? '<br><span class="sub-f">Solo en este equipo por ahora: se comparte con los demás cuando haya señal y sesión.</span>' : ' · la ven todos los equipos') :
                  '≈ ' + esc(pt.aprox) + ' (por la dirección) · ' + esc(coordTxt(ll)) + '. Si no es ahí, corríjala con «📌 Poner el punto».') + '</div>' +
                 (l ? '<div class="sub-f" style="margin-top:4px">No es un lote. Lote vecino: ' + esc(textoLote(l)) + '</div>' : '') + '</div>' +
             '<div class="acciones">' +
@@ -1714,18 +1715,59 @@
                 return '<li><button type="button" data-esp-ver="' + i + '"><i style="background:' + st.color + '"></i><span><b>' + esc(e.ruta) + '</b><small>' + esc(st.txt) +
                     (pt ? (pt.aprox ? ' · ≈ aproximada' : '') : ' · <span class="esp-sin">sin ubicar</span>') + '</small></span></button></li>';
             }).join('') + '</ul>' +
-            '<div class="mr">Salen del Excel de programación cargado en Subsanaciones (en este equipo). Los puntos corregidos a mano se guardan aquí.</div></div>';
+            '<div class="mr">Salen del Excel de programación cargado en Subsanaciones (en este equipo). Los puntos corregidos a mano se comparten con todos los equipos.</div></div>';
     }
     function verListaEsp() { abrirPanel(listaEspeciales(), map.getCenter(), true); }
+    // Se guarda primero en el equipo (pendiente) y luego en la base; si no se puede subir, queda pendiente y se sube en
+    // la próxima lectura con sesión (sincronizarEsp)
     function fijarEspecial(i, ll) {
-        var e = especiales()[i];
-        espPuntos[claveEsp(e)] = { p: [+ll.lat.toFixed(6), +ll.lng.toFixed(6)], hora: Date.now() };
+        var e = especiales()[i], k = claveEsp(e);
+        espPuntos[k] = { p: [+ll.lat.toFixed(6), +ll.lng.toFixed(6)], hora: Date.now(), pendiente: true };
         guardar('especiales_puntos', espPuntos);
         espFijando = null; map.getContainer().style.cursor = '';
         pintarEspeciales();
         verEspecial(i);
-        toast('📌 Punto de ' + e.ruta + ' guardado en este equipo.');
+        subirPuntoEsp(k, e.ruta).then(function (ok) {
+            toast('📌 Punto de ' + e.ruta + (ok ? ' guardado: lo ven todos los equipos.' : ' guardado en este equipo. Se comparte con los demás cuando haya señal y sesión.'));
+        });
     }
+    function refrescarFichaEsp() {
+        var f = document.querySelector('.ficha-esp [data-esp-fijar]');
+        if (f && !document.querySelector('.esp-lista')) verEspecial(+f.dataset.espFijar);
+    }
+    function subirPuntoEsp(k, nombre) {
+        var P = window.PuntosEspeciales, x = espPuntos[k];
+        if (!P || !x || !x.pendiente) return Promise.resolve(false);
+        var hecho = x.borrado ? P.borrar(k) : P.guardar(k, nombre || k, x.p[0], x.p[1]);
+        return hecho.then(function (r) {
+            if (!r.ok || espPuntos[k] !== x) return false;   // si se cambió mientras subía, el cambio nuevo sigue pendiente
+            if (x.borrado) delete espPuntos[k]; else delete x.pendiente;
+            guardar('especiales_puntos', espPuntos);
+            refrescarFichaEsp();
+            return true;
+        }, function () { return false; });
+    }
+    // Trae los puntos de la base y sube los que quedaron pendientes en este equipo
+    var espSincronizando = false;
+    function sincronizarEsp() {
+        var P = window.PuntosEspeciales;
+        if (!P || espSincronizando || !especiales().length) return;
+        espSincronizando = true;
+        P.leer().then(function (r) {
+            if (!r.ok) return;
+            var m = P.mezclar(espPuntos, r.puntos);
+            espPuntos = m.puntos;
+            guardar('especiales_puntos', espPuntos);
+            pintarEspeciales();
+            refrescarFichaEsp();
+            var nombres = {};
+            especiales().forEach(function (e) { nombres[claveEsp(e)] = e.ruta; });
+            m.subir.forEach(function (k) { subirPuntoEsp(k, nombres[k]); });
+            m.borrar.forEach(function (k) { espPuntos[k] = { borrado: true, pendiente: true, hora: Date.now() }; subirPuntoEsp(k); });
+        }, function () {}).then(function () { espSincronizando = false; });
+    }
+    window.addEventListener('especiales-lista', function () { if (espOn) sincronizarEsp(); });
+    document.addEventListener('visibilitychange', function () { if (document.visibilityState === 'visible' && espOn) sincronizarEsp(); });
     document.addEventListener('click', function (ev) {
         var b = ev.target.closest && ev.target.closest('[data-esp-ver], [data-esp-fijar], [data-esp-gps], [data-esp-soltar], [data-esp-lista]');
         if (!b) return;
@@ -1734,7 +1776,15 @@
         if (!e) return;
         if (b.hasAttribute('data-esp-ver')) { var pt = puntoEsp(e); if (pt) map.setView(pt.ll, Math.max(map.getZoom(), 17)); return verEspecial(i); }
         if (b.hasAttribute('data-esp-gps')) return miPos && fijarEspecial(i, miPos);
-        if (b.hasAttribute('data-esp-soltar')) { delete espPuntos[claveEsp(e)]; guardar('especiales_puntos', espPuntos); pintarEspeciales(); toast('Vuelve al punto de la dirección.'); return verEspecial(i); }
+        if (b.hasAttribute('data-esp-soltar')) {
+            var ks = claveEsp(e);
+            espPuntos[ks] = { borrado: true, pendiente: true, hora: Date.now() };
+            guardar('especiales_puntos', espPuntos);
+            pintarEspeciales();
+            verEspecial(i);
+            ubicarEspeciales();
+            return subirPuntoEsp(ks).then(function (ok) { toast('Vuelve al punto de la dirección' + (ok ? ' en todos los equipos.' : '. Se quita en los demás equipos cuando haya señal y sesión.')); });
+        }
         espFijando = i; map.closePopup(); cerrarFicha();
         map.getContainer().style.cursor = 'crosshair';
         toast('Toque el mapa donde queda ' + e.ruta + '.');
@@ -1745,6 +1795,7 @@
         pintarEspeciales();
         pintarChips();
         if (!espOn) return toast('Especiales apagados');
+        sincronizarEsp();
         ubicarEspeciales();
         var n = especiales().length;
         toast(n + ' operaciones especiales de la programación. Toque «📋 Lista» para ver las que faltan por ubicar.');
@@ -2963,7 +3014,7 @@
     } else if (guiaPref.dia != null) { guiaPref.dia = null; guardar('rapido_guia', guiaPref); }   // el día elegido vale solo para ese enlace
     if (guias.length) { pintarGuia(!!guiaUrl && !q.get('lote') && !q.get('mr')); pintarChips(); }
     // ⭐ Especiales prendidos la última vez (y solo si sigue habiendo programación con especiales)
-    if (espOn && especiales().length) { pintarEspeciales(); ubicarEspeciales(); }
+    if (espOn && especiales().length) { pintarEspeciales(); sincronizarEsp(); ubicarEspeciales(); }
     // ?puntos=…: las direcciones de un mensaje, numeradas (solas o junto con ?lote=)
     if (q.get('puntos') && pintarPuntosUrl(q.get('puntos')) && !q.get('lote') && !q.get('mr')) map.fitBounds(cajaPuntosUrl().pad(0.3), { maxZoom: 18 });
     // ?ll=6.2751,-75.5737: ubica el lote que contiene el punto

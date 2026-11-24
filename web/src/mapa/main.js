@@ -7,6 +7,7 @@
 import { supabase, configurado } from '../supabase.js';
 import { infoLote, chipReporte, htmlAvisos, htmlMas } from './ficha.js';
 import { encuadre, urlEarth, kmlLote, alturaTerreno } from './earth.js';
+import { mezclarPuntos } from './especiales.js';
 
 function leer(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
@@ -35,6 +36,37 @@ window.FichaLote = {
     encuadre: encuadre, urlEarth: urlEarth, kmlLote: kmlLote, alturaTerreno: alturaTerreno
 };
 window.dispatchEvent(new Event('ficha-lista'));
+
+// ⭐ Puntos de las operaciones especiales puestos a mano (tabla puntos_especiales, 0029): los mismos en todos los equipos.
+// Sin sesión o sin señal responde { ok: false } y el mapa los deja en el equipo como pendientes, para subirlos después.
+async function conSesion() {
+    if (!configurado || !supabase) return false;
+    try { var s = await supabase.auth.getSession(); return !!(s.data && s.data.session); } catch (e) { return false; }
+}
+window.PuntosEspeciales = {
+    mezclar: mezclarPuntos,
+    // → { ok, puntos: { CLAVE: { p: [lat, lon], hora } } }
+    leer: async function () {
+        if (!(await conSesion())) return { ok: false };
+        var r = await supabase.from('puntos_especiales').select('clave, lat, lon, actualizado');
+        if (r.error) return { ok: false, error: r.error.message };
+        var puntos = {};
+        r.data.forEach(function (x) { puntos[x.clave] = { p: [x.lat, x.lon], hora: Date.parse(x.actualizado) || 0 }; });
+        return { ok: true, puntos: puntos };
+    },
+    guardar: async function (clave, nombre, lat, lon) {
+        if (!(await conSesion())) return { ok: false };
+        var s = await supabase.auth.getSession();
+        var r = await supabase.from('puntos_especiales').upsert({ clave: clave, nombre: nombre || '', lat: lat, lon: lon, usuario: s.data.session.user.id, actualizado: new Date().toISOString() }, { onConflict: 'clave' });
+        return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    },
+    borrar: async function (clave) {
+        if (!(await conSesion())) return { ok: false };
+        var r = await supabase.from('puntos_especiales').delete().eq('clave', clave);
+        return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    }
+};
+window.dispatchEvent(new Event('especiales-lista'));
 
 // Lo más nuevo de la base (solo si ya hay sesión en este equipo; el mapa no pide entrar)
 async function deLaBase() {
