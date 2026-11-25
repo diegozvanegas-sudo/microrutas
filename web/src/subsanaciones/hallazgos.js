@@ -230,30 +230,37 @@ export var HALLAZGOS = [
         m: 'Favor evidenciar con regla la altura de cada segmento del desmonte, para que la interventoría pueda corroborar el factor.' }
 ].concat([
     // ---------- Reportes de árboles (poda / riesgo) ----------
-    // Formato fijo para el grupo de WhatsApp: especie y código SAU van en N/A y solo se llena la dirección ({dir})
-    ['Árbol muerto en pie', 'muerto pie seco', 'Árbol muerto en pie'],
-    ['Árbol volcado vivo', 'volcado volcamiento caido vivo raiz', 'Árbol volcado vivo'],
-    ['Árbol caído', 'caido caida tumbado suelo seco', 'Árbol caído'],
-    ['Rama fracturada', 'rama ramas fracturada quebrada partida rota', 'Árbol presenta una rama fracturada y requiere intervención'],
-    ['Rama desgajada o colgando', 'rama ramas desgajada colgando suspendida colgada caida', 'Árbol presenta una rama desgajada que quedó suspendida, con riesgo de caída, y requiere intervención'],
-    ['Árbol inclinado con riesgo de volcamiento', 'inclinado inclinacion ladeado volcamiento riesgo', 'Árbol inclinado con riesgo de volcamiento; requiere evaluación'],
-    ['Ramas sobre redes eléctricas', 'redes electricas cables cableado poste energia contacto', 'Árbol con ramas en contacto con redes eléctricas; requiere poda'],
-    ['Ramas que obstaculizan el paso o la visibilidad', 'ramas bajas obstaculizan paso peatonal vehicular visibilidad senal senales luminaria', 'Árbol con ramas bajas que obstaculizan el paso o la visibilidad de señales y luminarias; requiere poda'],
-    ['Tronco con pudrición o hueco', 'pudricion podrido hueco cavidad tronco base hongos', 'Árbol con pudrición o cavidad en el tronco, con riesgo de caída; requiere evaluación'],
-    ['Árbol con plaga', 'plaga comejen termitas hongos enfermo insectos', 'Árbol con presencia de plaga (comején u hongos) que afecta su estado; requiere evaluación'],
-    ['Raíces que levantan el andén', 'raiz raices levantan anden levantado estructura', 'Árbol con raíces que levantan el andén o la estructura cercana; requiere evaluación'],
-    ['Árbol requiere poda', 'requiere poda podar copa frondoso', 'Árbol requiere poda']
+    // Formato fijo (especie y código SAU en N/A, solo se llena la dirección) SOLO para árbol muerto en pie y volcado vivo.
+    // Lo demás (riesgo, ramas, plaga, poda…) se pide por descripción: qué se ve y dónde, solicitando la evaluación.
+    // [título, palabras, novedad del formato | descripción, true si va con el formato fijo]
+    ['Árbol muerto en pie', 'muerto pie seco', 'Árbol muerto en pie', true],
+    ['Árbol volcado vivo', 'volcado volcamiento caido vivo raiz', 'Árbol volcado vivo', true],
+    ['Árbol caído', 'caido caida tumbado suelo seco', 'árbol caído'],
+    ['Rama fracturada', 'rama ramas fracturada quebrada partida rota', 'árbol con una rama fracturada'],
+    ['Rama desgajada o colgando', 'rama ramas desgajada colgando suspendida colgada caida', 'árbol con una rama desgajada que quedó suspendida, con riesgo de caída'],
+    ['Árbol inclinado con riesgo de volcamiento', 'inclinado inclinacion ladeado volcamiento riesgo', 'árbol inclinado con riesgo de volcamiento'],
+    ['Ramas sobre redes eléctricas', 'redes electricas cables cableado poste energia contacto', 'árbol con ramas en contacto con redes eléctricas'],
+    ['Ramas que obstaculizan el paso o la visibilidad', 'ramas bajas obstaculizan paso peatonal vehicular visibilidad senal senales luminaria', 'árbol con ramas bajas que obstaculizan el paso o la visibilidad de señales y luminarias'],
+    ['Tronco con pudrición o hueco', 'pudricion podrido hueco cavidad tronco base hongos', 'árbol con pudrición o cavidad en el tronco, con riesgo de caída'],
+    ['Árbol con plaga', 'plaga comejen termitas hongos enfermo insectos', 'árbol con presencia de plaga (comején u hongos) que afecta su estado'],
+    ['Raíces que levantan el andén', 'raiz raices levantan anden levantado estructura', 'árbol con raíces que levantan el andén o la estructura cercana'],
+    ['Árbol requiere poda', 'requiere poda podar copa frondoso', 'árbol que requiere poda']
 ].map(function (a) {
-    return { t: '🌳 ' + a[0], c: a[1] + ' arbol arboles reporte poda', arbol: a[2],
-        m: '* Especie: N/A\n* Código: SAU N/A\n* Novedad: ' + a[2] + '\n* Dirección: {dir}' };
+    return { t: '🌳 ' + a[0], c: a[1] + ' arbol arboles reporte poda riesgo evaluacion', arbol: a[2], formato: !!a[3],
+        m: a[3] ? '* Especie: N/A\n* Código: SAU N/A\n* Novedad: ' + a[2] + '\n* Dirección: {dir}'
+            : 'Se solicita la evaluación del árbol ubicado en {dir}: se observa ' + a[2] + '.' };
 }));
 
 // Mensaje listo para copiar: en los reportes de árboles pone la dirección (vacía si no se escribió, para llenarla en WhatsApp)
-export function mensajeHallazgo(i, dir) { return HALLAZGOS[i].m.split('{dir}').join(String(dir || '').trim()); }
-// Para la observación de la visita: el reporte de árbol en una sola línea, sin viñetas
+// En los de descripción, sin dirección queda «(dirección)» para que se note qué falta
+export function mensajeHallazgo(i, dir) {
+    var h = HALLAZGOS[i], d = String(dir || '').trim();
+    return h.m.split('{dir}').join(d || (h.arbol && !h.formato ? '(dirección)' : ''));
+}
+// Para la observación de la visita: el reporte de árbol con formato en una sola línea, sin viñetas (los de descripción, tal cual)
 export function hallazgoEnLinea(i, dir) {
     var h = HALLAZGOS[i], d = String(dir || '').trim();
-    return h.arbol ? 'Reporte de árbol: ' + h.arbol + (d ? ', en ' + d : '') + '.' : mensajeHallazgo(i, dir);
+    return h.formato ? 'Reporte de árbol: ' + h.arbol + (d ? ', en ' + d : '') + '.' : mensajeHallazgo(i, dir);
 }
 // Índices de los reportes de árboles (botón 🌳 de la visita)
 export function hallazgosArbol() { return HALLAZGOS.map(function (h, i) { return h.arbol ? i : -1; }).filter(function (i) { return i !== -1; }); }

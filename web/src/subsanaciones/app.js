@@ -2690,7 +2690,7 @@ export function iniciar(api, CFG) {
         };
         if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(texto).then(function () { toast(listo); }, aMano); else aMano();
     }
-    // 🌳 Solo árboles: los reportes para poda o riesgo (formato fijo, solo se llena la dirección). Al cerrar se borran la
+    // 🌳 Solo árboles: los reportes para poda o riesgo (muerto en pie y volcado vivo con formato fijo; los demás por descripción). Al cerrar se borran la
     // búsqueda, la dirección y el filtro
     var hallSoloArb = false;
     function dirHallazgo() { return $('hall-dir').value; }
@@ -2706,7 +2706,7 @@ export function iniciar(api, CFG) {
             : 'Nada con "' + q + '". Pruebe con otra palabra: piedras, peatones, EPP, lluvia, combustible…';
         $('hall-lista').innerHTML = idx.map(function (i) {
             var h = HALLAZGOS[i], m = mensajeHallazgo(i, dir);
-            return '<div class="hallazgo"><b>' + esc(h.t) + '</b><p' + (h.arbol ? ' class="hall-formato"' : '') + '>' + esc(m) + '</p><div class="botones">' +
+            return '<div class="hallazgo"><b>' + esc(h.t) + '</b><p' + (h.formato ? ' class="hall-formato"' : '') + '>' + esc(m) + '</p><div class="botones">' +
                 '<button type="button" class="wa pequeno" data-copiar="' + i + '">Copiar</button>' +
                 '<a class="boton secundario pequeno" target="_blank" rel="noopener" href="https://wa.me/?text=' + encodeURIComponent(m) + '">Abrir WhatsApp</a>' +
                 (conForm ? '<button type="button" class="secundario pequeno" data-agregar="' + i + '">➕ A la observación</button>' : '') +
