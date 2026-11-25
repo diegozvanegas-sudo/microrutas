@@ -96,3 +96,26 @@ test('informe: frases de revisión de factura', () => {
     FRASES_FACTURA.forEach((f) => { assert.match(f.texto, /\.$/, f.t); assert.ok(f.texto.length > 30, f.t); });
     assert.match(FRASES_FACTURA[0].texto, /facturación de la … quincena del mes de … y se adelanta la revisión\./);
 });
+
+test('informe: «lo de siempre», sin ✅ doble y lo que quedó sin completar', async () => {
+    const { BASE_INFORME, leerBase, faltanDeBase, limpiarActividad, porCompletar, FECHA_BASE } = await import('../src/diario/comun.js');
+    // Las 3 de siempre, como salen en el grupo
+    assert.equal(BASE_INFORME.length, 3);
+    assert.match(BASE_INFORME[0], /^Se realizaron visitas posoperación a los lotes correspondientes a la cuadrilla 2/);
+    assert.equal(BASE_INFORME[1], 'Se realizó seguimiento a la programación del servicio correspondiente a las cuadrillas 2 y 4.');
+    assert.match(BASE_INFORME[2], /^En los recorridos realizados se reportaron material vegetal, RCD, voluminosos y llantas/);
+    assert.equal(FECHA_BASE, '2000-01-01');
+    // Pegada con su ✅: el informe no queda «✅ ✅»
+    assert.equal(limpiarActividad('✅  En los recorridos  realizados.'), 'En los recorridos realizados.');
+    assert.equal(limpiarActividad('✅️ ✔ Hola'), 'Hola');
+    assert.equal(textoInforme(['✅ En los recorridos.']), '*Reporte diario de actividades*\n\n✅ En los recorridos.');
+    // Ventana: una por renglón, los vacíos no cuentan
+    assert.deepEqual(leerBase('Uno.\n\n  ✅ Dos.  \n\n'), ['Uno.', 'Dos.']);
+    // Las que faltan en el día (se comparan sin ✅)
+    assert.deepEqual(faltanDeBase(['✅ ' + BASE_INFORME[1], 'Otra.'], BASE_INFORME), [BASE_INFORME[0], BASE_INFORME[2]]);
+    assert.deepEqual(faltanDeBase(BASE_INFORME, BASE_INFORME), []);
+    // «a las cuadrillas  .» o con «…»: se avisa
+    assert.equal(porCompletar(['Se realizó seguimiento a la programación del servicio correspondiente a las cuadrillas  .']).length, 1);
+    assert.equal(porCompletar(['Se realizaron visitas a las cuadrillas … .']).length, 1);
+    assert.equal(porCompletar(BASE_INFORME).length, 0);
+});

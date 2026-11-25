@@ -6,13 +6,14 @@ import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
-import { esc, hoy, sumarDias, nombreDia, textoInforme, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_FACTURA, FRASES_RECORRIDO, FRASES_DOMINGO, FRASES_INFORMATIVOS } from './comun.js';
+import { esc, hoy, sumarDias, nombreDia, textoInforme, limpiarActividad, porCompletar, FECHA_BASE, BASE_INFORME, leerBase, faltanDeBase, frasesVisitas, cuentasVisitas, fraseSubsanadas, frasePqrRespondidas, FRASES, FRASES_FACTURA, FRASES_RECORRIDO, FRASES_DOMINGO, FRASES_INFORMATIVOS } from './comun.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 
-var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha';
+var CACHE = 'informes_cache', PREF_FECHA = 'informe_con_fecha', BASE_COPIA = 'informe_base';
 var $ = function (id) { return document.getElementById(id); };
 var usuario = null, fecha = hoy(), actividades = [], sugerencias = [], historial = [], descartadas = {};
 var copia = {};   // { 'aaaa-mm-dd': [actividades] } la última copia en el equipo, para abrir sin señal
+var base = BASE_INFORME.slice();   // «lo de siempre» (en la base: informes con fecha FECHA_BASE; copia en el equipo)
 
 function toast(msg) {
     var t = $('toast');
@@ -26,6 +27,11 @@ function copiar(texto) {
     try { document.execCommand('copy'); toast('Copiado: péguelo en el grupo.'); } catch (e) { toast('No se pudo copiar: selecciónelo a mano.'); }
     a.remove();
     return Promise.resolve();
+}
+// «a las cuadrillas … .» sin llenar: se avisa (se copia igual, por si lo completa en WhatsApp)
+function avisarIncompletas() {
+    var f = porCompletar(actividades);
+    if (f.length) setTimeout(function () { toast('Ojo: ' + (f.length === 1 ? 'una actividad quedó' : f.length + ' actividades quedaron') + ' sin completar: «' + f[0].slice(0, 70) + '…»'); }, 1200);
 }
 function guardarCopia() { try { localStorage.setItem(CACHE, JSON.stringify(copia)); } catch (e) {} }
 function alto(t) { t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
@@ -41,6 +47,9 @@ function pintarActividades() {
             '<button type="button" class="icono quitar" data-quitar title="Quitar" aria-label="Quitar">×</button></span></div>';
     }).join('') : '<div class="vacio">Aún no hay actividades para este día. Agréguelas abajo o tome las sugeridas.</div>';
     $('actividades').querySelectorAll('textarea').forEach(alto);
+    var faltan = faltanDeBase(actividades, base).length;
+    $('btn-base-poner').hidden = !faltan;
+    $('btn-base-poner').textContent = '📌 Poner lo de siempre' + (actividades.length && faltan ? ' (' + faltan + ' que faltan)' : '');
     pintarSugerencias();
     pintarVista();
 }
@@ -70,7 +79,7 @@ function programarGuardado() {
 }
 async function guardar() {
     clearTimeout(espera); espera = null;
-    var f = fecha, lista = actividades.map(function (a) { return a.trim(); }).filter(Boolean);
+    var f = fecha, lista = actividades.map(limpiarActividad).filter(Boolean);
     copia[f] = lista;
     guardarCopia();
     if (!usuario) return;
@@ -82,7 +91,7 @@ async function guardar() {
     pintarHistorial();
 }
 function agregar(texto) {
-    texto = String(texto || '').trim();
+    texto = limpiarActividad(texto);
     if (!texto) return false;
     actividades.push(texto);
     pintarActividades();
@@ -110,9 +119,17 @@ async function abrirDia(f) {
         else toast('Sin conexión: se muestra la última copia. ' + res.error.message);
     } else if (!espera) {
         actividades = (res.data && res.data.actividades) || [];
-        copia[f] = actividades.slice();
-        guardarCopia();
-        pintarActividades();
+        // Día nuevo (de hoy en adelante) sin nada todavía: va «lo de siempre» y se guarda; lo demás se agrega
+        if (!res.data && f >= hoy() && base.length) {
+            actividades = base.slice();
+            pintarActividades();
+            programarGuardado();
+            toast('Se puso lo de siempre (' + base.length + '). Edítelo aquí mismo o agregue lo demás.');
+        } else {
+            copia[f] = actividades.slice();
+            guardarCopia();
+            pintarActividades();
+        }
     }
     cargarSugerencias(f);
 }
@@ -156,11 +173,33 @@ function pintarHistorial() {
     }).join('') : '<span class="sub">Aún no hay informes guardados.</span>';
 }
 async function cargarHistorial() {
-    var res = await supabase.from('informes').select('fecha, actividades').eq('usuario', usuario.id).order('fecha', { ascending: false }).limit(60);
+    var res = await supabase.from('informes').select('fecha, actividades').eq('usuario', usuario.id).neq('fecha', FECHA_BASE).order('fecha', { ascending: false }).limit(60);
     historial = res.error
-        ? Object.keys(copia).map(function (f) { return { fecha: f, n: copia[f].length }; })
+        ? Object.keys(copia).filter(function (f) { return f !== FECHA_BASE; }).map(function (f) { return { fecha: f, n: copia[f].length }; })
         : res.data.map(function (x) { return { fecha: x.fecha, n: (x.actividades || []).length }; });
     pintarHistorial();
+}
+
+// ---------- «Lo de siempre» ----------
+async function cargarBase() {
+    try { var c = JSON.parse(localStorage.getItem(BASE_COPIA)); if (Array.isArray(c) && c.length) base = c; } catch (e) {}
+    if (!usuario) return;
+    var r = await supabase.from('informes').select('actividades').eq('usuario', usuario.id).eq('fecha', FECHA_BASE).maybeSingle();
+    if (!r.error && r.data && Array.isArray(r.data.actividades) && r.data.actividades.length) {
+        base = r.data.actividades;
+        try { localStorage.setItem(BASE_COPIA, JSON.stringify(base)); } catch (e) {}
+    }
+}
+async function guardarBase(lista) {
+    base = lista;
+    try { localStorage.setItem(BASE_COPIA, JSON.stringify(base)); } catch (e) {}
+    if (!usuario) return toast('Guardado solo en este equipo (sin sesión).');
+    var r = await supabase.from('informes').upsert({ usuario: usuario.id, fecha: FECHA_BASE, actividades: base, actualizado: new Date().toISOString() }, { onConflict: 'usuario,fecha' });
+    toast(r.error ? 'Quedó en este equipo, pero no en la base: ' + r.error.message : 'Listo: así va a salir en cada día nuevo.');
+}
+function contarBase() {
+    var n = leerBase($('base-texto').value).length;
+    $('base-cuenta').textContent = n ? n + (n === 1 ? ' actividad.' : ' actividades.') : 'Sin actividades: los días nuevos van a abrir vacíos.';
 }
 
 // ---------- Inicio ----------
@@ -225,9 +264,9 @@ async function arrancar() {
     $('con-fecha').onchange = function () { try { localStorage.setItem(PREF_FECHA, this.checked ? '1' : ''); } catch (e) {} pintarVista(); };
     $('btn-copiar').onclick = function () {
         if (!actividades.some(function (a) { return a.trim(); })) return toast('El informe está vacío.');
-        copiar(textoInforme(actividades, { fecha: $('con-fecha').checked ? fecha : '' }));
+        copiar(textoInforme(actividades, { fecha: $('con-fecha').checked ? fecha : '' })).then(avisarIncompletas);
     };
-    $('btn-whatsapp').onclick = function (ev) { if (!actividades.some(function (a) { return a.trim(); })) { ev.preventDefault(); toast('El informe está vacío.'); } };
+    $('btn-whatsapp').onclick = function (ev) { if (!actividades.some(function (a) { return a.trim(); })) { ev.preventDefault(); toast('El informe está vacío.'); } else avisarIncompletas(); };
     // Programarlo: lo envía el servidor a la hora elegida (web/src/whatsapp/programar.js)
     $('btn-programar').onclick = function () {
         if (!actividades.some(function (a) { return a.trim(); })) return toast('El informe está vacío.');
@@ -235,6 +274,35 @@ async function arrancar() {
     };
     // Si se cierra la página con algo sin guardar, al menos queda la copia en el equipo
     window.addEventListener('pagehide', function () { if (espera) { copia[fecha] = actividades.filter(function (a) { return a.trim(); }); guardarCopia(); } });
+
+    $('btn-base-poner').onclick = function () {
+        var faltan = faltanDeBase(actividades, base);
+        if (!faltan.length) return;
+        // Van primero, en el orden de siempre; lo que ya estaba queda debajo
+        actividades = faltan.concat(actividades);
+        pintarActividades();
+        programarGuardado();
+    };
+    // La ventana abre con lo guardado; cerrar sin guardar no cambia nada (al volver a abrir sale lo guardado)
+    $('btn-base-editar').onclick = function () {
+        $('base-texto').value = base.join('\n\n');
+        contarBase();
+        $('dlg-base').showModal();
+        $('base-texto').focus();
+    };
+    $('base-texto').addEventListener('input', contarBase);
+    $('base-fabrica').onclick = function () { $('base-texto').value = BASE_INFORME.join('\n\n'); contarBase(); };
+    $('base-cerrar').onclick = function () { $('dlg-base').close(); };
+    $('dlg-base').addEventListener('close', function () { $('base-texto').value = ''; $('base-cuenta').textContent = ''; });
+    $('dlg-base').addEventListener('click', function (ev) { if (ev.target === this) this.close(); });
+    $('base-guardar').onclick = async function () {
+        var b = this;
+        b.disabled = true; b.textContent = 'Guardando…';
+        await guardarBase(leerBase($('base-texto').value));
+        b.disabled = false; b.textContent = 'Guardar';
+        $('dlg-base').close();
+        pintarActividades();
+    };
 
     $('btn-recargar').onclick = function () { abrirDia(fecha); if (usuario) cargarHistorial(); };
     abrirDia(fecha);
@@ -245,6 +313,7 @@ async function arrancar() {
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
     aplicarPermisos(supabase, usuario);
+    await cargarBase();
     abrirDia(fecha);
     cargarHistorial();
 }

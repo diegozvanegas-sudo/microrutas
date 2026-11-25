@@ -79,6 +79,11 @@
     <div class="col-trabajo">
     <section class="tarjeta">
         <h2>✅ Actividades <span class="guardado" id="guardado"></span></h2>
+        <!-- «Lo de siempre»: se pone solo en un día nuevo; se agrega lo que falte o se edita (queda en la base, con el usuario) -->
+        <div class="base-barra">
+            <button type="button" class="secundario pequeno" id="btn-base-poner" hidden title="Agregar las actividades de siempre que todavía no están en este día">📌 Poner lo de siempre</button>
+            <button type="button" class="secundario pequeno" id="btn-base-editar" title="Cambiar las actividades que se ponen solas en cada día nuevo">✎ Editar lo de siempre</button>
+        </div>
         <div id="estado" class="estado-carga">Cargando…</div>
         <div class="actividades" id="actividades"></div>
         <div id="sugerencias"></div>
@@ -116,6 +121,20 @@
     </div>
     <p class="nota-privada">🔒 Cada informe lo ve solo quien lo escribió (y el administrador). Se guarda solo al escribir.</p>
 </main>
+<!-- ✎ Editar lo de siempre: una actividad por renglón -->
+<dialog id="dlg-base" aria-labelledby="base-titulo">
+    <div class="cuerpo">
+        <h2 id="base-titulo">📌 Lo de siempre</h2>
+        <p class="sub">Lo que casi todos los días va en el informe. Se pone solo al abrir un día nuevo (de hoy en adelante) y después usted agrega lo demás. Una actividad por renglón; el ✅ lo pone el informe. Queda guardado con su usuario (computador y celular).</p>
+        <textarea id="base-texto" rows="9" aria-label="Actividades de siempre, una por renglón"></textarea>
+        <p class="sub" id="base-cuenta"></p>
+        <div class="pie">
+            <button type="button" class="secundario" id="base-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="base-fabrica" title="Volver a las 3 actividades de siempre (posoperación, seguimiento a la programación y recorridos)">↺ Las de siempre</button>
+            <button type="button" class="primario" id="base-guardar">Guardar</button>
+        </div>
+    </div>
+</dialog>
 <div id="toast" role="status" aria-live="polite"></div>
 <script type="module" src="/src/diario/informe.js"></script>
 </body>

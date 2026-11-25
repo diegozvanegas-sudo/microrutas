@@ -68,12 +68,34 @@ export function leerPendientes(texto, diaBase, ahora) {
     }).filter(function (x) { return x.texto; });
 }
 
+// Una actividad sin el ✅ del comienzo (si se pegó con él, el informe no queda con «✅ ✅») y sin espacios de más
+export function limpiarActividad(a) { return String(a == null ? '' : a).replace(/^(?:\s*(?:\u2705|\u2714|\u2611)\uFE0F?\s*)+/, '').replace(/[ \t]+/g, ' ').trim(); }
 // Mismo formato del grupo: título en negrita y un ✅ por actividad, separadas por un renglón
 export function textoInforme(actividades, opciones) {
     opciones = opciones || {};
     var titulo = '*Reporte diario de actividades*' + (opciones.fecha ? '\n_' + fechaLarga(opciones.fecha) + '_' : '');
-    var cuerpo = actividades.map(function (a) { return String(a).trim(); }).filter(Boolean).map(function (a) { return '✅ ' + a; });
+    var cuerpo = actividades.map(limpiarActividad).filter(Boolean).map(function (a) { return '✅ ' + a; });
     return [titulo].concat(cuerpo).join('\n\n');
+}
+// Actividades que todavía tienen «…» por completar (p. ej. «a las cuadrillas … .») o quedaron con un hueco antes del punto
+export function porCompletar(actividades) {
+    return actividades.map(limpiarActividad).filter(function (a) { return a && (a.indexOf('…') >= 0 || /\b(?:la|las) cuadrillas?\s+[.,;]/i.test(a)); });
+}
+
+// «Lo de siempre»: el informe que casi todos los días va igual. Se pone solo en un día nuevo y se edita en la página
+// (queda en la base con el usuario: public.informes, fecha FECHA_BASE)
+export var FECHA_BASE = '2000-01-01';
+export var BASE_INFORME = [
+    'Se realizaron visitas posoperación a los lotes correspondientes a la cuadrilla 2, verificando en campo las condiciones de las zonas verdes intervenidas; se reportaron las respectivas novedades encontradas al grupo correspondiente.',
+    'Se realizó seguimiento a la programación del servicio correspondiente a las cuadrillas 2 y 4.',
+    'En los recorridos realizados se reportaron material vegetal, RCD, voluminosos y llantas en los grupos correspondientes.'
+];
+// Texto de la ventana (una actividad por renglón; los renglones vacíos separan) → lista limpia
+export function leerBase(texto) { return String(texto || '').split(/\r?\n/).map(limpiarActividad).filter(Boolean); }
+// Las de «lo de siempre» que todavía no están en el informe del día (se comparan sin ✅ ni espacios de más)
+export function faltanDeBase(actividades, base) {
+    var ya = actividades.map(limpiarActividad);
+    return base.map(limpiarActividad).filter(function (b) { return b && ya.indexOf(b) < 0; });
 }
 
 function unir(lista) { return lista.length < 2 ? lista.join('') : lista.slice(0, -1).join(', ') + ' y ' + lista[lista.length - 1]; }
