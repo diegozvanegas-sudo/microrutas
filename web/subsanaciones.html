@@ -484,6 +484,15 @@
         <input type="file" id="prog-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
         <button type="button" class="secundario zip-elegir" id="prog-elegir">📁 Elegir el Excel de programación</button>
         <div class="fotos-resumen" id="prog-estado" aria-live="polite"></div>
+        <!-- 🔮 Predicción (src/subsanaciones/prediccion.js): el historial de meses anteriores queda en este equipo -->
+        <div class="pred-hist" id="pred-hist" hidden>
+            <input type="file" id="pred-archivos" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
+            <span class="sub" id="pred-hist-txt"></span>
+            <span class="pred-hist-btns">
+                <button type="button" class="secundario pequeno" id="pred-agregar" title="Excel de programación de meses pasados (con la X y la FECHA real): con ellos se calcula cuánto se atrasa cada cuadrilla">📚 Agregar meses anteriores</button>
+                <button type="button" class="secundario pequeno" id="pred-borrar" hidden title="Borrar de este equipo los meses anteriores guardados para la predicción">Borrar historial</button>
+            </span>
+        </div>
         <div class="prog-controles" id="prog-controles" hidden>
             <label>DÍA <input type="date" id="prog-fecha"></label>
             <label>CUADRILLA <select id="prog-cuad"><option value="">Todas</option></select></label>
@@ -505,6 +514,7 @@
         </div>
         <div class="prog-dia" id="prog-dia"></div>
         <div id="prog-vista-dia">
+            <div id="prog-prediccion"></div>
             <div id="prog-cuadrillas"></div>
             <div id="prog-especiales"></div>
         </div>

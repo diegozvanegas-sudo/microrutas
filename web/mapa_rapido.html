@@ -1497,6 +1497,8 @@
     // ---------- Cuadrillas y capas (chips) ----------
     var ordenCuad = Object.keys(IDX.cuadrillas).sort(function (a, b) { return (a === 'sin') - (b === 'sin') || Number(a) - Number(b); });
     var activas = leer('rapido_cuadrillas', []).filter(function (c) { return IDX.cuadrillas[c]; });
+    // «🔭 Ver todo al abrir» (Cuadrillas): apagado, el mapa arranca cerca (encuadrar todas alejaba el mapa a todo el valle)
+    var encuadrarAlAbrir = leer('rapido_encuadrar', false) === true;
     var capasActivas = leer('rapido_capas', []).filter(function (k) { return IDX.capas && IDX.capas[k]; });
     var filtroRutas = leer('rapido_filtro_rutas', null);
     if (!filtroRutas || !Array.isArray(filtroRutas.z) || !Array.isArray(filtroRutas.j)) filtroRutas = { z: [], j: [] };
@@ -1829,7 +1831,9 @@
                     var info = IDX.cuadrillas[c], on = activas.indexOf(c) !== -1, cargando = on && !grupos[c];
                     return '<button type="button" class="chip' + (cargando ? ' cargando' : '') + '" data-cuad="' + esc(c) + '" aria-pressed="' + on + '" title="' + info.n + ' lotes · ' + info.kb + ' KB">' +
                         '<span class="punto" style="background:' + colorCuadrilla(c) + '"></span>' + (c === 'sin' ? 'Sin cuadrilla' : 'C' + esc(c)) + '</button>';
-                }).join('')) +
+                }).join('') +
+                // Preferencia de este equipo: al abrir el mapa, alejarlo para que se vea completo lo de las cuadrillas prendidas
+                '<button type="button" class="chip modo" data-encuadrar-abrir aria-pressed="' + encuadrarAlAbrir + '" title="Al abrir el mapa, mostrar completo todo lo de las cuadrillas prendidas (queda en este equipo)">🔭 Ver todo al abrir</button>') +
             seccion('modos', 'Herramientas', modos.join(', ') || 'ninguna', '<span class="separador"></span>',
                 '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
                 '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
@@ -1933,6 +1937,14 @@
             var todas = b.getAttribute('aria-pressed') === 'true';
             activas = todas ? [] : ordenCuad.slice();
             return mostrarCuadrillas(!todas);
+        }
+        if (b.hasAttribute('data-encuadrar-abrir')) {
+            encuadrarAlAbrir = !encuadrarAlAbrir;
+            guardar('rapido_encuadrar', encuadrarAlAbrir);
+            if (encuadrarAlAbrir && activas.length) mostrarCuadrillas(true);
+            toast(encuadrarAlAbrir ? (activas.length ? 'Listo: al abrir el mapa se verá completo lo de las cuadrillas prendidas.' : 'Listo. Prenda una o varias cuadrillas: al abrir el mapa se verán completas.')
+                : 'Al abrir, el mapa vuelve a arrancar cerca, sin alejarse a todas las cuadrillas.');
+            return pintarChips();
         }
         if (b.dataset.cuad) {
             var c = b.dataset.cuad, i = activas.indexOf(c);
@@ -3009,7 +3021,11 @@
     if (q.get('c')) activas = q.get('c').split(',').filter(function (c) { return IDX.cuadrillas[c]; });
     plegarBarra(movil.matches || plegada); // en el celular la hoja arranca cerrada
     // Al abrir no se encuadran todas las cuadrillas guardadas (alejaba el mapa a todo el valle); solo si vienen en el enlace (?c=)
-    mostrarCuadrillas(!!q.get('c') && !q.get('lote') && !q.get('mr'));
+    // o si se prendió «🔭 Ver todo al abrir». Un enlace que ya dice qué mostrar (lote, punto, búsqueda, guía) manda sobre eso
+    var conDestino = ['lote', 'mr', 'puntos', 'll', 'q', 'guia'].some(function (k) { return q.get(k); });
+    // Se encuadra cuando la barra y la hoja ya se acomodaron: antes, el mapa aún no tiene su tamaño final y queda corrido
+    mostrarCuadrillas(false);
+    if ((!!q.get('c') || encuadrarAlAbrir) && !conDestino) setTimeout(function () { map.invalidateSize(); mostrarCuadrillas(true); }, 150);
     capasActivas.forEach(function (k) { mostrarCapa(k, true); });
     // ?guia=llantas&dia=1 (desde cronogramas.html): prende esa guía, para ese día (sin día: hoy) y la encuadra
     var guiaUrl = q.get('guia');

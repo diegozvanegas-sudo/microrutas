@@ -17,6 +17,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { direccionOSM, opcionesDonde, lotesCercanos, posDeUrl } from './dondeestoy.js';
+import { historialVacio, agregarExcel, agregarVisitas, muestrasHistorial, predecirDia, predecirLote, mesDeFechas } from './prediccion.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { cuadrar, fechaSubsanacion } from './cuadre.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote, rangoQuincena } from './programacion.js';
@@ -1675,6 +1676,16 @@ export function iniciar(api, CFG) {
             '&vencidos=' + vencidos.join(',') +
             '&visitas=' + revisados.map(function (x) { return idMapaRev(x) + ':' + x.visita.ID; }).join(',');
     }
+    // «Ver todos en el mapa» de arriba: los pendientes de todas las pre-rutas en el orden de la ruta completa (los que pasaron
+    // el plazo y los que la cuadrilla está ejecutando, de otro color) y, al final, los ya revisados. '' si no hay nada que mostrar
+    function urlMapaTodas() {
+        if (!rutas.length) return '';
+        var orden = rutaCompleta(), pend = orden.concat(orden.sinUbic).filter(function (x) { return x.lote || x.mr; });
+        var ids = pend.map(idMapaRev), curso = orden.curso.filter(function (x) { return x.lote || x.mr; }).map(idMapaRev);
+        var revisados = revisadosDe(rutas, ids.concat(curso));
+        if (!ids.length && !curso.length && !revisados.length) return '';
+        return urlMapaRuta(ids.concat(curso), revisados, pend.filter(function (x) { var pz = plazoDe(x); return pz && pz.resta < 0; }).map(idMapaRev), curso);
+    }
     function pintarRutaCompleta() {
         if (rutas.length < 2) return '';
         var orden = rutaCompleta();
@@ -1891,12 +1902,12 @@ export function iniciar(api, CFG) {
         pintadaEn = posicion;
         var vencidos = [];
         // "+ Otra pre-ruta" arriba, encima de la ruta completa, para no tener que bajar hasta el final; al lado
-        // "Ver tramos" abre la ruta completa con sus tramos de Google Maps sin tener que desplegarla
-        var completa = pintarRutaCompleta();
+        // "Ver todos en el mapa" con los lotes de todas las pre-rutas, sin tener que desplegar ninguna
+        var urlTodas = urlMapaTodas();
         cont.innerHTML = '<div class="ruta-arriba"><button type="button" class="primario otra" data-ruta="nueva">+ Otra pre-ruta</button>' +
-            (completa ? '<button type="button" class="secundario otra-tramos" data-ruta="ver-tramos" aria-expanded="' + !!abiertas['*todas'] + '">' +
-                (abiertas['*todas'] ? '▴ Ocultar tramos' : '🧭 Ver tramos') + '</button>' : '') + '</div>' +
-            completa + rutas.map(function (ruta, ri) {
+            (urlTodas ? '<a class="boton secundario otra-mapa" href="' + esc(urlTodas) + '" title="Abrir el mapa con los lotes de ' + (rutas.length > 1 ? 'todas las pre-rutas' : 'la pre-ruta') +
+                ': pendientes numerados en orden y los ya revisados con su estado">🗺 Ver todos en el mapa</a>' : '') + '</div>' +
+            pintarRutaCompleta() + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
                 var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso; x.sinfotos = p.sinfotos;
                 x.du = fijada && fijada.id === String(x.id) ? 0 : posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
@@ -2032,13 +2043,6 @@ export function iniciar(api, CFG) {
         var b = ev.target.closest('[data-ruta]');
         if (!b) return;
         if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !!abiertas['*todas']); return pintarRutas(); }
-        if (b.dataset.ruta === 'ver-tramos') {
-            var abrirT = !abiertas['*todas'];
-            plegar('*todas', !abrirT); pintarRutas();
-            var acc = abrirT && document.querySelector('#ruta .ruta-completa .ruta-acciones');
-            if (acc) acc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            return;
-        }
         var ruta = rutas[+b.dataset.ri], accion = b.dataset.ruta;
         if (accion === 'nueva') return abrirDlgRuta();
         if (accion === 'aqui') { fijar(b.dataset.id); pintarRutas(); return toast(fijada ? '📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.' : 'Ese lote no tiene ubicación ni dirección.'); }
@@ -3127,13 +3131,122 @@ export function iniciar(api, CFG) {
         return '<a class="lote' + cls + '" href="' + esc(urlMapa(x.mr, x.lote)) + '" title="' + esc(x.dir) + (x.hecho ? ' · marcado ' + aTexto(x.fecha) : enApp(x) ? ' · con visita en la app' : '') + '">' +
             esc(x.mr + (x.lote && !/^N\/?A$/i.test(x.lote) ? ' · ' + x.lote : '')) + (x.hecho ? ' ✓' : enApp(x) ? ' ◉' : '') + '</a>';
     }
+    // ---------- 🔮 Predicción (src/subsanaciones/prediccion.js) ----------
+    // El plan de cada lote es el mismo todos los meses; probable = día del plan + el atraso de la cuadrilla (lo que va del mes
+    // o, al empezar el mes, los meses anteriores). El historial de meses anteriores queda en este equipo (programacion_historial):
+    // sale de cada Excel que se sube aquí y de «📚 Agregar meses anteriores»; las visitas de la app completan los meses sin Excel
+    var PRED_HIST = 'programacion_historial', predHist = historialVacio();
+    try { predHist = Object.assign(historialVacio(), JSON.parse(localStorage.getItem(PRED_HIST)) || {}); } catch (e) { predHist = historialVacio(); }
+    function guardarHist() { try { localStorage.setItem(PRED_HIST, JSON.stringify(predHist)); return true; } catch (e) { toast('No se pudo guardar el historial en este equipo (¿sin espacio?).'); return false; } }
+    // El Excel que ya estaba cargado también cuenta como un mes del historial
+    if (progDatos && progDatos.prog && !predHist.meses[mesDeFechas(progDatos.prog)]) { agregarExcel(predHist, progDatos.prog, progDatos.archivo); guardarHist(); }
+    var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
+    function mesCorto(m) { return MESES_CORTOS[+m.slice(5, 7) - 1] + (m.slice(0, 4) === hoy().slice(0, 4) ? '' : ' ' + m.slice(0, 4)); }
+    // Historial con las visitas de la app para los meses sin Excel (sin guardarlo: las visitas cambian)
+    function histConVisitas(prog) {
+        var h = JSON.parse(JSON.stringify(predHist)), vis = [];
+        registros.forEach(function (r) {
+            if (!deLote(r)) return;
+            var f = fechaISO(r['FECHA DE EJECUCIÓN']);
+            if (f) vis.push({ mr: String(r.MICRORRUTA || '').trim().toUpperCase(), lote: String(r.LOTE || '').trim(), fecha: f });
+        });
+        agregarVisitas(h, prog, vis);
+        return h;
+    }
+    // hecho(x) para la predicción: la fecha de la X o de la visita de la app; true si está hecho sin fecha
+    function hechoPred(prog, vis) {
+        var q2 = new Set(prog.q2 || []), app = { 1: appDeQuincena(prog, vis, 1), 2: appDeQuincena(prog, vis, 2) };
+        return function (x) { return x.hecho ? x.fecha || true : app[q2.has(x) ? 2 : 1](x) || ''; };
+    }
+    function textoAtraso(at) {
+        var d = at.dias, txt = d === 0 ? 'al día' : d > 0 ? d + (d === 1 ? ' día' : ' días') + ' de atraso' : -d + (d === -1 ? ' día' : ' días') + ' adelantada';
+        var de = at.fuente === 'mes' ? 'según lo que va del mes (' + at.n + ' lotes)' : at.fuente === 'mezcla' ? 'lo que va del mes y ' + at.meses.slice(0, -1).map(mesCorto).join(', ')
+            : at.fuente === 'historial' ? 'según ' + at.meses.map(mesCorto).join(', ') : 'sin datos: se usa el plan tal cual';
+        return txt + ' · ' + de;
+    }
+    function pintarHistPred() {
+        var meses = Object.keys(predHist.meses).sort();
+        $('pred-hist').hidden = !(progDatos && progDatos.prog);
+        $('pred-hist-txt').innerHTML = '🔮 <b>Predicción</b> con ' + (meses.length ? meses.map(function (m) { return mesCorto(m) + ' (' + predHist.meses[m].n + ')'; }).join(', ') : 'solo el Excel de este mes') +
+            ' y las visitas de la app. <span class="pred-nota">Los meses quedan guardados en este equipo.</span>';
+        $('pred-borrar').hidden = meses.length < 2;
+    }
+    function pintarPrediccion(prog, fecha, vis, cuadSel) {
+        var caja = $('prog-prediccion');
+        if (fecha < hoy()) { caja.innerHTML = ''; return; }
+        var hist = histConVisitas(prog), mu = muestrasHistorial(prog, hist, prog.mes), hecho = hechoPred(prog, vis);
+        var pd = predecirDia(prog, mu, fecha, hecho);
+        if (pd.domingo) { caja.innerHTML = '<section class="pred-caja"><h3>🔮 Probable para el ' + esc(diaLargo(fecha)) + '</h3><div class="sub">Domingo: no se programa.</div></section>'; return; }
+        var cs = pd.cuadrillas.filter(function (c) { return !cuadSel || c.cuad === cuadSel; }), ids = [];
+        var chips = function (L, cls) { return L.map(function (x) { ids.push(idMapaProg(x)); return '<a class="lote' + (cls || '') + '" href="' + esc(urlMapa(x.mr, x.lote)) + '" title="' + esc(x.dir) + '">' + esc(x.mr + (x.lote && !/^N\/?A$/i.test(x.lote) ? ' · ' + x.lote : '')) + '</a>'; }).join(''); };
+        var filas = cs.map(function (c) {
+            var plan = c.plan ? 'plan del ' + diaCorto(c.plan.fecha) + (c.plan.mes !== fecha.slice(0, 7) ? ' (final del mes anterior)' : '') : 'fuera del plan';
+            return '<div class="pred-fila" style="--c:' + colorCuadrilla(c.cuad) + '"><div class="pred-cab"><b>C' + esc(c.cuad) + '</b> <span class="sub">' + esc(textoAtraso(c.atraso)) + ' → ' + esc(plan) + '</span></div>' +
+                (c.lotes.length ? '<div>' + chips(c.lotes) + '</div>' : '<div class="sub">' + (c.hechos.length ? 'Lo de ese día ya está hecho.' : 'Nada pendiente en el plan de ese día.') + '</div>') +
+                (c.antes ? '<div class="sub pred-antes">Antes le quedan ' + c.antes + ' sin hacer de esta quincena: puede que vaya a esos primero.</div>' : '') + '</div>';
+        }).join('');
+        var conLotes = cs.filter(function (c) { return c.lotes.length; }).length;
+        caja.innerHTML = '<details class="pred-caja"' + (cuadSel || cs.length <= 3 ? ' open' : '') + '><summary>🔮 Probable para el ' + esc(diaLargo(fecha)) + ' · ' + conLotes + (conLotes === 1 ? ' cuadrilla' : ' cuadrillas') + ' con lotes</summary>' +
+            '<div class="sub">Estimación: el plan (es el mismo cada mes) corrido por el atraso de cada cuadrilla. Mejora a medida que se marcan lotes en el mes; al empezar el mes se basa en los meses anteriores y falla si la cuadrilla cambió de ritmo.</div>' +
+            filas + (ids.length ? '<div class="acciones"><a class="boton secundario pequeno" href="' + esc('mapa_rapido.html?lote=' + ids.filter(function (v, i, a) { return a.indexOf(v) === i; }).join(',')) + '">🗺️ Lo probable en el mapa</a></div>' : '') +
+            '</details>';
+    }
+    // En «Consultar un lote»: qué día va probablemente (o el mes que viene, si ya se hizo) y cuándo lo hicieron los meses anteriores
+    function prediccionLote(prog, v, vis) {
+        var hist = histConVisitas(prog), mu = muestrasHistorial(prog, hist, prog.mes);
+        var pr = predecirLote(prog, mu, hist, v.x, v.q, hoy(), hechoPred(prog, vis));
+        if (!pr.fecha && !pr.anteriores.length) return '';
+        var linea = !pr.fecha ? '' : pr.vencido ? '🔮 Ya debía estar hecho: probablemente hoy o en los próximos días (' + esc(textoAtraso(pr.atraso)) + ').'
+            : '🔮 Probable' + (pr.proximoMes ? ' el mes que viene' : '') + ': <b>' + esc(diaLargo(pr.fecha)) + '</b> <span class="sub">(plan ' + esc(diaCorto(pr.plan)) + ' · ' + esc(textoAtraso(pr.atraso)) + ')</span>';
+        var ant = pr.anteriores.length ? '<div class="sub">Q' + v.q + ' en meses anteriores: ' + pr.anteriores.map(function (a) { return mesCorto(a.mes) + ' ' + esc(diaCorto(a.fecha)); }).join(' · ') + '</div>' : '';
+        return '<div class="pred-lote">' + linea + ant + '</div>';
+    }
+    // 📚 Agregar meses anteriores: uno o varios Excel; cada uno reemplaza su mes en el historial (no cambia la programación cargada)
+    async function agregarMesesPred(files) {
+        if (!files || !files.length) return;
+        $('pred-agregar').disabled = true;
+        var hechos = [], errores = [];
+        try {
+            var { default: ExcelJS } = await import('exceljs');
+            for (var i = 0; i < files.length; i++) {
+                $('pred-hist-txt').textContent = 'Leyendo ' + files[i].name + '… (' + (i + 1) + ' de ' + files.length + ')';
+                try {
+                    var wb = new ExcelJS.Workbook();
+                    await wb.xlsx.load(await files[i].arrayBuffer());
+                    var hojas = {};
+                    wb.worksheets.forEach(function (ws) { hojas[ws.name] = filasHoja(ws); });
+                    var p = leerProgramacion(hojas, files[i].name), r = agregarExcel(predHist, p, files[i].name);
+                    if (!r.n) errores.push(files[i].name + ': no tiene lotes marcados con X y fecha');
+                    else hechos.push(mesCorto(r.mes) + ' (' + r.n + ' lotes)' + (r.corrido ? ' — el nombre decía ' + mesCorto(p.mes) + ', pero las fechas son de ' + mesCorto(r.mes) : ''));
+                } catch (e) { errores.push(files[i].name + ': ' + e.message); }
+            }
+            if (hechos.length) guardarHist();
+        } catch (e) { errores.push('No se pudo abrir el lector de Excel: ' + e.message); }
+        $('pred-agregar').disabled = false;
+        pintarProg();
+        if (errores.length) $('prog-estado').innerHTML += '<br><span class="aviso-fotos">No se agregaron: ' + esc(errores.join(' · ')) + '</span>';
+        toast(hechos.length ? 'Historial: ' + hechos.join(' · ') : 'No se agregó ningún mes.');
+    }
+    $('pred-agregar').onclick = function () { $('pred-archivos').value = ''; $('pred-archivos').click(); };
+    $('pred-archivos').onchange = function () { agregarMesesPred(Array.prototype.slice.call(this.files || [])); };
+    $('pred-borrar').onclick = function () {
+        confirmar('¿Borrar el historial de la predicción?', 'Se borran de este equipo los meses anteriores guardados (queda solo el Excel cargado ahora). Para volver a tenerlos hay que subir sus Excel otra vez.', 'Borrar').then(function (si) {
+            if (!si) return;
+            predHist = historialVacio();
+            if (progDatos && progDatos.prog) agregarExcel(predHist, progDatos.prog, progDatos.archivo);
+            guardarHist(); pintarProg();
+            toast('Historial borrado.');
+        });
+    };
+
     function pintarProg() {
         var hay = !!(progDatos && progDatos.prog);
         $('prog-controles').hidden = !hay;
         $('prog-pestanas').hidden = !hay;
         $('prog-consulta').hidden = !hay;
         $('prog-texto').disabled = !hay;
-        if (!hay) { $('prog-dia').innerHTML = $('prog-cuadrillas').innerHTML = $('prog-especiales').innerHTML = ''; return; }
+        pintarHistPred();
+        if (!hay) { $('prog-dia').innerHTML = $('prog-cuadrillas').innerHTML = $('prog-especiales').innerHTML = $('prog-prediccion').innerHTML = ''; return; }
         var prog = progDatos.prog, fecha = $('prog-fecha').value || hoy();
         var vis = visitasPorQuincena(prog.mes);
         var est = estadoDelDia(prog, fecha, function (x) {
@@ -3146,7 +3259,8 @@ export function iniciar(api, CFG) {
         };
         var fueraMes = fecha.slice(0, 7) !== prog.mes;
         $('prog-estado').innerHTML = '📄 ' + esc(progDatos.archivo) + ' · ' + prog.q1.length + ' lotes en Q1, ' + prog.q2.length + ' en Q2 · cargado ' + esc(progDatos.cargado) +
-            (fueraMes ? '<br><span class="aviso-fotos">⚠ El día elegido no es del mes de este Excel (' + esc(prog.mes) + '): suba la programación de ese mes.</span>' : '');
+            (fueraMes ? '<br><span class="aviso-fotos">⚠ El día elegido no es del mes de este Excel (' + esc(prog.mes) + '): suba la programación de ese mes.' +
+                (fecha > prog.mes ? ' Mientras tanto, abajo está lo probable (el plan se repite cada mes).' : '') + '</span>' : '');
         var tot = est.cuadrillas.reduce(function (a, c) { a.l += c.total; a.h += c.hechos; a.at += c.atrasados.length; a.app += c.soloApp; return a; }, { l: 0, h: 0, at: 0, app: 0 });
         $('prog-dia').innerHTML = '<b>' + (est.domingo ? 'Domingo' : nombreDia(est.dia).replace(/^./, function (l) { return l.toUpperCase(); })) + ' ' + aTexto(fecha) +
             '</b> · semana ' + est.semana + (est.dia ? ', día ' + est.dia : '') + ' · quincena ' + est.quincena +
@@ -3157,6 +3271,7 @@ export function iniciar(api, CFG) {
         var sel = $('prog-cuad'), actual = sel.value;
         sel.innerHTML = '<option value="">Todas</option>' + est.cuadrillas.map(function (c) { return '<option value="' + esc(c.cuad) + '">Cuadrilla ' + esc(c.cuad) + '</option>'; }).join('');
         sel.value = actual;
+        pintarPrediccion(prog, fecha, vis, sel.value);
         $('prog-cuadrillas').innerHTML = est.cuadrillas.filter(function (c) { return !sel.value || c.cuad === sel.value; }).map(function (c) {
             var pct = c.total ? Math.round(100 * c.hechos / c.total) : 0;
             var estado = c.atrasados.length ? '<span class="prog-chip atraso">' + c.atrasados.length + ' atrasados</span>' : c.adelantados ? '<span class="prog-chip ok">adelantada</span>' : '<span class="prog-chip ok">al día</span>';
@@ -3249,7 +3364,7 @@ export function iniciar(api, CFG) {
                 return '<article class="prog-ficha" style="--c:' + colorCuadrilla(f.cuad) + '">' +
                     '<div class="prog-ficha-tit"><b>' + esc(f.mr + (f.lote && !/^N\/?A$/i.test(f.lote) ? ' · lote ' + f.lote : '')) + '</b>' +
                         '<span class="prog-est ' + v.estado + '">' + esc(ESTADOS_LOTE[v.estado]) + '</span></div>' +
-                    '<div class="prog-ficha-veredicto ' + v.estado + '">' + veredictoLote(v, fecha) + '</div>' +
+                    '<div class="prog-ficha-veredicto ' + v.estado + '">' + veredictoLote(v, fecha) + '</div>' + prediccionLote(prog, v, vis) +
                     '<div class="sub">Cuadrilla ' + esc(f.cuad) + (f.dir ? ' · ' + esc(f.dir) : '') + (f.area ? ' · ' + Math.round(f.area).toLocaleString('es-CO') + ' m²' : '') +
                         (f.frec === 1 ? ' · mensual' : f.frec === 2 ? ' · quincenal' : '') + '</div>' +
                     '<ul class="prog-ficha-q">' + f.quincenas.map(function (e) {
@@ -3511,6 +3626,7 @@ export function iniciar(api, CFG) {
             [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
             progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
             try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+            agregarExcel(predHist, prog, file.name); guardarHist();
             if (!$('prog-fecha').value || $('prog-fecha').value.slice(0, 7) !== prog.mes) $('prog-fecha').value = hoy().slice(0, 7) === prog.mes ? hoy() : prog.mes + '-01';
             pintarProg();
             toast('Programación de ' + prog.mes + ' cargada: ' + (prog.q1.length + prog.q2.length) + ' lotes.');
