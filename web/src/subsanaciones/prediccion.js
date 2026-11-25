@@ -178,3 +178,21 @@ export function predecirLote(prog, muestras, hist, x, q, hoyF, hecho) {
     var f = sumarHabiles(plan, at.dias), vencido = !yaHecho && f < hoyF;
     return { fecha: vencido ? sumarHabiles(hoyF, 0) : f, plan: plan, atraso: at, vencido: vencido, proximoMes: yaHecho, anteriores: anteriores };
 }
+
+// Historial desde la base (tabla programaciones: [{ mes, archivo, hechos: [[mr, lote, q, fecha], …] }]), unido con lo que este
+// equipo tenga de meses que la base no tiene
+export function historialDeFilas(filas, local) {
+    var h = historialVacio();
+    (filas || []).forEach(function (f) {
+        (f.hechos || []).forEach(function (e) { (h.lotes[e[0] + '|' + e[1]] = h.lotes[e[0] + '|' + e[1]] || []).push([f.mes, e[2], e[3]]); });
+        h.meses[f.mes] = { origen: 'excel', archivo: f.archivo || '', n: (f.hechos || []).length, base: true };
+    });
+    if (local) Object.keys(local.meses || {}).forEach(function (m) {
+        if (h.meses[m] || local.meses[m].origen === 'app') return;
+        h.meses[m] = local.meses[m];
+        Object.keys(local.lotes || {}).forEach(function (k) {
+            local.lotes[k].forEach(function (e) { if (e[0] === m) (h.lotes[k] = h.lotes[k] || []).push(e); });
+        });
+    });
+    return h;
+}

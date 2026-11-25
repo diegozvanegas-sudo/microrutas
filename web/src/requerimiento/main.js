@@ -6,6 +6,7 @@ import '../subsanaciones/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
+import { crearProgBase } from '../programacion_base.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { leerPlantillas, firma, rellenar, pendientes, fechaEvento, TIPOS_NOVEDAD, leerFilasNovedades, gruposEvidencia, filasArboles, rellenarArboles, aFilaArboles } from './plantillas.js';
@@ -726,6 +727,8 @@ async function arrancar() {
     $('btn-salir').title = 'Cerrar sesión de ' + usuario.email;
     $('btn-salir').onclick = function () { try { localStorage.removeItem(CACHE); } catch (e) {} cerrarSesion(supabase); };
     var permisos = await aplicarPermisos(supabase, usuario);
+    // La programación del mes (para los «listos») sale de la base: queda la copia del equipo al día
+    crearProgBase(supabase).sincronizar();
     if (!permisos.contrato) {
         try { localStorage.removeItem(CACHE); } catch (e) {}
         $('estado').textContent = '🔒 Su usuario no tiene permiso para ver el contrato (las plantillas salen de él). Pídaselo al administrador.';

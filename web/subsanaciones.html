@@ -479,18 +479,17 @@
         <h2>📅 Programación del día
             <button type="button" class="cerrar-dlg" id="prog-x" aria-label="Cerrar" title="Cerrar (Esc)">×</button></h2>
         <div class="sub">Suba el Excel de programación del mes (p. ej. 2026_11_Noviembre_Programacion_CW394406.xlsx). Se leen todas las filas,
-            también las ocultas por el filtro. <b>Queda cargado en este equipo</b> (aunque cierre la ventana o la página) hasta que suba otro.
+            también las ocultas por el filtro. <b>Queda en la base para todos los equipos</b> (y una copia en este, por si no hay señal) hasta que alguien suba otro.
             Las visitas registradas en la app cuentan como hechas aunque el Excel no tenga la X.</div>
         <input type="file" id="prog-archivo" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" hidden>
         <button type="button" class="secundario zip-elegir" id="prog-elegir">📁 Elegir el Excel de programación</button>
         <div class="fotos-resumen" id="prog-estado" aria-live="polite"></div>
-        <!-- 🔮 Predicción (src/subsanaciones/prediccion.js): el historial de meses anteriores queda en este equipo -->
+        <!-- 🔮 Predicción (src/subsanaciones/prediccion.js): los meses anteriores quedan en la base (programaciones, 0030) -->
         <div class="pred-hist" id="pred-hist" hidden>
             <input type="file" id="pred-archivos" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
             <span class="sub" id="pred-hist-txt"></span>
             <span class="pred-hist-btns">
                 <button type="button" class="secundario pequeno" id="pred-agregar" title="Excel de programación de meses pasados (con la X y la FECHA real): con ellos se calcula cuánto se atrasa cada cuadrilla">📚 Agregar meses anteriores</button>
-                <button type="button" class="secundario pequeno" id="pred-borrar" hidden title="Borrar de este equipo los meses anteriores guardados para la predicción">Borrar historial</button>
             </span>
         </div>
         <div class="prog-controles" id="prog-controles" hidden>

@@ -103,3 +103,14 @@ test('visitas de la app: completan los meses sin Excel, sin pisar los que tienen
     assert.equal(hist.meses['2026-09'].origen, 'app');
     assert.equal(hist.lotes['Z1CC0001|1'].filter(e => e[0] === '2026-10').length, 1);
 });
+
+test('historial desde la base, con los meses que solo tiene este equipo', async () => {
+    const { historialDeFilas } = await import('../src/subsanaciones/prediccion.js');
+    const local = historialVacio();
+    agregarExcel(local, plan('2026-09', (m, x) => x.dia === 1 ? fechaPlan(m, x.semana, 1) : ''), 'sep.xlsx');
+    agregarExcel(local, plan('2026-10', (m, x) => x.dia === 1 ? fechaPlan(m, x.semana, 1) : ''), 'oct.xlsx');
+    const h = historialDeFilas([{ mes: '2026-10', archivo: 'oct base.xlsx', hechos: [['Z1CC0001', '1', 1, '2026-10-05']] }], local);
+    assert.deepEqual(Object.keys(h.meses).sort(), ['2026-09', '2026-10']);
+    assert.equal(h.meses['2026-10'].archivo, 'oct base.xlsx');             // gana la base
+    assert.deepEqual(h.lotes['Z1CC0001|1'], [['2026-10', 1, '2026-10-05'], ['2026-09', 1, '2026-08-31']]);   // la semana 1 de septiembre empieza el lunes 31/08
+});

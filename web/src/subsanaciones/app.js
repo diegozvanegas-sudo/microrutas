@@ -17,7 +17,8 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { direccionOSM, opcionesDonde, lotesCercanos, posDeUrl } from './dondeestoy.js';
-import { historialVacio, agregarExcel, agregarVisitas, muestrasHistorial, predecirDia, predecirLote, mesDeFechas } from './prediccion.js';
+import { historialVacio, agregarExcel, agregarVisitas, muestrasHistorial, predecirDia, predecirLote, mesDeFechas, historialDeFilas } from './prediccion.js';
+import { crearProgBase, guardarLocal as guardarProgLocal } from '../programacion_base.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { cuadrar, fechaSubsanacion } from './cuadre.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote, rangoQuincena } from './programacion.js';
@@ -3108,6 +3109,28 @@ export function iniciar(api, CFG) {
     // Las visitas de lote ejecutado registradas en la app cuentan como hechas aunque el Excel no tenga la X
     var PROG_CACHE = 'programacion_cache', progDatos = null;
     try { progDatos = JSON.parse(localStorage.getItem(PROG_CACHE)) || null; } catch (e) { progDatos = null; }
+    // En la base para todos los equipos (programaciones, 0030) y la copia en este (src/programacion_base.js). Al abrir se baja
+    // la del mes si otro equipo subió una más nueva; si quedó algo solo aquí, se sube
+    var progBase = crearProgBase(CFG.url && supabase ? supabase : null), progAviso = '';
+    function avisoProg(r) {
+        progAviso = r && r.aviso || '';
+        if (r && r.conflicto) toast(r.aviso);
+        if ($('dlg-prog').open) pintarProg();
+    }
+    progBase.sincronizar().then(function (r) {
+        if (r.cambio) progDatos = r.datos;
+        avisoProg(r);
+        cargarHistBase();
+    });
+    // Ediciones del listado (marcar hecho, editar, agregar, quitar): se juntan las seguidas y se suben juntas
+    var subirProgT = null;
+    function subirProg(forzar) {
+        clearTimeout(subirProgT);
+        subirProgT = setTimeout(function () {
+            if (!progDatos) return;
+            progBase.guardar(progDatos, { forzar: !!forzar }).then(function (r) { if (r.datos) progDatos = r.datos; avisoProg(r); });
+        }, forzar ? 0 : 1500);
+    }
     // Lotes con visita de lote ejecutado en la app, por quincena del mes: { 'aaaa-mm|q': { lote: 1, MR: 1 } }
     function visitasPorQuincena(mes) {
         var out = {};
@@ -3133,11 +3156,20 @@ export function iniciar(api, CFG) {
     }
     // ---------- 🔮 Predicción (src/subsanaciones/prediccion.js) ----------
     // El plan de cada lote es el mismo todos los meses; probable = día del plan + el atraso de la cuadrilla (lo que va del mes
-    // o, al empezar el mes, los meses anteriores). El historial de meses anteriores queda en este equipo (programacion_historial):
-    // sale de cada Excel que se sube aquí y de «📚 Agregar meses anteriores»; las visitas de la app completan los meses sin Excel
+    // o, al empezar el mes, los meses anteriores). El historial sale de la base (lo hecho de cada programación subida y de
+    // «📚 Agregar meses anteriores»), con copia en este equipo (programacion_historial); las visitas completan los meses sin Excel
     var PRED_HIST = 'programacion_historial', predHist = historialVacio();
     try { predHist = Object.assign(historialVacio(), JSON.parse(localStorage.getItem(PRED_HIST)) || {}); } catch (e) { predHist = historialVacio(); }
     function guardarHist() { try { localStorage.setItem(PRED_HIST, JSON.stringify(predHist)); return true; } catch (e) { toast('No se pudo guardar el historial en este equipo (¿sin espacio?).'); return false; } }
+    // Los meses de la base (lo hecho de cada programación subida) más los que solo tenga este equipo; queda la copia aquí
+    function cargarHistBase() {
+        progBase.historial().then(function (filas) {
+            if (!filas) return;
+            predHist = historialDeFilas(filas, predHist);
+            guardarHist();
+            if ($('dlg-prog').open) pintarProg();
+        });
+    }
     // El Excel que ya estaba cargado también cuenta como un mes del historial
     if (progDatos && progDatos.prog && !predHist.meses[mesDeFechas(progDatos.prog)]) { agregarExcel(predHist, progDatos.prog, progDatos.archivo); guardarHist(); }
     var MESES_CORTOS = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'];
@@ -3168,8 +3200,7 @@ export function iniciar(api, CFG) {
         var meses = Object.keys(predHist.meses).sort();
         $('pred-hist').hidden = !(progDatos && progDatos.prog);
         $('pred-hist-txt').innerHTML = '🔮 <b>Predicción</b> con ' + (meses.length ? meses.map(function (m) { return mesCorto(m) + ' (' + predHist.meses[m].n + ')'; }).join(', ') : 'solo el Excel de este mes') +
-            ' y las visitas de la app. <span class="pred-nota">Los meses quedan guardados en este equipo.</span>';
-        $('pred-borrar').hidden = meses.length < 2;
+            ' y las visitas de la app. <span class="pred-nota">Los meses quedan en la base para todos los equipos.</span>';
     }
     function pintarPrediccion(prog, fecha, vis, cuadSel) {
         var caja = $('prog-prediccion');
@@ -3215,12 +3246,18 @@ export function iniciar(api, CFG) {
                     await wb.xlsx.load(await files[i].arrayBuffer());
                     var hojas = {};
                     wb.worksheets.forEach(function (ws) { hojas[ws.name] = filasHoja(ws); });
-                    var p = leerProgramacion(hojas, files[i].name), r = agregarExcel(predHist, p, files[i].name);
-                    if (!r.n) errores.push(files[i].name + ': no tiene lotes marcados con X y fecha');
-                    else hechos.push(mesCorto(r.mes) + ' (' + r.n + ' lotes)' + (r.corrido ? ' — el nombre decía ' + mesCorto(p.mes) + ', pero las fechas son de ' + mesCorto(r.mes) : ''));
+                    var p = leerProgramacion(hojas, files[i].name), mesNombre = p.mes, r = agregarExcel(predHist, p, files[i].name);
+                    if (!r.n) { errores.push(files[i].name + ': no tiene lotes marcados con X y fecha'); continue; }
+                    // A la base con el mes de las fechas (el nombre puede estar mal); si ese mes ya está, solo suma lo hecho
+                    p.mes = r.mes;
+                    [p.q1, p.q2].forEach(function (l) { l.forEach(function (x) { x.dir = String(x.dir || '').slice(0, 140); }); });
+                    var b = await progBase.agregarMes(p, files[i].name);
+                    hechos.push(mesCorto(r.mes) + ' (' + r.n + ' lotes' + (b.estado === 'equipo' ? ', solo en este equipo' : b.estado === 'ya' ? ', ya estaba en la base' : '') + ')' +
+                        (r.corrido ? ' — el nombre decía ' + mesCorto(mesNombre) + ', pero las fechas son de ' + mesCorto(r.mes) : ''));
+                    if (b.aviso) progAviso = b.aviso;
                 } catch (e) { errores.push(files[i].name + ': ' + e.message); }
             }
-            if (hechos.length) guardarHist();
+            if (hechos.length) { guardarHist(); cargarHistBase(); }
         } catch (e) { errores.push('No se pudo abrir el lector de Excel: ' + e.message); }
         $('pred-agregar').disabled = false;
         pintarProg();
@@ -3229,15 +3266,6 @@ export function iniciar(api, CFG) {
     }
     $('pred-agregar').onclick = function () { $('pred-archivos').value = ''; $('pred-archivos').click(); };
     $('pred-archivos').onchange = function () { agregarMesesPred(Array.prototype.slice.call(this.files || [])); };
-    $('pred-borrar').onclick = function () {
-        confirmar('¿Borrar el historial de la predicción?', 'Se borran de este equipo los meses anteriores guardados (queda solo el Excel cargado ahora). Para volver a tenerlos hay que subir sus Excel otra vez.', 'Borrar').then(function (si) {
-            if (!si) return;
-            predHist = historialVacio();
-            if (progDatos && progDatos.prog) agregarExcel(predHist, progDatos.prog, progDatos.archivo);
-            guardarHist(); pintarProg();
-            toast('Historial borrado.');
-        });
-    };
 
     function pintarProg() {
         var hay = !!(progDatos && progDatos.prog);
@@ -3259,6 +3287,8 @@ export function iniciar(api, CFG) {
         };
         var fueraMes = fecha.slice(0, 7) !== prog.mes;
         $('prog-estado').innerHTML = '📄 ' + esc(progDatos.archivo) + ' · ' + prog.q1.length + ' lotes en Q1, ' + prog.q2.length + ' en Q2 · cargado ' + esc(progDatos.cargado) +
+            (progDatos.pendiente ? ' · <b>solo en este equipo</b>' : progDatos.version ? ' · ☁️ en la base para todos los equipos' : '') +
+            (progAviso ? '<br><span class="aviso-fotos">' + esc(progAviso) + '</span>' : '') +
             (fueraMes ? '<br><span class="aviso-fotos">⚠ El día elegido no es del mes de este Excel (' + esc(prog.mes) + '): suba la programación de ese mes.' +
                 (fecha > prog.mes ? ' Mientras tanto, abajo está lo probable (el plan se repite cada mes).' : '') + '</span>' : '');
         var tot = est.cuadrillas.reduce(function (a, c) { a.l += c.total; a.h += c.hechos; a.at += c.atrasados.length; a.app += c.soloApp; return a; }, { l: 0, h: 0, at: 0, app: 0 });
@@ -3453,8 +3483,8 @@ export function iniciar(api, CFG) {
     // ---------- Programación: listado de todos los lotes de la quincena (ver, marcar, editar, agregar, quitar) ----------
     var progVista = 'dia', plPagina = 1, PL_POR = 30, plEditando = null;
     function guardarProg() {
-        try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); }
-        catch (e) { toast('No se pudo guardar el cambio en este equipo (sin espacio).'); }
+        if (!guardarProgLocal(progDatos)) toast('No se pudo guardar el cambio en este equipo (sin espacio).');
+        subirProg(false);
     }
     // Lotes visitados en la app en la quincena de la fecha (cuentan como hechos)
     function enAppProg(prog, fecha) {
@@ -3624,8 +3654,13 @@ export function iniciar(api, CFG) {
             if (!prog.mes) throw new Error('no se pudo saber de qué mes es (ponga el año y el mes en el nombre: 2026_11_…)');
             // Para guardar en el equipo, la dirección corta
             [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
-            progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
-            try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+            // El nombre manda el mes, pero si las fechas dicen otro (p. ej. «2026_09_Octubre…» con fechas de octubre) se avisa
+            var mesFechas = mesDeFechas(prog);
+            if (mesFechas !== prog.mes) toast('Ojo: el nombre dice ' + prog.mes + ' pero las fechas de ejecución son de ' + mesFechas + '. Revise que sea el Excel correcto.');
+            // Excel nuevo: reemplaza el mes en la base (para todos los equipos); la versión la pone la base
+            progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog, version: null };
+            if (!guardarProgLocal(progDatos)) toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.');
+            subirProg(true);
             agregarExcel(predHist, prog, file.name); guardarHist();
             if (!$('prog-fecha').value || $('prog-fecha').value.slice(0, 7) !== prog.mes) $('prog-fecha').value = hoy().slice(0, 7) === prog.mes ? hoy() : prog.mes + '-01';
             pintarProg();

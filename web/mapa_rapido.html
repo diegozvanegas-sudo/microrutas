@@ -697,7 +697,8 @@
     }
 
     // ---------- Qué día le toca según la programación del contratista ----------
-    // Es el Excel del mes que se sube en 📅 Programación del día (o en 📊 Cruce): queda en este equipo, «programacion_cache».
+    // Es el Excel del mes que se sube en 📅 Programación del día (o en 📊 Cruce): está en la base y la copia del equipo es
+    // «programacion_cache» (src/mapa/main.js la pone al día y avisa con «programacion-cambio»).
     // Semana y día del Excel → fecha, con la misma regla de src/subsanaciones/programacion.js: la semana 1 es la de lunes a
     // sábado del primer día hábil del mes y el día 1 es el lunes. «Hecho» es la X del Excel (no la visita de la interventoría).
     var progMapa;
@@ -1609,7 +1610,7 @@
     }
 
     // ---------- ⭐ Operaciones especiales: las de la programación cargada en Subsanaciones (Programación del día) ----------
-    // Salen del Excel guardado en este equipo (programacion_cache): cambian cada vez que se sube otro. Cada una se ubica sola
+    // Salen del Excel del mes (copia del equipo: programacion_cache, al día con la base): cambian cada vez que se sube otro. Cada una se ubica sola
     // por su dirección (aproximada, solo dentro de la zona de los lotes) y se puede corregir a mano: el punto corregido
     // queda guardado en este equipo (especiales_puntos) y vale para los Excel siguientes con el mismo código de ruta.
     var espOn = leer('rapido_especiales', false), espPuntos = leer('especiales_puntos', {}), capaEsp = null, espUbic = {}, espFijando = null, espBuscando = false;
@@ -3041,6 +3042,12 @@
         }
     } else if (guiaPref.dia != null) { guiaPref.dia = null; guardar('rapido_guia', guiaPref); }   // el día elegido vale solo para ese enlace
     if (guias.length) { pintarGuia(!!guiaUrl && !q.get('lote') && !q.get('mr')); pintarChips(); }
+    // Llegó de la base una programación más nueva: se vuelve a leer y se repintan los especiales y la ficha
+    window.addEventListener('programacion-cambio', function () {
+        progMapa = undefined;
+        if (espOn && especiales().length) { pintarEspeciales(); ubicarEspeciales(); }
+        pintarChips();
+    });
     // ⭐ Especiales prendidos la última vez (y solo si sigue habiendo programación con especiales)
     if (espOn && especiales().length) { pintarEspeciales(); sincronizarEsp(); ubicarEspeciales(); }
     // ?puntos=…: las direcciones de un mensaje, numeradas (solas o junto con ?lote=)

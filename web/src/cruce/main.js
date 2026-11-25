@@ -1,9 +1,10 @@
 // cruce.html: 📊 Cruce programado / realizado (menú Zonas verdes). La lógica está en cruce.js y el guardado en guardado.js.
-// La programación es la misma de 📅 Programación del día (queda en este equipo, clave «programacion_cache»).
+// La programación es la misma de 📅 Programación del día (en la base, tabla programaciones, con copia en el equipo: «programacion_cache»).
 import '../subsanaciones/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
+import { crearProgBase, guardarLocal as guardarProgLocal } from '../programacion_base.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, confirmar } from '../subsanaciones/ui.js';
 import { esc, hoy, aTexto } from '../subsanaciones/util.js';
@@ -13,7 +14,7 @@ import { crearGuardado } from './guardado.js';
 
 var PROG_CACHE = 'programacion_cache';
 var LOTES = window.direccionesLotes || {};
-var progDatos = null, reportes = [], guardado = null, vista = 'dia', filtroEstado = 'revisar', filtroCuad = '', res = null;
+var progBase = null, progDatos = null, reportes = [], guardado = null, vista = 'dia', filtroEstado = 'revisar', filtroCuad = '', res = null;
 try { progDatos = JSON.parse(localStorage.getItem(PROG_CACHE)) || null; } catch (e) { progDatos = null; }
 
 function chip(f, extra) {
@@ -171,7 +172,9 @@ async function cargarProg(file) {
         if (!prog.mes) throw new Error('no se pudo saber de qué mes es (ponga el año y el mes en el nombre: 2026_11_…)');
         [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
         progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
-        try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+        if (!guardarProgLocal(progDatos)) toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.');
+        // A la base para todos los equipos (programaciones, 0030): un Excel nuevo reemplaza el mes
+        if (progBase) progBase.guardar(progDatos, { forzar: true }).then(function (r) { if (r.aviso) toast(r.aviso); });
         $('cz-fecha').value = '';
         toast('Programación de ' + prog.mes + ' cargada: ' + (prog.q1.length + prog.q2.length) + ' lotes.');
         pintar();
@@ -227,6 +230,9 @@ async function arrancar() {
         aplicarPermisos(supabase, usuario);
     }
     guardado = crearGuardado(configurado ? supabase : null);
+    // La programación del mes sale de la base (la que subió cualquiera); si llega una más nueva, se repinta
+    progBase = crearProgBase(configurado ? supabase : null);
+    progBase.sincronizar().then(function (r) { if (r.cambio) { progDatos = r.datos; pintar(); } if (r.aviso) toast(r.aviso); });
     $('cz-elegir').onclick = function () { $('cz-archivo').click(); };
     $('cz-archivo').onchange = function () { cargarProg(this.files && this.files[0]); };
     $('cz-cargar').onclick = cargarReportes;

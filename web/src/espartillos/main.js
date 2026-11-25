@@ -6,6 +6,7 @@ import '../subsanaciones/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
+import { crearProgBase, guardarLocal as guardarProgLocal } from '../programacion_base.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast } from '../subsanaciones/ui.js';
 import { esc, hoy, aTexto } from '../subsanaciones/util.js';
@@ -13,7 +14,7 @@ import { filasHoja, leerProgramacion } from '../subsanaciones/programacion.js';
 import { leerDatos } from '../subsanaciones/lotegps.js';
 import { armarLista, filtrar, resumenPorZona, enlaces, SIN_ZONA } from './espartillos.js';
 
-var PROG_CACHE = 'programacion_cache', PREF = 'es_pref', MAX = 150;
+var PROG_CACHE = 'programacion_cache', PREF = 'es_pref', MAX = 150, progBase = null;
 var datos = null, progDatos = null, cargadas = null, mostrar = MAX, ocupado = false;
 var pref = leer(PREF, {}) || {};
 pref = { zona: String(pref.zona || ''), comuna: String(pref.comuna || ''), estado: String(pref.estado || '') };
@@ -84,7 +85,9 @@ async function cargarProg(file) {
         if (!prog.mes) throw new Error('no se pudo saber de qué mes es (ponga el año y el mes en el nombre: 2026_11_…)');
         [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
         var nuevo = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
-        try { localStorage.setItem(PROG_CACHE, JSON.stringify(nuevo)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+        if (!guardarProgLocal(nuevo)) toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.');
+        // A la base para todos los equipos (programaciones, 0030): un Excel nuevo reemplaza el mes
+        if (progBase) progBase.guardar(nuevo, { forzar: true }).then(function (r) { if (r.aviso) toast(r.aviso); });
         toast('Programación de ' + prog.mes + ' cargada: ' + plural((prog.sif.esp || { total: 0 }).total, 'espartillo programado', 'espartillos programados') + '.');
         await armar(false);
     } catch (e) {
@@ -227,6 +230,9 @@ async function arrancar() {
         $('btn-salir').onclick = function () { cerrarSesion(supabase); };
         aplicarPermisos(supabase, usuario);
     }
+    // La programación del mes sale de la base (la que subió cualquiera); si llega una más nueva, se arma otra vez la lista
+    progBase = crearProgBase(configurado ? supabase : null);
+    progBase.sincronizar().then(function (r) { if (r.cambio && cargadas) armar(false); if (r.aviso) toast(r.aviso); });
     var archivo = document.createElement('input');
     archivo.type = 'file'; archivo.id = 'es-archivo'; archivo.hidden = true;
     archivo.accept = '.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';

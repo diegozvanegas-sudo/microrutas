@@ -6,6 +6,7 @@ import '../subsanaciones/estilos.css';
 import './estilos.css';
 import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
+import { crearProgBase, guardarLocal as guardarProgLocal } from '../programacion_base.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast } from '../subsanaciones/ui.js';
 import { esc, hoy, aTexto } from '../subsanaciones/util.js';
@@ -15,7 +16,7 @@ import { analizar, centrosDeLotes, textoResumen, kmTexto, pct, nombreDia, rotulo
 import { crearMapas, hayLeaflet, COLORES } from './mapa.js';
 
 var PROG_CACHE = 'programacion_cache', PREF = 'oz_pref';
-var progDatos = null, centros = null, geometrias = {}, anillos = {}, res = null, mapas = null, selFecha = '';
+var progBase = null, progDatos = null, centros = null, geometrias = {}, anillos = {}, res = null, mapas = null, selFecha = '';
 var pref = leer(PREF, {}) || {};
 pref = {
     cuad: pref.cuad || '', q: pref.q === 2 ? 2 : 1, lista: pref.lista === 'hoy' ? 'hoy' : 'prop', solo: !!pref.solo,
@@ -102,7 +103,9 @@ async function cargarProg(file) {
         if (!prog.mes) throw new Error('no se pudo saber de qué mes es (ponga el año y el mes en el nombre: 2026_11_…)');
         [prog.q1, prog.q2].forEach(function (l) { l.forEach(function (x) { x.dir = x.dir.slice(0, 140); }); });
         progDatos = { archivo: file.name, cargado: aTexto(hoy()), prog: prog };
-        try { localStorage.setItem(PROG_CACHE, JSON.stringify(progDatos)); } catch (e) { toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.'); }
+        if (!guardarProgLocal(progDatos)) toast('No se pudo guardar en este equipo: habrá que subirlo otra vez.');
+        // A la base para todos los equipos (programaciones, 0030): un Excel nuevo reemplaza el mes
+        if (progBase) progBase.guardar(progDatos, { forzar: true }).then(function (r) { if (r.aviso) toast(r.aviso); });
         toast('Programación de ' + prog.mes + ' cargada: ' + (prog.q1.length + prog.q2.length) + ' lotes.');
         $('oz-elegir').disabled = false;
         await calcular();
@@ -286,6 +289,9 @@ async function arrancar() {
         $('btn-salir').onclick = function () { cerrarSesion(supabase); };
         aplicarPermisos(supabase, usuario);
     }
+    // La programación del mes sale de la base (la que subió cualquiera); si llega una más nueva, se calcula otra vez
+    progBase = crearProgBase(configurado ? supabase : null);
+    var sinc = progBase.sincronizar().then(function (r) { if (r.aviso) toast(r.aviso); return r; });
     $('oz-elegir').onclick = function () { $('oz-archivo').click(); };
     $('oz-archivo').onchange = function () { cargarProg(this.files && this.files[0]); };
     $('oz-excel').onclick = descargar;
@@ -326,5 +332,6 @@ async function arrancar() {
     $('btn-recargar').onclick = function () { centros = null; calcular(); };
     $('estado').hidden = true; $('oz-datos').hidden = false;
     await calcular();
+    sinc.then(function (r) { if (r.cambio) { progDatos = r.datos; pintarProg(); calcular(); } });
 }
 arrancar();

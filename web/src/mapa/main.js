@@ -8,6 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { infoLote, chipReporte, htmlAvisos, htmlMas } from './ficha.js';
 import { encuadre, urlEarth, kmlLote, alturaTerreno } from './earth.js';
 import { mezclarPuntos } from './especiales.js';
+import { crearProgBase } from '../programacion_base.js';
 
 function leer(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
@@ -91,3 +92,7 @@ async function deLaBase() {
     } catch (e) { /* sin señal: queda lo del equipo */ }
 }
 deLaBase();
+
+// La programación del mes (⭐ Especiales y «qué día le toca») sale de la base (programaciones, 0030): si llega una más
+// nueva que la del equipo, la página la vuelve a leer
+if (configurado && supabase) crearProgBase(supabase).sincronizar().then(function (r) { if (r.cambio) window.dispatchEvent(new Event('programacion-cambio')); });
