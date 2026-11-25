@@ -16,6 +16,7 @@ import { cumplimiento, porcentaje } from './cumplimiento.js';
 import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencimientos, textoPlazo as textoVence } from './vencimientos.js';
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
+import { direccionOSM, opcionesDonde, lotesCercanos, posDeUrl } from './dondeestoy.js';
 import { leerTabla, diasDe } from './tabla.js';
 import { cuadrar, fechaSubsanacion } from './cuadre.js';
 import { filasHoja, leerProgramacion, estadoDelDia, especialesDeSemana, enlacesEspecial, textoDelDia, semanaDia as semanaProg, quincenaDe as quincenaProg, nombreDia, fechaPlan as fechaPlanProg, estadoLote, lotesDeQuincena, zonaDe, ESTADOS_LOTE, consultarLotes, quincenaVigente, avanceCuadrilla, desdeLote, rangoQuincena } from './programacion.js';
@@ -1889,9 +1890,13 @@ export function iniciar(api, CFG) {
         seguirUbicacion();
         pintadaEn = posicion;
         var vencidos = [];
-        // "+ Otra pre-ruta" arriba, encima de la ruta completa, para no tener que bajar hasta el final
-        cont.innerHTML = '<div class="ruta-arriba"><button type="button" class="primario otra" data-ruta="nueva">+ Otra pre-ruta</button></div>' +
-            pintarRutaCompleta() + rutas.map(function (ruta, ri) {
+        // "+ Otra pre-ruta" arriba, encima de la ruta completa, para no tener que bajar hasta el final; al lado
+        // "Ver tramos" abre la ruta completa con sus tramos de Google Maps sin tener que desplegarla
+        var completa = pintarRutaCompleta();
+        cont.innerHTML = '<div class="ruta-arriba"><button type="button" class="primario otra" data-ruta="nueva">+ Otra pre-ruta</button>' +
+            (completa ? '<button type="button" class="secundario otra-tramos" data-ruta="ver-tramos" aria-expanded="' + !!abiertas['*todas'] + '">' +
+                (abiertas['*todas'] ? '▴ Ocultar tramos' : '🧭 Ver tramos') + '</button>' : '') + '</div>' +
+            completa + rutas.map(function (ruta, ri) {
             var paradas = ruta.paradas.map(function (p) {
                 var x = infoLote(p.id); x.fecha = p.fecha; x.creada = p.creada; x.despues = p.despues; x.carga = p.carga; x.visita = visitaDe(p, x); x.encurso = !x.visita && p.encurso; x.sinfotos = p.sinfotos;
                 x.du = fijada && fijada.id === String(x.id) ? 0 : posicion && puntosDe(String(x.id)).length ? distLotes(posicion, String(x.id)) : null;
@@ -2027,6 +2032,13 @@ export function iniciar(api, CFG) {
         var b = ev.target.closest('[data-ruta]');
         if (!b) return;
         if (b.dataset.ruta === 'plegar-todas') { plegar('*todas', !!abiertas['*todas']); return pintarRutas(); }
+        if (b.dataset.ruta === 'ver-tramos') {
+            var abrirT = !abiertas['*todas'];
+            plegar('*todas', !abrirT); pintarRutas();
+            var acc = abrirT && document.querySelector('#ruta .ruta-completa .ruta-acciones');
+            if (acc) acc.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            return;
+        }
         var ruta = rutas[+b.dataset.ri], accion = b.dataset.ruta;
         if (accion === 'nueva') return abrirDlgRuta();
         if (accion === 'aqui') { fijar(b.dataset.id); pintarRutas(); return toast(fijada ? '📍 Su ubicación es ahora ' + fijada.nombre + '. "Cómo llegar" sale desde aquí.' : 'Ese lote no tiene ubicación ni dirección.'); }
@@ -2807,6 +2819,96 @@ export function iniciar(api, CFG) {
     $('bo-copiar').onclick = function () {
         if (buenasMarcadas.length) copiarTexto(mensajeVarios(buenasMarcadas, $('bo-donde').value), 'Mensaje copiado. Péguelo en el grupo de WhatsApp.');
     };
+
+    // ---------- 📍 Dónde estoy (src/subsanaciones/dondeestoy.js) ----------
+    // En Posibles hallazgos (dirección del árbol) y Buena operación (dónde): con el GPS pone la dirección y deja debajo las
+    // otras opciones para elegir (OpenStreetMap, el lote donde está, lotes cercanos, coordenadas exactas). Desde el mapa
+    // rápido llega la ubicación en la dirección (?herramienta=hallazgos&lat=…&lng=…) y se usa de una vez. Al cerrar se borra
+    var DONDE = {
+        hall: { input: 'hall-dir', opc: 'hall-dir-opc', dlg: 'dlg-hallazgos', pintar: function () { var y = $('hall-lista').scrollTop; pintarHallazgos(); $('hall-lista').scrollTop = y; } },
+        bo: { input: 'bo-donde', opc: 'bo-donde-opc', dlg: 'dlg-buenas', pintar: pintarBuenas }
+    }, dondeTurno = { hall: 0, bo: 0 }, dondeOps = { hall: [], bo: [] }, dondePrec = { hall: null, bo: null };
+    function gpsAhora() {
+        return new Promise(function (ok, mal) {
+            if (!navigator.geolocation) return mal({ code: 0 });
+            navigator.geolocation.getCurrentPosition(function (p) { ok({ lat: p.coords.latitude, lon: p.coords.longitude, prec: p.coords.accuracy || null }); },
+                mal, { enableHighAccuracy: true, timeout: 15000, maximumAge: 30000 });
+        });
+    }
+    // Dirección aproximada de OpenStreetMap (solo se mandan las coordenadas); sin señal o lenta (8 s): null
+    function osmDe(lat, lon) {
+        var corte = typeof AbortController === 'function' ? new AbortController() : null, t = corte && setTimeout(function () { corte.abort(); }, 8000);
+        return fetch('https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=18&addressdetails=1&accept-language=es&lat=' + lat + '&lon=' + lon, corte ? { signal: corte.signal } : {})
+            .then(function (r) { return r.ok ? r.json() : null; }).then(direccionOSM).catch(function () { return null; })
+            .then(function (x) { clearTimeout(t); return x; });
+    }
+    function loteDato(lote, mr) {
+        var p = LOTES[mr] || {}, l = String(lote || p.lote || '').trim();
+        return { lote: l && l !== 'NA' ? l : '', mr: mr || '', d: p.d || '' };
+    }
+    function lotesAqui(lat, lon) {
+        var ids = Object.keys(CENTROS).concat(Object.keys(PUNTOS).filter(function (k) { return !CENTROS[k]; }));
+        var cerca = lotesCercanos(ids, function (id) { return distLotes([lat, lon], id); }, 3, 300).map(function (x) {
+            var i = infoLote(x.id); return Object.assign(loteDato(i.lote, i.mr), { dist: x.dist });
+        });
+        return ubicarLote(lat, lon).catch(function () { return null; }).then(function (u) {
+            return { lote: u ? Object.assign(loteDato(u.lote, u.mr), { dist: u.dist || 0 }) : null, cercanos: cerca };
+        });
+    }
+    function pintarDonde(k, estado) {
+        var c = DONDE[k], box = $(c.opc), actual = $(c.input).value.trim(), prec = dondePrec[k];
+        box.hidden = !estado && !dondeOps[k].length;
+        box.innerHTML = estado ? '<span class="donde-estado">' + esc(estado) + '</span>'
+            : (prec > 50 ? '<span class="donde-estado">GPS con ±' + Math.round(prec) + ' m: revise que sea el sitio.</span>' : '') +
+              dondeOps[k].map(function (o, i) {
+                  return '<button type="button" data-op="' + i + '"' + (o.texto === actual ? ' class="elegida" aria-pressed="true"' : ' aria-pressed="false"') +
+                      ' title="' + esc(o.texto) + '">' + esc(o.etiqueta) + '</button>';
+              }).join('');
+    }
+    function botonDonde(k) { return $(DONDE[k].dlg).querySelector('[data-donde="' + k + '"]'); }
+    function dondeEstoy(k, pos) {
+        var c = DONDE[k], turno = ++dondeTurno[k], btn = botonDonde(k);
+        var vigente = function () { return turno === dondeTurno[k] && $(c.dlg).open; };
+        dondeOps[k] = []; dondePrec[k] = null;
+        btn.disabled = true; btn.textContent = 'Ubicando…';
+        pintarDonde(k, 'Buscando su ubicación…');
+        (pos ? Promise.resolve(pos) : gpsAhora()).then(function (g) {
+            if (!vigente()) return;
+            pintarDonde(k, 'Buscando la dirección…');
+            return Promise.all([osmDe(g.lat, g.lon), lotesAqui(g.lat, g.lon)]).then(function (r) {
+                if (!vigente()) return;
+                dondeOps[k] = opcionesDonde({ lat: g.lat, lon: g.lon, osm: r[0], lote: r[1].lote, cercanos: r[1].cercanos });
+                dondePrec[k] = g.prec;
+                $(c.input).value = dondeOps[k][0].texto;
+                c.pintar();
+                pintarDonde(k);
+                toast(r[0] ? 'Dirección puesta. Debajo hay otras opciones.' : 'Sin dirección de OpenStreetMap (¿sin señal?): se puso ' + (r[1].lote ? 'el lote' : 'la coordenada') + '.');
+            });
+        }).catch(function (err) {
+            if (!vigente()) return;
+            pintarDonde(k, err && err.code === 1 ? 'Sin permiso de ubicación: actívelo en el navegador o escriba la dirección.'
+                : 'No se pudo obtener su ubicación (sin GPS o tardó mucho). Inténtelo otra vez o escriba la dirección.');
+        }).then(function () {
+            if (turno !== dondeTurno[k]) return;
+            btn.disabled = false; btn.textContent = '📍 Dónde estoy';
+        });
+    }
+    Object.keys(DONDE).forEach(function (k) {
+        var c = DONDE[k];
+        botonDonde(k).onclick = function () { dondeEstoy(k); };
+        $(c.opc).onclick = function (ev) {
+            var b = ev.target.closest('[data-op]');
+            if (!b) return;
+            $(c.input).value = dondeOps[k][+b.dataset.op].texto;
+            c.pintar(); pintarDonde(k);
+        };
+        $(c.input).addEventListener('input', function () { if (dondeOps[k].length) pintarDonde(k); });
+        $(c.dlg).addEventListener('close', function () {
+            dondeTurno[k]++; dondeOps[k] = []; dondePrec[k] = null;
+            $(c.opc).hidden = true; $(c.opc).innerHTML = '';
+            botonDonde(k).disabled = false; botonDonde(k).textContent = '📍 Dónde estoy';
+        });
+    });
 
     // ---------- Texto a imagen (src/subsanaciones/textoimagen.js) ----------
     // Lo escrito queda en el equipo mientras no se guarde (si se cierra sin querer no se pierde); colores y letra se recuerdan
@@ -3992,9 +4094,15 @@ export function iniciar(api, CFG) {
         var q = new URLSearchParams(location.search), h = q.get('herramienta');
         var btn = h && /^(hallazgos|buenas|fotos|zip|nota|ocr|tabla|cuadre|fotolote|prog|ubicar)$/.test(h) && $('btn-' + h);
         if (!btn) return;
+        // Desde el mapa rápido: Posibles hallazgos y Buena operación llegan con la ubicación (lat, lng) para poner la dirección
+        var pos = posDeUrl(q), k = h === 'hallazgos' ? 'hall' : h === 'buenas' ? 'bo' : '';
         try { history.replaceState(null, '', location.pathname + location.hash); } catch (e) {}
         // Se espera a saber los permisos: si el administrador se la apagó a este usuario, el botón queda escondido (sesion.js)
-        Promise.resolve(CFG && CFG.permisos).catch(function () {}).then(function () { if (!btn.hidden) btn.onclick(); });
+        Promise.resolve(CFG && CFG.permisos).catch(function () {}).then(function () {
+            if (btn.hidden) return;
+            btn.onclick();
+            if (k && pos) dondeEstoy(k, pos);
+        });
     })();
     cargar();
     return {

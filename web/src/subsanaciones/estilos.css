@@ -176,6 +176,20 @@ fieldset { min-width: 0; }
 .hall-dir input { min-height: 44px; border: 1px solid var(--line); border-radius: 10px; padding: 8px 12px; font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); background: #fff; }
 .hall-barra { display: flex; gap: 8px; align-items: center; justify-content: space-between; flex-wrap: wrap; }
 #hall-arboles[aria-pressed="true"] { background: var(--brand); color: #fff; border-color: var(--brand); }
+/* 📍 Dónde estoy (Posibles hallazgos y Buena operación): el GPS pone la dirección y debajo quedan las otras opciones */
+/* minmax(0, 1fr): una opción larga se corta con «…» en vez de ensanchar la ventana y sacar el botón */
+#hall-dir-campo, .bo-donde-gps { grid-template-columns: minmax(0, 1fr); min-width: 0; }
+.donde-fila { display: flex; gap: 8px; align-items: stretch; min-width: 0; }
+.donde-fila input { flex: 1; min-width: 0; }
+.donde-fila .donde-btn { flex: none; min-height: 44px; white-space: nowrap; }
+.donde-opc { display: flex; flex-wrap: wrap; gap: 6px; font-weight: 400; }
+.donde-opc .donde-estado { font-size: 13px; color: var(--muted); align-self: center; }
+.donde-opc button { min-height: 36px; max-width: 100%; padding: 6px 10px; border: 1px solid var(--line); border-radius: 999px; background: #fff; color: var(--ink);
+    font: inherit; font-size: 13px; text-align: left; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; cursor: pointer; }
+.donde-opc button.elegida { border-color: var(--brand); background: #eaf4ef; color: var(--brand); font-weight: 700; }
+.bo-donde-gps { display: grid; gap: 6px; justify-items: start; }
+.bo-donde-gps .donde-btn { min-height: 36px; }
+@media (max-width: 560px) { .donde-fila .donde-btn { padding: 8px 10px; font-size: 13px; } }
 
 /* Resumen para WhatsApp de una visita: formato y plazo */
 .wa-formatos { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: end; margin: 0 0 10px; }
@@ -351,7 +365,8 @@ fieldset { min-width: 0; }
 .ruta > * { width: 100%; }
 .ruta > .otra { width: auto; }
 /* "+ Otra pre-ruta" arriba de la ruta completa: botón verde lleno, a la izquierda */
-.ruta-arriba { display: flex; justify-content: flex-start; }
+.ruta-arriba { display: flex; justify-content: flex-start; flex-wrap: wrap; gap: 8px; }
+.ruta-arriba .otra-tramos { padding: 10px 16px; font-size: 15px; border-radius: 10px; }
 .ruta-arriba .otra { padding: 10px 18px; font-size: 15px; border-radius: 10px; box-shadow: 0 2px 6px rgba(21, 128, 61, .25); }
 .ruta-vacia { text-align: left; background: #fff; border: 2px dashed #9fd3bd; color: var(--ink); padding: 14px 16px; border-radius: 12px; font-weight: 400; }
 .ruta-vacia .sub { display: block; margin-top: 2px; }

@@ -2608,17 +2608,29 @@
         direccion: direccionDe,
         toast: toast
     });
-    // Bajo el zoom y ◎, con el mismo estilo: 📸 foto, ⚙️ ajustes de la marca, 📋 subsanaciones y 📝 PQR
+    // Bajo el zoom y ◎, con el mismo estilo: 📸 foto, ⚙️ ajustes de la marca, ⚠️ posibles hallazgos, ✅ buena operación,
+    // 📋 subsanaciones y 📝 PQR. Hallazgos y buena operación abren esas ventanas de Subsanaciones con su ubicación (GPS de
+    // los últimos 2 minutos) para que la dirección quede puesta; sin GPS se abren igual y allá está «📍 Dónde estoy»
     var Herramientas = L.Control.extend({
         options: { position: 'topleft' },
         onAdd: function () {
             var div = L.DomUtil.create('div', 'leaflet-bar herramientas');
             div.innerHTML = '<a href="#" role="button" data-h="foto" title="Tomar foto con fecha, GPS y marca de agua" aria-label="Tomar foto">📸</a>' +
                 '<a href="#" role="button" data-h="ajustes" title="Ajustes de la marca de agua" aria-label="Ajustes de la marca de agua">⚙️</a>' +
+                '<a href="subsanaciones.html?herramienta=hallazgos" data-registrar="hallazgos" title="Posibles hallazgos: mensajes para el grupo (también reportar árbol), con la dirección de donde está" aria-label="Posibles hallazgos">⚠️</a>' +
+                '<a href="subsanaciones.html?herramienta=buenas" data-registrar="buenas" title="Buena operación: mensajes de lo que se ve bien, con la dirección de donde está" aria-label="Buena operación">✅</a>' +
                 '<a href="subsanaciones.html" title="Ir a las subsanaciones y pre-rutas" aria-label="Subsanaciones">📋</a>' +
                 '<a href="pqr.html" title="PQR: leer la queja y armar la respuesta" aria-label="PQR">📝</a>';
             L.DomEvent.disableClickPropagation(div);
             div.addEventListener('click', function (ev) {
+                var r = ev.target.closest('a[data-registrar]');
+                if (r) {
+                    // La ubicación se agrega al tocar (no al pintar el botón): así va la más reciente
+                    var gpsOk = miPos && Date.now() - miHora < 120000;
+                    r.href = 'subsanaciones.html?herramienta=' + r.dataset.registrar +
+                        (gpsOk ? '&lat=' + miPos.lat.toFixed(6) + '&lng=' + miPos.lng.toFixed(6) + '&prec=' + Math.round(miPrec || 0) : '');
+                    return;
+                }
                 var a = ev.target.closest('a[data-h]');
                 if (!a) return;
                 ev.preventDefault();

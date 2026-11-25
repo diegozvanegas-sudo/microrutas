@@ -405,7 +405,10 @@
             <button type="button" class="cerrar-dlg" id="hall-cerrar" aria-label="Cerrar" title="Cerrar">×</button></h2>
         <input type="search" id="hall-buscar" aria-label="Buscar hallazgo" placeholder="Escriba qué vio: sopladora, piedras, carro parqueado, lluvia…" autocomplete="off">
         <!-- Reportes de árboles (🌳): solo se llena la dirección; con la visita abierta se pone la del lote -->
-        <label class="hall-dir" id="hall-dir-campo" hidden>DIRECCIÓN DEL ÁRBOL <input id="hall-dir" placeholder="Cra 50 # 30-20, frente al parque" autocomplete="off"></label>
+        <div class="hall-dir" id="hall-dir-campo" hidden><label for="hall-dir">DIRECCIÓN DEL ÁRBOL</label>
+            <div class="donde-fila"><input id="hall-dir" placeholder="Cra 50 # 30-20, frente al parque" autocomplete="off">
+                <button type="button" class="secundario donde-btn" data-donde="hall" title="Poner la dirección de donde está (GPS) y ver otras opciones">📍 Dónde estoy</button></div>
+            <div class="donde-opc" id="hall-dir-opc" hidden></div></div>
         <div class="hall-barra"><span class="sub" id="hall-cuenta"></span>
             <button type="button" class="secundario pequeno" id="hall-arboles" aria-pressed="false" title="Ver solo los reportes de árboles para poda o riesgo">🌳 Solo árboles</button></div>
         <div class="hall-lista" id="hall-lista"></div>
@@ -421,6 +424,8 @@
             <label class="bo-donde">DÓNDE <input id="bo-donde" placeholder="Las Palmas (842)" autocomplete="off"></label>
             <label class="bo-buscar">BUSCAR <input type="search" id="bo-buscar" placeholder="mallas, PMT, EPP, plateo, barrido…" autocomplete="off"></label>
         </div>
+        <div class="bo-donde-gps"><button type="button" class="secundario pequeno donde-btn" data-donde="bo" title="Poner dónde está según el GPS y ver otras opciones">📍 Dónde estoy</button>
+            <div class="donde-opc" id="bo-donde-opc" hidden></div></div>
         <div class="bo-barra"><span class="sub" id="bo-cuenta"></span>
             <label class="bo-solo"><input type="checkbox" id="bo-solo"> Ver solo los marcados</label></div>
         <div class="bo-lista" id="bo-lista"></div>
