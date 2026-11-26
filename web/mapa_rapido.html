@@ -331,6 +331,7 @@
 <script src="data/rapido/indice.js"></script>
 <script src="js/coordenadas.js"></script>
 <script src="js/direcciones.js"></script>
+<script src="js/entre_calles.js"></script>
 <script src="js/camara_marca.js"></script>
 <!-- Datos de la ficha del lote (pendientes, reportes, descuentos, auditoría, requerimientos, PQR y propuesta): src/mapa -->
 <script type="module" src="/src/mapa/main.js"></script>
@@ -2532,12 +2533,20 @@
     function urlMapsPunto(ll) { return 'https://maps.google.com/?q=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6); }
     function precTxt(m) { return '±' + (m >= 1000 ? (m / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(m) + ' m'); }
     // Los datos en orden: [clave, etiqueta, valor]; sin valor no sale (salvo la dirección mientras se busca)
+    // «Calle 85 entre Carrera 42 y Carrera 42A, Las Granjas, Medellín» (js/entre_calles.js); sin los cruces, la de OpenStreetMap
+    function dirYo() {
+        var l = yo.lugar || {}, e = yo.entre;
+        if (!e) return l.dir || '';
+        var num = /#\s*\S+/.exec(l.via || ''), via = e.texto;
+        if (num && !e.esquina) via = e.via + ' ' + num[0] + ', entre ' + e.a + ' y ' + e.b;
+        return [via, l.barrio || l.comuna, l.ciudad].filter(Boolean).join(', ');
+    }
     function datosYo() {
         var ll = yo.ll, l = yo.lugar || {};
         return [
             ['coord', 'Coordenadas', coordTxt(ll)],
             ['gms', 'Grados, minutos, segundos', gms(ll.lat, 'N', 'S') + ' ' + gms(ll.lng, 'E', 'W')],
-            ['dir', 'Dirección aproximada', l.dir || ''],
+            ['dir', 'Dirección aproximada', dirYo()],
             ['nombre', 'Sitio', l.nombre || ''],
             ['barrio', 'Barrio', l.barrio || ''],
             ['comuna', 'Comuna / sector', l.comuna || ''],
@@ -2561,7 +2570,7 @@
                 '<b' + (espera ? ' class="yo-espera">Buscando…' : '>' + esc(d[2])) + '</b></div>' +
                 '<button type="button" class="copiar" data-yo-copiar="' + d[0] + '"' + (espera ? ' disabled' : '') + '>📋 Copiar</button></div>';
         }).join('');
-        var sinDir = !yo.buscando && !(yo.lugar && yo.lugar.dir);
+        var sinDir = !yo.buscando && !dirYo();
         return '<div class="ficha-lote ficha-yo">' +
             '<div class="cab"><span class="titulo">🔵 Usted está aquí</span></div>' +
             '<div class="mr">GPS ' + esc(precTxt(yo.prec)) + ' · lectura de las ' + esc(yo.horaTxt) + (hace > 90 ? ' (hace ' + Math.round(hace / 60) + ' min)' : '') + '</div>' +
@@ -2580,11 +2589,13 @@
         if (!refrescar) {
             if (!miPos) return;
             yo = { ll: miPos, prec: miPrec, hora: miHora, horaTxt: new Date(miHora).toLocaleTimeString('es-CO', { hour: 'numeric', minute: '2-digit' }),
-                   lote: loteEn(miPos), lugar: null, buscando: true };
-            var este = yo;
-            lugarDe(miPos).then(function (l) {
+                   lote: loteEn(miPos), lugar: null, entre: null, buscando: true };
+            var este = yo, cruces = window.cargarCruces ? window.cargarCruces() : Promise.resolve(null);
+            // La dirección de OpenStreetMap y los cruces guardados: con los dos sale «Calle 85 entre Carrera 42 y Carrera 42A»
+            Promise.all([lugarDe(miPos), cruces]).then(function (r) {
                 if (yo !== este) return;
-                yo.lugar = l; yo.buscando = false;
+                yo.lugar = r[0]; yo.buscando = false;
+                try { yo.entre = window.entreCalles(r[1], yo.ll, r[0] && r[0].via); } catch (e) { yo.entre = null; }
                 if (fichaYoAbierta()) verYo(true);
             });
         }
