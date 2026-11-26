@@ -3,7 +3,7 @@
 // descontar y el área que queda.
 //
 // Descuento: { id, tipo, fecha, sector, campos: { causa, lugar… }, textos: { titulo, intro, conclusion, localizacion, sitio },
-//   filas: [{ mr, lote, cuad, areaBase, areaDescontar, manual (true si el área se escribió a mano), dibujo: [[lat, lon], …] }],
+//   filas: [{ mr, lote, cuad, areaBase, areaDescontar, manual (true si el área se escribió a mano), todo (true: se descuenta todo el lote, p. ej. cerrado), dibujo: [[lat, lon], …] }],
 //   estado: 'borrador' | 'emitido', creado, actualizado }
 import { tipo, rellenar, faltantes } from './tipos.js';
 
@@ -26,8 +26,8 @@ export function areaAnillos(anillos) { return (anillos || []).reduce(function (s
 // Número con puntos de miles, como en el documento (3.072)
 export function m2(n) { return Math.round(Number(n) || 0).toLocaleString('es-CO'); }
 
-// Área a descontar de una fila: la escrita a mano o la del dibujo
-export function areaFila(f) { return f.manual ? Math.max(0, Number(f.areaDescontar) || 0) : Math.round(areaM2(f.dibujo)); }
+// Área a descontar de una fila: la escrita a mano, todo el lote (el área base) o la del dibujo
+export function areaFila(f) { return f.manual ? Math.max(0, Number(f.areaDescontar) || 0) : f.todo ? Math.max(0, Math.round(Number(f.areaBase) || 0)) : Math.round(areaM2(f.dibujo)); }
 export function areaActualizada(f) { return Math.max(0, Math.round((Number(f.areaBase) || 0) - areaFila(f))); }
 
 // «Z6CC0153 - 1027», «A y B», «A, B y C»
@@ -127,7 +127,7 @@ export function filasHistorial(lista) {
         var f8 = String(x.fecha || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
         (x.filas || []).forEach(function (f) {
             out.push([f8 ? f8[3] + '/' + f8[2] + '/' + f8[1] : '', tipo(x.tipo).nombre, f.mr, /^\d+$/.test(f.lote || '') ? Number(f.lote) : f.lote || '', f.cuad || '',
-                Math.round(Number(f.areaBase) || 0), areaFila(f), areaActualizada(f), x.sector || '', x.estado === 'emitido' ? 'Emitido' : 'Borrador', f.manual ? 'A mano' : 'Dibujo en el mapa']);
+                Math.round(Number(f.areaBase) || 0), areaFila(f), areaActualizada(f), x.sector || '', x.estado === 'emitido' ? 'Emitido' : 'Borrador', f.manual ? 'A mano' : f.todo ? 'Todo el lote' : 'Dibujo en el mapa']);
         });
     });
     return out;
@@ -137,7 +137,7 @@ export function filasHistorial(lista) {
 export function aFila(d) {
     var t = totales(d.filas);
     return { id: d.id, tipo: d.tipo, fecha: d.fecha || null, sector: d.sector || '', campos: d.campos || {}, textos: d.textos || {},
-        filas: (d.filas || []).map(function (f) { return { mr: f.mr, lote: f.lote, cuad: f.cuad || '', areaBase: Number(f.areaBase) || 0, areaDescontar: areaFila(f), manual: !!f.manual, dibujo: f.dibujo || [] }; }),
+        filas: (d.filas || []).map(function (f) { return { mr: f.mr, lote: f.lote, cuad: f.cuad || '', areaBase: Number(f.areaBase) || 0, areaDescontar: areaFila(f), manual: !!f.manual, todo: !!f.todo, dibujo: f.dibujo || [] }; }),
         area_descontar: t.descontar, estado: d.estado || 'borrador', actualizado: new Date().toISOString() };
 }
 export function deFila(r) {

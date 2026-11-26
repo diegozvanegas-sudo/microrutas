@@ -73,7 +73,7 @@ function crearMapa() {
         var f = d.filas[activa];
         if (!f) return;
         f.dibujo = (f.dibujo || []).concat([[+ev.latlng.lat.toFixed(7), +ev.latlng.lng.toFixed(7)]]);
-        f.manual = false;
+        f.manual = false; f.todo = false;   // empezar a dibujar deja de descontar todo el lote
         cambio(); pintarDibujo(); pintarFilas();
     });
 }
@@ -109,6 +109,11 @@ function pintarDibujo() {
     var f = d.filas[activa];
     if (!f || !capaDibujo) return;
     capaDibujo.clearLayers();
+    $('dz-todo').textContent = f.todo ? '✏️ Dibujar solo una parte' : '▣ Todo el lote (cerrado)';
+    $('dz-todo').classList.toggle('primario', !f.todo);
+    $('dz-todo').classList.toggle('secundario', !!f.todo);
+    var gTodo = f.todo ? geometrias[f.mr + '|' + (f.lote || '')] || [] : [];
+    if (gTodo.length) L.polygon(gTodo, { color: '#1d4ed8', weight: 2.5, fillColor: '#2563eb', fillOpacity: 0.4, interactive: false }).addTo(capaDibujo);
     var p = f.dibujo || [];
     if (p.length >= 3) L.polygon(p, { color: '#1d4ed8', weight: 2.5, fillColor: '#2563eb', fillOpacity: 0.4, interactive: false }).addTo(capaDibujo);
     else if (p.length === 2) L.polyline(p, { color: '#1d4ed8', weight: 2.5, interactive: false }).addTo(capaDibujo);
@@ -122,8 +127,8 @@ function pintarDibujo() {
 function mostrarArea() {
     var f = d.filas[activa];
     if (!f) return;
-    var a = Math.round(areaM2(f.dibujo));
-    $('dz-dibujo-area').textContent = (f.dibujo || []).length < 3 ? plural((f.dibujo || []).length, 'punto', 'puntos') + ' · faltan ' + (3 - (f.dibujo || []).length) + ' para el área'
+    var a = f.todo && !f.manual ? areaFila(f) : Math.round(areaM2(f.dibujo));
+    $('dz-dibujo-area').textContent = f.todo && !f.manual ? 'Todo el lote: ' + m2(a) + ' m² a descontar · quedan 0 m²' : (f.dibujo || []).length < 3 ? plural((f.dibujo || []).length, 'punto', 'puntos') + ' · faltan ' + (3 - (f.dibujo || []).length) + ' para el área'
         : m2(a) + ' m² a descontar' + (f.areaBase ? ' · quedan ' + m2(Math.max(0, f.areaBase - a)) + ' m²' : '');
     $('dz-dibujo-area').classList.toggle('mal', !!(f.areaBase && a > f.areaBase));
 }
@@ -152,7 +157,7 @@ function pintarFilas() {
             '<div class="dz-areas">' +
                 '<label>ÁREA BASE (m²) <input type="number" min="0" step="1" inputmode="numeric" data-base="' + i + '" value="' + (f.areaBase || '') + '"></label>' +
                 '<label>A DESCONTAR (m²) <input type="number" min="0" step="1" inputmode="numeric" data-desc="' + i + '" value="' + (a || '') + '"' + (f.manual ? '' : ' readonly') + '>' +
-                    '<span class="sub">' + (f.manual ? 'escrita a mano' : (f.dibujo || []).length >= 3 ? 'del dibujo' : 'dibújela en el mapa') + '</span></label>' +
+                    '<span class="sub">' + (f.manual ? 'escrita a mano' : f.todo ? 'todo el lote' : (f.dibujo || []).length >= 3 ? 'del dibujo' : 'dibújela en el mapa') + '</span></label>' +
                 '<div class="dz-actual"><span>QUEDAN</span><b class="' + (malo ? 'mal' : '') + '">' + m2(areaActualizada(f)) + ' m²</b></div>' +
             '</div>' +
             (malo ? '<p class="dz-aviso-lote">⚠ El área a descontar es mayor que el área base: revise el dibujo.</p>' : '') +
@@ -244,12 +249,13 @@ async function agregar() {
 }
 
 // ---------- Imágenes del documento ----------
-function claveDibujo(f) { return JSON.stringify([f.dibujo || [], f.mr, f.lote]); }
+function claveDibujo(f) { return JSON.stringify([f.dibujo || [], f.mr, f.lote, !!f.todo, f.todo ? f.areaBase : 0]); }
 async function armarImagenes(i, forzar) {
     var f = d.filas[i], md = medios[i] = medios[i] || { fotos: [] };
     if (!forzar && md.clave === claveDibujo(f) && md.actual && md.descontar) return;
     var { armarImagen } = await import('./imagen.js');
-    var g = await geometria(f), dib = (f.dibujo || []).length >= 3 ? [f.dibujo] : [];
+    // Todo el lote: el área a descontar es el polígono entero del lote
+    var g = await geometria(f), dib = f.todo && !f.manual ? g : (f.dibujo || []).length >= 3 ? [f.dibujo] : [];
     if (!g.length && !dib.length) throw new Error(f.mr + ' no tiene polígono ni dibujo para armar las imágenes (use «Usar otra»)');
     if (!(md.actual && md.actual.propia)) {
         md.actual = await armarImagen({ encuadrar: g.length ? g : dib, capas: [{ anillos: g, relleno: 'rgba(34,211,238,.42)', borde: '#06b6d4', grosor: 2.5 }] });
@@ -259,7 +265,7 @@ async function armarImagenes(i, forzar) {
         else {
             var c = centroAnillos(dib);
             md.descontar = await armarImagen({ encuadrar: dib, zMax: 20, capas: [{ anillos: g, borde: '#22d3ee', grosor: 2, punteado: true }, { anillos: dib, relleno: 'rgba(37,99,235,.42)', borde: '#1d4ed8', grosor: 3 }],
-                etiqueta: { texto: m2(areaFila(f)) + ' m²', en: c, sobre: f.dibujo } });
+                etiqueta: { texto: m2(areaFila(f)) + ' m²', en: c, sobre: dib === g ? [].concat.apply([], g) : f.dibujo } });
         }
     }
     md.clave = claveDibujo(f);
@@ -570,7 +576,7 @@ async function arrancar() {
         var t = ev.target, f;
         if (t.dataset.base != null) { f = d.filas[+t.dataset.base]; f.areaBase = Math.max(0, Math.round(+t.value || 0)); }
         if (t.dataset.desc != null) { f = d.filas[+t.dataset.desc]; if (f.manual) f.areaDescontar = Math.max(0, Math.round(+t.value || 0)); }
-        if (t.dataset.manual != null) { f = d.filas[+t.dataset.manual]; f.manual = t.checked; if (f.manual && !f.areaDescontar) f.areaDescontar = Math.round(areaM2(f.dibujo)); }
+        if (t.dataset.manual != null) { f = d.filas[+t.dataset.manual]; f.manual = t.checked; if (f.manual && !f.areaDescontar) f.areaDescontar = f.todo ? Math.round(Number(f.areaBase) || 0) : Math.round(areaM2(f.dibujo)); }
         cambio(); pintarFilas(); if (activa >= 0) mostrarArea();
     });
     $('dz-deshacer').onclick = function () { var f = d.filas[activa]; if (f && f.dibujo && f.dibujo.length) { f.dibujo.pop(); cambio(); pintarDibujo(); pintarFilas(); } };
@@ -579,6 +585,18 @@ async function arrancar() {
         if (!f || !(f.dibujo || []).length) return;
         if (!(await confirmar('Borrar el dibujo', 'Se quitan los ' + f.dibujo.length + ' puntos del área a descontar de ' + f.mr + '.', 'Borrar'))) return;
         f.dibujo = []; cambio(); pintarDibujo(); pintarFilas();
+    };
+    // ▣ Todo el lote (p. ej. cerrado): se descuenta el área base completa y la imagen marca el polígono entero; sin dibujar.
+    // Tocarlo otra vez (o tocar el mapa) vuelve a dibujar solo una parte
+    $('dz-todo').onclick = async function () {
+        var f = d.filas[activa];
+        if (!f) return;
+        if (f.todo) { f.todo = false; cambio(); pintarDibujo(); pintarFilas(); return toast('Dibuje en el mapa la parte a descontar.'); }
+        if (!(await geometria(f)).length && !f.areaBase) return toast('Este lote no tiene polígono ni área base: escriba el área base o el área a descontar a mano.');
+        if ((f.dibujo || []).length && !(await confirmar('Descontar todo el lote', 'Se quitan los ' + f.dibujo.length + ' puntos dibujados y se descuenta todo ' + f.mr + (f.lote ? ' - ' + f.lote : '') + (f.areaBase ? ' (' + m2(f.areaBase) + ' m²)' : '') + '.', 'Todo el lote'))) return;
+        f.todo = true; f.manual = false; f.dibujo = [];
+        if (!f.areaBase) toast('Falta el área base del lote: escríbala para que salga el área a descontar.');
+        cambio(); pintarDibujo(); pintarFilas();
     };
     $('dz-centrar').onclick = centrar;
     $('dz-calles').onchange = function () { if (!mapa) return; if (this.checked) calles.addTo(mapa); else mapa.removeLayer(calles); };

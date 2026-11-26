@@ -209,3 +209,24 @@ test('descuentos: el PDF se arma con uno y con varios lotes (sin imágenes ni me
     pdf = await PDFDocument.load(await armarPdfDescuento(d, {}));
     assert.ok(pdf.getPageCount() >= 3, 'cuatro lotes, cada uno con su cuadro de localización: ' + pdf.getPageCount() + ' páginas');
 });
+
+test('descuentos: todo el lote (cerrado) descuenta el área base completa, sin dibujo', () => {
+    var f = { mr: 'Z1CC0055', lote: '61', areaBase: 1254, manual: false, todo: true, dibujo: [] };
+    assert.equal(areaFila(f), 1254);
+    assert.equal(areaActualizada(f), 0);
+    // Escrita a mano sigue mandando
+    assert.equal(areaFila(Object.assign({}, f, { manual: true, areaDescontar: 300 })), 300);
+    var d = docEjemplo();
+    d.filas[0] = Object.assign({}, d.filas[0], { todo: true, dibujo: [] });
+    assert.deepEqual(revisar(d), []);
+    assert.equal(totales(d.filas).actualizada, 0);
+});
+
+test('descuentos: «todo el lote» se guarda en la base y vuelve', () => {
+    var d = docEjemplo();
+    d.filas[0] = Object.assign({}, d.filas[0], { todo: true, dibujo: [] });
+    var r = aFila(d);
+    assert.equal(r.filas[0].todo, true);
+    assert.equal(r.filas[0].areaDescontar, 3072);
+    assert.equal(deFila(r).filas[0].todo, true);
+});
