@@ -3,7 +3,9 @@
 // porque lo ya guardado dejaría de coincidir. Una sección nueva se agrega aquí y queda encendida para todos.
 // Aquí va solo la lógica (sin pantalla); sesion.js la aplica al menú y a la página.
 //
-//   puede(permisos, clave)     -> true si ese usuario la ve ({ admin, contrato, ocultas } de mis_permisos)
+//   puede(permisos, clave)     -> true si ese usuario la ve ({ admin, contrato, ocultas, instalacion } de mis_permisos)
+//   enInstalacion(apagadas, k) -> true si la sección existe en esta instalación (0031: lo apagado vale para todos,
+//                                 administradores incluidos; las que viven dentro de otra se apagan con ella)
 //   claveDeEnlace(href)        -> la clave de un enlace del menú ('pqr.html' → 'pqr', '…?herramienta=fotos' → 'fotos')
 //   clavePagina(href)          -> la clave de la página abierta (sin contar #auditar ni ?herramienta)
 //   primeraPermitida(permisos) -> la primera página que sí puede abrir (para mandarlo allá)
@@ -56,10 +58,41 @@ export function seccion(clave) { return porClave[clave] || null; }
 // 0025, o sin conexión la primera vez) se toma que sí: la base igual no le entrega nada a quien no tiene acceso
 export function entra(permisos) { return !permisos || permisos.microrutas !== false; }
 
+export function enInstalacion(apagadas, clave) {
+    var s = porClave[clave];
+    if (!s) return true;
+    if ((apagadas || []).indexOf(clave) !== -1) return false;
+    return s.dentro ? enInstalacion(apagadas, s.dentro) : true;
+}
+// Estilo que esconde en toda la página los enlaces a lo apagado en la instalación, también los que se arman después (fichas
+// del mapa, botones de una lista): «pqr.html», «subsanaciones.html?herramienta=hallazgos», «contrato.html?doc=GUIA-CAMPO»…
+export function cssApagadas(apagadas) {
+    var sel = [], fuera = SECCIONES.filter(function (s) { return !enInstalacion(apagadas, s.clave); });
+    var q = function (t) { return '"' + String(t).replace(/["\\]/g, '\\$&') + '"'; };
+    fuera.forEach(function (s) {
+        // Botones y cajas que llevan a esa sección sin ser enlaces: se marcan con data-seccion="mapa"
+        sel.push('[data-seccion=' + q(s.clave) + ']');
+        if (s.herramienta) return sel.push('a[href*=' + q('herramienta=' + s.clave) + ']');
+        if (s.hash) return sel.push('a[href*=' + q(s.pagina + s.hash) + ']');
+        if (s.doc) return sel.push('a[href^=' + q(s.pagina + '?doc=' + s.doc) + ']');
+        // La misma página con ?doc= de otra sección (Contrato y Guía de campo): no se esconde la otra
+        var conDoc = SECCIONES.filter(function (o) { return o.pagina === s.pagina && o.doc && enInstalacion(apagadas, o.clave); });
+        [s.pagina].concat(s.otras || []).forEach(function (pg) {
+            if (!conDoc.length || pg !== s.pagina) return sel.push('a[href^=' + q(pg) + ']');
+            sel.push('a[href=' + q(pg) + ']', 'a[href^=' + q(pg + '#') + ']',
+                'a[href^=' + q(pg + '?') + ']' + conDoc.map(function (o) { return ':not([href*=' + q('doc=' + o.doc) + '])'; }).join(''));
+        });
+    });
+    return sel.length ? sel.join(',\n') + ' { display: none !important; }' : '';
+}
+// ¿Está apagada para esta persona solo por la instalación? (para decir «No disponible en esta instalación»)
+export function apagadaEnInstalacion(permisos, clave) { return !enInstalacion((permisos || {}).instalacion, clave); }
+
 export function puede(permisos, clave) {
     var s = porClave[clave], p = permisos || {};
     if (!entra(p)) return false;
     if (!s) return true;                      // lo que no está en la lista no se controla aquí
+    if (!enInstalacion(p.instalacion, clave)) return false;
     if (p.admin) return true;
     if (s.contrato && !p.contrato) return false;
     if ((p.ocultas || []).indexOf(clave) !== -1) return false;

@@ -1,7 +1,7 @@
 // Inicio de sesión con correo y contraseña (usuarios creados por el administrador en Supabase).
 // Componente propio: arma su ventana, no necesita nada en el HTML.
 import { almacenSesion, cierrePedido } from './almacen.js';
-import { puede, entra, seccion, claveDeEnlace, clavePagina, primeraPermitida } from './secciones.js';
+import { puede, entra, seccion, claveDeEnlace, clavePagina, primeraPermitida, apagadaEnInstalacion, cssApagadas } from './secciones.js';
 
 var ventana = null, cliente = null;
 
@@ -72,7 +72,7 @@ export async function esAdmin(supabase) {
     return !res.error && res.data === true;
 }
 
-// Permisos de la sesión ({ microrutas, admin, contrato, horarios, ocultas }: 0007, 0012, 0024 y 0025). Deja en los menús
+// Permisos de la sesión ({ microrutas, admin, contrato, horarios, ocultas, instalacion }: 0007, 0012, 0024, 0025 y 0031). Deja en los menús
 // solo las secciones y herramientas que el administrador le dejó encendidas (secciones.js), "Usuarios" y "WhatsApp" solo
 // al administrador, y si la página abierta está apagada para este usuario la tapa con el aviso «No tiene acceso».
 // Una cuenta que no entra a Microrrutas (por ejemplo, solo de Rutina) ve toda la página tapada y el botón Salir.
@@ -92,8 +92,12 @@ export async function aplicarPermisos(supabase, usuario) {
     return p;
 }
 
-var CLASE_OCULTO = 'data-sin-permiso';
+var CLASE_OCULTO = 'data-sin-permiso', ultimos = null;
+// ¿Se le puede ofrecer esta sección a quien tiene la sesión? (para botones que se arman en el código, p. ej. «Ver en el
+// 📊 Cruce» en un aviso). Antes de saber los permisos: sí, como el menú
+export function permitida(clave) { return !ultimos || puede(ultimos, clave); }
 function mostrarPermisos(p) {
+    ultimos = p;
     var menu = document.getElementById('menu-usuarios'), wa = document.getElementById('menu-whatsapp');
     if (menu) menu.hidden = !p.admin;
     if (wa) wa.hidden = !p.admin;
@@ -111,7 +115,16 @@ function mostrarPermisos(p) {
     // Auditar ZIP abierto por el enlace (#auditar) antes de saber que está apagada para este usuario
     var aud = document.getElementById('dlg-auditoria');
     if (aud && aud.open && !puede(p, 'auditar')) aud.close();
+    estiloInstalacion(p.instalacion);
     bloquearPagina(p);
+}
+// Enlaces sueltos dentro de la página (no solo los del menú) a lo apagado en la instalación (0031): se esconden con un estilo,
+// así también los que la página arma después
+export function estiloInstalacion(apagadas) {
+    var css = cssApagadas(apagadas), st = document.getElementById('sp-instalacion');
+    if (!css) { if (st) st.remove(); return; }
+    if (!st) { st = document.createElement('style'); st.id = 'sp-instalacion'; document.head.appendChild(st); }
+    if (st.textContent !== css) st.textContent = css;
 }
 function ordenarMenu(lista) {
     var hijos = Array.prototype.slice.call(lista.children), visibles = false;
@@ -168,7 +181,7 @@ function bloquearPagina(p) {
         return;
     }
     // Cambió el motivo (p. ej. los permisos guardados decían una cosa y la base otra): se arma de nuevo
-    var motivo = fuera ? 'app' : herr ? 'herr:' + herr : 'sec:' + k;
+    var motivo = fuera ? 'app' : herr ? 'herr:' + herr : (apagadaEnInstalacion(p, k) ? 'inst:' : 'sec:') + k;
     if (aviso && aviso.dataset.motivo !== motivo) { destapar(aviso); aviso = null; }
     document.querySelectorAll('dialog[open]').forEach(function (d) { if (d.id !== 'dlg-ingreso' && d.id !== 'dlg-' + herr) d.close(); });
     if (aviso) return;
@@ -199,6 +212,10 @@ function bloquearPagina(p) {
           '<button type="button" data-salir>⎋ Salir y entrar con otra cuenta</button>'
         : herr
         ? '<h2>🧰 ' + seccion(herr).nombre.replace(/^\S+\s/, '') + '</h2><p>Al cerrar la herramienta vuelve a la página donde estaba.</p>'
+        : apagadaEnInstalacion(p, k)
+        ? '<h2>🔒 ' + s.nombre.replace(/^\S+\s/, '') + ' no está disponible aquí</h2>' +
+        '<p>Esta sección está apagada en esta instalación de la app. El administrador la puede encender en 👥 Usuarios → ⚙️ Esta instalación.</p>' +
+        (otra ? '<a href="' + otra.pagina + (otra.doc ? '?doc=' + otra.doc : '') + '">Ir a ' + otra.nombre + '</a>' : '')
         : '<h2>🔒 No tiene acceso a ' + s.nombre.replace(/^\S+\s/, '') + '</h2>' +
         '<p>El administrador no le activó esta sección. Si la necesita, pídale que se la encienda en 👥 Usuarios.</p>' +
         (otra ? '<a href="' + otra.pagina + (otra.doc ? '?doc=' + otra.doc : '') + '">Ir a ' + otra.nombre + '</a>' : '');

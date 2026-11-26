@@ -1838,7 +1838,7 @@
                 '<button type="button" class="chip modo" data-encuadrar-abrir aria-pressed="' + encuadrarAlAbrir + '" title="Al abrir el mapa, mostrar completo todo lo de las cuadrillas prendidas (queda en este equipo)">🔭 Ver todo al abrir</button>') +
             seccion('modos', 'Herramientas', modos.join(', ') || 'ninguna', '<span class="separador"></span>',
                 '<button type="button" class="chip modo" data-vencidos aria-pressed="' + !!vencidos + '" title="Colorear los lotes según su última visita y la frecuencia">⏰ Vencidos</button>' +
-                '<button type="button" class="chip modo" data-sel aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
+                '<button type="button" class="chip modo" data-sel data-seccion="subsanaciones" aria-pressed="' + !!seleccion + '" title="Tocar varios lotes y armar con ellos una pre-ruta">☑ Armar pre-ruta</button>' +
                 '<button type="button" class="chip modo" data-precision aria-pressed="' + !!verPrecision + '" title="Círculo azul alrededor de su ubicación: el margen de error del GPS">◎ Precisión GPS</button>') +
             // Revisión de predios (catastro de Medellín): cada una se prende y se apaga sola; todas arrancan apagadas
             seccion('predios', '🏛️ Revisión de predios', OPC_PREDIOS.filter(function (o) { return predPref[o[0]]; }).map(function (o) { return o[1]; }).join(', ') || 'apagada', '<span class="separador"></span>',

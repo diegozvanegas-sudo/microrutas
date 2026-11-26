@@ -9,6 +9,8 @@ import { infoLote, chipReporte, htmlAvisos, htmlMas } from './ficha.js';
 import { encuadre, urlEarth, kmlLote, alturaTerreno } from './earth.js';
 import { mezclarPuntos } from './especiales.js';
 import { crearProgBase } from '../programacion_base.js';
+import { enInstalacion } from '../secciones.js';
+import { estiloInstalacion } from '../sesion.js';
 
 function leer(k, d) { try { var v = JSON.parse(localStorage.getItem(k)); return v == null ? d : v; } catch (e) { return d; } }
 function hoy() { var d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); }
@@ -37,6 +39,34 @@ window.FichaLote = {
     encuadre: encuadre, urlEarth: urlEarth, kmlLote: kmlLote, alturaTerreno: alturaTerreno
 };
 window.dispatchEvent(new Event('ficha-lista'));
+
+// ⚙️ Esta instalación (0031): el mapa no pide sesión, así que lee lo apagado con config_instalacion (abierta a todos) y
+// esconde los enlaces y botones a esas secciones (⚠️ ✅ 📋 📝, los de la ficha…). Primero lo último guardado en el equipo,
+// para que no se vean un momento; sin señal se queda con eso. Si el mapa mismo está apagado, se tapa con un aviso.
+var CLAVE_INST = 'instalacion_apagadas';
+function aplicarInstalacion(apagadas) {
+    estiloInstalacion(apagadas);
+    var tapa = document.getElementById('sp-mapa-apagado');
+    if (enInstalacion(apagadas, 'mapa')) { if (tapa) tapa.remove(); return; }
+    if (tapa) return;
+    tapa = document.createElement('div');
+    tapa.id = 'sp-mapa-apagado';
+    tapa.setAttribute('role', 'alert');
+    tapa.style.cssText = 'position:fixed;inset:0;z-index:5000;display:flex;align-items:center;justify-content:center;padding:16px;background:var(--bg,#f4f6f5)';
+    tapa.innerHTML = '<div style="max-width:520px;padding:24px 20px;background:#fff;border:1px solid #dfe7e3;border-radius:14px;text-align:center;line-height:1.5">' +
+        '<h2 style="margin:0 0 8px;font-size:19px">🔒 El mapa no está disponible aquí</h2>' +
+        '<p style="margin:0;color:#5b6b64">Esta sección está apagada en esta instalación de la app. El administrador la puede encender en 👥 Usuarios → ⚙️ Esta instalación.</p></div>';
+    document.body.appendChild(tapa);
+}
+aplicarInstalacion(leer(CLAVE_INST, []));
+if (configurado && supabase) {
+    supabase.rpc('config_instalacion').then(function (r) {
+        if (r.error || !r.data) return;   // base sin 0031 o sin señal: se queda como estaba
+        var ap = Array.isArray(r.data.apagadas) ? r.data.apagadas : [];
+        try { localStorage.setItem(CLAVE_INST, JSON.stringify(ap)); } catch (e) {}
+        aplicarInstalacion(ap);
+    }, function () {});
+}
 
 // ⭐ Puntos de las operaciones especiales puestos a mano (tabla puntos_especiales, 0029): los mismos en todos los equipos.
 // Sin sesión o sin señal responde { ok: false } y el mapa los deja en el equipo como pendientes, para subirlos después.

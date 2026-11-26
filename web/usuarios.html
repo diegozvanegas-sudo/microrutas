@@ -58,6 +58,7 @@
         <summary aria-label="Más opciones">⋯ <span class="largo">Más</span></summary>
         <div class="menu-lista">
             <button type="button" class="item-menu" id="btn-recargar">↻ Actualizar</button>
+            <button type="button" class="item-menu" id="btn-instalacion" hidden>⚙️ Esta instalación</button>
             <hr>
             <a class="item-menu" href="index.html" title="Mapa con todas las capas">🗺️ Mapa completo</a>
             <button type="button" class="item-menu" id="btn-salir" hidden>⎋ Salir</button>
@@ -120,6 +121,25 @@
             <button type="submit" class="primario" id="btn-guardar">Guardar</button>
         </div>
     </form>
+</dialog>
+<dialog id="dlg-inst">
+    <div class="cuerpo">
+        <h2>⚙️ Esta instalación<button type="button" class="cerrar-dlg" id="inst-x" aria-label="Cerrar">×</button></h2>
+        <p class="sub">Lo que apague aquí desaparece de la app para todos, administradores incluidos (sirve para montar una versión con solo algunas secciones). Encima de esto siguen las secciones de cada usuario.</p>
+        <div class="us-sec-cabeza">
+            <small id="inst-cuenta"></small>
+            <span class="us-sec-botones">
+                <button type="button" class="secundario pequeno" id="inst-todas">Todas</button>
+                <button type="button" class="secundario pequeno" id="inst-ninguna">Ninguna</button>
+            </span>
+        </div>
+        <div class="us-sec-lista us-inst-lista" id="inst-lista"><div class="cargando">Leyendo…</div></div>
+        <div class="aviso error" id="inst-error" hidden></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="inst-cerrar">Cerrar</button>
+            <button type="button" class="primario" id="inst-guardar" disabled>Guardar</button>
+        </div>
+    </div>
 </dialog>
 <dialog id="dlg-confirmar">
     <div class="cuerpo">

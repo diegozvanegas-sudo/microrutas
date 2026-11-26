@@ -6,9 +6,11 @@ import { iniciarEncabezado } from '../encabezado.js';
 import { supabase, configurado } from '../supabase.js';
 import { asegurarSesion, cerrarSesion, aplicarPermisos } from '../sesion.js';
 import { $, toast, aviso, confirmar } from '../subsanaciones/ui.js';
-import { SECCIONES, GRUPOS, seccion, puede } from '../secciones.js';
+import { SECCIONES, GRUPOS, seccion, puede, enInstalacion } from '../secciones.js';
 
 var usuarios = [], yo = null, editando = null;
+// Lo apagado en esta instalación (0031, ⚙️ Esta instalación): no se le puede encender a nadie
+var instApagadas = [], usuarioSesion = null;
 var form = $('form'), dlg = $('dlg');
 
 function esc(s) {
@@ -144,15 +146,20 @@ async function guardarApps(id, apps) {
 function resumenSecciones(u) {
     if (u.rol === 'admin') return '<span class="sub">Todas (administrador)</span>';
     var apagadas = (u.ocultas || []).filter(seccion);
-    var ve = SECCIONES.filter(function (s) { return puede({ admin: false, contrato: u.ver_contrato, ocultas: apagadas }, s.clave); }).length;
-    if (ve === SECCIONES.length) return 'Todas';
+    var hay = SECCIONES.filter(function (s) { return enInstalacion(instApagadas, s.clave); }).length;
+    var ve = SECCIONES.filter(function (s) { return puede({ admin: false, contrato: u.ver_contrato, ocultas: apagadas, instalacion: instApagadas }, s.clave); }).length;
+    if (ve === hay) return 'Todas';
     var nombres = apagadas.map(function (k) { return seccion(k).nombre; }).join(', ');
-    return '<span' + (nombres ? ' title="Apagadas: ' + esc(nombres) + '"' : '') + '>' + ve + ' de ' + SECCIONES.length + '</span>' +
+    return '<span' + (nombres ? ' title="Apagadas: ' + esc(nombres) + '"' : '') + '>' + ve + ' de ' + hay + '</span>' +
         '<div class="sub">' + (apagadas.length ? apagadas.length + (apagadas.length === 1 ? ' apagada' : ' apagadas') : 'sin el contrato') + '</div>';
 }
+// Lo apagado en la instalación no se ofrece: no hay cómo encendérselo a nadie (queda como estaba guardado)
+function hayEnInst(s) { return enInstalacion(instApagadas, s.clave); }
 function pintarSecciones(ocultas) {
     $('sec-lista').innerHTML = GRUPOS.map(function (g) {
-        return '<div class="us-sec-grupo"><b>' + esc(g) + '</b>' + SECCIONES.filter(function (s) { return s.grupo === g; }).map(function (s) {
+        var del = SECCIONES.filter(function (s) { return s.grupo === g && hayEnInst(s); });
+        if (!del.length) return '';
+        return '<div class="us-sec-grupo"><b>' + esc(g) + '</b>' + del.map(function (s) {
             return '<label class="us-sec"><input type="checkbox" data-sec="' + s.clave + '"' + (ocultas.indexOf(s.clave) === -1 ? ' checked' : '') + '> ' +
                 '<span>' + esc(s.nombre) + '<small data-nota="' + s.clave + '"></small></span></label>';
         }).join('') + '</div>';
@@ -164,12 +171,13 @@ function casilla(k) { return $('sec-lista').querySelector('[data-sec="' + k + '"
 function ajustarSecciones() {
     if (!$('sec-lista').firstChild) return;
     var admin = form.rol.value === 'admin', contrato = admin || form.contrato.checked;
-    var subs = casilla('subsanaciones').checked;
+    var subs = !!casilla('subsanaciones') && casilla('subsanaciones').checked;
     $('sec-todas').disabled = $('sec-ninguna').disabled = admin;
     $('secciones-ayuda').textContent = admin ? 'Los administradores ven todas las secciones.'
         : 'Lo que apague desaparece de sus menús y, si abre el enlace, le sale «No tiene acceso».';
     SECCIONES.forEach(function (s) {
         var c = casilla(s.clave), nota = '';
+        if (!c) return;
         if (admin) nota = '';
         else if (s.contrato && !contrato) nota = 'necesita «Puede ver el contrato»';
         else if (s.dentro && s.dentro === 'subsanaciones' && !subs) nota = 'se abre dentro de Subsanaciones';
@@ -184,16 +192,17 @@ function ajustarSecciones() {
 }
 function todasSecciones(si) {
     // Primero Subsanaciones: de ella dependen sus herramientas
-    casilla('subsanaciones').checked = si;
+    if (casilla('subsanaciones')) casilla('subsanaciones').checked = si;
     ajustarSecciones();
     // Las bloqueadas quedan así para cuando se desbloqueen
-    SECCIONES.forEach(function (s) { var c = casilla(s.clave); if (c.dataset.bloq) c.dataset.bloq = si ? 'si' : 'no'; else if (!c.disabled) c.checked = si; });
+    SECCIONES.forEach(function (s) { var c = casilla(s.clave); if (!c) return; if (c.dataset.bloq) c.dataset.bloq = si ? 'si' : 'no'; else if (!c.disabled) c.checked = si; });
     ajustarSecciones();
 }
 // Lo apagado. Las bloqueadas (por el contrato o por Subsanaciones) guardan lo que tenían (o lo que les puso Todas / Ninguna)
 function ocultasDelFormulario(antes) {
     return SECCIONES.filter(function (s) {
         var c = casilla(s.clave);
+        if (!c) return (antes || []).indexOf(s.clave) !== -1;   // apagada en la instalación: queda como estaba guardada
         if (c.dataset.bloq) return c.dataset.bloq === 'no';
         return c.disabled ? (antes || []).indexOf(s.clave) !== -1 : !c.checked;
     }).map(function (s) { return s.clave; });
@@ -288,6 +297,97 @@ async function eliminar(u) {
     } catch (e) { toast(e.message); }
 }
 
+// ---------- ⚙️ Esta instalación (0031_instalacion.sql): lo apagado para todos, administradores incluidos ----------
+// La ventana abre leyendo lo guardado en la base y, al cerrarla, no queda nada a medias
+async function leerInstalacion() {
+    var r = await supabase.rpc('config_instalacion');
+    if (r.error) throw new Error(/config_instalacion/.test(r.error.message || '') ? 'Falta aplicar la migración 0031_instalacion.sql en esta base.' : mensaje(r.error));
+    return ((r.data && r.data.apagadas) || []).filter(seccion);
+}
+var instGuardadas = [];
+function cajaInst(k) { return $('inst-lista').querySelector('[data-inst="' + k + '"]'); }
+// Lo apagado según la ventana: las casillas sin marcar y, de las bloqueadas (su sección está apagada), las que ya venían apagadas
+function apagadasDeInst() {
+    return SECCIONES.filter(function (s) {
+        var c = cajaInst(s.clave);
+        if (!c) return false;
+        return c.disabled ? c.dataset.antes === 'no' : !c.checked;
+    }).map(function (s) { return s.clave; });
+}
+function ajustarInst() {
+    // Lo que se abre dentro de otra sección se apaga con ella (y vuelve como estaba al encenderla)
+    SECCIONES.forEach(function (s) {
+        var c = cajaInst(s.clave);
+        if (!c || !s.dentro) return;
+        var padre = cajaInst(s.dentro), bloq = !!padre && !padre.checked;
+        if (bloq && !c.disabled) { c.dataset.antes = c.checked ? 'si' : 'no'; c.checked = false; }
+        else if (!bloq && c.disabled) { c.checked = c.dataset.antes !== 'no'; delete c.dataset.antes; }
+        c.disabled = bloq;
+        c.closest('label').classList.toggle('us-sec-off', bloq);
+        $('inst-lista').querySelector('[data-inst-nota="' + s.clave + '"]').textContent = bloq ? 'se apaga con ' + seccion(s.dentro).nombre.replace(/^\S+\s/, '') : '';
+    });
+    var ap = apagadasDeInst(), enc = SECCIONES.filter(function (s) { return enInstalacion(ap, s.clave); }).length;
+    $('inst-cuenta').textContent = enc === SECCIONES.length ? 'Todas encendidas (' + enc + ').'
+        : enc === 0 ? '⚠ Todo apagado: los usuarios no verían ninguna sección.' : enc + ' de ' + SECCIONES.length + ' encendidas.';
+    $('inst-guardar').disabled = mismas(ap, instGuardadas);
+}
+function pintarInst(apagadas) {
+    $('inst-lista').innerHTML = GRUPOS.map(function (g) {
+        return '<div class="us-sec-grupo"><b>' + esc(g) + '</b>' + SECCIONES.filter(function (s) { return s.grupo === g; }).map(function (s) {
+            return '<label class="us-sec"><input type="checkbox" data-inst="' + s.clave + '"' + (apagadas.indexOf(s.clave) === -1 ? ' checked' : '') + '> ' +
+                '<span>' + esc(s.nombre) + '<small data-inst-nota="' + s.clave + '"></small></span></label>';
+        }).join('') + '</div>';
+    }).join('');
+    // Primero se bloquean las de adentro con lo que tenían guardado (si estaban apagadas, quedan apagadas)
+    SECCIONES.forEach(function (s) {
+        var c = cajaInst(s.clave), padre = s.dentro && cajaInst(s.dentro);
+        if (c && padre && !padre.checked) { c.dataset.antes = apagadas.indexOf(s.clave) === -1 ? 'si' : 'no'; c.checked = false; c.disabled = true; }
+    });
+    ajustarInst();
+}
+async function abrirInstalacion() {
+    var d = $('dlg-inst');
+    $('inst-error').hidden = true;
+    $('inst-cuenta').textContent = '';
+    $('inst-lista').innerHTML = '<div class="cargando">Leyendo…</div>';
+    $('inst-guardar').disabled = $('inst-todas').disabled = $('inst-ninguna').disabled = true;
+    d.showModal();
+    try {
+        var leidas = await leerInstalacion();
+        if (!d.open) return;
+        instGuardadas = leidas;
+        pintarInst(leidas);
+        $('inst-todas').disabled = $('inst-ninguna').disabled = false;
+    } catch (e) {
+        if (!d.open) return;
+        $('inst-lista').innerHTML = '';
+        $('inst-error').textContent = e.message;
+        $('inst-error').hidden = false;
+    }
+}
+function todasInst(si) {
+    SECCIONES.forEach(function (s) { var c = cajaInst(s.clave); if (!c) return; if (c.disabled) c.dataset.antes = si ? 'si' : 'no'; else c.checked = si; });
+    ajustarInst();
+}
+async function guardarInstalacion() {
+    var b = $('inst-guardar'), ap = apagadasDeInst();
+    b.disabled = true;
+    b.textContent = 'Guardando…';
+    $('inst-error').hidden = true;
+    try {
+        await llamar('admin_instalacion', { apagadas: ap });
+        instApagadas = instGuardadas = ap;
+        $('dlg-inst').close();
+        toast(ap.length ? 'Listo: ' + ap.length + (ap.length === 1 ? ' sección apagada' : ' secciones apagadas') + ' para todos.' : 'Listo: todas las secciones encendidas.');
+        aplicarPermisos(supabase, usuarioSesion);   // el menú de esta página se pone al día
+        pintar();
+    } catch (e) {
+        $('inst-error').textContent = 'No se pudo guardar: ' + e.message;
+        $('inst-error').hidden = false;
+        b.disabled = false;
+    } finally { b.textContent = 'Guardar'; }
+}
+
 async function arrancar() {
     iniciarEncabezado();
     if (!configurado) { $('lista').innerHTML = ''; aviso('Falta la conexión con Supabase (.env).', true); return; }
@@ -297,13 +397,26 @@ async function arrancar() {
     salir.hidden = false;
     salir.title = 'Cerrar sesión de ' + usuario.email;
     salir.onclick = function () { cerrarSesion(supabase); };
-    if (!(await aplicarPermisos(supabase, usuario)).admin) {
+    usuarioSesion = usuario;
+    var permisos = await aplicarPermisos(supabase, usuario);
+    instApagadas = (permisos.instalacion || []).filter(seccion);
+    if (!permisos.admin) {
         $('lista').innerHTML = '';
         aviso('🔒 Esta página es solo para administradores. Pídale al administrador que le cambie el rol si necesita manejar usuarios.', true);
         return;
     }
     $('btn-nuevo').hidden = false;
     $('filtros').hidden = false;
+    $('btn-instalacion').hidden = false;
+    $('btn-instalacion').onclick = function () { $('btn-instalacion').closest('details').open = false; abrirInstalacion(); };
+    $('inst-x').onclick = $('inst-cerrar').onclick = function () { $('dlg-inst').close(); };
+    $('inst-lista').addEventListener('change', ajustarInst);
+    $('inst-todas').onclick = function () { todasInst(true); };
+    $('inst-ninguna').onclick = function () { todasInst(false); };
+    $('inst-guardar').onclick = guardarInstalacion;
+    // Al cerrar (Cerrar, ×, Esc o tocando afuera) no queda nada a medias
+    $('dlg-inst').addEventListener('close', function () { $('inst-lista').innerHTML = ''; $('inst-error').hidden = true; $('inst-cuenta').textContent = ''; });
+    $('dlg-inst').addEventListener('click', function (ev) { if (ev.target === ev.currentTarget) ev.currentTarget.close(); });
     $('btn-nuevo').onclick = function () { abrir(null); };
     $('btn-recargar').onclick = cargar;
     $('btn-cerrar').onclick = $('btn-cancelar').onclick = function () { dlg.close(); };

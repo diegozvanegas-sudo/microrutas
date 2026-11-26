@@ -120,3 +120,66 @@ test('secciones: a dónde mandarlo cuando abre una apagada', () => {
     const todo = SECCIONES.map((s) => s.clave);
     assert.equal(primeraPermitida({ ...interventor, ocultas: todo }), null);
 });
+
+import { enInstalacion, apagadaEnInstalacion } from '../src/secciones.js';
+test('instalación (0031): lo apagado vale para todos, administradores incluidos', () => {
+    const inst = ['pqr', 'subsanaciones'];
+    assert.equal(puede({ admin: true, instalacion: inst }, 'pqr'), false);
+    assert.equal(puede({ admin: false, contrato: true, instalacion: inst }, 'pqr'), false);
+    assert.equal(puede({ admin: true, instalacion: inst }, 'mapa'), true);
+    // lo que vive dentro de Subsanaciones se apaga con ella; Crear archivos (enPagina) no
+    assert.equal(enInstalacion(inst, 'hallazgos'), false);
+    assert.equal(enInstalacion(inst, 'auditar'), false);
+    assert.equal(enInstalacion(inst, 'fotos'), true);
+    assert.equal(apagadaEnInstalacion({ instalacion: inst }, 'pqr'), true);
+    assert.equal(apagadaEnInstalacion({ instalacion: inst, ocultas: ['mapa'] }, 'mapa'), false);
+    // por usuario sigue igual encima de la instalación
+    assert.equal(puede({ admin: false, ocultas: ['mapa'], instalacion: inst }, 'mapa'), false);
+});
+
+test('instalación: sin el dato (base sin 0031 o permisos viejos) todo sigue como antes', () => {
+    SECCIONES.forEach((s) => assert.equal(enInstalacion(undefined, s.clave), true, s.clave));
+    assert.equal(puede({ admin: true }, 'pqr'), true);
+    assert.equal(enInstalacion(['pqr'], 'no-existe'), true);
+});
+
+test('instalación: primeraPermitida salta lo apagado', () => {
+    const p = { admin: true, instalacion: ['subsanaciones', 'pqr', 'radicar', 'cruce'] };
+    assert.equal(primeraPermitida(p).clave, 'optimizar');
+});
+
+import { cssApagadas } from '../src/secciones.js';
+test('instalación: estilo que esconde los enlaces sueltos a lo apagado', () => {
+    assert.equal(cssApagadas([]), '');
+    assert.equal(cssApagadas(undefined), '');
+    const pqr = cssApagadas(['pqr']);
+    assert.match(pqr, /a\[href\^="pqr\.html"\]/);
+    assert.match(pqr, /display: none !important/);
+    // Subsanaciones apagada: su página y lo que vive dentro (herramientas, #auditar), no Crear archivos
+    const sub = cssApagadas(['subsanaciones']);
+    assert.match(sub, /a\[href\^="subsanaciones\.html"\]/);
+    assert.match(sub, /a\[href\*="herramienta=hallazgos"\]/);
+    assert.match(sub, /a\[href\*="subsanaciones\.html#auditar"\]/);
+    assert.doesNotMatch(sub, /herramienta=fotos/);
+    // Mapa apagado: también el mapa completo (index.html)
+    assert.match(cssApagadas(['mapa']), /a\[href\^="index\.html"\]/);
+    // Contrato apagado, Guía encendida: no se esconde contrato.html?doc=GUIA-CAMPO
+    const con = cssApagadas(['contrato']);
+    assert.doesNotMatch(con, /a\[href\^="contrato\.html"\]/);
+    assert.match(con, /a\[href="contrato\.html"\]/);
+    assert.match(con, /:not\(\[href\*="doc=GUIA-CAMPO"\]\)/);
+    assert.match(cssApagadas(['guia']), /a\[href\^="contrato\.html\?doc=GUIA-CAMPO"\]/);
+    // Con las dos apagadas, la página entera
+    assert.match(cssApagadas(['guia', 'contrato']), /a\[href\^="contrato\.html"\]/);
+});
+
+test('instalación: lo marcado con data-seccion (botones que llevan a otra sección por código) también se esconde', () => {
+    assert.match(cssApagadas(['mapa']), /\[data-seccion="mapa"\]/);
+    assert.match(cssApagadas(['subsanaciones']), /\[data-seccion="hallazgos"\]/);
+    assert.doesNotMatch(cssApagadas(['pqr']), /data-seccion="mapa"/);
+    // Las marcas que se usan en las páginas son claves que existen
+    const fs2 = (f) => fs.readFileSync(new URL(f, raiz), 'utf8');
+    const usadas = [fs2('subsanaciones.html'), fs2('mapa_rapido.html'), fs2('src/subsanaciones/app.js')].join('\n').match(/data-seccion="([a-z]+)"/g) || [];
+    assert.ok(usadas.length >= 3);
+    usadas.forEach((m) => assert.ok(seccion(m.slice(14, -1)), m));
+});

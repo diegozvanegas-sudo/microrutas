@@ -2,6 +2,7 @@
 // Viene del <script> de la página original; lo que no depende del estado de la página ya está en módulos aparte.
 import { esc, norm, valorItem, hoy, aInput, aTexto, dias, claveFecha, claveRegistro, textoDias, marca, textoCarga, cargaDeTexto, horaCarga, metros, textoDist } from './util.js';
 import { $, toast, aviso, confirmar } from './ui.js';
+import { permitida } from '../sesion.js';
 import { abrirProgramar } from '../whatsapp/programar.js';
 import { EJ, OP, NO_REALIZADO, CERRADO, fijarItems, esOp, itemsDe, limpiarObs, itemsEnNo, deLote, esCerrado, calcularEstado, badge, plazoVisita, paraDescuento, itemsSubsanables, itemsNoSubsanables, soloNoSubsanable } from './estado.js';
 import { textoVisita, FORMATOS_VISITA, FORMATOS_DIA, FORMATOS_PEND, textoResumen, textoReiteracion, textoDescuento, textoDia, textoNovedadesDia, leerMenciones } from './whatsapp.js';
@@ -1009,7 +1010,7 @@ export function iniciar(api, CFG) {
         // Coordenadas (6.2751N 75.5737W): el mapa busca el lote que contiene ese punto
         var c = input.id === 'ir-mapa' && window.leerCoordenadas(q);
         if (c) {
-            caja.innerHTML = '<button type="button" data-ll="' + c.lat + ',' + c.lng + '"><span class="s-ir">Ver en mapa ›</span><span class="s-mr">📍 Ubicar el lote en ' +
+            caja.innerHTML = '<button type="button" data-seccion="mapa" data-ll="' + c.lat + ',' + c.lng + '"><span class="s-ir">Ver en mapa ›</span><span class="s-mr">📍 Ubicar el lote en ' +
                 c.lat.toFixed(5) + ', ' + c.lng.toFixed(5) + '</span></button>';
             caja.hidden = false;
             return;
@@ -2364,9 +2365,15 @@ export function iniciar(api, CFG) {
             });
             return (cs.length === 1 ? lin.slice(1) : lin).join('\n');
         }).join('\n\n');
-        var si = await confirmar(cs.map(tituloCierre).join(' · '),
-            cuerpo + '\n\nSe cuenta lo reportado en el 📊 Cruce (también lo cargado en la pre-ruta) y la X del Excel de programación.',
-            'Ver en el 📊 Cruce', 'Entendido');
+        var nota = '\n\nSe cuenta lo reportado en el 📊 Cruce (también lo cargado en la pre-ruta) y la X del Excel de programación.';
+        // Sin el Cruce (apagado en la instalación o para este usuario) no se ofrece el botón para ir allá
+        if (!permitida('cruce')) {
+            $('conf-si').hidden = true;   // un solo botón: Entendido
+            await confirmar(cs.map(tituloCierre).join(' · '), cuerpo + nota.replace(' en el 📊 Cruce', ''), '', 'Entendido');
+            $('conf-si').hidden = false;
+            return;
+        }
+        var si = await confirmar(cs.map(tituloCierre).join(' · '), cuerpo + nota, 'Ver en el 📊 Cruce', 'Entendido');
         if (si) location.href = 'cruce.html';
     }
     // Lotes del mensaje que ya están en alguna tarjeta con otra fecha de ejecución: se pregunta con cuál se quedan.

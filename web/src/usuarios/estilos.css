@@ -54,3 +54,16 @@ label.us-app small { margin-top: 2px; font-size: 12px; }
 .us-chip { display: inline-block; padding: 2px 8px; margin: 1px 0; border-radius: 999px; font-size: 12px; font-weight: 650; white-space: nowrap; }
 .us-chip-microrutas { color: var(--brand); background: #edf8f3; }
 .us-chip-rutina { color: #9a3412; background: #ffedd5; }
+
+/* ⚙️ Esta instalación: lo apagado para todos (0031) */
+/* En celular (≤ 760 px) va a pantalla completa como las demás ventanas (subsanaciones/estilos.css) */
+@media (min-width: 761px) { #dlg-inst { width: min(620px, calc(100% - 24px)); } }
+#dlg-inst h2 { position: static; margin: 0 0 6px; padding: 0; border: 0; }
+#dlg-inst .us-inst-lista { max-height: 52vh; }
+#inst-error { margin: 12px 0 0; }
+label.us-sec-inst { color: var(--muted); }
+/* Pie siempre visible, como en 📍 Ubicar direcciones */
+#dlg-inst .pie { position: sticky; bottom: 0; z-index: 5; margin: 16px -18px -18px; padding: 10px 18px calc(10px + env(safe-area-inset-bottom)); background: var(--surface, #fff); border-top: 1px solid var(--line); }
+#dlg-inst .pie button { min-height: 42px; }
+@media (max-width: 760px) { #dlg-inst .us-inst-lista { max-height: none; } }
+@media (max-width: 560px) { #dlg-inst .pie { margin: 16px -14px -14px; padding: 10px 14px calc(10px + env(safe-area-inset-bottom)); } #dlg-inst .pie > * { flex: 1 1 auto; } }
