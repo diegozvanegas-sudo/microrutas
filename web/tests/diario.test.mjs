@@ -119,3 +119,14 @@ test('informe: «lo de siempre», sin ✅ doble y lo que quedó sin completar', 
     assert.equal(porCompletar(['Se realizaron visitas a las cuadrillas … .']).length, 1);
     assert.equal(porCompletar(BASE_INFORME).length, 0);
 });
+
+import { FRASES_RECORRIDO } from '../src/diario/comun.js';
+test('recorridos: frases del recorrido en conjunto (sin nombres de personas)', () => {
+    const f = Object.fromEntries(FRASES_RECORRIDO.map((x) => [x.t, x.texto]));
+    assert.equal(Object.keys(f).length, FRASES_RECORRIDO.length);
+    assert.match(f['Recorrido en conjunto'], /en conjunto con … por … , desde … hasta … \.$/);
+    assert.match(f['Novedades evidenciadas'], /residuos ordinarios acumulados, llantas, residuos esparcidos, RCD y voluminosos\.$/);
+    assert.ok(f['Volqueta del aliado'].includes('del aliado …'));
+    assert.ok(f['Visita del alcalde'].includes('…'));
+    FRASES_RECORRIDO.forEach((x) => { assert.match(x.texto, /\.$/, x.t); assert.ok(!x.texto.includes('@'), x.t); });
+});

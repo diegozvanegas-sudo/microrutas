@@ -214,6 +214,11 @@ export var FRASES_RECORRIDO = [
     { t: 'Voluminosos, RCD y llantas', texto: 'Durante los recorridos se evidenciaron residuos voluminosos, RCD, residuos ordinarios y llantas, los cuales fueron reportados en los grupos correspondientes para su respectiva gestión.' },
     { t: 'Recorrido por la zona', texto: 'Durante el recorrido por la zona se reportaron los voluminosos, RCD y llantas a sus respectivos grupos.' },
     { t: 'Vías principales', texto: 'Se hizo recorrido en vías principales y se visitaron puntos críticos.' },
+    { t: 'Recorrido en conjunto', texto: 'La Interventoría del Área de Servicio de Aseo de Emvarias realiza recorrido de verificación en conjunto con … por … , desde … hasta … .' },
+    { t: 'Visita del alcalde', texto: 'Teniendo en cuenta la visita programada del alcalde para … .' },
+    { t: 'Novedades evidenciadas', texto: 'Durante el recorrido se evidencian novedades de residuos ordinarios acumulados, llantas, residuos esparcidos, RCD y voluminosos.' },
+    { t: 'Volqueta del aliado', texto: 'Asimismo, se observa que … volqueta(s) del aliado … se encuentra(n) realizando recolección en … .' },
+    { t: 'Enviadas para pronta atención', texto: 'Las novedades encontradas fueron enviadas a los diferentes grupos correspondientes para su pronta atención.' },
 ];
 
 // Reporte parcial de domingos y festivos (turno tarde, centro): por zona, rutas de limpieza vial (terminan en DOM),
