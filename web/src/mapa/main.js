@@ -8,6 +8,7 @@ import { supabase, configurado } from '../supabase.js';
 import { infoLote, chipReporte, htmlAvisos, htmlMas } from './ficha.js';
 import { encuadre, urlEarth, kmlLote, alturaTerreno } from './earth.js';
 import { mezclarPuntos } from './especiales.js';
+import { mezclarCriticos, claveFija, nuevoIdCritico, textoCritico, deFilaCritico, aFilaCritico } from './criticos.js';
 import { crearProgBase } from '../programacion_base.js';
 import { enInstalacion } from '../secciones.js';
 import { estiloInstalacion } from '../sesion.js';
@@ -98,6 +99,28 @@ window.PuntosEspeciales = {
     }
 };
 window.dispatchEvent(new Event('especiales-lista'));
+
+// 🗑 Puntos críticos agregados en los recorridos y su descripción (tabla puntos_criticos, 0033): los mismos en todos los
+// equipos. Sin sesión o sin señal responde { ok: false } y el mapa los deja pendientes en el equipo
+window.PuntosCriticos = {
+    mezclar: mezclarCriticos, claveFija: claveFija, nuevoId: nuevoIdCritico, texto: textoCritico,
+    // → { ok, filas: { id: fila } }
+    leer: async function () {
+        if (!(await conSesion())) return { ok: false };
+        var r = await supabase.from('puntos_criticos').select('id, nombre, direccion, zona, descripcion, lat, lon, origen, quitado, actualizado');
+        if (r.error) return { ok: false, error: r.error.message };
+        var filas = {};
+        r.data.forEach(function (x) { filas[x.id] = deFilaCritico(x); });
+        return { ok: true, filas: filas };
+    },
+    guardar: async function (p) {
+        if (!(await conSesion())) return { ok: false };
+        var s = await supabase.auth.getSession();
+        var r = await supabase.from('puntos_criticos').upsert(Object.assign(aFilaCritico(p), { usuario: s.data.session.user.id }), { onConflict: 'id' });
+        return r.error ? { ok: false, error: r.error.message } : { ok: true };
+    }
+};
+window.dispatchEvent(new Event('criticos-lista'));
 
 // Lo más nuevo de la base (solo si ya hay sesión en este equipo; el mapa no pide entrar)
 async function deLaBase() {

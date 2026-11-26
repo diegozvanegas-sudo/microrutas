@@ -156,6 +156,12 @@
     .ficha-lote .lista-f { list-style: none; padding-left: 0; }
     .ficha-lote .aviso-f a.ver-visita { padding: 3px 10px; font-size: 11.5px; }
     .ficha-lote .sub-f { color: var(--muted); font-size: 12px; font-weight: 400; }
+    /* 🗑 Punto crítico: descripción con sus saltos de línea y formulario para agregar o editar */
+    .ficha-critico .pc-desc { white-space: pre-line; }
+    .pc-form { display: grid; gap: 10px; margin-top: 8px; }
+    .pc-form label { display: grid; gap: 4px; font-size: 12px; font-weight: 700; color: var(--muted); }
+    .pc-form input, .pc-form textarea { width: 100%; box-sizing: border-box; min-height: 42px; padding: 9px 10px; border: 1px solid var(--line); border-radius: 8px; font: inherit; font-size: 16px; font-weight: 400; color: var(--ink); background: #fff; }
+    .pc-form textarea { resize: vertical; min-height: 96px; }
     .ficha-lote .dato-sub { display: block; font-size: 11.5px; color: #b45309; font-weight: 600; margin-top: 1px; }
     /* Historial y análisis (plegado) */
     .ficha-lote .mas-f { margin: 4px 0 2px; border: 1px solid var(--line); border-radius: 10px; padding: 6px 10px; }
@@ -932,12 +938,190 @@
             }).join('') +
             (p.u ? '<div style="margin-top:6px;color:#64748b;font-size:12px">Ubicación: ' + esc(p.u) + '</div>' : '') + '</div>';
     }
+    // ---------- 🗑 Puntos críticos de basura: ficha con cómo llegar y descripción, y agregar los que se ven en el recorrido ----------
+    // Los del archivo (capa_puntos_criticos.js) + lo de la base (puntos_criticos, 0033, por src/mapa/main.js →
+    // window.PuntosCriticos) + lo de este equipo aún sin subir (criticos_locales). Los agregados en campo van en naranja.
+    // Se agregan desde «Usted está aquí», el pin (dejar el dedo sobre el mapa) o el punto de una dirección buscada.
+    var pcFijos = [], pcBase = leer('criticos_base', {}), pcLocales = leer('criticos_locales', {}), pcLista = [], pcNuevo = null, pcSync = false;
+    function pcTodos() {
+        var P = window.PuntosCriticos;
+        if (P) return P.mezclar(pcFijos, pcBase, pcLocales);
+        return pcFijos.map(function (f) { return { id: f.id, nombre: f.n || '', direccion: f.d || '', zona: f.z || '', descripcion: '', lat: f.lat, lon: f.lon, origen: 'fijo' }; });
+    }
+    function pcDe(id) { return pcLista.filter(function (p) { return p.id === id; })[0] || null; }
+    function pintarCriticos() {
+        var g = capasExtra.puntos_criticos;
+        if (!g) return;
+        g.clearLayers();
+        pcLista = pcTodos();
+        pcLista.forEach(function (p) {
+            var est = p.origen === 'campo' ? L.extend({}, ESTILOS_CAPA.puntos_criticos, { fillColor: '#f97316' }) : ESTILOS_CAPA.puntos_criticos;
+            L.circleMarker([p.lat, p.lon], est).bindTooltip(esc(p.nombre || 'Punto crítico'), { direction: 'top' })
+                .on('click', function () { verCritico(p.id); }).addTo(g);
+        });
+        if (!pcSync) sincronizarCriticos();
+    }
+    // Sube lo pendiente de este equipo y trae lo de la base (solo con sesión; sin ella queda lo del equipo)
+    function subirCritico(id) {
+        var P = window.PuntosCriticos, x = pcLocales[id];
+        if (!P || !x) return Promise.resolve(false);
+        return P.guardar(x).then(function (r) {
+            if (!r.ok || pcLocales[id] !== x) return false;   // si se cambió mientras subía, el cambio nuevo sigue pendiente
+            delete pcLocales[id];
+            pcBase[id] = Object.assign({}, x, { pendiente: false });
+            guardar('criticos_locales', pcLocales); guardar('criticos_base', pcBase);
+            return true;
+        }, function () { return false; });
+    }
+    function sincronizarCriticos() {
+        var P = window.PuntosCriticos;
+        if (!P || !capasExtra.puntos_criticos) return;
+        pcSync = true;
+        Object.keys(pcLocales).reduce(function (pr, id) { return pr.then(function () { return subirCritico(id); }); }, Promise.resolve())
+            .then(function () { return P.leer(); })
+            .then(function (r) {
+                if (!r || !r.ok) return;
+                pcBase = r.filas; guardar('criticos_base', pcBase);
+                pintarCriticos(); refrescarFichaCritico();
+            }, function () {});
+    }
+    window.addEventListener('criticos-lista', function () { pcSync = false; pintarCriticos(); });
+    function activarCriticos(listo) {
+        if (capasActivas.indexOf('puntos_criticos') === -1) { capasActivas.push('puntos_criticos'); guardar('rapido_capas', capasActivas); pintarChips(); }
+        if (capasExtra.puntos_criticos) { capasExtra.puntos_criticos.addTo(map); return listo && listo(); }
+        cargarArchivo('capa_puntos_criticos', function () { mostrarCapa('puntos_criticos', true); if (listo) listo(); });
+    }
+    // Zona del punto crítico más cercano (a menos de 3 km): la zona se puede corregir en el formulario
+    function zonaCercana(ll) {
+        var z = '', dmin = 3000;
+        pcLista.forEach(function (p) { var d = ll.distanceTo([p.lat, p.lon]); if (p.zona && d < dmin) { dmin = d; z = p.zona; } });
+        return z;
+    }
+    function distTxt(d) { return d == null ? '' : d >= 1000 ? (d / 1000).toFixed(1).replace('.', ',') + ' km' : Math.round(d) + ' m'; }
+    function fichaCritico(p) {
+        var ll = L.latLng(p.lat, p.lon), o = origen();
+        var dato = function (t, v) { return v ? '<div class="dato"><span class="et">' + t + '</span><b>' + esc(v) + '</b></div>' : ''; };
+        return '<div class="ficha-lote ficha-critico" data-critico="' + esc(p.id) + '">' +
+            '<div class="cab"><span class="titulo">🗑 ' + esc(p.nombre || 'Punto crítico') + '</span></div>' +
+            '<div class="mr">Punto crítico de basura' + (p.zona ? ' · ' + esc(p.zona) : '') + (p.origen === 'campo' ? ' · agregado en recorrido' : '') +
+                (p.pendiente ? ' · <b>solo en este equipo</b> por ahora (se comparte con señal y sesión)' : '') + '</div>' +
+            '<div class="datos">' + dato('Desde usted', o ? distTxt(o.distanceTo(ll)) : 'sin GPS') + dato('Coordenadas', coordTxt(ll)) + '</div>' +
+            (p.direccion && p.direccion !== p.nombre ? '<div class="bloque"><span class="et">Dirección</span><div class="txt">' + esc(p.direccion) + '</div></div>' : '') +
+            '<div class="bloque"><span class="et">Descripción</span><div class="txt pc-desc">' + (p.descripcion ? esc(p.descripcion)
+                : '<span class="sub-f">Sin descripción. Toque «✏️ Editar» y cuente qué se acumula, cada cuánto y cómo se llega.</span>') + '</div></div>' +
+            '<div class="acciones">' +
+                '<a class="boton primario" data-critico-ir href="' + esc(urlRuta(o, ll)) + '" target="_blank" rel="noopener">🧭 Cómo llegar</a>' +
+                '<a class="boton secundario" href="https://waze.com/ul?ll=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6) + '&navigate=yes" target="_blank" rel="noopener">🚗 Waze</a>' +
+                '<button type="button" class="boton secundario" data-critico-editar>✏️ Editar</button>' +
+                '<button type="button" class="boton secundario" data-critico-copiar>📋 Copiar</button>' +
+                '<a class="boton secundario" href="' + esc(urlCalle(ll)) + '" target="_blank" rel="noopener">🚶 Street View</a>' +
+                '<button type="button" class="boton secundario" data-critico-quitar title="Ya se recuperó: deja de verse en el mapa">✓ Ya no es crítico</button>' +
+            '</div></div>';
+    }
+    function formCritico(p, nuevo) {
+        var campo = function (n, et, v, max, ph) { return '<label>' + et + ' <input name="' + n + '" maxlength="' + max + '" value="' + esc(v || '') + '" placeholder="' + esc(ph) + '"></label>'; };
+        return '<div class="ficha-lote ficha-critico-form">' +
+            '<div class="cab"><span class="titulo">' + (nuevo ? '➕ Nuevo punto crítico' : '✏️ Editar punto crítico') + '</span></div>' +
+            '<div class="mr">' + (nuevo ? 'Queda en ' + esc(coordTxt(L.latLng(p.lat, p.lon))) + '. ' : '') + 'Lo ven todos los equipos.</div>' +
+            '<form class="pc-form" data-pc-form="' + esc(p.id) + '">' +
+                campo('nombre', 'NOMBRE O REFERENCIA', p.nombre, 200, 'Calle 52 con carrera 82 · Parque…') +
+                campo('direccion', 'DIRECCIÓN', p.direccion, 300, 'Calle 84 entre carrera 36 y 39, Manrique') +
+                campo('zona', 'ZONA', p.zona, 40, 'Zona 1') +
+                '<label>DESCRIPCIÓN <textarea name="descripcion" maxlength="1000" rows="4" placeholder="Qué se acumula (bolsas, escombros, llantas, voluminosos), cada cuánto, a qué hora y cómo se llega (entrada, referencia)">' + esc(p.descripcion || '') + '</textarea></label>' +
+                '<div class="acciones"><button type="button" class="boton secundario" data-pc-cancelar>Cancelar</button><button type="submit" class="boton primario">💾 Guardar</button></div>' +
+            '</form></div>';
+    }
+    function verCritico(id, sinMover) { var p = pcDe(id); if (p) abrirPanel(fichaCritico(p), L.latLng(p.lat, p.lon), sinMover); }
+    function refrescarFichaCritico() { var f = document.querySelector('.ficha-critico[data-critico]'); if (f) verCritico(f.dataset.critico, true); }
+    function nuevoCritico(ll, nombre) {
+        if (!ll) return toast('Todavía no hay ubicación: espere el GPS o deje el dedo sobre el mapa donde está el punto.');
+        var P = window.PuntosCriticos;
+        activarCriticos(function () {
+            pcNuevo = { id: P ? P.nuevoId() : 'c:' + Date.now().toString(36), lat: +ll.lat.toFixed(6), lon: +ll.lng.toFixed(6), origen: 'campo',
+                // Nombre corto (la vía o el cruce, sin barrio ni ciudad); la dirección completa va en su campo
+                nombre: String(nombre || '').split(',')[0].trim(), direccion: nombre || '', zona: zonaCercana(ll), descripcion: '' };
+            map.closePopup();
+            abrirPanel(formCritico(pcNuevo, true), ll);
+            var este = pcNuevo;
+            if (!nombre) lugarDe(ll).then(function (l) {
+                var f = document.querySelector('.pc-form[data-pc-form="' + este.id + '"]');
+                if (!l || !f) return;
+                if (!f.nombre.value) f.nombre.value = l.via || String(l.dir || '').split(',')[0];
+                if (!f.direccion.value) f.direccion.value = l.dir || '';
+            });
+        });
+    }
+    // Fase de captura: Leaflet frena los clics dentro de su ventana antes de que lleguen al documento
+    document.addEventListener('click', function (ev) {
+        var t = ev.target.closest && ev.target.closest('[data-critico-nuevo], [data-critico-ir], [data-critico-editar], [data-critico-copiar], [data-critico-quitar], [data-pc-cancelar]');
+        if (!t) return;
+        if (t.hasAttribute('data-critico-nuevo')) {
+            var w = t.dataset.criticoNuevo;
+            if (w === 'yo') return nuevoCritico(yo && yo.ll, yo && dirYo());
+            if (w === 'pin') return nuevoCritico(pin && pin.getLatLng(), pinDir);
+            var c = String(t.dataset.ll || '').split(',').map(Number);
+            return nuevoCritico(c.length === 2 && isFinite(c[0]) ? L.latLng(c[0], c[1]) : null, t.dataset.nombre);
+        }
+        if (t.hasAttribute('data-pc-cancelar')) {
+            var id0 = t.closest('[data-pc-form]').dataset.pcForm;
+            if (pcNuevo && pcNuevo.id === id0) { pcNuevo = null; map.closePopup(); cerrarFicha(); return; }
+            return verCritico(id0, true);
+        }
+        var raiz = t.closest('[data-critico]'), p = raiz && pcDe(raiz.dataset.critico);
+        if (!p) return;
+        var ll = L.latLng(p.lat, p.lon);
+        if (t.hasAttribute('data-critico-ir')) { t.href = urlRuta(origen(), ll); return; }   // sale de la ubicación de ese momento
+        if (t.hasAttribute('data-critico-editar')) return abrirPanel(formCritico(p, false), ll, true);
+        if (t.hasAttribute('data-critico-copiar')) {
+            var enlace = 'https://www.google.com/maps/search/?api=1&query=' + ll.lat.toFixed(6) + ',' + ll.lng.toFixed(6);
+            var txt = window.PuntosCriticos ? window.PuntosCriticos.texto(p, enlace) : (p.nombre + '\n' + coordTxt(ll) + '\n' + enlace);
+            var listo = function () { toast('Punto crítico copiado: péguelo en WhatsApp.'); };
+            if (navigator.clipboard && window.isSecureContext) navigator.clipboard.writeText(txt).then(listo, function () { if (copiarViejo(txt)) listo(); });
+            else if (copiarViejo(txt)) listo();
+            return;
+        }
+        if (t.hasAttribute('data-critico-quitar')) {
+            // Dos toques: el primero pregunta (sin ventanas del navegador)
+            if (!t.dataset.seguro) {
+                t.dataset.seguro = '1'; t.textContent = '¿Seguro? Toque otra vez';
+                setTimeout(function () { if (t.isConnected) { delete t.dataset.seguro; t.textContent = '✓ Ya no es crítico'; } }, 4000);
+                return;
+            }
+            guardarCritico(Object.assign({}, p, { quitado: true }), '✓ ' + (p.nombre || 'El punto') + ' ya no sale como punto crítico.');
+            map.closePopup(); cerrarFicha();
+        }
+    }, true);
+    document.addEventListener('submit', function (ev) {
+        var f = ev.target.closest && ev.target.closest('.pc-form');
+        if (!f) return;
+        ev.preventDefault();
+        var id = f.dataset.pcForm, base = pcNuevo && pcNuevo.id === id ? pcNuevo : pcDe(id);
+        if (!base) return;
+        var x = Object.assign({}, base, { nombre: f.nombre.value.trim(), direccion: f.direccion.value.trim(), zona: f.zona.value.trim(), descripcion: f.descripcion.value.trim() });
+        if (!x.nombre) x.nombre = x.direccion || coordTxt(L.latLng(x.lat, x.lon));
+        pcNuevo = null;
+        guardarCritico(x);
+        verCritico(id, true);
+    }, true);
+    // Primero en el equipo (pendiente), luego a la base; si no se puede, queda pendiente y se sube en la próxima lectura con sesión
+    function guardarCritico(x, msg) {
+        x = Object.assign({}, x, { hora: Date.now(), pendiente: true });
+        pcLocales[x.id] = x;
+        guardar('criticos_locales', pcLocales);
+        pintarCriticos();
+        subirCritico(x.id).then(function (ok) {
+            if (ok) { pintarCriticos(); refrescarFichaCritico(); }
+            toast((msg || '🗑 Punto crítico guardado.') + (ok ? ' Lo ven todos los equipos.' : ' Quedó en este equipo: se comparte cuando haya señal y sesión (inicie sesión una vez en Subsanaciones).'));
+        });
+    }
     map.createPane('zonas').style.zIndex = 350;
     map.getPane('zonas').style.pointerEvents = 'none';
     window.cargarCapa = function (k, datos) {
         var g = L.featureGroup();
         g.rutas = [];
         datos.items.forEach(function (p) {
+            // Puntos críticos: se pintan junto con lo de la base y lo agregado en campo (pintarCriticos)
+            if (k === 'puntos_criticos') { var ll0 = decodificar(p.g)[0]; pcFijos.push({ id: 'f:' + p.g[0] + ',' + p.g[1], n: p.n, z: p.z, d: p.d, lat: ll0[0], lon: ll0[1] }); return; }
             if (CAPAS_RUTA[k] && COLOR_VIVO[p.c]) p.c = COLOR_VIVO[p.c];
             var estilo = p.c ? L.extend({}, ESTILOS_CAPA[k], { color: p.c, fillColor: p.c }) : ESTILOS_CAPA[k], capa;
             if (datos.tipo === 'punto') capa = L.circleMarker(decodificar(p.g)[0], estilo);
@@ -976,6 +1160,7 @@
             g.addLayer(capa);
         });
         capasExtra[k] = g;
+        if (k === 'puntos_criticos') pintarCriticos();
         terminar('capa_' + k);
     };
     // ---------- Microrrutas de barrido: buscar por código y ver inicio y fin ----------
@@ -2230,7 +2415,8 @@
         L.circleMarker(ll, { radius: 8, color: '#fff', weight: 3, fillColor: '#7c3aed', fillOpacity: 1, bubblingMouseEvents: false })
             .bindTooltip('📍 ' + txt, { direction: 'top', offset: [0, -8] })
             .bindPopup('<div><b>' + esc(c.buscado || txt) + '</b><br><button type="button" class="boton secundario" style="margin-top:6px" data-aqui-punto="' +
-                c.lat + ',' + c.lng + '" data-nombre="' + esc(c.buscado || txt) + '">📍 Estoy aquí</button></div>')
+                c.lat + ',' + c.lng + '" data-nombre="' + esc(c.buscado || txt) + '">📍 Estoy aquí</button>' +
+                '<br><button type="button" class="boton secundario" style="margin-top:6px" data-critico-nuevo="punto" data-ll="' + c.lat + ',' + c.lng + '" data-nombre="' + esc(c.buscado || '') + '">🗑 Punto crítico aquí</button></div>')
             .addTo(puntoCapa);
         $('buscar').value = c.buscado || txt;
         // Solo se cargan las cuadrillas cuyo recuadro (con margen) incluye el punto
@@ -2499,6 +2685,7 @@
                 '<a class="boton secundario ancho" href="' + esc(urlCalle(ll)) + '" target="_blank" rel="noopener">🚶 Ver la calle (Street View)</a>' +
                 '<button type="button" class="boton secundario" data-pin-lote>Ver lote aquí</button>' +
                 '<button type="button" class="boton secundario" data-pin-quitar>✕ Quitar pin</button>' +
+                '<button type="button" class="boton secundario ancho" data-critico-nuevo="pin">🗑 Agregar punto crítico aquí</button>' +
             '</div></div>';
     }
     function verPin() { if (pin) abrirPanel(fichaPin(), pin.getLatLng()); }
@@ -2619,6 +2806,7 @@
                 '<button type="button" class="boton secundario" data-yo-enviar>📤 Enviar</button>' +
                 (yo.lote ? '<button type="button" class="boton secundario" data-yo-lote>Ver ' + (yo.lote.dentro ? 'el lote' : 'lote cercano') + '</button>' : '') +
                 '<a class="boton secundario' + (yo.lote ? '' : ' ancho') + '" href="' + esc(urlCalle(yo.ll)) + '" target="_blank" rel="noopener">🚶 Street View</a>' +
+                '<button type="button" class="boton secundario ancho" data-critico-nuevo="yo">🗑 Agregar punto crítico aquí</button>' +
             '</div></div>';
     }
     function fichaYoAbierta() { return !!document.querySelector('.ficha-yo'); }
