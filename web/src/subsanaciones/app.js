@@ -18,6 +18,7 @@ import { REGLAS as REGLAS_VENC, TRAMOS as TRAMOS_VENC, vencimientos, textoVencim
 import { zipsAPdf, imagenesDeZips, descargar } from './zippdf.js';
 import { crearUbicador, rotuloLote, loteDeNombre, CERCA as CERCA_LOTE } from './lotegps.js';
 import { direccionOSM, opcionesDonde, lotesCercanos, posDeUrl } from './dondeestoy.js';
+import { ejecucionDelMapa, cuadrillaDelMapa } from './sinnovedad.js';
 import { historialVacio, agregarExcel, agregarVisitas, muestrasHistorial, predecirDia, predecirLote, mesDeFechas, historialDeFilas } from './prediccion.js';
 import { crearProgBase, guardarLocal as guardarProgLocal } from '../programacion_base.js';
 import { leerTabla, diasDe } from './tabla.js';
@@ -1317,6 +1318,22 @@ export function iniciar(api, CFG) {
         });
     }
 
+    function sinNovedadDesdeMapa(ejec, cuad) {
+        if (tipoForm !== EJ) aplicarTipo(EJ, {}, true);
+        var campo = function (c) { return form.querySelector('[data-campo="' + c + '"]'); };
+        var fe = campo('FECHA DE EJECUCIÓN');
+        ejec = ejecucionDelMapa(ejec, hoy());
+        cuad = cuadrillaDelMapa(cuad);
+        if (!fe.value && ejec) fe.value = ejec;
+        if (cuad && !campo('CUADRILLA').value) campo('CUADRILLA').value = cuad;
+        $('todo-si').click();
+        if (/^SIN NOVEDAD$/i.test(campo('OBSERVACIONES NOVEDADES').value.trim())) campo('OBSERVACIONES NOVEDADES').value = '';
+        actualizarEstadoForm();
+        var falta = [!campo('INTERVENTOR').value.trim() && 'el interventor', !fe.value && 'la fecha de ejecución'].filter(Boolean);
+        toast(falta.length ? '✅ Todos los ítems en SI. Falta ' + falta.join(' y ') + '; luego toque Guardar.' : '✅ Todos los ítems en SI, sin novedad. Revise y toque Guardar.');
+        var ir = falta.length ? (!campo('INTERVENTOR').value.trim() ? campo('INTERVENTOR') : fe) : $('btn-guardar');
+        setTimeout(function () { ir.scrollIntoView({ behavior: 'smooth', block: 'center' }); if (falta.length) ir.focus(); }, 150);
+    }
     // Desde el mapa: subsanaciones.html?mr=Z2CC0067&lote=264
     var desdeUrlHecho = false, volverMapa = '', guardandoVolver = false;
     // Después de guardar: de vuelta al mapa (un momento para que se lea el aviso de guardado)
@@ -1368,6 +1385,9 @@ export function iniciar(api, CFG) {
             abrir({ MICRORRUTA: mr, LOTE: lote });
             if (mr) completar(mr); else if (mrPorLote[lote]) completar(mrPorLote[lote]);
         }
+        // «✅ Revisado sin novedad» del mapa (&sinnovedad=1): lote ejecutado con todos los ítems en SI y sin observaciones.
+        // Fecha de ejecución y cuadrilla del último reporte (&ejec=aaaa-mm-dd&cuad=) si la pre-ruta no las puso: solo queda Guardar
+        if (q.get('sinnovedad')) sinNovedadDesdeMapa(q.get('ejec') || '', q.get('cuad') || '');
         // Al cerrar el formulario se quita el filtro de ese lote y queda la lista completa
         dlg.addEventListener('close', function () { if ($('f-texto').value === (mr || lote)) { $('f-texto').value = ''; pintar(); } }, { once: true });
     }
