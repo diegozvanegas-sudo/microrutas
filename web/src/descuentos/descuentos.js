@@ -137,7 +137,8 @@ export function filasHistorial(lista) {
 export function aFila(d) {
     var t = totales(d.filas);
     return { id: d.id, tipo: d.tipo, fecha: d.fecha || null, sector: d.sector || '', campos: d.campos || {}, textos: d.textos || {},
-        filas: (d.filas || []).map(function (f) { return { mr: f.mr, lote: f.lote, cuad: f.cuad || '', areaBase: Number(f.areaBase) || 0, areaDescontar: areaFila(f), manual: !!f.manual, todo: !!f.todo, dibujo: f.dibujo || [] }; }),
+        filas: (d.filas || []).map(function (f) { return { mr: f.mr, lote: f.lote, cuad: f.cuad || '', areaBase: Number(f.areaBase) || 0, areaDescontar: areaFila(f), manual: !!f.manual, todo: !!f.todo, dibujo: f.dibujo || [],
+            fotos: (f.fotos || []).filter(function (x) { return x && x.ruta; }).map(function (x) { return { ruta: x.ruta, pie: String(x.pie || '') }; }), imgActual: f.imgActual || '', imgDescontar: f.imgDescontar || '' }; }),
         area_descontar: t.descontar, estado: d.estado || 'borrador', actualizado: new Date().toISOString() };
 }
 export function deFila(r) {

@@ -116,3 +116,24 @@
     .dz-pie .dz-fila > button { flex: 1 1 100%; }
     .dz-fila > .primario { flex: 1 1 auto; }
 }
+
+/* Fotos que se están trayendo de la base (o que no llegaron) */
+.dz-foto-espera { height: 130px; border-radius: 8px; background: #f1f5f9; color: var(--muted); display: flex; align-items: center; justify-content: center; text-align: center; padding: 8px; font-size: 12px; box-sizing: border-box; }
+/* 👁 Ver un descuento guardado: el contenido se desplaza y el pie (Cerrar / Abrir) queda siempre a la vista */
+#dlg-ver { width: min(900px, calc(100% - 24px)); }
+#dlg-ver .cuerpo { display: flex; flex-direction: column; gap: 10px; max-height: calc(100dvh - 24px); box-sizing: border-box; }
+#dlg-ver h2, #dlg-ver .sub { margin: 0; }
+#dlg-ver .pie { margin-top: 4px; }
+#dlg-ver .pie button { min-height: 40px; }
+.dz-ver { overflow-y: auto; flex: 1; min-height: 0; display: grid; gap: 14px; align-content: start; }
+.dz-ver-titulo { margin: 0; font-weight: 650; }
+.dz-ver-lote { border: 1px solid var(--line); border-radius: 12px; padding: 12px; display: grid; gap: 10px; }
+.dz-ver-lote h3 { margin: 0; font-size: 15px; }
+.dz-ver-lote .dz-dato b { font-size: 16px; }
+.dz-ver-fotos { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 8px; }
+.dz-ver-fotos figure { margin: 0; display: grid; gap: 4px; }
+.dz-ver-fotos img { width: 100%; height: 110px; object-fit: cover; border-radius: 8px; display: block; }
+.dz-ver-fotos .dz-foto-espera { height: 110px; }
+.dz-ver-fotos figcaption { font-size: 12px; color: var(--muted); }
+.dz-ver-texto summary { cursor: pointer; font-weight: 600; }
+@media (max-width: 560px) { #dlg-ver .pie > * { flex: 1 1 auto; } .dz-ver-fotos { grid-template-columns: repeat(2, 1fr); } }

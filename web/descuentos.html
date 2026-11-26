@@ -74,11 +74,12 @@
             <h2 id="dz-titulo-form">💸 Nuevo descuento</h2>
             <div class="dz-fila">
                 <span class="sub" id="dz-guardado" role="status"></span>
+                <button type="button" class="secundario" id="dz-ir-historial" title="Ver, abrir, duplicar o borrar los descuentos guardados">📚 Descuentos hechos <span id="dz-ir-n"></span></button>
                 <button type="button" class="secundario" id="dz-nuevo">＋ Empezar otro</button>
             </div>
         </div>
         <p class="sub">El documento de descuento cuando una parte de un lote no se puede intervenir. Elija el tipo, agregue el lote, dibuje en el mapa el área que se descuenta
-            (la app calcula los m² y arma las imágenes), revise el texto, agregue las fotos y genere el PDF. Lo escrito se guarda solo como borrador en este equipo; las fotos no.</p>
+            (la app calcula los m² y arma las imágenes), revise el texto, agregue las fotos y genere el PDF. Mientras trabaja, lo escrito queda como borrador en este equipo; con «💾 Guardar en el historial» se guarda todo, fotos incluidas, y se puede volver a abrir en el computador o en el celular.</p>
 
         <div class="dz-paso">
             <h3><span class="dz-num">1</span> Tipo de descuento</h3>
@@ -182,7 +183,7 @@
         </div>
         <div id="dz-lista" class="dz-lista"></div>
     </section>
-    <p class="nota-privada">El membrete y las fotos quedan solo en este equipo. Los descuentos guardados (sin fotos) se ven en el historial del equipo de interventoría.</p>
+    <p class="nota-privada">El membrete queda solo en este equipo. Los descuentos guardados, con sus fotos, se ven en el historial del equipo de interventoría (almacenamiento privado, solo con sesión).</p>
 </main>
 <div class="toast" id="toast"></div>
 <!-- Vista previa: el PDF tal como sale, antes de descargarlo. Al cerrar se borra (no se guarda nada) -->
@@ -199,6 +200,19 @@
             <a class="boton secundario" id="dz-previa-abrir" target="_blank" rel="noopener" hidden>↗ Abrir en otra pestaña</a>
             <button type="button" class="secundario" id="dz-previa-word">⬇️ Descargar Word</button>
             <button type="button" class="primario" id="dz-previa-pdf" disabled>⬇️ Descargar este PDF</button>
+        </div>
+    </div>
+</dialog>
+<!-- 👁 Ver un descuento guardado sin abrirlo en el formulario. Al cerrar se borra lo mostrado -->
+<dialog id="dlg-ver" aria-labelledby="dz-ver-tit">
+    <div class="cuerpo">
+        <h2 id="dz-ver-tit"></h2>
+        <p class="sub" id="dz-ver-sub"></p>
+        <div id="dz-ver-cuerpo" class="dz-ver"></div>
+        <div class="pie">
+            <button type="button" class="secundario" id="dz-ver-cerrar">Cerrar</button>
+            <button type="button" class="secundario" id="dz-ver-duplicar">⧉ Duplicar</button>
+            <button type="button" class="primario" id="dz-ver-abrir">✏️ Abrir y editar</button>
         </div>
     </div>
 </dialog>

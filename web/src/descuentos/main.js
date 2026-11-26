@@ -17,7 +17,10 @@ import { areaM2, areaFila, areaActualizada, m2, buscarLote, textoSector, comunaD
     nombreArchivo, pieFotos, textoLotes, nuevoId, filasHistorial } from './descuentos.js';
 import { crearGuardado } from './guardado.js';
 import { prepararFormatoDescuento, membreteDeFormato, guardarArchivo, leerArchivo } from './formato.js';
+import { crearFotosDescuento, carpetaFila, nombreNuevo, metaDeMedios, rutasDe, sobrantes, contarFotos } from './fotosguardadas.js';
 
+// fotosBase: fotos en el almacenamiento de Supabase (0032); sin base de datos, null (las fotos quedan solo en pantalla)
+var fotosBase = configurado ? crearFotosDescuento(supabase) : null;
 var BORRADOR = 'desc_borrador', MEMBRETE = 'desc_membrete', MEMBRETE_REQ = 'req_membrete';
 var LOTES = window.direccionesLotes || {};
 // d: el descuento abierto. medios[i]: { actual, descontar (imágenes armadas o elegidas), fotos: [], clave (del dibujo con que se armaron) }
@@ -184,7 +187,8 @@ function pintarMedios() {
                 '<label class="boton secundario pequeno">📷 Agregar fotos<input type="file" accept="image/*" multiple data-fotos="' + i + '" hidden></label>' +
                 '<span class="sub">' + esc(pieFotos(f)) + ' · ' + plural((md.fotos || []).length, 'foto', 'fotos') + '</span></div>' +
             '<div class="dz-soltar" data-soltar="' + i + '">' + ((md.fotos || []).length ? '<div class="dz-fotos">' + md.fotos.map(function (x, k) {
-                return '<figure class="dz-foto"><span class="dz-foto-n">' + (k + 1) + '</span><img src="' + esc(x.url) + '" alt="Foto ' + (k + 1) + '">' +
+                return '<figure class="dz-foto"><span class="dz-foto-n">' + (k + 1) + '</span>' + (x.url ? '<img src="' + esc(x.url) + '" alt="Foto ' + (k + 1) + '">'
+                    : '<div class="dz-foto-espera">' + (x.cargando ? 'Trayendo…' : '⚠ No se pudo traer (sigue guardada)') + '</div>') +
                     '<input data-pie="' + i + '|' + k + '" value="' + esc(x.pie || '') + '" placeholder="Pie de foto (opcional)" aria-label="Pie de la foto ' + (k + 1) + '">' +
                     '<div class="dz-fila"><button type="button" class="secundario pequeno" data-mover="' + i + '|' + k + '|-1"' + (k ? '' : ' disabled') + ' aria-label="Subir la foto ' + (k + 1) + '">↑</button>' +
                     '<button type="button" class="secundario pequeno" data-mover="' + i + '|' + k + '|1"' + (k < md.fotos.length - 1 ? '' : ' disabled') + ' aria-label="Bajar la foto ' + (k + 1) + '">↓</button>' +
@@ -387,7 +391,7 @@ async function armarDoc(que, aviso) {
     pintarMedios();
     aviso(que === 'word' ? 'Generando el Word…' : 'Generando el PDF…');
     var imagenes = {}, fotos = {};
-    medios.forEach(function (md, k) { imagenes[k] = { actual: md.actual, descontar: md.descontar }; fotos[k] = md.fotos || []; });
+    medios.forEach(function (md, k) { imagenes[k] = { actual: md.actual, descontar: md.descontar }; fotos[k] = (md.fotos || []).filter(function (x) { return x.bytes; }); });
     var nFotos = Object.keys(fotos).reduce(function (s, k) { return s + fotos[k].length; }, 0), nombre = nombreArchivo(d);
     if (que === 'word') {
         var { armarDocxDescuento } = await import('./word.js');
@@ -451,19 +455,93 @@ function cerrarPrevia() {
     $('dz-previa-marco').removeAttribute('src');
     if (urlPrevia) { URL.revokeObjectURL(urlPrevia); urlPrevia = ''; }
 }
+// ---------- Fotos guardadas en la base (fotosguardadas.js, 0032) ----------
+// Sube las fotos y las imágenes elegidas que aún no tienen ruta. aviso(texto): el paso que va. Devuelve el error, si hubo
+async function subirMedios(aviso) {
+    if (!fotosBase) return null;
+    var cola = [];
+    medios.forEach(function (md, i) {
+        if (!md || !d.filas[i]) return;
+        (md.fotos || []).forEach(function (x) { if (x.bytes && !x.ruta) cola.push({ x: x, i: i }); });
+        ['actual', 'descontar'].forEach(function (k) { var im = md[k]; if (im && im.propia && im.bytes && !im.ruta) cola.push({ x: im, i: i }); });
+    });
+    for (var n = 0; n < cola.length; n++) {
+        aviso('Subiendo fotos ' + (n + 1) + ' de ' + cola.length + '…');
+        var c = cola[n], ruta = carpetaFila(d.id, d.filas[c.i]) + '/' + nombreNuevo(Date.now(), n);
+        try { c.x.ruta = await fotosBase.subir(ruta, c.x.bytes); } catch (e) { return e; }
+    }
+    return null;
+}
+// Trae de la base las fotos del descuento abierto. vez: si mientras tanto se abrió otro, no se mezclan
+var vezFotos = 0;
+async function cargarFotosGuardadas() {
+    var vez = ++vezFotos, total = rutasDe(d.filas).length;
+    if (!fotosBase || !total) return;
+    // Mientras llegan: el lugar de cada foto (con su pie) para que el orden no cambie
+    medios = d.filas.map(function (f, i) {
+        var md = medios[i] || { fotos: [] };
+        md.fotos = (f.fotos || []).map(function (x) { return { ruta: x.ruta, pie: x.pie || '', cargando: true }; });
+        return md;
+    });
+    pintarMedios();
+    $('dz-guardado').textContent = 'Trayendo ' + plural(total, 'foto', 'fotos') + ' de la base…';
+    var malas = 0;
+    var traer = async function (ruta) {
+        var blob = await fotosBase.bajar(ruta);
+        if (!blob) { malas++; return null; }
+        return { bytes: new Uint8Array(await blob.arrayBuffer()), tipo: 'jpg', url: URL.createObjectURL(blob), ruta: ruta };
+    };
+    for (var i = 0; i < d.filas.length; i++) {
+        var f = d.filas[i], md = medios[i];
+        for (var k = 0; k < md.fotos.length; k++) {
+            var x = md.fotos[k], t = await traer(x.ruta);
+            if (vez !== vezFotos) return;
+            md.fotos[k] = t ? Object.assign(t, { pie: x.pie, nombre: '' }) : { ruta: x.ruta, pie: x.pie, falta: true };
+            pintarMedios();
+        }
+        for (var q of [['imgActual', 'actual'], ['imgDescontar', 'descontar']]) {
+            if (!f[q[0]]) continue;
+            var im = await traer(f[q[0]]);
+            if (vez !== vezFotos) return;
+            // Si no llegó, la ruta se conserva (no se borra al guardar) y la imagen se vuelve a armar con el mapa
+            md[q[1]] = im ? Object.assign(im, { propia: true }) : null;
+            if (!im) md['falta_' + q[1]] = f[q[0]];
+        }
+    }
+    pintarMedios();
+    $('dz-guardado').textContent = malas ? '⚠ ' + plural(malas, 'foto no se pudo traer', 'fotos no se pudieron traer') + ' (¿sin señal?). Siguen guardadas: vuelva a abrir el descuento.' : '✓ Fotos traídas de la base.';
+}
 async function guardarHistorial() {
     leerForm();
     if (!d.filas.length) return toast('Agregue al menos un lote antes de guardar.');
-    var b = $('dz-guardar'); b.disabled = true;
+    var b = $('dz-guardar'), texto0 = b.textContent; b.disabled = true;
     try {
+        var errFotos = await subirMedios(function (t) { b.textContent = t; });
+        b.textContent = 'Guardando…';
+        // En cada fila: las rutas de sus fotos (lo que no se pudo traer se conserva para no borrarlo)
+        d.filas.forEach(function (f, i) {
+            var md = medios[i] || {}, m = metaDeMedios(md);
+            f.fotos = m.fotos;
+            f.imgActual = m.imgActual || md.falta_actual || '';
+            f.imgDescontar = m.imgDescontar || md.falta_descontar || '';
+        });
+        var previo = historial.filter(function (h) { return h.id === d.id; })[0];
         var r = await guardado.guardar(d);
         donde(r);
+        // Ya guardado en la base: se borran del almacenamiento las fotos que se quitaron
+        if (r.donde === 'base' && previo && fotosBase) {
+            var sob = sobrantes(rutasDe(previo.filas), rutasDe(d.filas));
+            if (sob.length) fotosBase.borrar(sob).catch(function () { /* quedan sueltas; no afecta el descuento */ });
+        }
         d.creado = d.creado || new Date().toISOString();
         guardar(BORRADOR, d);
         $('dz-titulo-form').textContent = '💸 Descuento guardado · ' + tipo(d.tipo).nombre;
-        toast(r.donde === 'base' ? '✓ Guardado en el historial (se ve en el celular y en el equipo).' : '✓ Guardado en este equipo. ' + (r.aviso || ''));
+        var nF = contarFotos(d.filas);
+        toast(errFotos ? '⚠ ' + errFotos.message
+            : r.donde === 'base' ? '✓ Guardado en el historial con ' + plural(nF, 'foto', 'fotos') + ' (se ve en el celular y en el equipo).' : '✓ Guardado en este equipo (sin las fotos). ' + (r.aviso || ''));
+        pintarMedios();
     } catch (e) { toast('No se guardó: ' + e.message); }
-    finally { b.disabled = false; }
+    finally { b.disabled = false; b.textContent = texto0; }
 }
 function donde(r) {
     historial = r.lista;
@@ -488,19 +566,22 @@ function pintarHistorial() {
     $('dz-cuenta').innerHTML = [[ver.length, plural(ver.length, 'descuento', 'descuentos').replace(/^\d+ /, '')], [ver.reduce(function (s, x) { return s + x.filas.length; }, 0), 'lotes'],
         [m2(tot) + ' m²', 'descontados'], [ver.filter(function (x) { return x.estado === 'emitido'; }).length, 'emitidos'], [ver.filter(function (x) { return x.estado !== 'emitido'; }).length, 'borradores']]
         .map(function (c) { return '<div class="dz-dato"><b>' + c[0] + '</b><span>' + c[1] + '</span></div>'; }).join('');
+    $('dz-ir-n').textContent = historial.length ? '(' + historial.length + ')' : '';
     $('dz-lista').innerHTML = ver.length ? ver.map(function (x) {
         var t = tipo(x.tipo);
         return '<article class="dz-item' + (d && d.id === x.id ? ' abierto' : '') + '"><div class="dz-item-cab"><b>' + t.icono + ' ' + esc(t.nombre) + ' · ' + esc(textoLotes(x.filas) || 'sin lotes') + '</b>' +
             '<span class="dz-estado ' + (x.estado === 'emitido' ? 'ok' : '') + '">' + (x.estado === 'emitido' ? 'Emitido' : 'Borrador') + '</span></div>' +
-            '<div class="sub">' + esc(aTexto(x.fecha) || 'sin fecha') + ' · ' + m2(totales(x.filas).descontar) + ' m² a descontar' + (x.sector ? ' · ' + esc(x.sector) : '') + (x.pendiente ? ' · solo en este equipo' : '') + '</div>' +
-            '<div class="dz-fila"><button type="button" class="secundario pequeno" data-abrir="' + esc(x.id) + '">Abrir</button>' +
+            '<div class="sub">' + esc(aTexto(x.fecha) || 'sin fecha') + ' · ' + m2(totales(x.filas).descontar) + ' m² a descontar' + (x.sector ? ' · ' + esc(x.sector) : '') + (contarFotos(x.filas) ? ' · 📷 ' + plural(contarFotos(x.filas), 'foto', 'fotos') : '') + (x.pendiente ? ' · solo en este equipo' : '') + '</div>' +
+            '<div class="dz-fila"><button type="button" class="secundario pequeno" data-ver="' + esc(x.id) + '">👁 Ver</button>' +
+            '<button type="button" class="secundario pequeno" data-abrir="' + esc(x.id) + '">✏️ Abrir y editar</button>' +
+            '<button type="button" class="secundario pequeno" data-duplicar="' + esc(x.id) + '">⧉ Duplicar</button>' +
             '<button type="button" class="secundario pequeno" data-borrar="' + esc(x.id) + '">✕ Borrar</button></div></article>';
     }).join('') : '<p class="sub">' + (historial.length ? 'Ningún descuento con esos filtros.' : 'Aún no hay descuentos guardados.') + '</p>';
 }
 async function abrirHistorial(id) {
     var x = historial.filter(function (h) { return h.id === id; })[0];
     if (!x) return;
-    if (d && d.filas.length && !(await confirmar('Abrir el descuento', 'Se cierra el que está en el formulario (su borrador se reemplaza; lo guardado en el historial sigue ahí). Las fotos no se guardan: habrá que volver a ponerlas.', 'Abrir'))) return;
+    if (d && d.filas.length && !(await confirmar('Abrir el descuento', 'Se cierra el que está en el formulario (su borrador se reemplaza; lo guardado en el historial sigue ahí, con sus fotos).', 'Abrir'))) return;
     d = JSON.parse(JSON.stringify(x));
     delete d.pendiente;
     d.filas.forEach(function (f) { if (!LOTES[f.mr]) return; f.dir = f.dir || LOTES[f.mr].d || ''; });
@@ -510,7 +591,68 @@ async function abrirHistorial(id) {
     pintarTodo();
     if (d.filas.length) await abrirDibujo(0); else $('dz-dibujo').hidden = true;
     $('dz-form').scrollIntoView({ block: 'start', behavior: 'smooth' });
-    toast('Descuento abierto. Las imágenes del mapa se vuelven a armar al generar el PDF; las fotos hay que ponerlas otra vez.');
+    var nF = contarFotos(d.filas);
+    toast('Descuento abierto' + (nF ? ': trayendo ' + plural(nF, 'foto', 'fotos') + '.' : '. Las imágenes del mapa se vuelven a armar al generar el PDF.'));
+    cargarFotosGuardadas();
+}
+// 👁 Ver un descuento guardado sin tocar el formulario: lotes, áreas, cómo se midió, textos y fotos.
+// Al cerrar se borra lo mostrado; si se cierra mientras traía las fotos, no se mezcla con el siguiente
+var vezVer = 0, verId = '';
+async function verHistorial(id) {
+    var x = historial.filter(function (h) { return h.id === id; })[0];
+    if (!x) return;
+    var vez = ++vezVer, t = tipo(x.tipo), tot = totales(x.filas), nF = contarFotos(x.filas);
+    verId = id;
+    $('dz-ver-tit').textContent = t.icono + ' ' + t.nombre + ' · ' + (textoLotes(x.filas) || 'sin lotes');
+    $('dz-ver-sub').textContent = (aTexto(x.fecha) || 'sin fecha') + ' · ' + (x.estado === 'emitido' ? 'Emitido' : 'Borrador') + (x.sector ? ' · ' + x.sector : '') +
+        ' · ' + m2(tot.descontar) + ' m² a descontar' + (x.actualizado ? ' · guardado el ' + new Date(x.actualizado).toLocaleString('es-CO', { dateStyle: 'short', timeStyle: 'short' }) : '');
+    var como = function (f) { return f.manual ? 'escrita a mano' : f.todo ? 'todo el lote' : (f.dibujo || []).length >= 3 ? 'dibujo en el mapa' : 'sin medir'; };
+    $('dz-ver-cuerpo').innerHTML = (x.textos && x.textos.titulo ? '<p class="dz-ver-titulo">' + esc(x.textos.titulo) + '</p>' : '') +
+        x.filas.map(function (f, i) {
+            return '<section class="dz-ver-lote"><h3>' + esc(f.mr + (f.lote ? ' - ' + f.lote : '')) + (f.cuad ? ' <span class="sub">· cuadrilla ' + esc(f.cuad) + '</span>' : '') + '</h3>' +
+                '<div class="dz-cuenta">' + [[m2(f.areaBase || 0) + ' m²', 'área base'], [m2(areaFila(f)) + ' m²', 'a descontar'], [m2(areaActualizada(f)) + ' m²', 'quedan'], [como(f), 'cómo se midió']]
+                    .map(function (c) { return '<div class="dz-dato"><b>' + esc(c[0]) + '</b><span>' + c[1] + '</span></div>'; }).join('') + '</div>' +
+                ((f.fotos || []).length ? '<div class="dz-ver-fotos" data-ver-fila="' + i + '">' + f.fotos.map(function (p, k) {
+                    return '<figure><div class="dz-foto-espera" data-ver-ruta="' + esc(p.ruta) + '">Trayendo…</div>' + (p.pie ? '<figcaption>' + esc(p.pie) + '</figcaption>' : '') + '</figure>';
+                }).join('') + '</div>' : '<p class="sub">' + (nF ? 'Este lote no tiene fotos.' : 'Sin fotos guardadas.') + '</p>') + '</section>';
+        }).join('') +
+        (x.textos && x.textos.conclusion ? '<details class="dz-ver-texto"><summary>Conclusión del documento</summary><p>' + esc(x.textos.conclusion) + '</p></details>' : '');
+    $('dlg-ver').showModal();
+    if (!nF || !fotosBase) {
+        if (nF) document.querySelectorAll('#dz-ver-cuerpo [data-ver-ruta]').forEach(function (el) { el.textContent = 'Sin conexión con la base'; });
+        return;
+    }
+    try {
+        var urls = await fotosBase.urls(rutasDe(x.filas));
+        if (vez !== vezVer || !$('dlg-ver').open) return;
+        document.querySelectorAll('#dz-ver-cuerpo [data-ver-ruta]').forEach(function (el) {
+            var u = urls[el.dataset.verRuta];
+            if (u) { var img = document.createElement('img'); img.src = u; img.alt = 'Foto del lote'; img.loading = 'lazy'; el.replaceWith(img); }
+            else el.textContent = '⚠ No se encontró';
+        });
+    } catch (e) {
+        if (vez === vezVer) document.querySelectorAll('#dz-ver-cuerpo [data-ver-ruta]').forEach(function (el) { el.textContent = '⚠ ' + e.message; });
+    }
+}
+// ⧉ Duplicar: el mismo tipo, textos, campos, sector y lotes, como un descuento nuevo (borrador, fecha de hoy) y sin las fotos
+// (son de la visita anterior). Se cambia lo que haga falta y se guarda aparte
+async function duplicar(id) {
+    var x = historial.filter(function (h) { return h.id === id; })[0];
+    if (!x) return;
+    if (d && d.filas.length && !(await confirmar('Duplicar el descuento', 'Se cierra el que está en el formulario (lo guardado en el historial sigue ahí) y se abre una copia de este, sin las fotos.', 'Duplicar'))) return;
+    if ($('dlg-ver').open) $('dlg-ver').close();
+    var c = JSON.parse(JSON.stringify(x));
+    ['creado', 'actualizado', 'usuario', 'pendiente'].forEach(function (k) { delete c[k]; });
+    d = Object.assign(vacio(), c, { id: nuevoId(), estado: 'borrador', fecha: hoy() });
+    d.filas.forEach(function (f) { f.fotos = []; f.imgActual = ''; f.imgDescontar = ''; if (LOTES[f.mr]) f.dir = f.dir || LOTES[f.mr].d || ''; });
+    medios = d.filas.map(function () { return { fotos: [] }; });
+    activa = -1; vezFotos++;
+    guardar(BORRADOR, d);
+    pintarTodo(); pintarHistorial();
+    $('dz-titulo-form').textContent = '💸 Copia de ' + tipo(d.tipo).nombre + ' (sin guardar)';
+    if (d.filas.length) await abrirDibujo(0); else $('dz-dibujo').hidden = true;
+    $('dz-form').scrollIntoView({ block: 'start', behavior: 'smooth' });
+    toast('Copia lista, sin fotos: cambie el lote o lo que haga falta, agregue las fotos y toque «Guardar en el historial».');
 }
 async function excelHistorial() {
     var ver = historial.filter(pasa);
@@ -532,7 +674,7 @@ async function excelHistorial() {
 
 async function empezarOtro() {
     if (d.filas.length && !(await confirmar('Empezar otro descuento', 'Se borra el formulario (si no lo guardó en el historial, se pierde) y las fotos.', 'Empezar otro'))) return;
-    d = vacio(); medios = []; activa = -1;
+    d = vacio(); medios = []; activa = -1; vezFotos++;
     quitar(BORRADOR);
     $('dz-dibujo').hidden = true; $('dz-buscar-estado').textContent = ''; $('dz-guardado').textContent = '';
     pintarTodo(); pintarHistorial();
@@ -551,7 +693,7 @@ async function arrancar() {
     var b = leer(BORRADOR, null);
     d = b && b.filas ? Object.assign(vacio(), b) : vacio();
     medios = d.filas.map(function () { return { fotos: [] }; });
-    if (b && b.filas && b.filas.length) $('dz-guardado').textContent = 'Se abrió el borrador de este equipo (sin las fotos).';
+    if (b && b.filas && b.filas.length) $('dz-guardado').textContent = 'Se abrió el borrador de este equipo' + (rutasDe(d.filas).length ? '.' : ' (las fotos se guardan al tocar «Guardar en el historial»).');
 
     $('dz-tipos').onclick = function (ev) {
         var t = ev.target.closest('[data-tipo]');
@@ -665,17 +807,30 @@ async function arrancar() {
     };
     $('dz-membrete-quitar').onclick = function () { quitar(MEMBRETE); pintarMembrete(); };
     $('dz-lista').addEventListener('click', async function (ev) {
-        var ab = ev.target.closest('[data-abrir]'), bo = ev.target.closest('[data-borrar]');
+        var ab = ev.target.closest('[data-abrir]'), bo = ev.target.closest('[data-borrar]'), vr = ev.target.closest('[data-ver]'), du = ev.target.closest('[data-duplicar]');
         if (ab) abrirHistorial(ab.dataset.abrir);
+        if (vr) verHistorial(vr.dataset.ver);
+        if (du) duplicar(du.dataset.duplicar);
         if (bo) {
             var x = historial.filter(function (h) { return h.id === bo.dataset.borrar; })[0];
-            if (!x || !(await confirmar('Borrar el descuento', tipo(x.tipo).nombre + ' · ' + textoLotes(x.filas) + ' (' + m2(totales(x.filas).descontar) + ' m²). Deja de contar en los totales.', 'Borrar'))) return;
-            try { donde(await guardado.borrar(x.id)); toast('Descuento borrado.'); } catch (e) { toast(e.message); }
+            if (!x || !(await confirmar('Borrar el descuento', tipo(x.tipo).nombre + ' · ' + textoLotes(x.filas) + ' (' + m2(totales(x.filas).descontar) + ' m²). Deja de contar en los totales' + (contarFotos(x.filas) ? ' y se borran sus ' + plural(contarFotos(x.filas), 'foto', 'fotos') : '') + '.', 'Borrar'))) return;
+            try {
+                donde(await guardado.borrar(x.id));
+                var rutas = rutasDe(x.filas);
+                if (rutas.length && fotosBase) await fotosBase.borrar(rutas).catch(function () { /* quedan sueltas en el almacenamiento */ });
+                toast('Descuento borrado.');
+            } catch (e) { toast(e.message); }
         }
     });
     ['dz-f-tipo', 'dz-f-mes', 'dz-f-estado'].forEach(function (id) { $(id).onchange = pintarHistorial; });
     $('dz-f-buscar').oninput = pintarHistorial;
     $('dz-excel').onclick = excelHistorial;
+    $('dz-ir-historial').onclick = function () { $('dz-historial').scrollIntoView({ block: 'start', behavior: 'smooth' }); };
+    $('dz-ver-cerrar').onclick = function () { $('dlg-ver').close(); };
+    $('dz-ver-abrir').onclick = function () { var id = verId; $('dlg-ver').close(); abrirHistorial(id); };
+    $('dz-ver-duplicar').onclick = function () { var id = verId; $('dlg-ver').close(); duplicar(id); };
+    $('dlg-ver').addEventListener('click', function (ev) { if (ev.target === this) this.close(); });
+    $('dlg-ver').addEventListener('close', function () { vezVer++; verId = ''; $('dz-ver-cuerpo').innerHTML = ''; $('dz-ver-tit').textContent = ''; $('dz-ver-sub').textContent = ''; });
     $('btn-recargar').onclick = async function () { donde(await guardado.leer()); toast('Actualizado.'); };
 
     $('estado').hidden = true; $('dz-form').hidden = false; $('dz-historial').hidden = false;
@@ -684,6 +839,7 @@ async function arrancar() {
     pintarTodo(); pintarMembrete();
     cargarFormato();
     if (d.filas.length) abrirDibujo(0);
+    cargarFotosGuardadas();
     donde(await guardado.leer());
 }
 arrancar();
