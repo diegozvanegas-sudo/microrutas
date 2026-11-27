@@ -46,3 +46,17 @@ test('pendiente: NO en amarillo y fecha y días en blanco', () => {
     assert.equal(f['DÍAS TRANSCURRIDOS (VISITA A CORRECCIÓN)'].v, '');
     assert.equal(f['DÍAS TRANSCURRIDOS (VISITA A CORRECCIÓN)'].fondo, null);
 });
+
+test('lote ejecutado sin novedad: NA en FECHA DE CORRECCION; pendiente y cerrado en blanco', () => {
+    const ITS_EJ = ['PLATEO', 'BORDEO'];
+    fijarItems(ITS_EJ, ITS);
+    const ej = (o) => ({ TIPO: 'EJECUCIÓN', MICRORRUTA: 'Z1CC0053', LOTE: '59', 'ÁREA M2': '1.254', ZONA: '1', CUADRILLA: '4', 'FECHA DE EJECUCIÓN': '25/11/2026',
+        'FECHA DE LA VISITA': '26/11/2026', INTERVENTOR: 'SMA', PLATEO: 'SI', BORDEO: 'SI', ...o });
+    const h = hojasExcel([ej({ ESTADO: 'SIN NOVEDAD' }), ej({ ESTADO: 'PENDIENTE', LOTE: '60', PLATEO: 'NO' }), ej({ ESTADO: 'CERRADO', LOTE: '61', 'OBSERVACIONES NOVEDADES': 'LOTE CERRADO', PLATEO: 'N/A', BORDEO: 'N/A' })], ITS_EJ, ITS)[0];
+    const col = h.cab.indexOf('FECHA DE CORRECCION'), lote = h.cab.indexOf('LOTE');
+    const por = Object.fromEntries(h.filas.map((f) => [f.v[lote], f.v[col]]));
+    assert.equal(por['59'], 'NA');
+    assert.equal(por['60'], '');
+    assert.equal(por['61'], '');
+    fijarItems([], ITS);
+});

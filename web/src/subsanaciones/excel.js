@@ -58,7 +58,8 @@ function armarHoja(nombre, lista, its, op) {
                 if (c === obs) return op && dt === 0 ? textoObservacion(r).replace(/^NOVEDAD SUBSANADA EL \S+/, 'NOVEDAD SUBSANADA INMEDIATAMENTE') : textoObservacion(r);
                 if (c === cant) return nov;
                 if (c === CLASIF_CAB) return CLASIF;
-                if (c === F_CORR) return na ? 'NA' : r.ESTADO === 'SUBSANADO' ? String(r['FECHA SUBSANACIÓN'] || '') : '';
+                // Sin novedad no hay nada que corregir: NA (también en lote ejecutado; el lote cerrado o no realizado queda en blanco)
+                if (c === F_CORR) return na || r.ESTADO === 'SIN NOVEDAD' ? 'NA' : r.ESTADO === 'SUBSANADO' ? String(r['FECHA SUBSANACIÓN'] || '') : '';
                 if (c === DIAS_T) return na ? 'NA' : op && dt === 'Pendiente' ? '' : dt;
                 if (c === 'ÁREA M2') return numeroArea(r[c]);
                 return String(r[c] || '');
